@@ -1,0 +1,1120 @@
+{
+  "FaultIsolation": {
+    "RetrySeconds": 5,
+    "ErrorLimit": 3,
+    "WindowSeconds": 60
+  },
+  "CoverScan": {
+    "Enabled": true,
+    "MaxScanSeconds": 10
+  },
+  "MovementRecovery": {
+    "Enabled": true,
+    "Teleport": false,
+    "SampleInterval": 0.5,
+    "ProgressDistance": 0.6,
+    "EarlyJumpAfter": 1,
+    "RepathAfter": 3,
+    "JumpAfter": 5,
+    "TeleportAfter": 8,
+    "StopAfter": 14,
+    "TeleportDistance": 2,
+    "HumanDistance": 50
+  },
+  "DoorClosing": {
+    "Enabled": false,
+    "OpenGrace": 6,
+    "OccupiedRadius": 1.5,
+    "FailedRetry": 10
+  },
+  "DoorMotion": {
+    "Enabled": true,
+    "PushAway": true,
+    "StuckDelay": 1.5,
+    "LeafDistance": 1.2,
+    "SwingDuration": 0.5,
+    "HumanClearance": 2.5
+  },
+  "DoorSpatial": {
+    "Enabled": true,
+    "Clearance": 0.55
+  },
+  "DoorRecovery": {
+    "Enabled": true,
+    "SuspicionDelay": 1.2,
+    "BotAnimationGrace": 8,
+    "StableDuration": 0.5,
+    "SampleInterval": 0.25,
+    "UncertaintyLimit": 5
+  },
+  "DoorTransit": {
+    "Enabled": true,
+    "Anticipation": 3,
+    "SlowDistance": 1.5,
+    "SpeedCap": 0.25,
+    "BlockedLimit": 4
+  },
+  "Outcomes": {
+    "Enabled": true,
+    "EvaluationWindow": 6,
+    "MinimumResults": 2,
+    "PenaltyCap": 10,
+    "BonusCap": 5,
+    "Retention": 30
+  },
+  "Encounter": {
+    "Enabled": true,
+    "Appearances": 3,
+    "Window": 20,
+    "PositionTolerance": 2,
+    "HeightTolerance": 1,
+    "SightConfirmation": 0.2,
+    "SightLoss": 0.5,
+    "ScoreCap": 15,
+    "Retention": 30
+  },
+  "SecondaryEntrance": {
+    "Enabled": true,
+    "AllowEntry": true,
+    "WatchMin": 10,
+    "WatchMax": 15,
+    "Extension": 5,
+    "StandOff": 2.5,
+    "MaxPath": 35,
+    "ContactAge": 8,
+    "MinimumAmmo": 50,
+    "GigaChad": 85,
+    "Chad": 75,
+    "Wreckless": 85,
+    "Normal": 40,
+    "Rat": 0,
+    "SnappingTurtle": 0,
+    "Coward": 0,
+    "Timmy": 0,
+    "Retry": 30
+  },
+  "SquadManeuver": {
+    "Enabled": true,
+    "Chance": 60,
+    "SquadDistance": 35,
+    "MinDistance": 15,
+    "MaxDistance": 80,
+    "ContactAge": 8,
+    "ConfirmTimeout": 3,
+    "Duration": 25,
+    "StallTimeout": 3,
+    "Retry": 25,
+    "MinimumAmmo": 50,
+    "CautiousFlank": false,
+    "RearWatch": true
+  },
+  "RestLights": {
+    "Enabled": true,
+    "HoldDelay": 2,
+    "MaxSpeed": 0.5,
+    "EpisodeInterval": 10
+  },
+  "TacticalDevices": {
+    "Enabled": true,
+    "CommandInterval": 0.25,
+    "ConfirmationTimeout": 0.8,
+    "AttemptsBeforePause": 2,
+    "InitialPause": 5,
+    "MaximumPause": 60
+  },
+  "LightDiscipline": {
+    "Enabled": true,
+    "ContactLifetime": 15,
+    "MaxDistance": 60,
+    "MaxSpeed": 0.5,
+    "HoldDelay": 0.5,
+    "HiddenDelay": 1,
+    "VisibleDelay": 0.25
+  },
+  "SquadVoice": {
+    "Mode": "Normal",
+    "Chance": 50,
+    "BotDelay": 5,
+    "SquadDelay": 2
+  },
+  "SquadFire": {
+    "Enabled": true,
+    "Interval": 0.05,
+    "Prediction": 0.3,
+    "PredictionRadius": 0.55,
+    "BodyRadius": 0.2,
+    "ClearDelay": 0.1
+  },
+  "FireLane": {
+    "Enabled": true,
+    "Width": 0.9,
+    "Prediction": 0.3,
+    "Refresh": 0.1,
+    "ShotGrace": 0.2,
+    "MaxHold": 0.8,
+    "SideDistance": 1.2,
+    "Retry": 1
+  },
+  "SquadStorm": {
+    "Enabled": true,
+    "Weakness": 0.5,
+    "SquadDistance": 35,
+    "MaxPath": 40,
+    "ContactAge": 5,
+    "MinimumAttackers": 2,
+    "PrepareTimeout": 1.5,
+    "Duration": 10,
+    "MinimumAmmo": 50,
+    "Retry": 20,
+    "GigaChad": 100,
+    "Chad": 100,
+    "Wreckless": 100,
+    "Normal": 80,
+    "Timmy": 60,
+    "Rat": 35,
+    "SnappingTurtle": 35,
+    "Coward": 10
+  },
+  "SquadTrade": {
+    "Enabled": true,
+    "Window": 10,
+    "DelayMin": 0.3,
+    "DelayMax": 0.8,
+    "ContactAge": 5,
+    "MaxDistance": 40,
+    "MaxPath": 25,
+    "Duration": 15,
+    "StallTimeout": 3,
+    "MinimumAmmo": 50,
+    "AggressiveChance": 60,
+    "OtherChance": 20
+  },
+  "CoverMate": {
+    "Enabled": true,
+    "MateDistance": 20,
+    "Near": 3,
+    "Far": 6,
+    "MaxPath": 15,
+    "Protectors": 2,
+    "Duration": 15,
+    "SurgeryDuration": 60,
+    "StallTimeout": 3,
+    "ReadyDelay": 0.2,
+    "Retry": 4
+  },
+  "Crossfire": {
+    "Enabled": true,
+    "Interval": 0.5,
+    "SupportDistance": 35,
+    "EnemyDistance": 80,
+    "ContactAge": 8,
+    "OutdoorAngle": 35,
+    "IndoorAngle": 20,
+    "Spacing": 4,
+    "MaxPath": 35,
+    "MoveTimeout": 12,
+    "StallTimeout": 3,
+    "HoldTimeout": 20,
+    "SupportGrace": 2,
+    "Retry": 4,
+    "Participation": 70
+  },
+  "ReadyStance": {
+    "Enabled": true,
+    "OrdinaryDuration": 15,
+    "NearbyDuration": 25,
+    "NearbyDistance": 40,
+    "CueFreshness": 5,
+    "Interval": 0.25
+  },
+  "PostCombat": {
+    "Enabled": true,
+    "Interval": 0.25,
+    "ReloadBelow": 70,
+    "WatchMin": 3,
+    "WatchMax": 6,
+    "CoverRadius": 25,
+    "RegroupDistance": 25,
+    "AdvanceMin": 4,
+    "AdvanceMax": 40,
+    "Duration": 14,
+    "MedicalDuration": 60,
+    "AdvanceChances": {
+      "Wreckless": 85,
+      "GigaChad": 80,
+      "Chad": 65,
+      "Normal": 40,
+      "Timmy": 30,
+      "Rat": 10,
+      "SnappingTurtle": 10,
+      "Coward": 0
+    }
+  },
+  "MedicalPosture": {
+    "Enabled": true,
+    "Interval": 0.1,
+    "ResumeDelay": 0.2
+  },
+  "SurgeryInterruption": {
+    "Enabled": true,
+    "Interval": 0.1,
+    "VisibleDistance": 40,
+    "KnownDistance": 20,
+    "KnownAge": 3,
+    "FootstepDistance": 15,
+    "FootstepAge": 2,
+    "RetryDelay": 8
+  },
+  "MedicalChoice": {
+    "Enabled": true,
+    "Interval": 0.5,
+    "HitDelay": 2,
+    "EmergencyStimDelay": 0.5,
+    "StimHealth": 0.35,
+    "FootstepAge": 5,
+    "FootstepDistance": 30,
+    "SurgeryQuiet": 25,
+    "SurgeryDistance": 40,
+    "RetryDelay": 3
+  },
+  "ExplosionAwareness": {
+    "Enabled": true,
+    "NearDistance": 25,
+    "LookDuration": 3,
+    "LookInterval": 8
+  },
+  "FlashContinuity": {
+    "Enabled": true
+  },
+  "GasExposure": {
+    "Enabled": true,
+    "RampIn": 4,
+    "Recovery": 8,
+    "Refresh": 0.25,
+    "CoughInterval": 3.5,
+    "AttemptDuration": 5,
+    "RetryDelay": 2
+  },
+  "GrenadeFilter": {
+    "Enabled": true,
+    "AllowFlash": true
+  },
+  "GrenadeReaction": {
+    "Enabled": true,
+    "DangerMargin": 1,
+    "ExitPadding": 4,
+    "ScatterDistance": 14,
+    "RetreatDistance": 22,
+    "Refresh": 0.1,
+    "Commitment": 1.5
+  },
+  "GrenadeDispersion": {
+    "Enabled": true,
+    "Spacing": 3,
+    "MemberRange": 25
+  },
+  "OwnGrenadeSafety": {
+    "Enabled": true,
+    "DangerMargin": 1,
+    "ExitPadding": 4,
+    "DepartureGrace": 0.35,
+    "Refresh": 0.1
+  },
+  "GrenadeChoice": {
+    "Enabled": true,
+    "PreferShortIndoors": true,
+    "ShortFuseDistance": 20,
+    "MinimumFuse": 2.5,
+    "ArrivalMargin": 0.75
+  },
+  "GrenadeTrajectory": {
+    "Enabled": true,
+    "Corners": true,
+    "Doors": true,
+    "Distance": 40,
+    "CornerDistance": 5,
+    "DoorDepthFirst": 1.8,
+    "DoorDepthSecond": 1.2,
+    "DoorDepthThird": 2.6,
+    "PreparedLifetime": 0.25
+  },
+  "GrenadeJudgment": {
+    "Enabled": true,
+    "BaseChance": 50,
+    "CampSeconds": 6,
+    "CampBonus": 30,
+    "RoomBonus": 10,
+    "VulnerableBonus": 15,
+    "LastGrenadePenalty": 20,
+    "FadeStart": 4,
+    "NoArcRetry": 1.5,
+    "RetryMin": 3,
+    "RetryMax": 6
+  },
+  "HandsRecovery": {
+    "Enabled": true,
+    "ReloadStaleSeconds": 6,
+    "GrenadeStaleSeconds": 2,
+    "CheckSeconds": 0.5,
+    "RetrySeconds": 2,
+    "MaxAttempts": 2
+  },
+  "RecoilRecovery": {
+    "Enabled": false,
+    "DmrMultiplier": 3,
+    "SniperMultiplier": 3
+  },
+  "ShotGeometry": {
+    "Enabled": true,
+    "CacheSeconds": 0.15,
+    "MuzzleMovement": 0.25,
+    "DirectionDegrees": 5,
+    "AllowPenetration": true
+  },
+  "SuppressionDiscipline": {
+    "Enabled": true,
+    "ContactAge": 3,
+    "BurstRounds": 5,
+    "PauseSeconds": 3,
+    "ReservePercent": 60,
+    "SequenceSeconds": 6
+  },
+  "WeaponSync": {
+    "Enabled": true,
+    "BackupSeconds": 5
+  },
+  "WeaponRange": {
+    "Enabled": true,
+    "LongDistance": 80,
+    "CloseDistance": 45,
+    "VisualMemory": 2,
+    "StableSeconds": 1,
+    "SinceShot": 1,
+    "LostContactSeconds": 20
+  },
+  "QuickReload": {
+    "Enabled": true,
+    "MaxAmmoPercent": 30,
+    "ThreatDistance": 35,
+    "ContactMemory": 3,
+    "MinimumSpareMagazines": 2
+  },
+  "WeaponReturn": {
+    "Enabled": true,
+    "MinimumHold": 3,
+    "CalmDelay": 6,
+    "DistanceMargin": 15,
+    "PistolReturnDelay": 5,
+    "RetryDelay": 3
+  },
+  "PistolSwap": {
+    "Enabled": true,
+    "MaxDistance": 30,
+    "LowAmmoPercent": 10,
+    "MaxMainRounds": 3,
+    "ContactMemory": 1.5,
+    "RetryDelay": 3
+  },
+  "ReloadTiming": {
+    "Enabled": true,
+    "ConsiderBelow": 80,
+    "CriticalBelow": 20,
+    "CloseDistance": 25,
+    "LostContactDelay": 2,
+    "Commitment": 0.6,
+    "RetryDelay": 2
+  },
+  "CoverTravel": {
+    "Enabled": true,
+    "CloseDistance": 12,
+    "VisionAge": 4,
+    "ShortDash": 8,
+    "FaceLimit": 2,
+    "Stability": 0.6,
+    "Refresh": 0.25
+  },
+  "AdsTravel": {
+    "Enabled": true,
+    "Cover": true,
+    "Retreat": true,
+    "Flee": true,
+    "Push": true,
+    "SinceShot": 0.3,
+    "Stability": 0.4,
+    "Refresh": 0.1
+  },
+  "RetreatWeave": {
+    "Enabled": true,
+    "Weave": true,
+    "HeadDown": true,
+    "Jumps": true,
+    "Angle": 30,
+    "SwitchMin": 0.45,
+    "SwitchMax": 0.8,
+    "Pitch": 55,
+    "Distance": 80,
+    "SwitchJumpChance": 20,
+    "LandingJumpChance": 60,
+    "JumpMinSpeed": 3.8,
+    "Refresh": 0.1
+  },
+  "CoverFeint": {
+    "Enabled": true,
+    "BaitPeek": true,
+    "MagazineCheck": true,
+    "Jump": true,
+    "PeekChance": 35,
+    "MagazineChance": 30,
+    "MinDistance": 5,
+    "MaxDistance": 40,
+    "MagazineDistance": 20,
+    "SightLoss": 2,
+    "Memory": 10,
+    "MinStep": 0.9,
+    "MaxStep": 2,
+    "ExposureMin": 0.2,
+    "ExposureMax": 0.35,
+    "Peeks": 2,
+    "HoldMin": 4,
+    "HoldMax": 7,
+    "RetryDelay": 20
+  },
+  "OutdoorRelocation": {
+    "Enabled": true,
+    "Grenade": true,
+    "Chance": 70,
+    "SightLoss": 1.5,
+    "MinDistance": 5,
+    "MaxDistance": 17,
+    "MaxPath": 26,
+    "PreferredAngle": 25,
+    "MoveTimeout": 12,
+    "SessionTimeout": 30,
+    "RetryDelay": 20
+  },
+  "TacticalJump": {
+    "Enabled": true,
+    "NativeRush": true,
+    "AirShotChance": 25,
+    "RushMinSpeed": 2,
+    "MinimumStamina": 0,
+    "TakeoffTimeout": 0.5,
+    "SafetyRefresh": 0.1
+  },
+  "HoldAngle": {
+    "Enabled": true,
+    "AdjustPose": true,
+    "Delay": 1,
+    "MaxStep": 1.5,
+    "Spacing": 0.3,
+    "Limit": 4,
+    "Refresh": 0.25,
+    "Retry": 8,
+    "RepeatRetry": 15
+  },
+  "Schema": 1,
+  "Revision": 1,
+  "Enabled": true,
+  "MovementHearing": {
+    "Enabled": true,
+    "Footsteps": true,
+    "JumpsAndLandings": true,
+    "RangeMultiplier": 1,
+    "MinimumInterval": 0.2
+  },
+  "QuietApproach": {
+    "Enabled": true,
+    "WalkDistance": 30,
+    "CrouchDistance": 8,
+    "WalkExitMargin": 3,
+    "CrouchExitMargin": 2,
+    "Budget": 20,
+    "ContactAge": 10,
+    "SeenDelay": 3,
+    "FireDelay": 5,
+    "WalkSpeed": 0.7,
+    "CrouchSpeed": 0.45,
+    "CrouchPose": 0.6,
+    "LootBonus": 0.15,
+    "LootCap": 0.95,
+    "LootWindow": 2,
+    "ResetSilence": 30,
+    "Chances": {
+      "Rat": 0.9,
+      "SnappingTurtle": 0.9,
+      "Coward": 0.9,
+      "Timmy": 0.8,
+      "Normal": 0.7,
+      "Chad": 0.5,
+      "GigaChad": 0.3,
+      "Wreckless": 0.15
+    }
+  },
+  "Gunfire": {
+    "Enabled": true,
+    "NearDistance": 100,
+    "InterestDistance": 250,
+    "LookDuration": 3,
+    "LookInterval": 8,
+    "SearchInterval": 60,
+    "IncomingMemory": 5,
+    "AllowDistantSearch": true
+  },
+  "FloorHearing": {
+    "Enabled": true,
+    "OneFloorOther": 0.6,
+    "SeveralFloorsOther": 0.4,
+    "OneFloorGunfire": 1,
+    "SeveralFloorsGunfire": 0.9,
+    "MinimumHeight": 2.5
+  },
+  "CloseDetection": {
+    "Enabled": true,
+    "StartDistance": 6,
+    "FullDistance": 3,
+    "ReductionPercent": 100
+  },
+  "SearchAbandonment": {
+    "Enabled": true,
+    "Silence": 20,
+    "Inspection": 3,
+    "Radius": 3,
+    "FailedMemory": 30
+  },
+  "EnvironmentContext": {
+    "Enabled": true,
+    "Refresh": 0.5,
+    "Movement": 1,
+    "CeilingDistance": 20
+  },
+  "DoorJumpPeek": {
+    "Enabled": true,
+    "Chances": {
+      "GigaChad": 35,
+      "Chad": 25,
+      "Wreckless": 15,
+      "Normal": 10,
+      "Rat": 0,
+      "SnappingTurtle": 0,
+      "Coward": 0,
+      "Timmy": 0
+    },
+    "MinimumStamina": 35,
+    "MinimumSpeed": 1.2,
+    "Observation": 0.4,
+    "Limit": 4,
+    "Cooldown": 45,
+    "ReturnJump": false
+  },
+  "DoorRunBy": {
+    "Enabled": true,
+    "Preference": 40,
+    "Fallback": true,
+    "MinimumStamina": 35,
+    "TurnDelay": 0.35,
+    "Limit": 6,
+    "Watch": 2
+  },
+  "DoorFakeGrenade": {
+    "Enabled": true,
+    "Chances": {
+      "GigaChad": 30,
+      "Chad": 20,
+      "Normal": 10,
+      "Wreckless": 5,
+      "Rat": 0,
+      "SnappingTurtle": 0,
+      "Coward": 0,
+      "Timmy": 0
+    },
+    "DoorDistance": 3,
+    "ContactDistance": 10,
+    "ContactLifetime": 15,
+    "TargetCooldown": 60,
+    "Cooldown": 20
+  },
+  "DoorFakeMedical": {
+    "Enabled": true,
+    "Stimulators": true,
+    "Preference": 50
+  },
+  "DoorRoomClear": {
+    "Enabled": true,
+    "Chances": {
+      "GigaChad": 40,
+      "Chad": 30,
+      "Wreckless": 35,
+      "Normal": 15,
+      "Rat": 0,
+      "SnappingTurtle": 0,
+      "Coward": 0,
+      "Timmy": 0
+    },
+    "ContactLifetime": 10,
+    "GrenadePreference": 50,
+    "AllowFeint": true,
+    "MinimumAmmo": 50,
+    "MinimumStamina": 35,
+    "DepthMin": 2,
+    "DepthMax": 3,
+    "BlastPauseMin": 0.3,
+    "BlastPauseMax": 0.7,
+    "TargetCooldown": 60
+  },
+  "DoorSearchClear": {
+    "Enabled": true,
+    "Chance": 70,
+    "ContactLifetime": 25,
+    "AllowFeint": true
+  },
+  "DoorSupport": {
+    "Enabled": true,
+    "MaxDistance": 15,
+    "MaxSupports": 2,
+    "OfferLifetime": 3,
+    "Duration": 20,
+    "Spacing": 1.5
+  },
+  "DoorInterruption": {
+    "Enabled": true,
+    "ResumeWindow": 15,
+    "QuietPeriod": 3,
+    "HeardDistance": 25,
+    "HeardAge": 3,
+    "GunfireDistance": 12,
+    "GunfireAge": 2,
+    "MaxResumes": 1
+  },
+  "DoorEntry": {
+    "Enabled": true,
+    "MinimumStamina": 35,
+    "CrossingLimit": 3.5,
+    "DoorRetry": 30,
+    "PreparedChance": 40,
+    "RushChance": 50,
+    "RetreatChance": 60,
+    "SearchChance": 15,
+    "MoveChance": 10
+  },
+  "CombatStep": {
+    "Enabled": true,
+    "MinDistance": 3,
+    "MaxDistance": 25,
+    "Radius": 1.5,
+    "StepMin": 0.35,
+    "StepMax": 0.7,
+    "SequenceMin": 1.5,
+    "SequenceMax": 3,
+    "CooldownMin": 2,
+    "CooldownMax": 4,
+    "Chances": {
+      "Normal": 35,
+      "Chad": 65,
+      "GigaChad": 80,
+      "Wreckless": 70,
+      "Rat": 10,
+      "SnappingTurtle": 15,
+      "Coward": 5,
+      "Timmy": 10
+    }
+  },
+  "FirePause": {
+    "Enabled": true,
+    "Chance": 45,
+    "MinDistance": 8,
+    "StepsBeforePause": 2,
+    "AutomaticMin": 0.2,
+    "AutomaticMax": 0.3,
+    "SingleMin": 0.3,
+    "SingleMax": 0.45,
+    "BrakeLimit": 0.2,
+    "HitDelay": 1
+  },
+  "CornerPeek": {
+    "Enabled": true,
+    "Chance": 50,
+    "MinDistance": 5,
+    "MaxDistance": 25,
+    "MaxStep": 1,
+    "ExposedMin": 0.35,
+    "ExposedMax": 0.6,
+    "HiddenMin": 0.25,
+    "HiddenMax": 0.45,
+    "MaxPeeks": 2,
+    "SequenceLimit": 4,
+    "CooldownMin": 4,
+    "CooldownMax": 6,
+    "SightGrace": 1.2,
+    "JumpShare": 25,
+    "RunShare": 15
+  },
+  "CombatLean": {
+    "Enabled": true,
+    "Chance": 60,
+    "MinDistance": 3,
+    "MaxDistance": 25,
+    "HoldMin": 0.35,
+    "HoldMax": 1,
+    "BurstIntervalMin": 0.25,
+    "BurstIntervalMax": 0.4,
+    "BurstChangesMin": 2,
+    "BurstChangesMax": 3,
+    "CloseDistance": 7,
+    "BurstChanceClose": 45,
+    "BurstChanceFar": 15,
+    "SequenceLimit": 3,
+    "CooldownMin": 2,
+    "CooldownMax": 4
+  },
+  "AngleWatch": {
+    "Enabled": true,
+    "WallCorrection": true,
+    "SafeLean": true,
+    "CornerRange": 6,
+    "MovingLimit": 4,
+    "VisionAge": 10,
+    "HearingAge": 5,
+    "MovingWall": 1.2,
+    "StillWall": 3,
+    "HoldMinimum": 1,
+    "Refresh": 0.25,
+    "PitchLimit": 25
+  },
+  "CornerPrefire": {
+    "Enabled": true,
+    "Chance": 40,
+    "ObservationMaxAge": 2.5,
+    "KnownCornerDistance": 3,
+    "FireCornerDistance": 4,
+    "AutomaticRounds": 4,
+    "SingleRounds": 1,
+    "FireLimit": 0.6,
+    "StartRounds": 10,
+    "StartPercent": 40,
+    "ReserveRounds": 5,
+    "ReservePercent": 30
+  },
+  "CornerChase": {
+    "Enabled": true,
+    "LostSightMin": 0.3,
+    "ObservationMaxAge": 4,
+    "PathLimit": 15,
+    "SequenceLimit": 4,
+    "WideOffset": 1.8,
+    "JumpMinSpeed": 2.2,
+    "JumpMinStamina": 35,
+    "Cooldown": 6,
+    "Chances": {
+      "GigaChad": 90,
+      "Wreckless": 85,
+      "Chad": 75,
+      "Normal": 40,
+      "Rat": 0,
+      "SnappingTurtle": 0,
+      "Coward": 0,
+      "Timmy": 0
+    }
+  },
+  "DoorReservation": {
+    "Enabled": true,
+    "LeaseSeconds": 2,
+    "RenewInterval": 0.5,
+    "BusyRetry": 2
+  },
+  "DoorEmergency": {
+    "Enabled": true,
+    "VisibleDistance": 10,
+    "SoundAge": 1.2,
+    "SoundDoorDistance": 7,
+    "MaxPath": 5,
+    "Duration": 3,
+    "Stabilization": 0.5
+  },
+  "DoorAmbush": {
+    "Enabled": true,
+    "DoorDistance": 8,
+    "ContactLifetime": 10,
+    "TargetCooldown": 60,
+    "AllowFeint": true,
+    "MinimumUsefulWait": 2,
+    "Waits": {
+      "Normal": {
+        "Min": 6,
+        "Max": 10
+      },
+      "Chad": {
+        "Min": 6,
+        "Max": 10
+      },
+      "GigaChad": {
+        "Min": 6,
+        "Max": 10
+      },
+      "Wreckless": {
+        "Min": 5,
+        "Max": 8
+      },
+      "Coward": {
+        "Min": 5,
+        "Max": 8
+      },
+      "Timmy": {
+        "Min": 5,
+        "Max": 8
+      },
+      "SnappingTurtle": {
+        "Min": 10,
+        "Max": 15
+      },
+      "Rat": {
+        "Min": 12,
+        "Max": 20
+      }
+    }
+  },
+  "DoorStepPeek": {
+    "Enabled": true,
+    "Chance": 50,
+    "MaximumPeeks": 2,
+    "Distance": 0.8,
+    "ObservationMin": 0.4,
+    "ObservationMax": 0.8,
+    "RestMin": 0.5,
+    "RestMax": 1,
+    "Limit": 6,
+    "VaryPosture": true
+  },
+  "DoorApproach": {
+    "Enabled": true,
+    "DoorDistance": 8,
+    "ContactDistance": 12,
+    "UnseenDelay": 1.5,
+    "ContactLifetime": 60,
+    "ApproachLimit": 12
+  },
+  "SilentSearch": {
+    "Enabled": true,
+    "ScoreBonus": 15,
+    "Personalities": {
+      "Normal": {
+        "Enabled": true,
+        "Delay": 15
+      },
+      "Chad": {
+        "Enabled": true,
+        "Delay": 12
+      },
+      "GigaChad": {
+        "Enabled": true,
+        "Delay": 10
+      },
+      "Wreckless": {
+        "Enabled": true,
+        "Delay": 10
+      },
+      "Rat": {
+        "Enabled": true,
+        "Delay": 20
+      },
+      "SnappingTurtle": {
+        "Enabled": true,
+        "Delay": 20
+      },
+      "Timmy": {
+        "Enabled": true,
+        "Delay": 22
+      },
+      "Coward": {
+        "Enabled": false,
+        "Delay": 22
+      }
+    }
+  },
+  "ImpactReaction": {
+    "Enabled": true,
+    "Memory": 3,
+    "MinimumInterval": 0.5
+  },
+  "VisibleCombat": {
+    "Enabled": true,
+    "ShootWeight": 1,
+    "CoverWeight": 1,
+    "PushWeight": 1,
+    "RiskTolerance": 0.55,
+    "Commitment": 2,
+    "SwitchMargin": 12,
+    "MaxPushPath": 25,
+    "CoverMemory": 3
+  },
+  "SightContinuity": {
+    "Enabled": true,
+    "CloseDuration": 0.8,
+    "CloseDistance": 8,
+    "MediumDuration": 1,
+    "MaxDistance": 45,
+    "StableSight": 0.35
+  },
+  "DecisionVariety": {
+    "Enabled": true,
+    "MaxOptions": 3,
+    "HiddenScoreGap": 0.15,
+    "VisibleScoreGap": 0.1,
+    "HiddenIntensity": 1,
+    "VisibleIntensity": 0.6
+  },
+  "TacticalMistakes": {
+    "Enabled": true,
+    "Multiplier": 1,
+    "HiddenMaxLoss": 0.25,
+    "VisibleMaxLoss": 0.2,
+    "MinimumInterval": 10,
+    "Chances": {
+      "Timmy": 0.12,
+      "Wreckless": 0.08,
+      "Coward": 0.06,
+      "Normal": 0.05,
+      "Chad": 0.04,
+      "Rat": 0.03,
+      "SnappingTurtle": 0.03,
+      "GigaChad": 0.02
+    }
+  },
+  "Fear": {
+    "Enabled": true,
+    "Multiplier": 1,
+    "AllyDeath": 0.3,
+    "DeathMemory": 30,
+    "Injury": 0.25,
+    "Outnumbered": 0.15,
+    "HeavySuppression": 0.1,
+    "RisePerSecond": 0.5,
+    "RecoveryPerSecond": 0.05,
+    "RecoveryDelay": 3,
+    "PanicEnter": 0.75,
+    "PanicExit": 0.55,
+    "ScoreCap": 15,
+    "Base": {
+      "Coward": 0.35,
+      "Timmy": 0.2,
+      "Rat": 0.2,
+      "Normal": 0.1,
+      "SnappingTurtle": 0.1,
+      "Chad": 0.05,
+      "GigaChad": 0,
+      "Wreckless": 0
+    },
+    "Sensitivity": {
+      "Coward": 1.5,
+      "Timmy": 1.3,
+      "Rat": 1.2,
+      "Normal": 1,
+      "SnappingTurtle": 0.9,
+      "Chad": 0.6,
+      "GigaChad": 0.4,
+      "Wreckless": 0.3
+    }
+  },
+  "Opponent": {
+    "Enabled": true,
+    "ScoreCap": 10,
+    "ObservationSeconds": 0.5,
+    "WeaponDistance": 50,
+    "ProtectionDistance": 25,
+    "WeaponMemory": 5,
+    "ProtectionMemory": 15,
+    "InjuryMemory": 3
+  },
+  "Opportunity": {
+    "Enabled": true,
+    "ReloadWindow": 2.5,
+    "HealWindow": 4,
+    "SurgeryWindow": 12,
+    "LootWindow": 2,
+    "DryFireWindow": 1.5,
+    "ReactionDelay": 0.25,
+    "SafetyMargin": 0.5,
+    "MaxPath": 25,
+    "ScoreCap": 20,
+    "CombinedScoreCap": 25,
+    "RearmSilence": 30
+  },
+  "CoverResponse": {
+    "Enabled": true,
+    "ShortExposure": 0.75,
+    "LongExposure": 1.5,
+    "ScoreCap": 25
+  },
+  "Progress": {
+    "Enabled": true,
+    "HoldSoft": 8,
+    "HoldLimit": 20,
+    "StalledLimit": 5,
+    "ProgressMeters": 0.75,
+    "ReviewInterval": 12,
+    "Retry": 8,
+    "RepeatRetry": 15,
+    "QuietReset": 20
+  },
+  "Handoff": {
+    "Grace": 0.5,
+    "Retry": 1,
+    "ErrorRetry": 10
+  },
+  "Loadout": {
+    "Enabled": true,
+    "ScoreCap": 15,
+    "RefreshSeconds": 5,
+    "GrenadeStockCap": 3,
+    "Ranges": {
+      "Pistol": 8,
+      "Shotgun": 8,
+      "ShotgunSlug": 25,
+      "Smg": 12,
+      "RifleIron": 20,
+      "RifleDot": 25,
+      "RifleScope": 35,
+      "DmrIron": 30,
+      "DmrScope": 50,
+      "BoltIron": 40,
+      "BoltScope": 70
+    }
+  },
+  "ThreatSelection": {
+    "Enabled": true,
+    "Interval": 0.25,
+    "Commitment": 2,
+    "SwitchMargin": 0.2,
+    "HitMemory": 3,
+    "ShotMemory": 2,
+    "CloseDistance": 15,
+    "ImmediateDistance": 6,
+    "FootstepDistance": 10,
+    "FootstepMemory": 1.5
+  },
+  "ContactLifetime": 25,
+  "Commitment": 2,
+  "SwitchMargin": 15,
+  "HoldLimit": 5,
+  "PlanLimit": 12,
+  "RetryDelay": 5,
+  "PushMaxDistance": 25,
+  "GrenadeContactLifetime": 8,
+  "Weights": {
+    "Push": 1,
+    "Grenade": 1,
+    "Hold": 1,
+    "Flank": 1,
+    "Search": 1,
+    "FallBack": 1
+  },
+  "Aggression": {
+    "Normal": 0.5,
+    "Chad": 0.75,
+    "GigaChad": 0.9,
+    "Wreckless": 0.85,
+    "Rat": 0.25,
+    "SnappingTurtle": 0.3,
+    "Coward": 0.1,
+    "Timmy": 0.25
+  }
+}

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><NoWarn>CS0649;CS9113</NoWarn></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Client/ReadyStanceAdapter.cs" Link="ReadyStanceAdapter.cs" />
+    <Compile Include="../../Shared/ReadyStance.cs" Link="ReadyStance.cs" />
+    <Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" />
+    <Reference Include="Harmony" HintPath="C:/Games/SPT-4.1/BepInEx/core/0Harmony.dll" />
+  </ItemGroup>
+</Project>

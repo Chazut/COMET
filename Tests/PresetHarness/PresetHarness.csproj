@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Client/SainPresetAccess.cs" />
+    <Compile Include="../../Client/SainPresetAdapter.cs" />
+    <Compile Include="../../Client/DifficultyPresetAdapter.cs" />
+    <Compile Include="../../Client/Diagnostics.cs" /><Compile Include="../../Client/TacticCounters.cs" Link="TacticCounters.cs" /><Compile Include="../../Client/CombatReport.cs" Link="CombatReport.cs" />
+    <Compile Include="../../Shared/*.cs" />
+    <Reference Include="SAIN.Preset.Shared" HintPath="../../references/sain-4.5.1/SAIN.Preset.Shared.dll" />
+    <Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,43 @@
+@using Comet.Server.Editing
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+<div class="setting @(Editor.Changed(Field) ? "different" : "")">
+    <div class="setting-copy">
+        <label for="@Id">@Field.Label</label>
+        @if (!string.IsNullOrWhiteSpace(Field.Help)) { <small id="@(Id + "-help")">@Field.Help</small> }
+        <span class="reference">@(Editor.Comparison == "Saved" ? "Saved" : Editor.Comparison + " default"): <strong>@Editor.ReferenceValue(Field)</strong>
+            @if (Editor.Comparison != Editor.Profile) { <span class="base-reference">@Editor.Profile default: <strong>@Editor.DefaultValue(Field)</strong></span> }
+            @if (Editor.Pending(Field)) { <span class="pending-dot">Unsaved</span> }
+        </span>
+        @if (Field.Example.Length > 0) { <details class="setting-example"><summary>Example</summary><p>@Field.Example</p></details> }
+    </div>
+    <div class="setting-value">
+        @if (Field.Boolean) {
+            <label class="toggle"><input id="@Id" type="checkbox" aria-label="@Field.Label" checked="@Editor.IsOn(Field)" @onchange="Toggle" /><span>@(Editor.IsOn(Field) ? "On" : "Off")</span></label>
+        } else if (Field.Text) {
+            <select id="@Id" value="@Editor.Input(Field)" @onchange="Edit"><option>Normal</option><option>Reduced</option><option>Disabled</option></select>
+        } else {
+            <div class="number-value"><input id="@Id" type="number" step="@(Field.Integer ? "1" : "any")" min="@(Field.Min?.ToString(System.Globalization.CultureInfo.InvariantCulture))" max="@(Field.Max?.ToString(System.Globalization.CultureInfo.InvariantCulture))" value="@Editor.Input(Field)"
+                @oninput="Edit" aria-invalid="@(Editor.Error(Field).Length > 0 ? "true" : "false")" aria-describedby="@DescriptionIds" />
+                @if (Field.Unit.Length > 0) { <span id="@(Id + "-unit")" class="value-unit">@Field.Unit</span> }
+            </div>
+        }
+        <button class="restore" aria-label="@("Restore " + Field.Label + " from " + Editor.Comparison)" title="@("Restore from " + Editor.Comparison)"
+            disabled="@(!Editor.Changed(Field) && Editor.Error(Field).Length == 0)" @onclick="Restore">Restore</button>
+    </div>
+    @if (Editor.Error(Field).Length > 0) { <span id="@(Id + "-error")" class="field-error" role="alert">@Editor.Error(Field)</span> }
+</div>
+@code {
+    [Parameter, EditorRequired] public ConfigEditor Editor { get; set; } = default!;
+    [Parameter, EditorRequired] public EditorField Field { get; set; } = default!;
+    [Parameter] public EventCallback Changed { get; set; }
+    string Id => "setting-" + Field.Path.Replace('.', '-');
+    string DescriptionIds => string.Join(" ", new[] {
+        string.IsNullOrWhiteSpace(Field.Help) ? null : Id + "-help",
+        Field.Unit.Length > 0 ? Id + "-unit" : null,
+        Editor.Error(Field).Length > 0 ? Id + "-error" : null
+    }.Where(x => x != null));
+    async Task Edit(ChangeEventArgs e) { Editor.Set(Field, e.Value?.ToString() ?? ""); await Changed.InvokeAsync(); }
+    async Task Toggle(ChangeEventArgs e) { Editor.Set(Field, e.Value?.ToString() ?? "false"); await Changed.InvokeAsync(); }
+    async Task Restore() { Editor.Restore(Field); await Changed.InvokeAsync(); }
+}

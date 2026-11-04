@@ -1,0 +1,151 @@
+using System;
+using Comet.Core;
+using EFT;
+using HarmonyLib;
+using Newtonsoft.Json;
+using SAIN.Components;
+using SAIN.Preset.Shared.Enums;
+using SAIN.Preset.Shared.GlobalSettings;
+using SAIN.SAINComponent.Classes.Mover;
+using UnityEngine;
+
+namespace Comet.Client;
+
+internal sealed class CombatLeanRuntime
+{
+    internal readonly CombatLean Policy=new();
+    internal LeanClass? Owner;
+    internal int TargetInstance;
+    internal LeanSetting Applied;
+    internal bool Owns,Fault,LeftSafe,RightSafe;
+    internal float SafetyAt=-1000,LogAt=-1000,CallbackAt=-1000;
+    internal Vector3 SafetyPosition,SafetyRight;
+    internal string LogKey="";
+}
+
+public sealed partial class Plugin
+{
+    private static void PatchCombatLean(Harmony h)
+    {
+        // Replace only side selection. ManualUpdate still calls the original smoothed SetTilt.
+        var method=AccessTools.Method(typeof(LeanClass),"UpdateLeanSetting",new[]{typeof(float)})
+            ??throw new MissingMethodException("M04 native lean selection");
+        h.Patch(method,prefix:new HarmonyMethod(typeof(Plugin),nameof(SelectCombatLean)));
+    }
+    private static bool SelectCombatLean(LeanClass __instance)
+    {
+        var p=Instance;var b=__instance.Bot;
+        if(MedicalPostureGuard(b))return false;
+        if(p?.config==null||!p.states.TryGetValue(b,out var s))return true;
+        try { if(p.ChaseLean(__instance,s))return false; }
+        catch(Exception ex) {p.ChaseError(s,ex);return true;}
+        try { if(p.WatchLean(__instance,s))return false; } catch(Exception ex) {p.AngleError(s,ex);return true;}
+        var r=s.CombatLean;
+        if(r.Fault)return true;
+        try {
+            r.CallbackAt=Time.time;
+            if(!r.Policy.Active&&Time.time<r.Policy.NextAttempt)return true;
+            var f=p.LeanFrame(b,s,__instance);
+            if(!r.Policy.Active&&f.FirePause)return true;
+            // Cheap scope checks always precede geometry or RNG work.
+            f.GeometryFresh=f.LeftSafe=f.RightSafe=true;
+            string gate=CombatLean.Gate(f,p.config.CombatLean);
+            if(gate.Length>0){p.EndCombatLean(s,gate);return true;}
+            if(r.Policy.Active&&(!ReferenceEquals(r.Owner,__instance)
+                ||r.TargetInstance!=System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(b.GoalEnemy)
+                ||r.Owns&&__instance.LeanDirection!=r.Applied)) {
+                p.EndCombatLean(s,"lean-native-owner-or-contact-changed");return true;
+            }
+            p.LeanSafety(b,s,f);
+            if(!r.Policy.Active) {
+                if(!r.Policy.Begin(f,p.config.CombatLean,p.jumpRandom.NextDouble(),p.jumpRandom.NextDouble(),p.jumpRandom.NextDouble(),
+                    p.jumpRandom.NextDouble(),p.jumpRandom.NextDouble(),p.jumpRandom.NextDouble())) {p.RecordCombatLean(s);return true;}
+                r.Owner=__instance;r.TargetInstance=System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(b.GoalEnemy);
+            }else if(!r.Policy.Observe(f,p.config.CombatLean,p.jumpRandom.NextDouble(),p.jumpRandom.NextDouble())) {
+                p.FinishCombatLean(s);return true;
+            }
+            r.Applied=r.Policy.Trace!.Side<0?LeanSetting.Left:LeanSetting.Right;r.Owns=true;
+            __instance.FastLean(r.Applied); // Desired side only: no direct MovementContext.SetTilt or smoothing override.
+            p.RecordCombatLean(s);return false;
+        }catch(Exception ex) {
+            r.Fault=true;
+            try{p.EndCombatLean(s,"lean-adapter-error");}catch{r.Owner=null;r.Owns=false;}
+            p.Logger.LogWarning("M04 yielded: "+ex.GetBaseException().Message);return true;
+        }
+    }
+    private CombatLeanFrame LeanFrame(BotComponent b,BotState s,LeanClass lean)
+    {
+        var f=CombatStepFrame(b,s);
+        var right=b.Player.Transform.right;
+        return new(){Combat=f,NativeLeanEnabled=b.Info.FileSettings.Move.LEAN_TOGGLE&&SainPresetAccess.AllowsLean,
+            NativeLeanOwned=lean.IsHoldingLean||b.Cover.CoverInUse!=null,CornerPeek=s.CornerPeek.Policy.Active,
+            FirePause=s.CombatStep.Pause.Pausing,SmoothedTilt=lean.LeanAngleValue.LastSmoothedValue,
+            HeadLateral=Vector3.Dot(b.Player.PlayerBones.Head.position-b.Position,right)};
+    }
+    private void LeanSafety(BotComponent b,BotState s,CombatLeanFrame f)
+    {
+        var r=s.CombatLean;var right=b.Player.Transform.right;
+        bool moved=Vector3.Distance(b.Position,r.SafetyPosition)>.15f||Vector3.Angle(right,r.SafetyRight)>15;
+        if(Time.time-r.SafetyAt>=.1f||moved) {
+            if(doorBudget.TryBegin(Time.frameCount)) {
+                doorClock.Restart();
+                try {
+                    var head=b.Player.PlayerBones.Head.position;
+                    // Conservative lateral envelope around the body, tested from the real current head.
+                    // Free space is enough: there is deliberately no requirement for nearby cover.
+                    var centre=head-right*Vector3.Dot(head-b.Position,right);
+                    r.LeftSafe=LeanSweep(head,centre-right*.3f);
+                    r.RightSafe=LeanSweep(head,centre+right*.3f);
+                    r.SafetyAt=Time.time;r.SafetyPosition=b.Position;r.SafetyRight=right;
+                }finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
+            }else if(moved)r.SafetyAt=-1000;
+        }
+        f.GeometryFresh=Time.time-r.SafetyAt<=.2f;f.LeftSafe=r.LeftSafe;f.RightSafe=r.RightSafe;
+    }
+    private static bool LeanSweep(Vector3 from,Vector3 to)
+    {
+        if(!DoorPolicy.Finite(from.x)||!DoorPolicy.Finite(from.y)||!DoorPolicy.Finite(from.z)
+            ||!DoorPolicy.Finite(to.x)||!DoorPolicy.Finite(to.y)||!DoorPolicy.Finite(to.z))return false;
+        const float radius=.12f;
+        int mask=LayersMaskController.HighPolyWithTerrainMask;
+        var travel=to-from;
+        // CheckSphere covers initial overlaps, which a sweep alone cannot detect.
+        return !Physics.CheckSphere(from,radius,mask,QueryTriggerInteraction.Ignore)
+            &&!Physics.CheckCapsule(to-Vector3.up*.12f,to+Vector3.up*.08f,radius,mask,QueryTriggerInteraction.Ignore)
+            &&(travel.sqrMagnitude<.0001f||!Physics.SphereCast(from,radius,travel.normalized,out _,travel.magnitude,mask,QueryTriggerInteraction.Ignore));
+    }
+    private void GuardCombatLean(BotComponent b,BotState s)
+    {
+        if(!s.CombatLean.Policy.Active)return;
+        if(b==null||b.IsDead||config==null||Time.time-s.CombatLean.CallbackAt>.3f)EndCombatLean(s,"lean-callback-or-bot-ended");
+        else {
+            var f=LeanFrame(b,s,b.Mover.Lean);f.GeometryFresh=f.LeftSafe=f.RightSafe=true;
+            var gate=CombatLean.Gate(f,config.CombatLean);
+            if(gate.Length>0||Time.time>=s.CombatLean.Policy.Deadline)EndCombatLean(s,gate.Length>0?gate:"lean-sequence-completed");
+        }
+    }
+    private void EndCombatLean(BotState s,string why)
+    {
+        if(!s.CombatLean.Policy.Active)return;
+        s.CombatLean.Policy.End(why,Time.time);FinishCombatLean(s);
+    }
+    private void FinishCombatLean(BotState s)
+    {
+        var r=s.CombatLean;var lean=r.Owner;
+        try {
+            // Release our desired side only. Never clear another system's explicit held lean.
+            if(r.Owns&&lean!=null&&Authority&&!lean.IsHoldingLean&&lean.Bot.Cover.CoverInUse==null&&lean.LeanDirection==r.Applied)lean.FastLean(LeanSetting.None);
+        }finally{r.Owns=false;r.Owner=null;RecordCombatLean(s,true);}
+    }
+    private void RecordCombatLean(BotState s,bool force=false)
+    {
+        var r=s.CombatLean;var t=r.Policy.Trace;if(t==null)return;
+        string key=t.Episode+":"+t.State+":"+t.Reason+":"+t.Requests+":"+t.HeadMotionObserved+":"+t.Alternatives.Length;
+        if(!force&&key==r.LogKey&&(!r.Policy.Active||Time.time-r.LogAt<.1f))return;
+        r.LogKey=key;r.LogAt=Time.time;
+        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="M04",stage="evaluated",decision="CombatLean",reason=t.Reason,
+            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
+            combatLean=t,combatLeanConfig=config?.CombatLean},Diagnostics.Json);
+        diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
+    }
+}

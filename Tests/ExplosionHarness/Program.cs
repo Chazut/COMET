@@ -1,0 +1,58 @@
+using Comet.Client;
+using Comet.Core;
+using SAIN.Components;
+using SAIN.SAINComponent.Classes.EnemyClasses;
+using EFT;
+using UnityEngine;
+using Newtonsoft.Json.Linq;
+using System.Reflection.Emit;
+int checks=0;var all=new List<string>();
+void C(bool v,string why){checks++;if(!v)throw new Exception("G10 adapter: "+why);}
+(Plugin p,BotComponent b,GrenadeController c) Setup(){Time.time=10;Time.frameCount++;Physics.Blocked=false;Physics.Rays=0;VisibleAdapter.Ready=true;BotManagerComponent.Instance=new();var p=new Plugin();var b=new BotComponent();BotManagerComponent.Instance.BotSpawnController.BotDictionary[b.ProfileId]=b;return(p,b,new());}
+JObject Last(Plugin p)=>JObject.Parse(p.diagnostics!.Lines.Last())["explosionAwareness"]!.ToObject<JObject>()!;
+void Blast(Plugin p,GrenadeController c,int id=1,float distance=10,string owner="source",bool smoke=false){p.Explosion(c,new(distance,0,0),owner,id,smoke);p.Update();}
+var (p,b,c)=Setup();Blast(p,c);C(p.states[b].Blast.Policy.Look!=null,"unknown owner gets nearby attention");C((string?)Last(p)["evidence"]=="unknown"&&(string?)Last(p)["target"]=="","unknown actor never exposed");C(b.EnemyController.Enemies.Count==0,"no enemy invented");C(p.StoppedGunfire==1,"one steering owner");p.Apply(b);C(b.BotOwner.Steering.Requests==1,"real native steering requested");C((bool)Last(p)["applied"]!&& (double)Last(p)["validFor"]!<=1,"applied event lease");all.AddRange(p.diagnostics!.Lines);
+Time.time=11;Blast(p,c,2,20);C(p.states[b].Blast.Policy.Look!.X==10,"second event cannot redirect glance");Time.time=13;p.Late();C(p.states[b].Blast.Policy.Look==null&&Last(p)["state"]!.Value<string>()=="ended","absolute 3s deadline");Blast(p,c,3);C(p.states[b].Blast.Policy.Look==null,"shared 8s cooldown");Time.time=18;Blast(p,c,4);C(p.states[b].Blast.Policy.Look!=null,"new glance at cooldown boundary");
+(p,b,c)=Setup();var source=new Player("source");var e=new Enemy(b,source){IsVisible=true};e.KnownPlaces.LastSeenPlace=new(){Position=new(5,1,2),TimeSincePositionUpdated=.1f};b.EnemyController.Enemies["source"]=e;
+p.Throw(c,new(){Id=7});e.KnownPlaces.LastSeenPlace.Position=new(90,4,80);e.KnownPlaces.LastSeenPlace.TimeSincePositionUpdated=9;e.IsVisible=false;Time.time=12;Blast(p,c,7);var t=Last(p);C((string?)t["evidence"]=="seen-throw"&&(double)t["contactX"]! ==5,"throw snapshot not live moved enemy");C(Math.Abs((double)t["evidenceAge"]!-2.1)<.001,"proof retains original age");C(e.KnownPlaces.LastSeenPlace.TimeSincePositionUpdated==9,"native memory timestamp untouched");C(e.KnownPlaces.LastSeenPlace.Position.x==90,"newer native sighting not overwritten");p.Apply(b);all.AddRange(p.diagnostics!.Lines);
+foreach(var mode in new[]{"hidden","stale","blind","replacement","owner-dead"}){
+ (p,b,c)=Setup();source=new("source");e=new(b,source){IsVisible=mode!="hidden"};e.KnownPlaces.LastSeenPlace=new(){Position=new(7,0,0),TimeSincePositionUpdated=mode=="stale"?1:0};b.EnemyController.Enemies["source"]=e;b.Flashed.IsFlashed=mode=="blind";p.Throw(c,new(){Id=9});b.Flashed.IsFlashed=false;
+ if(mode=="replacement")b.EnemyController.Enemies["source"]=new(b,source){IsVisible=true};if(mode=="owner-dead")e.Active=false;
+ Blast(p,c,9);C((string?)Last(p)["evidence"]=="unknown",mode+" cannot identify hidden owner");C(p.states[b].Blast.Policy.Look!=null,mode+" blast still heard");
+}
+(p,b,c)=Setup();p.Throw(c,new(){Id=10,ProfileId=b.ProfileId});Blast(p,c,10,10,b.ProfileId);C((string?)Last(p)["evidence"]=="own"&&p.states[b].Blast.Policy.Look==null,"own explosion not enemy alert");
+(p,b,c)=Setup();var ally=new BotComponent("ally"){Position=new(5,0,0)};b.Squad.Members[ally.ProfileId]=ally;p.Throw(c,new(){Id=10,ProfileId="ally"});Blast(p,c,10,10,"ally");C((string?)Last(p)["evidence"]=="known-ally"&&p.states[b].Blast.Policy.Look==null,"observed allied throw not enemy alert");
+(p,b,c)=Setup();ally=new("ally"){Position=new(-5,0,0)};b.Squad.Members[ally.ProfileId]=ally;p.Throw(c,new(){Id=10,ProfileId="ally"});Blast(p,c,10,10,"ally");C((string?)Last(p)["evidence"]=="unknown","unseen allied throw not omniscient");
+foreach(var kind in new[]{"smoke","flash","gas","dummy","persistent"}){
+ (p,b,c)=Setup();var item=new EFT.InventoryLogic.ThrowWeap();if(kind=="flash")item.FragmentsCount=0;if(kind=="gas")item.ThrowType="gas_grenade";if(kind=="dummy")item.IsDummy=true;if(kind=="persistent")item.EmitTime=5;p.Throw(c,new(){Id=3,WeaponSource=item});Blast(p,c,3,10,"source",kind=="smoke");C(p.states[b].Blast.Policy.Look==null,kind+" no blast glance");C(b.EnemyController.Enemies.Count==0,kind+" no invented contact");
+}
+foreach(var reason in new[]{"outside","ignored","deaf","occluded","sense","difficulty"}){
+ (p,b,c)=Setup();float d=10;if(reason=="outside")d=26;if(reason=="ignored")b.Hearing.HearingInput.Ignore=true;if(reason=="deaf"){b.Hearing.HearingInput.IsBotDeafened=true;b.BotOwner.HearingSensor.Sense=.1f;}if(reason=="occluded"){Physics.Blocked=true;b.BotOwner.HearingSensor.Sense=.06f;}if(reason=="sense")b.BotOwner.HearingSensor.Sense=.01f;if(reason=="difficulty")b.Info.Difficulty.HearingDistanceModifier=.01f;
+ Blast(p,c,1,d);C(p.states[b].Blast.Policy.Look==null,reason+" respects hearing/attention");
+}
+foreach(var mode in new[]{"combat","reload","healing","grenade","flash","suppressed","sprint","orbit-action","foreign-layer","weapon","panic","door","squad"}){
+ (p,b,c)=Setup();switch(mode){case"combat":b.GoalEnemy=new(b,new("x"));break;case"reload":b.BotOwner.WeaponManager.Reload.Reloading=true;break;case"healing":b.Decision.CurrentSelfDecision=SAIN.Preset.Shared.Enums.ESelfActionType.Heal;break;case"grenade":b.Grenade.GrenadeDangerPoint=new();break;case"flash":b.Flashed.IsFlashed=true;break;case"suppressed":b.Suppression.IsSuppressed=true;break;case"sprint":b.Player.IsSprintEnabled=true;break;case"foreign-layer":p.Owner="other";break;case"weapon":VisibleAdapter.Ready=false;break;case"door":b.BotOwner.DoorOpener.Interacting=true;break;case"squad":b.Decision.CurrentSquadDecision=SAIN.Preset.Shared.Enums.ESquadDecision.Help;break;default:p.states[b]=new(b,p.config!,"x");if(mode=="panic")p.states[b].Fear.Panic=true;else p.states[b].ActiveLabel="COMET:Hold";break;}
+ Blast(p,c);C(p.states[b].Blast.Policy.Look==null,mode+" has priority");
+}
+foreach(var mode in new[]{"disabled","master","non-pmc","dead","inactive","ending","client","ghost","no-world"}){
+ (p,b,c)=Setup();switch(mode){case"disabled":p.config!.ExplosionAwareness.Enabled=false;break;case"master":p.config!.Enabled=false;break;case"non-pmc":b.Pmc=false;break;case"dead":b.IsDead=true;break;case"inactive":b.BotActive=false;break;case"ending":b.GameEnding=true;break;case"client":p.Authority=false;break;case"ghost":p.ghosts.Add(b.ProfileId);break;case"no-world":p.world=null;break;}
+ e=new(b,new("source"));b.EnemyController.Enemies["source"]=e;Blast(p,c);C(!p.states.ContainsKey(b),mode+" no COMET state");C(ReferenceEquals(Plugin.Native(b.EnemyController,"source"),e),mode+" keeps native reporting");
+}
+(p,b,c)=Setup();source=new("source");e=new(b,source);b.EnemyController.Enemies["source"]=e;var scav=new BotComponent("scav"){Pmc=false};var se=new Enemy(scav,source);scav.EnemyController.Enemies["source"]=se;c.Bots[scav.ProfileId]=scav;
+p.Explosion(c,new(10,0,0),"source",5,false,()=>{
+ C(Plugin.Native(b.EnemyController,"source")==null,"native live position report blocked for PMC");C(ReferenceEquals(Plugin.Native(scav.EnemyController,"source"),se),"non-PMC native report retained");b.BotOwner.HearingSensor.OnSoundPlayed(source,new(10,0,0));b.BotOwner.HearingSensor.OnSoundPlayedInner(source,new(10,0,0));scav.BotOwner.HearingSensor.OnSoundPlayed(source,new(10,0,0));b.Hearing.HearingInput.CheckAddSoundToCache(new(source,new(10,0,0)));e.EnemyPositionReported();se.EnemyPositionReported();
+ C(b.BotOwner.HearingSensor.NativeSounds==0&&b.Hearing.HearingInput.Cached==0,"secondary paths blocked before scheduling/contact creation");C(scav.BotOwner.HearingSensor.NativeSounds==1&&se.Shares==1,"other bots/squad preserve native behavior");C(e.Shares==0,"non-PMC cannot rebroadcast hidden launcher to PMC");
+ b.BotOwner.HearingSensor.OnSoundPlayed(new Player("different"),new(10,0,0));C(b.BotOwner.HearingSensor.NativeSounds==1,"unrelated nested sound preserved");
+ p.Explosion(c,new(20,0,0),"other",6,false,()=>{C(p.HasContext,"nested event context active");});C(!Plugin.Vanilla(b.BotOwner.HearingSensor,source,new(10,0,0)),"outer context restored");
+});C(!p.HasContext,"context cleared");b.BotOwner.HearingSensor.OnSoundPlayed(source,new(10,0,0));C(b.BotOwner.HearingSensor.NativeSounds==2,"normal sound outside explosion preserved");
+try{p.Explosion(c,new(10,0,0),"source",8,false,()=>throw new InvalidOperationException("native"));}catch(InvalidOperationException){C(!p.HasContext,"native exception propagates and restores context");}
+p.Update();var firstCount=p.diagnostics!.Lines.Count;p.Explosion(c,new(10,0,0),"source",5);p.Update();C(p.diagnostics.Lines.Count==firstCount,"duplicate event no double reaction");
+(p,b,c)=Setup();for(int i=0;i<30;i++)c.Bots["p"+i]=new("p"+i);p.Explosion(c,new(10,0,0),"source",9);p.Update();C(Physics.Rays==8&&p.Pending>0,"ray work bounded per update");Time.frameCount++;p.Update();C(Physics.Rays==16,"continued work bounded");Time.time=12;p.Update();C(p.Pending==0,"stale queue expires");
+(p,b,c)=Setup();Blast(p,c);p.Apply(b);p.ghosts.Add(b.ProfileId);p.Late();C(p.states[b].Blast.Policy.Look==null&&Last(p)["state"]!.Value<string>()=="ended","ghost ends look");p.ghosts.Clear();Time.time=11;Blast(p,c,2);C(p.states[b].Blast.Policy.Look==null,"ghost interruption cannot reset cooldown");
+(p,b,c)=Setup();p.Throw(c,new(){Id=1});Blast(p,c);p.Apply(b);Time.time=9;p.Late();C(p.states[b].Blast.Policy.Look==null,"clock rewind ends effect");p.End();C(p.Pending==0&&p.ProofCount==0&&p.Recent==0&&!p.HasContext,"raid clears all retained references");
+(p,b,c)=Setup();b.SAINLayersActive=true;Blast(p,c);b.Steering.TickPlayerSteering();C(b.Steering.Requests==1&&b.BotOwner.Steering.Requests==0,"SAIN steering route used");b.BotOwner.Memory.IsUnderFire=true;b.Steering.TickPlayerSteering();C(p.states[b].Blast.Policy.Look==null&&b.Steering.Requests==1,"combat interrupts immediately");
+var m=HarmonyLib.AccessTools.Method(typeof(SAINEnemyController),nameof(SAINEnemyController.GetEnemy),new[]{typeof(string),typeof(bool)});var ci=new HarmonyLib.CodeInstruction(OpCodes.Callvirt,m);ci.labels.Add(42);var replaced=Plugin.Transpile(new[]{ci}).Single();C(replaced.opcode==OpCodes.Call&&replaced.labels.Contains(42),"transpiler preserves branch labels");try{Plugin.Transpile(Array.Empty<HarmonyLib.CodeInstruction>()).ToArray();throw new Exception("not rejected");}catch(InvalidOperationException){checks++;}try{Plugin.Transpile(new[]{new HarmonyLib.CodeInstruction(OpCodes.Call,m),new HarmonyLib.CodeInstruction(OpCodes.Call,m)}).ToArray();throw new Exception("not rejected");}catch(InvalidOperationException){checks++;}
+(p,b,c)=Setup();e=new(b,new("source"));b.EnemyController.Enemies["source"]=e;C(ReferenceEquals(Plugin.Native(b.EnemyController,"source"),e),"report outside explosion callback unchanged");
+(p,b,c)=Setup();b.Position=new(float.NaN,0,0);Blast(p,c);C(!p.states.ContainsKey(b),"invalid listener position rejected");
+(p,b,c)=Setup();b.Info.Difficulty.HearingDistanceModifier=float.NaN;Blast(p,c);C(p.states[b].Blast.Policy.Look==null&&!(bool)Last(p)["audible"]!,"invalid hearing multiplier rejected");
+var output=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../artifacts/g10-adapter-events.jsonl"));File.WriteAllLines(output,all);Console.WriteLine($"G10 production adapter harness: {checks} checks passed. {output}");

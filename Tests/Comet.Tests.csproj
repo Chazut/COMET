@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><None Include="fixtures/u01-original-defaults.json" Link="u01-original-defaults.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <ItemGroup><Compile Remove="JournalHarness/**/*.cs" /><Compile Remove="ControlHarness/**/*.cs" /><Compile Remove="IntegrationHarness/**/*.cs" /><Compile Remove="ObserverHarness/**/*.cs" /><Compile Remove="RaidCleanupHarness/**/*.cs" /><Compile Remove="ValidityHarness/**/*.cs" /><Compile Remove="FaultHarness/**/*.cs" /><Compile Remove="LifecycleHarness/**/*.cs" /><Compile Remove="CoverScanHarness/**/*.cs" />
+    <Compile Remove="MovementRecoveryHarness/**/*.cs" />
+    <Compile Remove="PresetHarness/**/*.cs" />
+    <Compile Remove="DoorGeometryHarness/**/*.cs" />
+    <Compile Remove="DoorClosingHarness/**/*.cs" />
+    <Compile Remove="DoorRecoveryHarness/**/*.cs" />
+    <Compile Remove="DoorTransitHarness/**/*.cs" />
+    <Compile Remove="OutcomeHarness/**/*.cs" />
+    <Compile Remove="EncounterHarness/**/*.cs" />
+    <Compile Remove="CrossfireHarness/**/*.cs" />
+    <Compile Remove="SquadFireHarness/**/*.cs" />
+    <Compile Remove="LightHarness/**/*.cs" />
+    <Compile Remove="DevicesHarness/**/*.cs" />
+    <Compile Remove="RestLightsHarness/**/*.cs" />
+    <Compile Remove="SquadVoiceHarness/**/*.cs" />
+    <Compile Remove="FireLaneHarness/**/*.cs" />
+    <Compile Remove="ReadyStanceHarness/**/*.cs" />
+    <Compile Remove="PostCombatHarness/**/*.cs" />
+    <Compile Remove="MedicalPostureHarness/**/*.cs" />
+    <Compile Remove="MedicalHarness/**/*.cs" />
+    <Compile Remove="ExplosionHarness/**/*.cs" />
+    <Compile Remove="FlashHarness/**/*.cs" />
+    <Compile Remove="GasHarness/**/*.cs" />
+    <Compile Remove="Preview/**/*.cs" />
+    <Compile Remove="RecoilHarness/**/*.cs" />
+    <Compile Remove="HandsHarness/**/*.cs" />
+    <Compile Remove="GrenadeHarness/**/*.cs" />
+    <Compile Remove="GrenadeTrajectoryHarness/**/*.cs" />
+    <Compile Remove="GrenadeChoiceHarness/**/*.cs" /><Compile Remove="OwnGrenadeHarness/**/*.cs" /><Compile Remove="GrenadeReactionHarness/**/*.cs" /><Compile Remove="GrenadeDispersionHarness/**/*.cs" />
+    <Compile Remove="GrenadeFilterHarness/**/*.cs" />
+    <Compile Include="../Shared/*.cs" Link="Core/%(Filename)%(Extension)" />
+    <Compile Include="../Server/IntegrationReports.cs" Link="IntegrationReports.cs" />
+    <Compile Include="../Server/ConfigStore.cs" Link="ConfigStore.cs" />
+    <Compile Include="../Server/PresetLibrary.cs" Link="PresetLibrary.cs" />
+    <Compile Include="../Client/Diagnostics.cs" Link="Diagnostics.cs" /><Compile Include="../Client/TacticCounters.cs" Link="TacticCounters.cs" /><Compile Include="../Client/CombatReport.cs" Link="CombatReport.cs" />
+    <Reference Include="SPTarkov.DI" HintPath="C:/Games/SPT-4.1/SPT_Runtime/SPTarkov.DI.dll" />
+    <Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" />
+  </ItemGroup>
+<ItemGroup><Compile Remove="DoorMotionHarness/**/*.cs" /></ItemGroup><ItemGroup><Compile Remove="DoorFikaHarness/**/*.cs" /></ItemGroup><ItemGroup><EmbeddedResource Include="../Server/Editing/EditorCatalog.json" LogicalName="Comet.EditorCatalog.json" /></ItemGroup><ItemGroup><Compile Include="../Server/Editing/*.cs" Link="Editing/%(Filename)%(Extension)" /></ItemGroup></Project>

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+ <ItemGroup><Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" /></ItemGroup>
+ <ItemGroup>
+  <Compile Include="../GrenadeChoiceHarness/Stubs.cs" Link="Stubs.cs" />
+  <Compile Include="../../Client/GrenadeJudgmentAdapter.cs" Link="GrenadeJudgmentAdapter.cs" /><Compile Include="../../Shared/GrenadeJudgment.cs" Link="GrenadeJudgment.cs" />
+  <Compile Include="../../Client/GrenadeTrajectoryAdapter.cs" Link="GrenadeTrajectoryAdapter.cs" /><Compile Include="../../Shared/GrenadeTrajectory.cs" Link="GrenadeTrajectory.cs" />
+  <Compile Include="../../Client/GrenadeChoiceAdapter.cs" Link="GrenadeChoiceAdapter.cs" /><Compile Include="../../Shared/GrenadeChoice.cs" Link="GrenadeChoice.cs" />
+  <Compile Include="../../Client/GrenadeFilterAdapter.cs" Link="GrenadeFilterAdapter.cs" /><Compile Include="../../Shared/GrenadeFilter.cs" Link="GrenadeFilter.cs" />
+  <Compile Include="../../Client/GrenadeFilterPatches.cs" Link="GrenadeFilterPatches.cs" />
+ </ItemGroup>
+</Project>

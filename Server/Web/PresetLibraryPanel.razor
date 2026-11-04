@@ -1,0 +1,165 @@
+@using Comet.Core
+@using Comet.Server.Editing
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@inject Comet.Server.ConfigStore Store
+
+<section class="preset-library" aria-label="Personal presets">
+    <div class="section-heading"><div><h2>My presets</h2><p>Keep personal setups and share them. Loading a preset opens a review; it does not apply it to the next raid until you save.</p></div>
+        <button disabled="@(library == null || !ValidDraft || working || form.Length > 0)" @onclick="SaveAs">Save draft as…</button></div>
+    @if (library != null) {
+        @if (library.Presets.Count == 0) { <p class="library-empty">No personal presets yet. Easy, Normal and Hard below always remain available.</p> }
+        else {
+            <div class="library-controls"><label>Personal preset<select aria-label="Personal preset" @bind="selected" disabled="@(form.Length > 0 || working)">
+                @foreach (var p in library.Presets) { <option value="@p.Id">@p.Name · v@(p.Revision)</option> }
+            </select></label>
+                <button disabled="@(Chosen == null || working || form.Length > 0)" @onclick="Load">Preview &amp; load</button>
+                <button disabled="@(Chosen == null || working || form.Length > 0)" @onclick='() => Begin("duplicate")'>Duplicate…</button>
+                <button disabled="@(Chosen == null || working || form.Length > 0)" @onclick='() => Begin("rename")'>Rename…</button>
+                <button disabled="@(Chosen == null || !ValidDraft || working || form.Length > 0)" @onclick='() => Begin("update")'>Update from draft…</button>
+                <button disabled="@(Chosen == null || working || form.Length > 0)" @onclick='() => Begin("delete")'>Delete…</button>
+                @if (Chosen != null) { <a class="preset-download" href="@ExportUrl" download="COMET-preset.json">Export JSON</a> }
+            </div>
+        }
+        <div class="library-file"><label>Import a COMET preset<InputFile OnChange="Import" accept=".json,application/json" disabled="@(working || form.Length > 0)" /></label>
+            <button disabled="@(working || form.Length > 0)" @onclick="Refresh">Refresh library</button><span>Importing never replaces an existing preset.</span></div>
+    } else { <button @onclick="Refresh">Retry library</button> }
+    @if (form.Length > 0) {
+        <section class="library-review" aria-label="Preset operation review">
+            <h3>@FormTitle</h3>
+            @if (form is "create" or "duplicate" or "rename" or "import") {
+                <label>Preset name<input type="text" maxlength="80" aria-label="Preset name" @bind="name" @bind:event="oninput" disabled="@working" /></label>
+            }
+            @if (form == "delete") { <p>Delete <strong>@operation?.Name</strong> from your library? The saved raid configuration keeps its current values. Easy, Normal and Hard cannot be deleted.</p> }
+            else if (form == "rename") { <p>This renames the library entry. Already saved raid configurations keep their original preset name and revision until you load it again.</p> }
+            else {
+                <p>Base level: <strong>@frozen?.DifficultyPreset</strong>. @changes.Count setting(s) differ from @(form == "update" ? "the stored copy" : "your current draft"). This saves only the library copy.</p>
+                @if (form is "create" or "update") { <p>Your draft was captured when you opened this review. Later edits are not included.</p> }
+                @if (missing.Count > 0) {
+                    <div class="notice"><strong>@missing.Count setting(s) were missing from this older preset.</strong><p>They use current @frozen?.DifficultyPreset defaults. Review these values before accepting.</p>
+                        <details><summary>Show added defaults</summary><ul>@foreach (var key in missing) { <li>@SettingName(key): <strong>@defaultValues.GetValueOrDefault(key, "Default")</strong></li> }</ul></details></div>
+                }
+                @if (changes.Count > 0) {
+                    <details><summary>Review changed settings (@changes.Count)</summary><div class="preset-changes"><table><thead><tr><th>Setting</th><th>Before</th><th>After</th></tr></thead><tbody>
+                        @foreach (var change in changes) { <tr><td>@change.Label</td><td>@change.Before</td><td>@change.After</td></tr> }
+                    </tbody></table></div></details>
+                }
+            }
+            <div class="library-actions"><button disabled="@working" @onclick="Cancel">Cancel</button><button class="primary" disabled="@working" @onclick="Confirm">@ConfirmText</button></div>
+        </section>
+    }
+    @if (status.Length > 0) { <p class="library-status" role="status">@status</p> }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public ConfigEditor Editor { get; set; } = null!;
+    [Parameter] public EventCallback<EditorPreview> Preview { get; set; }
+    [Parameter] public EventCallback Changed { get; set; }
+    PresetLibrarySnapshot? library;
+    PersonalPreset? operation;
+    CometConfig? frozen;
+    string selected = "", name = "", form = "", status = "";
+    bool working;
+    long operationRevision;
+    IReadOnlyList<string> missing = Array.Empty<string>();
+    IReadOnlyList<EditorChange> changes = Array.Empty<EditorChange>();
+    Dictionary<string, string> defaultValues = new();
+    bool ValidDraft => Editor.InvalidCount == 0 && Editor.ValidationError.Length == 0;
+    PersonalPreset? Chosen => library?.Presets.FirstOrDefault(p => p.Id == selected);
+    string ExportUrl => Chosen == null ? "" : "data:application/json;base64," + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(PresetLibrary.Export(Chosen)));
+    string FormTitle => form switch { "create" => "Save a personal copy", "duplicate" => "Duplicate " + operation?.Name, "rename" => "Rename " + operation?.Name,
+        "delete" => "Delete " + operation?.Name, "import" => "Review imported preset", "migrate" => "Review new defaults for " + operation?.Name, _ => "Update " + operation?.Name + " from draft" };
+    string ConfirmText => form switch { "delete" => "Delete personal preset", "rename" => "Rename preset", "update" => "Update stored copy", "migrate" => "Accept defaults & review load", "import" => "Add to library", _ => "Save copy" };
+    string SettingName(string key) => Editor.Catalog.Fields.TryGetValue(key, out var f) ? f.Label : key;
+    void PrepareDefaults()
+    {
+        defaultValues.Clear();
+        if (missing.Count == 0 || frozen == null) return;
+        var view = new ConfigEditor(frozen);
+        foreach (var key in missing) defaultValues[key] = view.Catalog.Fields.TryGetValue(key, out var f) ? view.DisplayValue(f) : key == "DifficultyPreset" ? frozen.DifficultyPreset : "Default";
+    }
+    protected override void OnInitialized() => Refresh();
+    void Refresh()
+    {
+        try {
+            library = Store.Presets.Read();
+            if (Chosen == null) {
+                string? active = ValidDraft ? Editor.Snapshot().PresetSource?.Id : null;
+                selected = library.Presets.FirstOrDefault(p => p.Id == active)?.Id ?? library.Presets.FirstOrDefault()?.Id ?? "";
+            }
+            status = "";
+        }
+        catch (Exception e) { library = null; status = "Library not loaded: " + e.Message + " No files have been replaced."; }
+    }
+    string CopyName(string basis)
+    {
+        string seed = basis.Length > 65 ? basis[..65] : basis;
+        string candidate = seed + " copy"; int n = 2;
+        while (library!.Presets.Any(p => string.Equals(p.Name, candidate, StringComparison.OrdinalIgnoreCase))) candidate = seed + " copy " + n++;
+        return candidate;
+    }
+    void SaveAs() { if (library == null || !ValidDraft) return; Begin("create"); }
+    void Begin(string mode)
+    {
+        if (library == null) return;
+        try {
+            operation = Chosen; operationRevision = library.Revision;
+            if (mode != "create" && operation == null) return;
+            frozen = mode is "create" or "update" ? Editor.Snapshot() : operation?.Config;
+            name = mode == "rename" ? operation!.Name : CopyName(mode == "create" ? Editor.Snapshot().PresetSource?.Name ?? Editor.Profile : operation!.Name);
+            missing = mode is "duplicate" or "migrate" ? operation!.AddedSettings : Array.Empty<string>();
+            PrepareDefaults();
+            changes = frozen == null ? Array.Empty<EditorChange>() : (mode == "update" ? new ConfigEditor(operation!.Config) : Editor).PreviewPreset(frozen).Changes.Where(c => c.Path != "PresetSource").ToArray();
+            form = mode; status = "";
+        } catch (Exception e) { status = e.Message; }
+    }
+    async Task Load()
+    {
+        if (Chosen == null) return;
+        if (Chosen.AddedSettings.Count > 0) { Begin("migrate"); return; }
+        await Preview.InvokeAsync(Editor.PreviewPreset(Chosen.Config));
+    }
+    async Task Import(InputFileChangeEventArgs e)
+    {
+        if (library == null) return;
+        working = true;
+        try {
+            using var reader = new StreamReader(e.File.OpenReadStream(PresetLibrary.MaxImportBytes));
+            var imported = PresetLibrary.PreviewImport(await reader.ReadToEndAsync());
+            frozen = imported.Config; name = imported.Name; operation = null; operationRevision = library.Revision;
+            missing = imported.AddedSettings; changes = Editor.PreviewPreset(frozen).Changes.Where(c => c.Path != "PresetSource").ToArray();
+            PrepareDefaults();
+            form = "import"; status = "";
+        } catch (Exception ex) { status = "Import refused: " + ex.Message + " Your draft and library are unchanged."; }
+        finally { working = false; }
+    }
+    void Cancel() { form = ""; frozen = null; operation = null; status = ""; }
+    async Task Confirm()
+    {
+        if (working) return;
+        working = true;
+        try {
+            PersonalPreset? saved = null;
+            switch (form) {
+                case "delete": Store.Presets.Delete(operation!.Id, operationRevision); break;
+                case "rename": saved = Store.Presets.Rename(operation!.Id, name, operationRevision); break;
+                case "update": case "migrate": saved = Store.Presets.Update(operation!.Id, frozen!, operationRevision); break;
+                default: saved = Store.Presets.Create(name, frozen!, operationRevision); break;
+            }
+            string mode = form;
+            string note = "Library updated. Saved raid settings have not changed.";
+            if (saved != null && mode is "create" or "update") {
+                try { Editor.AttachPreset(saved.Config.PresetSource!); await Changed.InvokeAsync(); note = "Copy saved. Save for next raid to use this preset identity with your draft."; }
+                catch (InvalidOperationException) { note = "Copy saved. Your draft has changed since the review; load the stored copy to use it."; }
+            }
+            if (saved != null) selected = saved.Id;
+            Cancel(); Refresh(); if (library != null) status = note;
+            if (saved != null && mode == "migrate") await Preview.InvokeAsync(Editor.PreviewPreset(saved.Config));
+        } catch (Exception ex) { status = "Operation not completed: " + ex.Message + " Cancel to refresh the library; your draft is preserved."; }
+        finally { working = false; }
+    }
+}
+<style>
+.comet .preset-library{background:#192231;border:1px solid #344253;border-radius:12px;padding:22px;margin-bottom:20px}.comet .preset-library p{font-size:13px;margin-bottom:10px}.library-controls,.library-file,.library-actions{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.library-controls label{flex:1;min-width:220px}.library-controls select{display:block;width:100%;margin-top:5px}.library-file{margin-top:18px;padding-top:15px;border-top:1px solid #344253;align-items:center}.library-file label{font-size:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}.library-file span{font-size:12px;color:#a9b7c8}.library-file input{max-width:270px}.preset-download{color:#ffbb65;padding:9px 10px}.library-review{border:1px solid #aa7840;border-radius:9px;padding:18px;margin-top:18px;background:#111b28}.library-review h3{margin-top:0}.library-review input[type=text]{display:block;background:#0d1420;border:1px solid #536278;border-radius:7px;color:inherit;padding:10px;width:min(100%,450px);margin:5px 0 12px}.library-actions{justify-content:flex-end;margin-top:16px}.preset-changes{max-height:320px;overflow:auto;margin-top:10px}.preset-changes table{width:100%;border-collapse:collapse;font-size:13px}.preset-changes td,.preset-changes th{text-align:left;padding:7px;border-bottom:1px solid #344253}.library-status{color:#ffbb65!important}.library-empty{padding:8px 0}.library-review details{color:#b5c5d6;font-size:13px}.library-review .notice{max-height:240px;overflow:auto}
+</style>

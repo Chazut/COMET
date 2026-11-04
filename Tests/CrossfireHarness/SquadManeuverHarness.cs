@@ -1,0 +1,93 @@
+using Comet.Client;
+using EFT;
+using SAIN;
+using SAIN.Components;
+using SAIN.SAINComponent.Classes.Mover;
+using UnityEngine;
+using UnityEngine.AI;
+internal static class SquadManeuverHarness
+{
+ public static void Run()
+ {
+  int checks=0;var events=new List<string>();void C(bool ok,string why){checks++;if(!ok)throw new Exception("S03 adapter: "+why);}
+  void Step(float dt=.02f){Time.time+=dt;Time.realtimeSinceStartup=Time.time;Time.frameCount++;}
+  (Plugin,BotComponent[]) Setup(int count=4)
+  {
+   Time.time=Time.realtimeSinceStartup=10;Time.frameCount=0;Physics.Blocked=false;Physics.Cast=null;NavMesh.Valid=true;NavMesh.Sample=null;NavMesh.Route=null;SAINEnableClass.Bots.Clear();Api.Decisions.Labels.Clear();
+   var p=new Plugin();p.config!.Crossfire.Participation=100;p.config.SquadManeuver.Chance=100;p.config.SecondaryEntrance.Enabled=false;
+   var bots=Enumerable.Range(0,count).Select(i=>new BotComponent{Position=i==0?new(0,0,0):i==1?new(-3,0,0):i==2?new(3,0,0):new(7,0,-3)}).ToArray();bots[0].Info.Personality=Personality.Rat;
+   var members=bots.ToDictionary(b=>b.ProfileId);foreach(var b in bots){b.Squad.Members=members;b.GoalEnemy!.KnownPlaces.LastKnownPosition=new(0,0,30);b.EnemyController.KnownEnemies.Add(b.GoalEnemy);SAINEnableClass.Bots[b.ProfileId]=b;}
+   return(p,bots);
+  }
+  CrossfireAction Action(Plugin p,BotComponent b){var l=new CrossfireLayer(b.BotOwner,21);C(l.IsActive(),"native layer active");var a=new CrossfireAction(b.BotOwner);a.Start();a.OnSteeringTicked();return a;}
+  (Plugin p,BotComponent[] bots,CrossfireAction[] actions) Start(int count=4)
+  {
+   var(p,bots)=Setup(count);foreach(var b in bots)p.Observe(b);
+   C(p.states[bots[0]].Crossfire.Maneuver!=null,"shared plan created");var actions=new CrossfireAction[count];actions[0]=Action(p,bots[0]);
+   for(int i=1;i<count;i++){var r=p.states[bots[i]].Crossfire;r.Candidates.Clear();r.Candidates.Add(i==1?new(-20,0,20):i==2?new(20,0,20):new(12,0,30));r.Candidate=0;r.Route=null;r.Samples.Clear();}
+   for(int n=0;n<180;n++)
+   {
+    Step();actions[0].Update(new());actions[0].OnSteeringTicked();
+    for(int i=1;i<count;i++){p.Sample(bots[i]);if(p.states[bots[i]].Crossfire.Policy.Trace?.State=="ready"&&actions[i]==null)actions[i]=Action(p,bots[i]);if(actions[i]!=null){actions[i].Update(new());actions[i].OnSteeringTicked();}}
+    if(actions.All(x=>x!=null))break;
+   }
+   for(int i=1;i<count;i++)C(p.states[bots[i]].Crossfire.Policy.Trace?.State=="moving","flanker actual route "+i+": "+p.states[bots[i]].Crossfire.Policy.Trace?.Reason+" / "+string.Join(",",p.states[bots[i]].Crossfire.Rejects));
+   return(p,bots,actions);
+  }
+  {
+   var(p,bots,actions)=Start();C(p.Claims==4,"three distinct routes and one support reservation");C(p.states[bots[0]].Crossfire.Maneuver!.Members.Count(x=>x.Confirmed)==4,"all roles confirmed by native callbacks");
+   C(bots[0].ManualShoot.Requests>0,"personal eligible support requests native W07 fire");C(p.states[bots[0]].Crossfire.Policy.Trace!.Maneuver!.Shots==0,"request is not an actual shot");
+   var r=p.states[bots[1]].Crossfire;bots[1].Position=r.Goal;Step();actions[1].Update(new());actions[0].Update(new());C(!r.Maneuver!.MaySuppress,"arrival stops suppression");
+   p.EndAll();C(p.Claims==0&&Api.Decisions.Labels.Count==0,"cleanup");events.AddRange(p.diagnostics!.Lines);
+  }
+  foreach(var fault in new[]{"reload","heal","ghost","remote","visible","contact","distance","foreign-route","callbacks"})
+  {
+   var(p,bots,actions)=Start(2);var support=bots[0];var mover=bots[1];var path=(BotPathDataManual)mover.Mover.ActivePath!;
+   switch(fault){case "reload":support.BotOwner.WeaponManager.Reload.Reloading=true;break;case "heal":support.BotOwner.Medecine.Using=true;break;case "ghost":p.Ghosts.Add(support.ProfileId);break;case "remote":p.Authority=false;break;case "visible":support.GoalEnemy!.IsVisible=true;break;case "contact":support.GoalEnemy!.TimeSinceLastKnownUpdated=9;break;case "distance":support.Position=new(90,0,0);break;case "foreign-route":support.Mover.ActivePath=new BotPathDataManual();actions[0].Update(new());break;case "callbacks":Step(1);break;}
+   actions[1].Update(new());C(!p.states[mover].Crossfire.Policy.Active&&path.Stops==1,"support interruption releases owned path "+fault);events.AddRange(p.diagnostics!.Lines);
+  }
+  {
+   var(p,bots)=Setup(2);foreach(var b in bots)p.Observe(b);Step(3.1f);p.Sample(bots[1]);C(!p.states[bots[1]].Crossfire.Policy.Active&&bots[1].Mover.Walks==0,"unconfirmed support never moves flanker");events.AddRange(p.diagnostics!.Lines);
+  }
+  {
+   var(p,bots,actions)=Start(2);var b=bots[1];var old=(BotPathDataManual)b.Mover.ActivePath!;b.Mover.ActivePath=new BotPathDataManual{Destination=new(90,0,0)};actions[1].Update(new());C(old.Stops==0&&!p.states[b].Crossfire.Policy.Active,"foreign movement preserved");events.AddRange(p.diagnostics!.Lines);
+  }
+  foreach(var mode in new[]{"disabled","scav","human","low-ammo","stale","too-close","visible","zero-roll"})
+  {
+   var(p,bots)=Setup(2);switch(mode){case "disabled":p.config!.SquadManeuver.Enabled=false;break;case "scav":bots[1].Pmc=false;break;case "human":bots[1].Player.IsAI=false;break;case "low-ammo":bots[1].BotOwner.WeaponManager.CurrentWeapon.Mag.Count=1;break;case "stale":foreach(var b in bots)b.GoalEnemy!.TimeSinceLastKnownUpdated=9;break;case "too-close":foreach(var b in bots)b.GoalEnemy!.KnownPlaces.LastKnownPosition=new(0,0,4);break;case "visible":bots[1].GoalEnemy!.IsVisible=true;break;case "zero-roll":p.config!.SquadManeuver.Chance=0;break;}
+   foreach(var b in bots)p.Observe(b);C(p.states.Values.All(s=>s.Crossfire.Maneuver==null),"no invalid plan "+mode);events.AddRange(p.diagnostics!.Lines);
+  }
+
+  {
+   var(p,bots)=Setup(2);bots[0].Player.LookDirection=new(0,0,-1);foreach(var b in bots)p.Observe(b);var action=Action(p,bots[0]);
+   C(!p.states[bots[0]].Crossfire.Maneuver!.SupportReady(Time.time),"steering request is not confirmed facing");
+   Step(3.1f);p.Sample(bots[1]);C(!p.states[bots[1]].Crossfire.Policy.Active,"unfaced support times out");events.AddRange(p.diagnostics!.Lines);
+  }
+  {
+   var(p,bots,actions)=Start(2);p.config!.SuppressionDiscipline.Enabled=false;int before=bots[0].ManualShoot.Requests;actions[0].Update(new());C(bots[0].ManualShoot.Requests==before,"W07 off never creates unguarded fire");
+   p.EndAll();C(p.states.Values.All(s=>!s.Crossfire.ManeuverFire),"plan fire ownership released");events.AddRange(p.diagnostics!.Lines);
+  }
+  {
+   var(p,bots,actions)=Start(2);var b=bots[1];b.BotOwner.WeaponManager.CurrentWeapon.Mag.Count=1;actions[1].Update(new());C(!p.states[b].Crossfire.Policy.Active,"flanker low ammo aborts");events.AddRange(p.diagnostics!.Lines);
+  }
+  {
+   var(p,bots,actions)=Start(2);p.config!.SquadManeuver.StallTimeout=1;
+   for(int i=0;i<60;i++){Step();actions[0].Update(new());actions[0].OnSteeringTicked();actions[1].Update(new());actions[1].OnSteeringTicked();}
+   C(p.states[bots[1]].Crossfire.Policy.Trace!.Reason.Contains("stalled"),"configured S03 stall bound");events.AddRange(p.diagnostics!.Lines);
+  }
+  {
+   var(p,bots,actions)=Start();p.End(bots[1]);C(p.states[bots[2]].Crossfire.Maneuver!.Active,"one failed flanker does not end other routes");Step();actions[0].Update(new());actions[0].OnSteeringTicked();actions[2].Update(new());C(p.states[bots[2]].Crossfire.Policy.Active,"remaining flanker continues");events.AddRange(p.diagnostics!.Lines);p.EndAll();
+  }
+  foreach(var mode in new[]{"custom-distance","custom-age","declined-preserves-s01"})
+  {
+   var(p,bots)=Setup(2);p.config!.SquadManeuver.MaxDistance=120;p.config.SquadManeuver.ContactAge=12;
+   foreach(var b in bots){if(mode=="custom-age")b.GoalEnemy!.TimeSinceLastKnownUpdated=10;else b.GoalEnemy!.KnownPlaces.LastKnownPosition=new(0,0,100);}
+   if(mode=="declined-preserves-s01")p.config.SquadManeuver.Chance=0;
+   foreach(var b in bots)p.Observe(b);
+   C(p.states.Values.All(s=>s.Crossfire.Policy.Active==(mode!="declined-preserves-s01")),"S03 initial limits and S01 fallback: "+mode);
+   if(mode!="declined-preserves-s01")C(p.states.Values.All(s=>s.Crossfire.Maneuver!=null),"custom limit belongs to S03: "+mode);
+   events.AddRange(p.diagnostics!.Lines);p.EndAll();
+  }
+  var dest=Path.GetFullPath("artifacts/s03-adapter-events.jsonl");Directory.CreateDirectory(Path.GetDirectoryName(dest)!);File.WriteAllLines(dest,events);Console.WriteLine($"{checks} S03 production-adapter checks passed; {events.Count} events exported");
+ }
+}

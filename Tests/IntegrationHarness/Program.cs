@@ -1,0 +1,105 @@
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
+using System.Text.Json;
+using Comet.Core;
+using HarmonyLib;
+
+var root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));
+var paths=new[]{root+"references/sain-4.5.1",root+"Client/bin/Release/netstandard2.1", "C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed",
+    "C:/Games/SPT-4.1/BepInEx/core","C:/Games/SPT-4.1/BepInEx/plugins","C:/Games/SPT-4.1/BepInEx/plugins/spt"};
+AssemblyLoadContext.Default.Resolving+=(_,name)=>{
+    var path=paths.Select(p=>Path.Combine(p,name.Name+".dll")).FirstOrDefault(File.Exists);
+    return path==null?null:AssemblyLoadContext.Default.LoadFromAssemblyPath(path);
+};
+Audit.Run(root);
+
+static class Audit
+{
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void Run(string root)
+    {
+        var probe=new Comet.IntegrationProbe.ProbeHarmony();
+        Comet.IntegrationProbe.Plugin.Run(probe);
+        if(probe.Errors.Count>0)throw new Exception(string.Join("\n",probe.Errors.Distinct()));
+        using var manifest=JsonDocument.Parse(File.ReadAllText(root+"Client/obj/fault-boundaries/integration-manifest.json"));
+        IntegrationContract.ValidateHooks(probe.Hooks.Select(h=>(h.Target,h.Kind,h.Callback)),manifest.RootElement.GetProperty("RequiredCallbacks").EnumerateArray().Select(v=>v.GetString()!));
+        var dir=Path.Combine(root,"artifacts/i01");Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir,"registrations.json"),JsonSerializer.Serialize(probe.Hooks,new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine($"I01 real-DLL registration audit: {probe.Hooks.Count} hooks, {probe.Hooks.Select(h=>h.Target).Distinct().Count()} target methods; {probe.Transpilers} real-IL transpiler applications. No detours installed.");
+    }
+}
+
+namespace Comet.IntegrationProbe
+{
+    public sealed class ProbeHook(Type owner,string name)
+    {
+        public Type Owner=owner;
+        public int priority;
+        public string[]? before,after;
+        public string Name=name;
+    }
+    public sealed record HookRecord(string Target,string Kind,string Callback);
+    public sealed class ProbeHarmony
+    {
+        public List<HookRecord> Hooks=new();
+        public List<string> Errors=new();
+        public int Transpilers;
+        private readonly Dictionary<(MethodBase,Type),Type> stateTypes=new();
+        private readonly Dictionary<(MethodBase,Type),string> stateProducers=new();
+        public static void AddLayer(Type type,List<string> brains,int priority)
+        {if(!type.IsSubclassOf(typeof(SAIN.Layers.SAINLayer)))throw new Exception("Unknown COMET layer");}
+        public void Patch(MethodBase original,ProbeHook? prefix=null,ProbeHook? postfix=null,ProbeHook? transpiler=null,ProbeHook? finalizer=null)
+        {
+            if(original==null)throw new Exception("Missing native method");
+            void Add(ProbeHook? hook,string kind)
+            {
+                if(hook==null)return;
+                var owner=hook.Owner==typeof(Plugin)?typeof(Comet.Client.Plugin):hook.Owner;
+                var callback=owner.GetMethod(hook.Name,BindingFlags.Static|BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic)
+                    ??throw new Exception("Missing callback "+hook.Name);
+                CheckSignature(original,callback,kind);
+                if(kind=="transpiler")
+                {
+                    TranspilerAudit.Check(original,typeof(Plugin).GetMethod(hook.Name,BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic)!);
+                    Transpilers++;
+                }
+                if(callback.GetParameters().FirstOrDefault(p=>p.Name=="__state") is {} state)
+                {
+                    if(kind=="prefix" && state.ParameterType.IsByRef)
+                    {
+                        if(stateProducers.TryGetValue((original,owner),out var producer)&&producer!=hook.Name)
+                            Errors.Add($"Shared Harmony __state producer on {original}: {producer} / {hook.Name}");
+                        stateProducers[(original,owner)]=hook.Name;
+                    }
+                    var stateType=state.ParameterType.IsByRef?state.ParameterType.GetElementType()!:state.ParameterType;
+                    if(stateTypes.TryGetValue((original,owner),out var prior)&&prior!=stateType)
+                        Errors.Add($"Conflicting Harmony __state on {original}: {prior} / {stateType}");
+                    stateTypes[(original,owner)]=stateType;
+                }
+                Hooks.Add(new(original.DeclaringType!.FullName+"."+original.Name+"("+string.Join(",",original.GetParameters().Select(p=>p.ParameterType.FullName))+")",kind,owner==typeof(Comet.Client.Plugin)?hook.Name:owner.FullName+"."+hook.Name));
+            }
+            Add(prefix,"prefix");Add(postfix,"postfix");Add(transpiler,"transpiler");Add(finalizer,"finalizer");
+        }
+        private static void CheckSignature(MethodBase original,MethodInfo hook,string kind)
+        {
+            if(kind=="transpiler")return;
+            Type Element(Type t)=>t.IsByRef?t.GetElementType()!:t;
+            foreach(var p in hook.GetParameters())
+            {
+                string name=p.Name!;
+                Type? source=null;
+                if(name=="__instance")source=original.DeclaringType;
+                else if(name=="__result")source=(original as MethodInfo)?.ReturnType;
+                else if(name.StartsWith("___"))source=ProbeAccess.Field(original.DeclaringType,name.Substring(3))?.FieldType;
+                else if(name.StartsWith("__")&&int.TryParse(name.Substring(2),out int index))source=original.GetParameters().ElementAtOrDefault(index)?.ParameterType;
+                else if(name.StartsWith("__"))continue; // Harmony state, exception, original method and runOriginal.
+                else source=original.GetParameters().SingleOrDefault(v=>v.Name==name)?.ParameterType;
+                if(source==null||!Element(p.ParameterType).IsAssignableFrom(Element(source)))
+                    throw new Exception($"{hook.Name}: {name} ({p.ParameterType}) cannot bind {original.DeclaringType}.{original.Name} ({source})");
+                if(p.ParameterType.IsByRef&&Element(p.ParameterType)!=Element(source))
+                    throw new Exception($"{hook.Name}: ref {name} type mismatch");
+            }
+        }
+    }
+}

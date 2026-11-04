@@ -1,0 +1,301 @@
+using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using Comet.Core;
+using EFT;
+using Newtonsoft.Json;
+using SAIN.Components;
+using SAIN.SAINComponent.Classes.EnemyClasses;
+using SAIN.SAINComponent.Classes.Mover;
+using UnityEngine;
+using UnityEngine.AI;
+
+namespace Comet.Client;
+
+internal sealed class GrenadeAim
+{
+    internal string Kind="last-known";
+    internal Vector3 Point;
+    internal DoorWork? Door;
+    internal int[] Angles=Array.Empty<int>();
+    internal bool Checked;
+    internal int Next;
+}
+internal sealed class GrenadeArc
+{
+    internal AIGreanageThrowData Data=null!;
+    internal GrenadeTrajectoryAlternative Alternative=null!;
+    internal GrenadeAim Aim=null!;
+}
+internal sealed class GrenadeTrajectoryRuntime
+{
+    internal readonly List<GrenadeAim> Targets=new();
+    internal readonly List<GrenadeArc> Arcs=new();
+    internal GrenadeTrajectoryTrace? Trace;
+    internal GrenadeArc? Selected;
+    internal Vector3 Origin,Known;
+    internal int Enemy,Index;
+    internal long Revision;
+    internal string Item="",LogKey="";
+    internal double Started,Prepared=-1,RetryAt,LogAt=-1000;
+    internal bool Pending,Fault;
+    internal void Drop(){Targets.Clear();Arcs.Clear();Selected=null;Pending=false;Prepared=-1;}
+}
+
+public sealed partial class Plugin
+{
+    private readonly GrenadeArcBudget grenadeArcBudget=new();
+    private readonly System.Diagnostics.Stopwatch grenadeArcClock=new();
+    private bool GrenadeTrajectoryScope(BotComponent b)=>config?.Enabled==true&&config.GrenadeTrajectory.Enabled
+        &&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
+
+    // Called only after SAIN's throw permission/cooldown checks and the personal-evidence gate.
+    // null means unfinished work, not a failed trajectory or a new G01 roll.
+    private bool? PrepareGrenadeTrajectory(BotComponent b,Enemy e,BotState s,GrenadeJudgmentFrame f)
+    {
+        var r=s.GrenadeTrajectory;var c=config!.GrenadeTrajectory;double now=Time.timeAsDouble;
+        if(r.Fault)return false;
+        string gate=TrajectoryEvidence(b,e,f);
+        if(gate.Length>0){StopGrenadeTrajectory(s,gate);return false;}
+        if(now<r.RetryAt)return null;
+        if(r.Pending||r.Selected!=null)
+        {
+            string changed=TrajectoryChanged(b,e,s,f);
+            if(changed.Length>0){FailGrenadeTrajectory(s,changed);return false;}
+            if(r.Selected!=null)
+            {
+                if(GrenadeTrajectoryRules.Fresh(now,r.Prepared,c.PreparedLifetime))
+                {b.BotOwner.WeaponManager.Grenades.AIGreanageThrowData=r.Selected.Data;return true;}
+                // No fresh random offset: recompute the same selected aim after the short preparation expires.
+                r.Targets.Clear();r.Targets.Add(r.Selected.Aim);r.Selected.Aim.Next=0;r.Selected.Aim.Checked=false;r.Selected.Aim.Angles=new[]{r.Selected.Alternative.Angle};
+                r.Arcs.Clear();r.Selected=null;r.Index=0;r.Pending=true;r.Started=now;
+                r.Trace!.State="searching";r.Trace.Reason="trajectory-refreshing-fixed-aim";
+                r.Trace.Attempts=0;r.Trace.Alternatives.Clear();r.Trace.ValidFor=.5;r.Trace.Kind="";r.Trace.Angle=0;
+            }
+            if(now-r.Started>GrenadeTrajectoryRules.SearchLifetime){FailGrenadeTrajectory(s,"trajectory-search-expired");return false;}
+        }
+        else
+        {
+            if(!grenadeArcBudget.TryBegin(Time.frameCount))return null;
+            grenadeArcClock.Restart();
+            try{BeginGrenadeTrajectory(b,e,s,f);}
+            finally{grenadeArcClock.Stop();grenadeArcBudget.Charge(grenadeArcClock.Elapsed.TotalMilliseconds);}
+        }
+        if(!r.Pending)return false;
+        if(!grenadeArcBudget.TryBegin(Time.frameCount)){RecordGrenadeTrajectory(s);return null;}
+        grenadeArcClock.Restart();
+        try
+        {
+            var aim=r.Targets[r.Index];
+            if(!aim.Checked)
+            {
+                aim.Checked=true;string why=UsefulGrenadeAim(b,r,aim);
+                if(why.Length>0)
+                {r.Trace!.Alternatives.Add(new(){Kind=aim.Kind,X=aim.Point.x,Y=aim.Point.y,Z=aim.Point.z,Reason=why});aim.Next=aim.Angles.Length;}
+            }
+            if(aim.Next<aim.Angles.Length&&r.Trace!.Attempts<GrenadeTrajectoryRules.AttemptLimit)
+            {
+                int angle=aim.Angles[aim.Next++];r.Trace.Attempts++;
+                var alt=new GrenadeTrajectoryAlternative{Kind=aim.Kind,X=aim.Point.x,Y=aim.Point.y,Z=aim.Point.z,Angle=angle};
+                r.Trace.Alternatives.Add(alt);
+                var native=AIGrenadeHelper.CanThrowGrenade2(r.Origin,aim.Point,b.BotOwner.WeaponManager.Grenades.MaxPower*.9f,
+                    (AIGreandeAng)Enum.Parse(typeof(AIGreandeAng),"ang"+angle),-1f,.66f);
+                alt.Reason=!ValidGrenadeArc(native)?"native-arc-blocked-or-out-of-range":SweepGrenadeArc(native,out var ignored);
+                if(alt.Reason.Length==0)
+                {
+                    // Margin only ranks already safe arcs. It cannot authorize an obstructed throw.
+                    alt.Clearance=GrenadeMargin(native);alt.Accepted=true;alt.Reason="trajectory-clear";
+                    r.Arcs.Add(new(){Data=native,Alternative=alt,Aim=aim});
+                }
+            }
+            if(aim.Next>=aim.Angles.Length||r.Trace!.Attempts>=GrenadeTrajectoryRules.AttemptLimit)
+            {
+                if(r.Arcs.Count>0)
+                {
+                    double best=0;foreach(var a in r.Arcs)best=Math.Max(best,a.Alternative.Clearance);
+                    var good=r.Arcs.FindAll(a=>a.Alternative.Clearance>=best-.02);
+                    var chosen=good[Math.Min(good.Count-1,(int)(jumpRandom.NextDouble()*good.Count))];
+                    // Selection can span frames. Execution recomputes this aim from the current origin.
+                    r.Selected=chosen;r.Pending=false;r.Prepared=now;
+                    b.BotOwner.WeaponManager.Grenades.AIGreanageThrowData=chosen.Data;
+                    var t=r.Trace!;t.State="prepared";t.Reason="trajectory-prepared";t.Kind=chosen.Aim.Kind;t.Door=chosen.Aim.Door?.Geometry.Id??"";
+                    t.X=chosen.Data.Target.x;t.Y=chosen.Data.Target.y;t.Z=chosen.Data.Target.z;t.Angle=chosen.Alternative.Angle;t.Clearance=chosen.Alternative.Clearance;
+                    // Age starts at the native calculation, not at the later choice.
+                    r.Prepared=chosen.Data.CreatedTime;
+                    t.ValidFor=Math.Max(0,c.PreparedLifetime-(now-r.Prepared));RecordGrenadeTrajectory(s,true);
+                    // A winning early arc may have aged out while comparing. Refresh its fixed target next call.
+                    return GrenadeTrajectoryRules.Fresh(now,r.Prepared,c.PreparedLifetime)?true:null;
+                }
+                r.Index++;
+                if(r.Index>=r.Targets.Count||r.Trace!.Attempts>=GrenadeTrajectoryRules.AttemptLimit)
+                {FailGrenadeTrajectory(s,"trajectory-no-safe-arc");return false;}
+            }
+            RecordGrenadeTrajectory(s);return null;
+        }
+        catch(Exception ex)
+        {r.Fault=true;FailGrenadeTrajectory(s,"trajectory-adapter-error");Logger.LogWarning("G02 blocked grenade preparation: "+ex.GetBaseException().Message);return false;}
+        finally{grenadeArcClock.Stop();grenadeArcBudget.Charge(grenadeArcClock.Elapsed.TotalMilliseconds);}
+    }
+    private string TrajectoryEvidence(BotComponent b,Enemy e,GrenadeJudgmentFrame f)
+    {
+        if(!ReferenceEquals(e,b.GoalEnemy)||!f.Personal||!DP(new((float)f.X,(float)f.Y,(float)f.Z)).Finite)return "trajectory-no-personal-contact";
+        if(f.Now<f.EvidenceAt||f.Now-f.EvidenceAt>config!.GrenadeContactLifetime)return "trajectory-stale-contact";
+        if(f.Block.Length>0)return f.Block;
+        if(f.Item.Length==0)return "trajectory-no-item";
+        if(Vector3.Distance(b.Position,new((float)f.X,(float)f.Y,(float)f.Z))>config!.GrenadeTrajectory.Distance)return "trajectory-target-too-far";
+        return "";
+    }
+    private string TrajectoryChanged(BotComponent b,Enemy e,BotState s,GrenadeJudgmentFrame f)
+    {
+        var r=s.GrenadeTrajectory;
+        if(r.Revision!=config!.Revision)return "trajectory-config-changed";
+        if(r.Enemy!=RuntimeHelpers.GetHashCode(e)||r.Item!=f.Item)return "trajectory-contact-or-item-changed";
+        if(Vector3.Distance(r.Known,new((float)f.X,(float)f.Y,(float)f.Z))>1)return "trajectory-contact-moved";
+        if(Vector3.Distance(r.Origin,b.Transform.WeaponData.WeaponRoot)>.35f)return "trajectory-origin-moved";
+        if(r.Selected?.Aim.Door is DoorWork door&&!CurrentGrenadeDoor(door))return "trajectory-door-changed";
+        return "";
+    }
+    private void BeginGrenadeTrajectory(BotComponent b,Enemy e,BotState s,GrenadeJudgmentFrame f)
+    {
+        var r=s.GrenadeTrajectory;var c=config!.GrenadeTrajectory;r.Drop();r.Origin=b.Transform.WeaponData.WeaponRoot;
+        r.Known=new((float)f.X,(float)f.Y,(float)f.Z);r.Enemy=f.Instance;r.Item=f.Item;r.Revision=config.Revision;r.Started=f.Now;r.Index=0;
+        r.Trace=new(){Target=f.Target,Source=f.Source,KnownX=f.X,KnownY=f.Y,KnownZ=f.Z};
+        RefreshEnvironment(b,s,true);var p=b.Position;var env=s.Environment.Read(f.Now,p.x,p.y,p.z,config.EnvironmentContext,"grenade-angles");
+        bool low=env.Ceiling=="detected"&&env.CeilingHeight<3;
+        AddGrenadeAim(r,r.Known,"last-known",null,low);
+        var corner=e.VisiblePathPoint;
+        if(c.Corners&&corner.HasValue&&Vector3.Distance(corner.Value,r.Known)<=c.CornerDistance
+            &&Vector3.Distance(corner.Value,r.Known)>.5f)AddGrenadeAim(r,corner.Value,"blind-corner",null,low);
+        if(c.Doors)
+        {
+            // Inspect only the current navigation voxel, just like the door tactics. No scene/global scan.
+            var links=b.BotOwner.VoxelesPersonalData.CurVoxel?.DoorLinks;DoorWork? best=null;float distance=float.MaxValue;int n=0;
+            if(links!=null)foreach(var link in links)
+            {
+                if(++n>48)break;if(link?.Door==null)continue;
+                var w=new DoorWork{Data=new DoorDataStruct(link)};
+                if(!TryDoorGeometry(w.Data,out var g)||g.State!="Open")continue;w.Geometry=g;
+                var center=VP(g.Center);var normal=VP(g.Normal);var axis=VP(g.Axis);
+                float fromSide=Vector3.Dot(b.Position-center,normal),toSide=Vector3.Dot(r.Known-center,normal);
+                if(fromSide*toSide>=0||Math.Abs(fromSide)<.5||Math.Abs(toSide)<.5||Math.Abs(r.Known.y-center.y)>1.5)continue;
+                var intersection=b.Position+(r.Known-b.Position)*(fromSide/(fromSide-toSide));
+                if(Math.Abs(Vector3.Dot(intersection-center,axis))>g.HalfWidth+.5||Vector3.Distance(r.Known,center)>10)continue;
+                float d=Vector3.Distance(b.Position,center);if(d>15||d>=distance)continue;best=w;distance=d;
+            }
+            if(best!=null)
+            {
+                var center=VP(best.Geometry.Center);var normal=VP(best.Geometry.Normal);
+                if(Vector3.Dot(r.Known-center,normal)<0)normal=-normal;
+                foreach(double depth in new[]{c.DoorDepthFirst,c.DoorDepthSecond,c.DoorDepthThird})
+                    AddGrenadeAim(r,center+normal*(float)depth,"open-door",best,low);
+            }
+        }
+        r.Pending=true;RecordGrenadeTrajectory(s,true);
+    }
+    private void AddGrenadeAim(GrenadeTrajectoryRuntime r,Vector3 raw,string kind,DoorWork? door,bool low)
+    {
+        float spread=(float)GrenadeTrajectoryRules.Dispersion(Vector3.Distance(r.Origin,raw));
+        // One offset per target for this search. Refresh and angle retries retain it verbatim.
+        var along=raw-r.Origin;along.y=0;along=along.normalized;var side=Vector3.Cross(along,Vector3.up);
+        raw+=along*(float)((jumpRandom.NextDouble()*2-1)*spread)+side*(float)((jumpRandom.NextDouble()-.5)*spread);
+        raw.y+=.25f;
+        r.Targets.Add(new(){Kind=kind,Point=raw,Door=door,Angles=GrenadeTrajectoryRules.Angles(kind!="last-known",low)});
+    }
+    private static bool CurrentGrenadeDoor(DoorWork w)=>TryDoorGeometry(w.Data,out var g)&&g.State=="Open"
+        &&(g.Center-w.Geometry.Center).Length<.1&&Math.Abs(g.Axis.Dot(w.Geometry.Axis))>.99;
+    private string UsefulGrenadeAim(BotComponent b,GrenadeTrajectoryRuntime r,GrenadeAim a)
+    {
+        if(!DP(a.Point).Finite||Vector3.Distance(b.Position,a.Point)>config!.GrenadeTrajectory.Distance)return "trajectory-aim-out-of-range";
+        if(!NativeAdapter.GrenadeFriendsClear(b,a.Point))return "sain-friendly-distance";
+        if(a.Kind=="blind-corner"&&Vector3.Distance(a.Point,r.Known)>config.GrenadeTrajectory.CornerDistance)return "trajectory-corner-too-far";
+        if(a.Door!=null)
+        {
+            if(!CurrentGrenadeDoor(a.Door))return "trajectory-door-changed";
+            var center=VP(a.Door.Geometry.Center);var normal=VP(a.Door.Geometry.Normal);
+            if(Vector3.Dot(a.Point-center,normal)*Vector3.Dot(r.Known-center,normal)<=0)return "trajectory-wrong-door-side";
+        }
+        if(Math.Abs(a.Point.y-r.Known.y) > 1.5)return "trajectory-unrelated-floor";
+        if(!NavMesh.SamplePosition(a.Point,out var hit,.75f,NavMesh.AllAreas)||Math.Abs(hit.position.y-a.Point.y)>.75f)return "trajectory-no-landing-space";
+        var path=new NavMeshPath();
+        if(!NavMesh.CalculatePath(hit.position,r.Known,NavMesh.AllAreas,path)||path.status!=NavMeshPathStatus.PathComplete||path.corners.Length>32)return "trajectory-no-contact-route";
+        float straight=Vector3.Distance(hit.position,r.Known);
+        if(Length(path.corners)>Math.Min(12,straight*1.75+1))return "trajectory-unrelated-area";
+        if(Physics.CheckSphere(a.Point,.08f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))return "trajectory-landing-obstructed";
+        return "";
+    }
+    private static bool ValidGrenadeArc(AIGreanageThrowData? d)=>d!=null&&d.CanThrow&&DP(d.Target).Finite&&DP(d.Position).Finite
+        &&ImpactReaction.Finite(d.Force)&&d.Force>0&&ImpactReaction.Finite(d.Ang)&&d.Ang>0&&d.Ang<90;
+    private static string SweepGrenadeArc(AIGreanageThrowData d,out double margin)
+    {margin=.08;return ArcBlocked(d,.08f)?"trajectory-insufficient-clearance":"";}
+    private static double GrenadeMargin(AIGreanageThrowData d)=>ArcBlocked(d,.18f)?.08:.18;
+    private static bool ArcBlocked(AIGreanageThrowData d,float radius)
+    {
+        // Reproduce the inspected native helper's path, including its 1.3 force multiplier.
+        // This is a conservative clearance check, not a second projectile physics implementation.
+        var flat=d.Target-d.Position;flat.y=0;float length=flat.magnitude;
+        if(length<.1f||length>80)return true;
+        var direction=flat/length;float rad=d.Ang*Mathf.Deg2Rad;float power=d.Force/1.3f;
+        int steps=Math.Min(48,Math.Max(12,(int)Math.Ceiling(length)));var prev=d.Position;
+        if(Physics.CheckSphere(prev,radius,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))return true;
+        for(int i=1;i<=steps;i++)
+        {
+            float x=length*i/steps;var next=d.Position+direction*x;
+            next.y+=AIGrenadeHelper.YByX(x,power,Mathf.Tan(rad),Mathf.Cos(rad));
+            if(!DP(next).Finite)return true;
+            var delta=next-prev;
+            if(Physics.SphereCast(prev,radius,delta.normalized,out _,delta.magnitude,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))return true;
+            prev=next;
+        }
+        return Physics.CheckSphere(d.Target,radius,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore);
+    }
+    private bool ValidateGrenadeTrajectory(BotComponent b,Enemy e,BotState s)
+    {
+        if(!GrenadeTrajectoryScope(b))return true;
+        var r=s.GrenadeTrajectory;var f=GrenadeFrame(b,e,s);
+        string why=TrajectoryEvidence(b,e,f);if(why.Length==0)why=TrajectoryChanged(b,e,s,f);
+        var d=b.BotOwner.WeaponManager.Grenades.AIGreanageThrowData;
+        if(why.Length==0&&(r.Selected==null||!ReferenceEquals(d,r.Selected.Data)||!ValidGrenadeArc(d)
+            ||!GrenadeTrajectoryRules.Fresh(Time.timeAsDouble,r.Prepared,config!.GrenadeTrajectory.PreparedLifetime)))why="trajectory-preparation-expired";
+        if(why.Length>0){FailGrenadeTrajectory(s,why);return false;}
+        if(!grenadeArcBudget.TryBegin(Time.frameCount)){r.Trace!.Reason="trajectory-execution-budget-deferred";RecordGrenadeTrajectory(s);return false;}
+        grenadeArcClock.Restart();
+        try
+        {
+            // A small allowed origin change must not reuse a path calculated from the old hand position.
+            // Keep the selected point and angle, then ask the native calculator again; never reroll the aim.
+            if(!NativeAdapter.GrenadeFriendsClear(b,r.Selected!.Aim.Point))why="sain-friendly-distance";
+            if(why.Length==0)
+            {
+                var fresh=AIGrenadeHelper.CanThrowGrenade2(b.Transform.WeaponData.WeaponRoot,r.Selected.Aim.Point,
+                    b.BotOwner.WeaponManager.Grenades.MaxPower*.9f,(AIGreandeAng)Enum.Parse(typeof(AIGreandeAng),"ang"+r.Selected.Alternative.Angle),-1f,.66f);
+                if(!ValidGrenadeArc(fresh))why="trajectory-execution-native-refused";
+                else
+                {
+                    why=SweepGrenadeArc(fresh,out _);
+                    if(why.Length==0)
+                    {d=fresh;r.Selected.Data=fresh;b.BotOwner.WeaponManager.Grenades.AIGreanageThrowData=fresh;
+                     r.Prepared=fresh.CreatedTime;r.Trace!.Clearance=GrenadeMargin(fresh);}
+                }
+            }
+            if(why.Length==0)why=GrenadeSafety(b,s,f); // Actual participants checked immediately before native DoThrow.
+            if(why.Length>0){FailGrenadeTrajectory(s,why);return false;}
+            r.Trace!.State="validated";r.Trace.Reason="trajectory-execution-validated";
+            r.Trace.ValidFor=Math.Max(0,config!.GrenadeTrajectory.PreparedLifetime-(Time.timeAsDouble-r.Prepared));RecordGrenadeTrajectory(s,true);return true;
+        }
+        finally{grenadeArcClock.Stop();grenadeArcBudget.Charge(grenadeArcClock.Elapsed.TotalMilliseconds);}
+    }
+    private void FailGrenadeTrajectory(BotState s,string why)
+    {s.GrenadeTrajectory.RetryAt=Time.timeAsDouble+(config?.GrenadeJudgment.NoArcRetry??1.5);StopGrenadeTrajectory(s,why,"blocked");}
+    private void StopGrenadeTrajectory(BotState s,string why,string state="ended")
+    {var r=s.GrenadeTrajectory;r.Drop();s.GrenadeJudgment.Arc=false;if(r.Trace==null)return;r.Trace.State=state;r.Trace.Reason=why;r.Trace.ValidFor=state=="ended"?0:.75;RecordGrenadeTrajectory(s,true);}
+    private void RecordGrenadeTrajectory(BotState s,bool force=false)
+    {
+        var r=s.GrenadeTrajectory;var t=r.Trace;if(t==null)return;
+        string key=t.State+"|"+t.Reason+"|"+t.Attempts;
+        if(!force&&r.LogKey==key&&Time.timeAsDouble-r.LogAt<.25)return;r.LogKey=key;r.LogAt=Time.timeAsDouble;
+        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="G02",stage="evaluated",decision="GrenadeTrajectory",reason=t.Reason,
+            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
+            grenadeTrajectory=t,grenadeTrajectoryConfig=config?.GrenadeTrajectory},Diagnostics.Json);
+        diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
+    }
+}

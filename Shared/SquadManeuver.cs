@@ -1,0 +1,122 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+namespace Comet.Core;
+
+public sealed class SquadManeuverConfig
+{
+    public bool Enabled {get;set;}=true;
+    public double Chance {get;set;}=60;
+    public double SquadDistance {get;set;}=35;
+    public double MinDistance {get;set;}=15;
+    public double MaxDistance {get;set;}=80;
+    public double ContactAge {get;set;}=8;
+    public double ConfirmTimeout {get;set;}=3;
+    public double Duration {get;set;}=25;
+    public double StallTimeout {get;set;}=3;
+    public double Retry {get;set;}=25;
+    public double MinimumAmmo {get;set;}=50;
+    public bool CautiousFlank {get;set;}=false;
+    public bool RearWatch {get;set;}=true;
+    public void Validate()
+    {
+        CometConfig.Range(Chance,0,100,nameof(Chance));CometConfig.Range(SquadDistance,5,80,nameof(SquadDistance));
+        CometConfig.Range(MinDistance,5,80,nameof(MinDistance));CometConfig.Range(MaxDistance,MinDistance,150,nameof(MaxDistance));
+        CometConfig.Range(ContactAge,1,20,nameof(ContactAge));CometConfig.Range(ConfirmTimeout,1,8,nameof(ConfirmTimeout));
+        CometConfig.Range(Duration,5,40,nameof(Duration));CometConfig.Range(StallTimeout,1,10,nameof(StallTimeout));
+        CometConfig.Range(Retry,5,120,nameof(Retry));CometConfig.Range(MinimumAmmo,1,100,nameof(MinimumAmmo));
+    }
+}
+public sealed class ManeuverMember
+{
+    public string Id="",Name="",Personality="",Role="",Status="assigned",Reason="",RearContact="";
+    public double Ammo,Score,Roll,ReadyAt=-1,LastSeen,ProgressAt,BestDistance=double.MaxValue,Shots,LastShot=-100;
+    public bool Confirmed,Applied;
+}
+public sealed class ManeuverTrace
+{
+    public string Plan="",State="preparing",Role="",Reason="",Support="",SupportName="",FireState="holding";
+    public bool SupportReady,Confirmed;
+    public double Remaining,Chance,Roll,Shots;
+    public string[] Members=Array.Empty<string>();
+}
+// Detached, raid-local plan: no Unity/SAIN references and no hidden enemy state.
+public sealed class SquadManeuverPlan
+{
+    public string Id="",Group="",Enemy="",Support="",State="preparing",Reason="roles-selected";
+    public double Started,Until,Evidence,Roll,EndedAt=-1;
+    public readonly List<ManeuverMember> Members=new();
+    public bool Active=>State!="ended";
+    public ManeuverMember? Member(string id)=>Members.Find(x=>x.Id==id);
+    public bool MaySuppress=>Active&&State=="active"&&Members.Any(x=>x.Role=="flank"&&x.Status=="moving")&&!Members.Any(x=>x.Role=="flank"&&(x.Status=="holding"||x.Reason.Contains("enemy-visible")));
+    public bool SupportReady(double now)=>Member(Support) is {Confirmed:true,Applied:true} s&&s.Status!="ended"&&now-s.LastSeen<1;
+    public void End(string why){State="ended";Reason=why;foreach(var m in Members){m.Applied=false;m.Status="ended";m.Reason=why;}}
+    public void Drop(string id,string why)
+    {
+        var m=Member(id);if(m==null||!Active)return;m.Status="ended";m.Applied=false;m.Reason=why;
+        if(id==Support)End("maneuver-support-lost: "+why);
+        else if(!Members.Any(x=>x.Role=="flank"&&x.Status!="ended"))End("maneuver-no-flanker: "+why);
+    }
+    public bool Tick(double now,SquadManeuverConfig c)
+    {
+        if(!Active)return false;
+        if(!MedicalChoice.Finite(now)||now<Started||!c.Enabled){End("maneuver-disabled-or-clock-reset");return false;}
+        if(now>=Until){End("maneuver-timeout");return false;}
+        foreach(var m in Members)
+        {
+            if(m.Status=="ended")continue;
+            if(now-m.LastSeen>=1&&m.Confirmed){Drop(m.Id,"role-callback-lost");continue;}
+            if(!m.Confirmed&&now-(m.ReadyAt>=0?m.ReadyAt:Started)>=c.ConfirmTimeout&&m.Status!="planning")Drop(m.Id,"role-not-confirmed");
+        }
+        if(Active&&SupportReady(now)&&Members.Any(x=>x.Role=="flank"&&x.Confirmed&&x.Status!="ended"))State="active";
+        return Active;
+    }
+    public ManeuverTrace Trace(string id,double now,SquadManeuverConfig c)
+    {
+        var m=Member(id)!;var support=Member(Support);
+        return new(){Plan=Id,State=State,Role=m.Role,Reason=m.Reason.Length>0?m.Reason:Reason,Support=Support,SupportName=support?.Name??"",
+            Confirmed=m.Confirmed,SupportReady=SupportReady(now),Remaining=Math.Max(0,Until-now),Chance=c.Chance,Roll=Roll*100,Shots=m.Shots,
+            FireState=m.Role=="rear"?"watching known rear threat":now-m.LastShot<.3?"observed suppression fire":"holding",
+            Members=Members.Select(x=>$"{x.Name} [{x.Role}]: {x.Status}{(x.Reason.Length>0?" - "+x.Reason:"")}").ToArray()};
+    }
+}
+public sealed class SquadManeuverBoard
+{
+    private readonly Dictionary<string,SquadManeuverPlan> plans=new();
+    private readonly Dictionary<string,(double until,double evidence)> history=new();
+    private int serial;private double clock=-1;
+    public SquadManeuverPlan? LastAttempt {get;private set;}
+    public int Count=>plans.Count;
+    public SquadManeuverPlan? Get(string group)=>plans.TryGetValue(group,out var p)?p:null;
+    public SquadManeuverPlan? TryStart(string group,string enemy,double now,double evidence,double roll,List<ManeuverMember> candidates,SquadManeuverConfig c,double participation)
+    {
+        if(!MedicalChoice.Finite(now)||!MedicalChoice.Finite(evidence)||now<0||evidence>now||now-evidence>c.ContactAge||!c.Enabled)return null;
+        if(now<clock)Clear();clock=now;
+        if(plans.TryGetValue(group,out var old)&&old.Active)return old.Enemy==enemy?old:null;
+        string key=group+"/"+enemy;
+        if(old!=null){if(old.EndedAt<0)Finish(old,now,c,old.Reason);plans.Remove(group);}
+        if(history.TryGetValue(key,out var h)&&(now<h.until||evidence<=h.evidence+.001))return null;
+        if(history.Count>=512&&!history.ContainsKey(key)||plans.Count>=128||candidates.Count<2||candidates.Count>16)return null;
+        if(!MedicalChoice.Finite(roll)||roll<0||roll>=1)return null;
+        // One roll for the whole opportunity; a failed roll also consumes this evidence.
+        history[key]=(now+c.Retry,evidence);
+        var members=candidates.OrderBy(x=>x.Score).ThenBy(x=>x.Id,StringComparer.Ordinal).ToList();
+        var support=members[0];support.Role="support";
+        foreach(var m in members.Skip(1))m.Role=m.Score>=0&&m.Ammo>=c.MinimumAmmo&&m.Roll*100<participation?"flank":"support";
+        if(c.RearWatch){var rear=members.Find(x=>x.Id!=support.Id&&x.Role=="support"&&x.RearContact.Length>0);if(rear!=null)rear.Role="rear";}
+        var plan=new SquadManeuverPlan{Id="maneuver-"+(++serial),Group=group,Enemy=enemy,Support=support.Id,Started=now,Until=now+c.Duration,Evidence=evidence,Roll=roll};
+        foreach(var m in members){m.LastSeen=now;plan.Members.Add(m);}
+        LastAttempt=plan;
+        if(roll*100>=c.Chance){plan.End("maneuver-keep-current-plan");return null;}
+        if(!members.Any(x=>x.Role=="flank")){plan.End("maneuver-no-willing-flanker");return null;}
+        plans[group]=plan;return plan;
+    }
+    public void Finish(SquadManeuverPlan p,double now,SquadManeuverConfig c,string why)
+    {if(p.Active)p.End(why);if(p.EndedAt<0)p.EndedAt=now;history[p.Group+"/"+p.Enemy]=(p.EndedAt+c.Retry,p.Evidence);}
+    public static double Score(string personality,bool healthy,double ammo,SquadManeuverConfig c)
+    {
+        double rank=personality is "GigaChad" or "Chad" or "Wreckless"?2:personality=="Normal"?1:c.CautiousFlank?0:-10;
+        return rank+(healthy?.5:0)+ammo*.003;
+    }
+    public void Clear(){plans.Clear();history.Clear();clock=-1;serial=0;LastAttempt=null;}
+}

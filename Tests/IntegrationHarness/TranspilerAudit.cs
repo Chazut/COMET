@@ -1,0 +1,105 @@
+using System.Reflection;
+using System.Reflection.Emit;
+using HarmonyLib;
+
+namespace Comet.IntegrationProbe;
+
+// Reads actual EFT/SAIN IL. No game methods, Unity calls or detours are executed.
+// Production transpilers are extracted by IntegrationAudit with reflection-only AccessTools.
+static class TranspilerAudit
+{
+    static readonly Dictionary<short,OpCode> Opcodes=typeof(OpCodes).GetFields(BindingFlags.Public|BindingFlags.Static)
+        .Where(f=>f.FieldType==typeof(OpCode)).Select(f=>(OpCode)f.GetValue(null)!).ToDictionary(o=>o.Value);
+
+    public static void Check(MethodBase target,MethodInfo transpiler)
+    {
+        var input=Read(target);
+        var generator=new DynamicMethod("labels",typeof(void),Type.EmptyTypes).GetILGenerator();
+        foreach(var i in input)i.labels.Add(generator.DefineLabel());
+        var before=input.Select(i=>new CodeInstruction(i)).ToArray();
+        var args=transpiler.GetParameters().Select(p=>p.Name=="__originalMethod"?(object)target:input).ToArray();
+        CodeInstruction[] after;
+        try { after=((IEnumerable<CodeInstruction>)transpiler.Invoke(null,args)!).ToArray(); }
+        catch(Exception e){throw new InvalidOperationException($"{transpiler.Name} on {target.DeclaringType}.{target.Name}: {e.GetBaseException().Message}",e);}
+        foreach(var original in before)
+        {
+            var label=original.labels.Single();
+            if(after.Count(i=>i.labels.Contains(label))!=1)throw new Exception($"{transpiler.Name}: lost/duplicated instruction label");
+            if(original.operand is not MethodInfo call||original.opcode!=OpCodes.Call&&original.opcode!=OpCodes.Callvirt)continue;
+            int start=Array.FindIndex(after,i=>i.labels.Contains(label)),end=start+1;
+            while(end<after.Length&&after[end].labels.Count==0)end++;
+            var segment=after[start..end];
+            if(!segment.Any(i=>i.operand is MethodInfo m&&m.DeclaringType==typeof(Comet.Client.Plugin)))continue;
+            // Check the actual receiver type too, not only a method name/call count.
+            // This catches routing an interface call to a wrapper requiring a concrete implementation.
+            var stack=new List<Type>();
+            if(!call.IsStatic)stack.Add(call.DeclaringType!);
+            stack.AddRange(call.GetParameters().Select(p=>p.ParameterType));
+            foreach(var i in segment)
+            {
+                if(i.opcode==OpCodes.Ldarg_0)stack.Add(target.DeclaringType!);
+                else if(i.opcode==OpCodes.Ldfld&&i.operand is FieldInfo field)
+                {Pop(field.DeclaringType!);stack.Add(field.FieldType);}
+                else if(i.opcode==OpCodes.Call&&i.operand is MethodInfo wrapper)
+                {
+                    foreach(var p in wrapper.GetParameters().Reverse())Pop(p.ParameterType);
+                    if(!wrapper.IsStatic)Pop(wrapper.DeclaringType!);
+                    if(wrapper.ReturnType!=typeof(void))stack.Add(wrapper.ReturnType);
+                }
+                else throw new Exception($"{transpiler.Name}: unvalidated replacement opcode {i.opcode}");
+            }
+            var expected=call.ReturnType==typeof(void)?Array.Empty<Type>():new[]{call.ReturnType};
+            if(!stack.SequenceEqual(expected))throw new Exception($"{transpiler.Name}: changed return stack for {call}");
+            void Pop(Type expectedType)
+            {
+                if(stack.Count==0)throw new Exception($"{transpiler.Name}: replacement stack underflow");
+                var actual=stack[^1];stack.RemoveAt(stack.Count-1);
+                if(!expectedType.IsAssignableFrom(actual))throw new Exception($"{transpiler.Name}: {actual} cannot bind {expectedType}");
+            }
+        }
+        Console.WriteLine($"  IL OK: {transpiler.Name} -> {target.DeclaringType}.{target.Name}");
+        if(transpiler.Name=="RouteQuickReload")
+        {
+            var reload=before.Single(i=>i.operand is MethodInfo m&&m.Name=="ReloadMag");
+            Reject(Array.Empty<CodeInstruction>(),"missing call");
+            Reject(new[]{new CodeInstruction(reload),new CodeInstruction(reload)},"duplicate call");
+            var wrong=new CodeInstruction(reload){operand=typeof(EFT.Player.FirearmController).GetMethod("ReloadMag",new[]{typeof(EFT.InventoryLogic.Magazine),typeof(EFT.InventoryLogic.ItemAddress),typeof(Comfort.Common.Callback)})!};
+            Reject(new[]{wrong},"same name but wrong declaring type");
+            void Reject(CodeInstruction[] code,string scenario)
+            {
+                bool rejected=false;
+                try { ((IEnumerable<CodeInstruction>)transpiler.Invoke(null,new object[]{code})!).ToArray(); }
+                catch(InvalidOperationException){rejected=true;}
+                if(!rejected)throw new Exception("W04 accepted "+scenario);
+            }
+            Console.WriteLine("  W04: missing, duplicate and wrong-owner calls rejected.");
+        }
+    }
+
+    static List<CodeInstruction> Read(MethodBase method)
+    {
+        var bytes=method.GetMethodBody()?.GetILAsByteArray()??throw new Exception("No method body: "+method);
+        using var reader=new BinaryReader(new MemoryStream(bytes));
+        var result=new List<CodeInstruction>();var module=method.Module;
+        var types=method.DeclaringType?.GetGenericArguments();var methods=method.IsGenericMethod?method.GetGenericArguments():null;
+        while(reader.BaseStream.Position<bytes.Length)
+        {
+            byte b=reader.ReadByte();short key=b==0xfe?(short)(0xfe00|reader.ReadByte()):b;
+            var op=Opcodes[key];object? operand=op.OperandType switch {
+                OperandType.InlineNone=>null,
+                OperandType.ShortInlineI=>(int)reader.ReadSByte(),
+                OperandType.InlineI=>reader.ReadInt32(),OperandType.InlineI8=>reader.ReadInt64(),
+                OperandType.ShortInlineR=>reader.ReadSingle(),OperandType.InlineR=>reader.ReadDouble(),
+                OperandType.ShortInlineVar=>(int)reader.ReadByte(),OperandType.InlineVar=>(int)reader.ReadUInt16(),
+                OperandType.ShortInlineBrTarget=>(int)reader.ReadSByte(),OperandType.InlineBrTarget=>reader.ReadInt32(),
+                OperandType.InlineSwitch=>Enumerable.Range(0,reader.ReadInt32()).Select(_=>reader.ReadInt32()).ToArray(),
+                OperandType.InlineString=>module.ResolveString(reader.ReadInt32()),
+                OperandType.InlineSig=>module.ResolveSignature(reader.ReadInt32()),
+                OperandType.InlineMethod or OperandType.InlineField or OperandType.InlineType or OperandType.InlineTok=>module.ResolveMember(reader.ReadInt32(),types,methods),
+                _=>throw new NotSupportedException(op.OperandType.ToString())
+            };
+            result.Add(new CodeInstruction(op,operand));
+        }
+        return result;
+    }
+}

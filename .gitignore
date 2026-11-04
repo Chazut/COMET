@@ -1,0 +1,58 @@
+# Build outputs and test results
+**/[Bb]in/
+**/[Oo]bj/
+**/TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Local game references, generated evidence and distribution packages
+/references/
+/artifacts/
+/work/
+/dist/
+/backups/
+*.dll
+*.exe
+*.pdb
+*.nupkg
+*.snupkg
+*.zip
+*.7z
+
+# Internal feature cards, validation notes and one-off development scripts
+/docs/
+/Tools/prepare_*_preview.py
+/Tools/integrate_*_rr.py
+/Tools/migrate_u05_catalog.py
+
+# Local settings and runtime diagnostics (keep source JSON and test fixtures)
+**/config.json
+**/config.json.*
+**/presets.json
+**/diagnostics/
+*.log
+*.etl
+*.dmp
+*.tmp
+*.bak
+.env
+.env.*
+!.env.example
+
+# Editor, assistant and OS state
+.vs/
+.idea/
+.vscode/
+.claude/
+.codex/
+AGENTS.md
+CLAUDE.md
+*.user
+*.suo
+*.sln.docstates
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+Desktop.ini

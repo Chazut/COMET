@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><NoWarn>CS0649;CS8602</NoWarn></PropertyGroup>
+ <ItemGroup><Compile Include="../../Shared/*.cs" Link="Core/%(Filename)%(Extension)" />
+ <Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" /></ItemGroup>
+ <Target Name="JournalBoundary" BeforeTargets="CoreCompile">
+  <MakeDir Directories="obj/journal-input" />
+  <Copy SourceFiles="../../Client/CombatJournalAdapter.cs" DestinationFolder="obj/journal-input" />
+  <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/FaultBoundaries&quot; -c Release -- &quot;$(MSBuildProjectDirectory)/obj/journal-input&quot; &quot;$(MSBuildProjectDirectory)/obj/journal-generated&quot;" />
+  <ItemGroup><Compile Include="obj/journal-generated/CombatJournalAdapter.cs" /></ItemGroup>
+ </Target>
+</Project>

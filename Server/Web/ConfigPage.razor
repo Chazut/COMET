@@ -1,0 +1,172 @@
+@page "/comet"
+@using Comet.Core
+@using Comet.Server.Editing
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+@inject Comet.Server.ConfigStore Store
+
+<PageTitle>COMET settings</PageTitle>
+<main class="comet" inert="@(preview != null)">
+    <header class="page-heading"><div><span class="eyebrow">COMET / DEVELOPMENT PREVIEW</span><h1>Make the fight your own.</h1>
+        <p>Choose a starting level, then tune how PMCs approach combat. Your SAIN settings stay unchanged.</p></div>
+        <span class="authority">Server settings<br /><strong>Applies next raid</strong></span></header>
+    @if (editor == null) { <p role="alert">@message</p><button @onclick="ReadSaved">Try again</button> }
+    else {
+    <IntegrationStatusPanel Reports="Store.Integration" />
+    <PresetLibraryPanel Editor="editor" Preview="OpenPreview" Changed="DraftChanged" />
+    <section class="profile-panel" aria-label="COMET difficulty">
+        <div class="section-heading"><div><h2>Start with a level</h2><p>Hard keeps the original COMET defaults. Lower levels reduce selected tactical chances and space out attempts.</p></div>
+            <span class="pill">In editor: @editor.PresetLabel@(editor.Customized ? " · customized settings" : "")</span></div>
+        <div class="profile-cards">
+            @foreach (string profile in new[] { "Easy", "Normal", "Hard" }) {
+                <button class="profile-card @(editor.Profile == profile ? "chosen" : "")" @onclick="() => PreviewProfile(profile)">
+                    <span class="profile-name">@profile <small>@(profile == "Hard" ? "DEFAULT / MAX LEVEL" : "")</small></span>
+                    <span>@ProfileText(profile)</span><span class="profile-action">Preview &amp; load →</span>
+                </button>
+            }
+        </div>
+        <details class="quiet-details"><summary>What do these levels change?</summary>
+            <p>Easy uses 50% and Normal 75% of selected tactical chances, with 50% and 25% longer between attempts. Hard keeps the original values. Features that are off stay off. Aim, hearing, vision and medical settings stay the same.</p>
+            <p>Chances apply only when a tactic is eligible. Less aggression can mean more defensive behavior, so every slider is not a difficulty slider. Loading a level replaces all COMET values in the editor; you review it first and save separately.</p>
+        </details>
+    </section>
+    <section class="editor-panel" aria-label="Settings editor">
+        <div class="section-heading"><div><h2 tabindex="-1" @ref="editorHeading">Your settings</h2><p>@(advanced ? "All controls, grouped by feature. Open a section to edit it." : "The everyday controls. Switch to Advanced for precise timing, personality weights and safety limits.")</p></div>
+            <div class="segmented" role="group" aria-label="Editor detail"><button class="@(!advanced ? "active" : "")" aria-pressed="@(!advanced ? "true" : "false")" @onclick="() => SetMode(false)">Simple</button><button class="@(advanced ? "active" : "")" aria-pressed="@(advanced ? "true" : "false")" @onclick="() => SetMode(true)">Advanced</button></div>
+        </div>
+        <div class="toolbar">
+            <label class="search-label">Find a setting<input type="search" placeholder="Search all settings, even advanced ones…" @bind="search" @bind:event="oninput" /></label>
+            <label for="compare-reference">Compare with<select id="compare-reference" aria-label="Compare with" value="@editor.Comparison" @onchange="ChangeComparison"><option>Saved</option><option>Easy</option><option>Normal</option><option>Hard</option></select></label>
+            <label class="check-label"><input type="checkbox" @bind="modifiedOnly" /> Modified only</label>
+        </div>
+        <div class="comparison-line"><span><strong>@editor.DifferenceCount</strong> settings differ from @editor.Comparison.
+            @if (editor.ProfileChanged) { <span> Base profile: @editor.ReferenceProfile → @editor.Profile.</span> }</span>
+            <span>Comparing does not change your settings.</span></div>
+        <details class="quiet-details reading-guide"><summary>How to read these settings</summary>
+            <p>Saved is your last saved setup. A default is the supplied value for the named COMET level, before your edits or personal preset. Restore copies the selected comparison value into your draft.</p>
+            <p>Chances apply only when the described conditions are met. They are not a percentage of all PMCs. Weights favor an option without guaranteeing it. Seconds (s), meters (m), percentages (%) and multipliers (x) are shown beside the values.</p>
+            <p>For a multiplier, 1 keeps the original amount and 0.5 halves it. For a 0-1 scale, 0.5 means halfway along that scale; it is only a chance when the description says so.</p>
+        </details>
+        @if (search.Trim().Length > 0) { <p class="notice">Searching all themes and advanced settings. @visible.Count result(s).</p> }
+        else if (modifiedOnly && !advanced) { <p class="notice">Modified only includes advanced settings too.</p> }
+        <nav class="theme-grid" aria-label="Setting themes">
+            <button class="@(category == "All" ? "selected" : "")" @onclick='() => category = "All"'><strong>All themes</strong><span>@visible.Count settings shown</span></button>
+            @foreach (var theme in themes) {
+                var count = visible.Count(f => editor.Catalog.Sections[f.Section].Category == theme);
+                var differences = editor.Catalog.Fields.Values.Count(f => editor.Catalog.Sections[f.Section].Category == theme && editor.Changed(f));
+                <button class="@(category == theme ? "selected" : "")" @onclick="() => SelectCategory(theme)"><strong>@theme</strong><span>@count shown · @differences modified</span></button>
+            }
+        </nav>
+        @if (editor.InvalidCount > 0 || editor.ValidationError.Length > 0) {
+            <div class="error-banner" role="alert"><strong>Check your draft before saving.</strong>
+                @if (editor.InvalidCount > 0) { <p>@editor.InvalidCount invalid field(s). <button @onclick="ShowErrors">Show invalid fields</button></p> }
+                @if (editor.ValidationError.Length > 0) { <p>@editor.ValidationError</p> }
+            </div>
+        }
+        @if (shown.Count == 0) {
+            <div class="empty"><h3>No matching settings</h3><p>Try another theme, a shorter search or turn off Modified only.</p><button @onclick="ClearFilters">Clear filters</button>
+                @if (!advanced) { <button @onclick="() => SetMode(true)">Show advanced settings</button> }
+            </div>
+        }
+        <div class="sections @(!advanced && search.Trim().Length == 0 ? "simple-sections" : "")">
+        @foreach (var group in shown.GroupBy(f => f.Section).OrderBy(g => editor.Catalog.Sections[g.Key].Category == "Overview" ? "" : editor.Catalog.Sections[g.Key].Category).ThenBy(g => editor.Catalog.Sections[g.Key].Title)) {
+            var section = editor.Catalog.Sections[group.Key];
+            var sectionChanges = editor.Catalog.Fields.Values.Count(f => f.Section == group.Key && editor.Changed(f));
+            bool expanded = IsExpanded(group.Key);
+            <section class="feature" @key="group.Key">
+                <button class="feature-heading" aria-expanded="@(expanded ? "true" : "false")" aria-controls="@("section-" + group.Key)" @onclick="() => ToggleSection(group.Key)">
+                    <span><small>@section.Category</small><strong>@(advanced ? section.Title : System.Text.RegularExpressions.Regex.Replace(section.Title, @"\s*[-·]\s*[A-Z]\d{2}.*$", ""))</strong></span>
+                    <span class="feature-count">@group.Count() settings @(sectionChanges > 0 ? $"· {sectionChanges} modified" : "") <span aria-hidden="true">@(expanded ? "−" : "+")</span></span>
+                </button>
+                @if (expanded) {
+                    <div id="@("section-" + group.Key)" class="feature-body">
+                        <p class="feature-description">@section.Summary</p>
+                        @if (section.Description != section.Summary) { <details class="quiet-details feature-help"><summary>How it works</summary><p>@section.Description</p></details> }
+                        @foreach (var field in group) { <SettingField @key="field.Path" Editor="editor" Field="field" Changed="DraftChanged" /> }
+                        <button class="section-restore" disabled="@(sectionChanges == 0 && !group.Any(f => editor.Error(f).Length > 0))" @onclick="() => PreviewSection(group.Key)">Restore this entire section from @editor.Comparison…</button>
+                    </div>
+                }
+            </section>
+        }
+        </div>
+        <details class="quiet-details protections"><summary>Always-on protections &amp; diagnostics</summary>
+            @foreach (var note in editor.Catalog.Notes) { <h3>@note.Title</h3><p>@note.Description</p> }
+        </details>
+    </section>
+    <footer class="save-bar"><div><strong>@editor.PendingCount unsaved change(s)@(editor.InvalidCount > 0 ? $" · {editor.InvalidCount} invalid input(s)" : "")</strong>
+        <span>Saved revision @editor.Revision · Current raids keep their loaded settings.</span></div>
+        <div class="save-actions"><button disabled="@(!editor.HasPending)" @onclick="PreviewDiscard">Discard edits…</button><button class="primary" disabled="@(!editor.CanSave)" @onclick="Save">Save for next raid</button></div>
+        @if (message.Length > 0) { <p class="save-message" role="status">@message</p> }
+    </footer>
+    }
+</main>
+@if (preview != null && editor != null) {
+    <div class="comet dialog-backdrop" @onkeydown="DialogKey">
+        <section class="preview-dialog" role="dialog" aria-modal="true" aria-labelledby="preview-title" tabindex="-1" @ref="dialog">
+            <span tabindex="0" @onfocus="FocusLast"></span>
+            <div class="section-heading"><div><span class="eyebrow">REVIEW BEFORE CHANGING</span><h2 id="preview-title">@preview.Title</h2></div><button aria-label="Close preview" @ref="firstDialogButton" @onclick="ClosePreview">✕</button></div>
+            <p>@preview.Changes.Count value(s) will change in your draft. This does not save anything.</p>
+            <p>Section restores include advanced settings, even when hidden by your current filters.</p>
+            <div class="preview-list"><table><thead><tr><th>Setting</th><th>In editor</th><th>After</th></tr></thead><tbody>
+                @foreach (var change in preview.Changes) { <tr><td>@change.Label<small>@change.Path</small></td><td>@change.Before</td><td>@change.After</td></tr> }
+            </tbody></table>@if (preview.Changes.Count == 0) { <p>No values need to change.</p> }</div>
+            <div class="dialog-actions"><button @onclick="ClosePreview">Cancel</button><button class="primary" @ref="lastDialogButton" @onclick="ApplyPreview">Apply to draft</button></div>
+            <span tabindex="0" @onfocus="FocusFirst"></span>
+        </section>
+    </div>
+}
+
+@code {
+    ConfigEditor? editor;
+    string message = "", search = "", category = "All";
+    bool advanced, modifiedOnly;
+    readonly HashSet<string> open = new(), closed = new();
+    EditorPreview? preview;
+    ElementReference dialog, editorHeading, firstDialogButton, lastDialogButton;
+    bool focusDialog, focusEditor;
+    static readonly string[] themes = { "Overview", "Decisions", "Perception", "Movement", "Doors", "Weapons & lights", "Grenades", "Squad", "Medical", "Recovery", "Diagnostics" };
+    List<EditorField> visible => editor!.Visible(advanced, search, modifiedOnly).ToList();
+    List<EditorField> shown => visible.Where(f => search.Trim().Length > 0 || category == "All" || editor!.Catalog.Sections[f.Section].Category == category).ToList();
+    protected override void OnInitialized() => ReadSaved();
+    void ReadSaved() { try { editor = new(Store.Read()); message = ""; } catch (Exception ex) { message = ex.Message; } }
+    string ProfileText(string profile) => profile switch { "Easy" => "More breathing room between tactical attempts.", "Normal" => "Less frequent tactical pressure.", _ => "Original chances and timing. The highest supplied level." };
+    void SetMode(bool value) { advanced = value; open.Clear(); closed.Clear(); }
+    void SelectCategory(string value) { category = value; search = ""; }
+    bool IsExpanded(string key) => open.Contains(key) || (!closed.Contains(key) && (!advanced || search.Trim().Length > 0));
+    void ToggleSection(string key) { if (IsExpanded(key)) { open.Remove(key); closed.Add(key); } else { closed.Remove(key); open.Add(key); } }
+    void ChangeComparison(ChangeEventArgs e) { editor!.Compare(e.Value?.ToString() ?? "Saved"); message = ""; }
+    void DraftChanged() => message = "";
+    void ClearFilters() { category = "All"; search = ""; modifiedOnly = false; }
+    void ShowErrors() { ClearFilters(); advanced = true; foreach (var f in editor!.Catalog.Fields.Values.Where(f => editor.Error(f).Length > 0)) open.Add(f.Section); }
+    void PreviewProfile(string name) => OpenPreview(editor!.PreviewProfile(name));
+    void PreviewSection(string key) => OpenPreview(editor!.PreviewSection(key));
+    void PreviewDiscard() => OpenPreview(editor!.PreviewDiscard());
+    void OpenPreview(EditorPreview value) { preview = value; focusDialog = true; }
+    void ClosePreview() { preview = null; focusEditor = true; }
+    void DialogKey(KeyboardEventArgs e) { if (e.Key == "Escape") ClosePreview(); }
+    Task FocusFirst() => firstDialogButton.FocusAsync().AsTask();
+    Task FocusLast() => lastDialogButton.FocusAsync().AsTask();
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (focusDialog) { focusDialog = false; await dialog.FocusAsync(); }
+        if (focusEditor) { focusEditor = false; await editorHeading.FocusAsync(); }
+    }
+    void ApplyPreview() { editor!.Apply(preview!); ClosePreview(); message = "Draft updated. Save when ready."; }
+    void Save() {
+        try { editor!.AcceptSaved(Store.Save(editor.Snapshot(), editor.Revision)); message = "Saved for the next raid. Running raids are unchanged."; }
+        catch (Exception e) { message = "Not saved: " + e.Message + " Your draft is still here."; }
+    }
+}
+<style>
+.reading-guide{margin-bottom:18px}.number-value{display:flex;align-items:center;gap:7px}.value-unit{font-size:12px;color:var(--muted);max-width:82px}.base-reference{display:inline-block;margin-left:12px}.setting-example{font-size:12px;color:var(--muted);margin-top:4px}.setting-example summary{cursor:pointer;width:fit-content;color:var(--accent)}.comet .setting-example p{font-size:12px;line-height:1.6;margin:7px 0 0}.setting-value{flex-wrap:wrap}.setting .number-value input[type=number]{width:112px}
+.comet{--bg:#101722;--surface:#192231;--line:#344253;--muted:#a9b7c8;--accent:#ffbb65;color:#eff3f8;font:15px/1.55 system-ui,sans-serif;box-sizing:border-box}
+main.comet{max-width:1460px;margin:0 auto;padding:36px 36px 180px;background:var(--bg);min-height:100vh}.comet *{box-sizing:border-box}.comet h1{font-size:34px;letter-spacing:-1px;line-height:1.2;margin:10px 0}.comet h2{font-size:21px;margin:0 0 5px}.comet h3{font-size:17px}.comet p{color:var(--muted);margin:8px 0 18px;max-width:100ch}.comet button,.comet input,.comet select{font:inherit;color:inherit}.comet button{cursor:pointer;background:transparent;border:1px solid var(--line);border-radius:8px;padding:9px 15px;transition:background .15s}.comet button:hover:not(:disabled){background:#28384c}.comet button:disabled{opacity:.42;cursor:default}.comet :focus-visible{outline:2px solid var(--accent);outline-offset:3px}.comet input[type=number],.comet input[type=search],.comet select{background:#0d1420;border:1px solid #536278;border-radius:7px;padding:10px;min-height:44px}.comet select option{background:#17202e}.comet input[type=checkbox]{accent-color:var(--accent);width:18px;height:18px}.comet .primary{background:var(--accent);border-color:var(--accent);color:#1a1712;font-weight:700}.comet .primary:hover:not(:disabled){background:#ffd092}.comet .eyebrow{color:var(--accent);font-size:11px;letter-spacing:1.8px;font-weight:700}
+.page-heading,.section-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}.page-heading{margin-bottom:24px}.authority{padding:10px 15px;border-left:2px solid var(--accent);color:var(--muted);white-space:nowrap}.authority strong{color:#eff3f8}.profile-panel,.editor-panel{border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:24px;background:var(--surface)}.pill{white-space:nowrap;color:var(--accent);background:#302b27;border:1px solid #735b3b;border-radius:30px;padding:5px 12px;font-size:13px}.profile-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}.comet .profile-card{text-align:left;padding:18px;background:#101824;display:flex;flex-direction:column;gap:12px}.profile-card.chosen{border-color:var(--accent)}.profile-name{font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:8px}.profile-name small{font-size:9px;color:var(--accent);letter-spacing:.5px}.profile-card>span:nth-child(2){color:var(--muted);font-size:14px;flex:1}.profile-action{font-size:12px;color:var(--accent)}.quiet-details{margin-top:18px;color:var(--muted)}.quiet-details summary{cursor:pointer;font-size:13px}.quiet-details p{font-size:14px}.segmented{display:flex;background:#0d1420;padding:3px;border-radius:9px}.segmented button{border:0}.segmented .active{background:#364255;color:#fff}
+.toolbar{display:flex;align-items:flex-end;gap:20px;margin-top:18px;flex-wrap:wrap}.toolbar label{display:flex;flex-direction:column;gap:7px;font-size:12px;color:var(--muted)}.search-label{flex:1;min-width:230px}.toolbar input,.toolbar select{font-size:15px;color:#eff3f8}.toolbar .check-label{flex-direction:row;align-items:center;padding-bottom:10px;color:#eff3f8;font-size:14px}.comparison-line{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:12px;margin:14px 0 20px}.comparison-line strong{color:var(--accent)}.theme-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:24px}.theme-grid button{text-align:left;display:flex;flex-direction:column;padding:12px;background:#111a27}.theme-grid button.selected{border-color:var(--accent);background:#2c2b2b}.theme-grid strong{font-size:13px}.theme-grid span{font-size:11px;color:var(--muted);margin-top:4px}
+.feature{border:1px solid var(--line);border-radius:9px;background:#121b28;overflow:hidden;margin-bottom:12px}.comet .feature-heading{width:100%;text-align:left;border:0;border-radius:0;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 18px}.feature-heading>span:first-child{display:flex;flex-direction:column}.feature-heading small{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:1px}.feature-heading strong{font-size:16px}.feature-count{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:18px}.feature-count>span{font-size:22px;color:var(--accent)}.feature-body{padding:0 18px 18px}.feature-description{font-size:13px;line-height:1.65}.setting{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:14px 12px;border-top:1px solid #2b3747;flex-wrap:wrap;border-left:3px solid transparent}.setting.different{border-left-color:var(--accent);background:#202632}.setting-copy{flex:1;min-width:180px;display:flex;flex-direction:column;gap:4px}.setting-copy>label{font-size:14px;font-weight:600}.setting small{color:var(--muted);font-size:12px}.setting .reference{font-size:11px;color:var(--muted)}.reference strong{font-weight:500;color:#e6edf6}.pending-dot{color:var(--accent);margin-left:12px}.setting-value{display:flex;align-items:center;gap:10px}.setting-value input[type=number]{width:130px;text-align:right}.toggle{display:flex;align-items:center;gap:8px;min-width:100px;justify-content:flex-end}.comet .restore{font-size:12px;padding:8px}.field-error{width:100%;color:#ffac9f;font-size:13px}.comet input[aria-invalid=true]{border-color:#ffac9f}.comet .section-restore{font-size:11px;margin-top:16px;color:var(--muted)}.notice{background:#193a43;border:1px solid #2b5b65;padding:10px 14px;border-radius:6px;color:#b8e8e6!important;font-size:13px}.error-banner{background:#3a2527;border:1px solid #805052;border-radius:8px;padding:16px;margin:12px 0}.error-banner p{color:#ffb9b0}.error-banner button{font-size:12px}.empty{text-align:center;padding:28px}.empty p{max-width:none}
+.save-bar{position:fixed;z-index:10;bottom:0;left:0;right:0;border-top:1px solid #536278;background:#111a27f7;padding:17px max(24px,calc((100vw - 1388px)/2));display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;box-shadow:0 -5px 24px #0004}.save-bar>div:first-child{display:flex;flex-direction:column;gap:4px}.save-bar strong{font-size:14px}.save-bar span{color:var(--muted);font-size:12px}.save-actions{display:flex;gap:12px}.comet .save-message{margin:0;width:100%;font-size:12px;color:var(--accent)}.dialog-backdrop{position:fixed;z-index:30;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;padding:24px}.preview-dialog{background:#172231;border:1px solid #536278;border-radius:14px;max-width:900px;width:100%;max-height:90vh;padding:26px;display:flex;flex-direction:column;box-shadow:0 18px 90px #0008}.preview-list{overflow:auto;min-height:60px;border:1px solid var(--line);border-radius:8px}.preview-list table{border-collapse:collapse;width:100%;font-size:13px}.preview-list th{text-align:left;background:#263345;position:sticky;top:0}.preview-list td,.preview-list th{padding:10px 15px;border-bottom:1px solid var(--line)}.preview-list td small{display:block;color:var(--muted);font-size:10px;overflow-wrap:anywhere}.preview-list td:nth-child(2){color:var(--muted)}.preview-list td:nth-child(3){color:var(--accent)}.dialog-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:20px}.preview-dialog>p{font-size:13px;margin:6px 0 12px}
+@@media(max-width:750px){main.comet{padding:22px 14px 225px}.page-heading,.section-heading{flex-wrap:wrap;gap:12px}.comet h1{font-size:27px}.authority{display:none}.profile-panel,.editor-panel{padding:16px}.profile-cards{grid-template-columns:1fr}.profile-card{gap:7px!important}.profile-card>span:nth-child(2){font-size:12px}.toolbar{gap:12px}.search-label{width:100%;flex-basis:100%}.comparison-line{flex-direction:column}.theme-grid{grid-template-columns:repeat(2,1fr)}.feature-heading{padding:12px!important}.feature-heading strong{font-size:14px}.feature-count{font-size:10px;gap:6px;white-space:nowrap}.feature-body{padding:0 10px 12px}.setting{gap:10px}.setting-value{width:100%;justify-content:flex-end}.save-bar{padding:12px 16px;gap:10px}.save-actions{width:100%;justify-content:flex-end}.save-actions button{font-size:13px}.dialog-backdrop{padding:10px}.preview-dialog{padding:16px}.preview-list td,.preview-list th{padding:8px}.pill{white-space:normal}}
+</style>
+<style>
+.comet .simple-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}.comet .simple-sections .feature{margin:0}.comet .feature-help{margin:0 0 14px}.comet .simple-sections .feature-count{font-size:10px;gap:8px}.comet .simple-sections .setting{padding-left:7px;padding-right:7px}.comet .simple-sections .setting-copy{min-width:160px}.comet .simple-sections .setting-value{margin-left:auto}.comet .simple-sections .setting-value input[type=number]{width:105px}.comet .simple-sections .section-restore{padding:6px 8px}
+@@media(max-width:1050px){.comet .simple-sections{grid-template-columns:1fr}}
+</style>

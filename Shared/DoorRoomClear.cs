@@ -1,0 +1,231 @@
+using System;
+using System.Collections.Generic;
+
+namespace Comet.Core;
+
+public sealed class DoorRoomClearConfig
+{
+    public bool Enabled { get; set; }=true;
+    public Dictionary<string,double> Chances { get; set; }=new()
+    { ["GigaChad"]=40,["Chad"]=30,["Wreckless"]=35,["Normal"]=15,["Rat"]=0,["SnappingTurtle"]=0,["Coward"]=0,["Timmy"]=0 };
+    public double ContactLifetime { get; set; }=10;
+    public double GrenadePreference { get; set; }=50;
+    public bool AllowFeint { get; set; }=true;
+    public double MinimumAmmo { get; set; }=50;
+    public double MinimumStamina { get; set; }=35;
+    public double DepthMin { get; set; }=2;
+    public double DepthMax { get; set; }=3;
+    public double BlastPauseMin { get; set; }=.3;
+    public double BlastPauseMax { get; set; }=.7;
+    public double TargetCooldown { get; set; }=60;
+    public void Validate()
+    {
+        if(Chances==null||Chances.Count!=8)throw new ArgumentException("Missing room entry personality chances.");
+        foreach(var p in new[]{"GigaChad","Chad","Wreckless","Normal","Rat","SnappingTurtle","Coward","Timmy"})
+            if(!Chances.TryGetValue(p,out var v))throw new ArgumentException("Missing room entry chance: "+p);else CometConfig.Range(v,0,100,p);
+        CometConfig.Range(ContactLifetime,3,15,nameof(ContactLifetime));CometConfig.Range(GrenadePreference,0,100,nameof(GrenadePreference));
+        CometConfig.Range(MinimumAmmo,25,100,nameof(MinimumAmmo));CometConfig.Range(MinimumStamina,20,80,nameof(MinimumStamina));
+        CometConfig.Range(DepthMin,1.5,3,nameof(DepthMin));CometConfig.Range(DepthMax,DepthMin,4,nameof(DepthMax));
+        CometConfig.Range(BlastPauseMin,.2,1,nameof(BlastPauseMin));CometConfig.Range(BlastPauseMax,BlastPauseMin,1.5,nameof(BlastPauseMax));
+        CometConfig.Range(TargetCooldown,30,180,nameof(TargetCooldown));
+    }
+}
+
+public sealed class DoorClearTrace
+{
+    public string Mode { get; set; }="recent";
+    public double BaseChance { get; set; }
+    public double AgeFactor { get; set; }=1;
+    public double SelectionContactAge { get; set; }
+    public double EvidenceAt { get; set; }
+    public double ContactLimit { get; set; }
+    public double FadeFrom { get; set; }
+    public double FadeUntil { get; set; }
+    public string State { get; set; }="preparing";
+    public string Reason { get; set; }="clear-selected";
+    public string Door { get; set; }="";
+    public string Target { get; set; }="";
+    public string Source { get; set; }="";
+    public string Personality { get; set; }="";
+    public double Chance { get; set; }
+    public double Roll { get; set; }
+    public double VariantRoll { get; set; }
+    public string Variant { get; set; }="undecided";
+    public double ContactAge { get; set; }
+    public double KnownX { get; set; }
+    public double KnownY { get; set; }
+    public double KnownZ { get; set; }
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double Z { get; set; }
+    public bool CoveredDestination { get; set; }
+    public bool DoorOpenObserved { get; set; }
+    public bool FeintAttempted { get; set; }
+    public string Feint { get; set; }="none";
+    public string FeintOutcome { get; set; }="not-attempted";
+    public bool ThrowRequested { get; set; }
+    public bool ThrowAccepted { get; set; }
+    public string GrenadeItem { get; set; }="";
+    public int? Projectile { get; set; }
+    public bool ProjectileObserved { get; set; }
+    public bool ExplosionConfirmed { get; set; }
+    public string GrenadeOutcome { get; set; }="not-thrown";
+    public double DangerRadius { get; set; }
+    public double BlastPause { get; set; }
+    public double FuseEstimate { get; set; }
+    public bool MovementRequested { get; set; }
+    public bool MovementAccepted { get; set; }
+    public bool MovementObserved { get; set; }
+    public bool ThresholdCrossed { get; set; }
+    public bool Arrived { get; set; }
+    public bool WeaponReady { get; set; }
+    public double Elapsed { get; set; }
+    public double ValidFor { get; set; }=1.5;
+    public string[] Alternatives { get; set; }=Array.Empty<string>();
+}
+
+// Pure sequence. Timers can fail an action; none can stand in for a native event or an arrival.
+public sealed class DoorRoomClear
+{
+    private readonly Dictionary<string,(double at,double evidence)> history=new();
+    private double started,phase,last,blastAt;
+    private DoorPoint moveStart;
+    public DoorClearTrace? Trace { get; private set; }
+    private string suspendedPhase="";
+    public bool Active=>Trace!=null&&Trace.State!="suspended"&&Trace.State!="ended"&&Trace.State!="completed";
+    public bool SafeToSuspend=>Active&&Trace!.State is "preparing" or "planning" or "ready" or "throw-ready" or "entry-ready" && !Trace.ThrowRequested;
+    public double Deadline=>Math.Min(started+35,phase+3);
+    public void Suspend(){if(SafeToSuspend){suspendedPhase=Trace!.State;Trace.State="suspended";Trace.ValidFor=0;}}
+    public bool Resume(double now)
+    {if(Trace?.State!="suspended"||!Valid(now)||now<last||now>=Deadline)return false;Trace.State=suspendedPhase;Trace.ValidFor=1.5;last=now;return true;}
+    public bool Begin(string door,string target,string source,string personality,DoorPoint known,double age,double now,double roll,DoorRoomClearConfig c)
+    {
+        if(Active||!c.Enabled||!known.Finite||!Valid(now)||!Valid(age)||age>c.ContactLifetime||!Roll(roll)||string.IsNullOrEmpty(door)||string.IsNullOrEmpty(target))return false;
+        double chance=c.Chances.TryGetValue(personality,out var v)?v:0;
+        return BeginCore(door,target,source,personality,known,age,now,roll,c,chance,"recent",1,c.ContactLifetime,0,0);
+    }
+    public bool BeginSearch(string door,string target,string source,string personality,DoorPoint known,double age,double now,double roll,
+        DoorRoomClearConfig c,DoorSearchClearConfig search,double memoryLimit,double approachLimit)
+    {
+        if(Active||!known.Finite||!Valid(now)||!Roll(roll)||string.IsNullOrEmpty(door)||string.IsNullOrEmpty(target)
+            ||DoorSearchClear.Gate(age,c,search,memoryLimit,approachLimit).Length>0)return false;
+        double factor=DoorSearchClear.Factor(age,c.ContactLifetime,search.ContactLifetime);
+        return BeginCore(door,target,source,personality,known,age,now,roll,c,search.Chance,"search",factor,
+            DoorSearchClear.Limit(search,memoryLimit,approachLimit),c.ContactLifetime,search.ContactLifetime);
+    }
+    private bool BeginCore(string door,string target,string source,string personality,DoorPoint known,double age,double now,double roll,
+        DoorRoomClearConfig c,double baseChance,string mode,double factor,double limit,double fadeFrom,double fadeUntil)
+    {
+        double evidence=now-age;
+        if(history.TryGetValue(target,out var h)&&(now-h.at<c.TargetCooldown||evidence<=h.evidence+.1))return false;
+        if(history.Count>=32&&!history.ContainsKey(target))return false;
+        history[target]=(now,evidence);started=phase=last=now;
+        double chance=baseChance*factor;
+        Trace=new(){Mode=mode,BaseChance=baseChance,AgeFactor=factor,SelectionContactAge=age,EvidenceAt=evidence,ContactLimit=limit,FadeFrom=fadeFrom,FadeUntil=fadeUntil,
+            Door=door,Target=target,Source=source,Personality=personality,KnownX=known.X,KnownY=known.Y,KnownZ=known.Z,ContactAge=age,Chance=chance,Roll=roll*100,
+            Reason=mode=="search"?"search-clear-selected":"clear-selected"};
+        if(roll*100>=chance)End(mode=="search"?"search-clear-roll-declined":"clear-roll-declined");return Active;
+    }
+    // Search preparation cannot refresh the original evidence or extend the decision engine's memory.
+    public string SearchContact(double age,double now,bool known,double memoryLimit,double approachLimit)
+    {
+        if(Trace?.Mode!="search")return "";
+        if(!known)return "search-clear-contact-forgotten";
+        if(!Valid(age)||!Valid(now)||now<last||!Valid(memoryLimit)||!Valid(approachLimit))return "search-clear-invalid-age";
+        if(Math.Abs((now-age)-Trace.EvidenceAt)>.25)return "search-clear-new-evidence-native-review";
+        Trace.ContactAge=age;
+        double limit=Math.Min(Trace.ContactLimit,Math.Min(memoryLimit,approachLimit));
+        return age>=limit||now-Trace.EvidenceAt>=limit?"search-clear-contact-expired":"";
+    }
+    public static bool Valid(double v)=>DoorPolicy.Finite(v)&&v>=0;
+    private static bool Roll(double v)=>Valid(v)&&v<1;
+    private void Phase(string name,string reason,double now){Trace!.State=name;Trace.Reason=reason;phase=now;}
+    public void Opening(double now){if(Active&&Trace!.State=="preparing")Phase("opening","clear-opening-requested",now);}
+    public void Opened(double now){if(Active&&Trace!.State is "preparing" or "opening"){Trace.DoorOpenObserved=true;Phase("planning","clear-door-open-observed",now);}}
+    public void Route(DoorPoint point,bool covered){if(Active&&point.Finite){Trace!.X=point.X;Trace.Y=point.Y;Trace.Z=point.Z;Trace.CoveredDestination=covered;}}
+    public void FeintStart(string kind,double now)
+    {if(Active&&!Trace!.FeintAttempted&&Trace.State=="planning"){Trace.FeintAttempted=true;Trace.Feint=kind;Trace.FeintOutcome="running";Phase("feint","clear-feint-started",now);}}
+    public void FeintEnd(bool completed,string reason,double now)
+    {if(Active&&Trace!.State=="feint"){Trace.FeintOutcome=reason;if(completed)Phase("ready","clear-feint-weapon-recovered",now);else End("clear-feint-ended:"+reason);}}
+    public void Ready(double now){if(Active&&Trace!.State=="planning")Phase("ready","clear-route-ready",now);}
+    public bool Choose(bool direct,bool grenade,string directWhy,string grenadeWhy,double roll,double pauseRoll,double now,DoorRoomClearConfig c,bool sharedGrenadeJudgment=false)
+    {
+        if(!Active||Trace!.State!="ready"||!Roll(roll)||!Roll(pauseRoll))return false;
+        if(Trace.Mode=="search"){grenade=false;grenadeWhy="disabled for an old-contact search";}
+        Trace.VariantRoll=roll*100;Trace.Alternatives=new[]{"Direct entry: "+(direct?"eligible":directWhy),"Grenade entry: "+(grenade?"eligible":grenadeWhy),"Resume native combat/search if the selected plan becomes invalid"};
+        if(!direct&&!grenade){End("clear-no-safe-variant");return false;}
+        Trace.Variant=grenade&&(sharedGrenadeJudgment||!direct||roll*100<c.GrenadePreference)?"grenade":"direct";
+        Trace.BlastPause=Trace.Mode=="search"?0:c.BlastPauseMin+(c.BlastPauseMax-c.BlastPauseMin)*pauseRoll;
+        Phase(Trace.Variant=="grenade"?"throw-ready":"entry-ready","clear-variant-selected",now);return true;
+    }
+    public void ThrowRequest(string item,double fuse,double radius,double now)
+    {
+        if(!Active||Trace!.State!="throw-ready")return;
+        if(string.IsNullOrEmpty(item)||!Valid(fuse)||fuse>30||!Valid(radius)||radius<1){End("clear-unknown-grenade-properties");return;}
+        Trace.GrenadeItem=item;Trace.FuseEstimate=fuse;Trace.DangerRadius=radius;Trace.ThrowRequested=true;Trace.GrenadeOutcome="requested";Phase("throwing","clear-native-throw-requested",now);
+    }
+    public void ThrowResult(bool accepted,double now)
+    {if(Trace?.ThrowRequested!=true)return;Trace.ThrowAccepted=accepted;if(!accepted&&Active)End("clear-native-throw-refused");}
+    public void Projectile(string item,int id,double now)
+    {
+        if(!Active||Trace!.State!="throwing"||!Trace.ThrowRequested||Trace.GrenadeItem!=item)return;
+        Trace.Projectile=id;Trace.ProjectileObserved=true;Trace.GrenadeOutcome="in-flight";Phase("waiting-blast","clear-projectile-observed",now);
+    }
+    public void Explosion(int id,double now)
+    {
+        if(!Active||Trace!.State!="waiting-blast"||!Trace.ProjectileObserved||Trace.Projectile!=id)return;
+        Trace.ExplosionConfirmed=true;Trace.GrenadeOutcome="explosion-confirmed";blastAt=now;Phase("post-blast","clear-explosion-confirmed",now);
+    }
+    public void MissingProjectile(){if(Active&&Trace!.ProjectileObserved&&!Trace.ExplosionConfirmed){Trace.GrenadeOutcome="unknown";End("clear-projectile-lost-without-explosion");}}
+    public void MoveRequest(DoorPoint start,double now)
+    {if(Active&&Trace!.State=="entry-ready"&&start.Finite){Trace.MovementRequested=true;moveStart=start;Phase("entering","clear-entry-requested",now);}}
+    public void MoveResult(bool accepted){if(Trace?.MovementRequested==true){Trace.MovementAccepted=accepted;if(!accepted)End("clear-native-move-refused");}}
+    public void Movement(DoorPoint point,bool crossed,bool nativeComplete,bool weaponReady,double now)
+    {
+        if(!Active||Trace!.State!="entering"||!Trace.MovementAccepted)return;
+        if(!point.Finite){End("clear-position-invalid");return;}
+        Trace.MovementObserved|=(point-moveStart).Length>.15;Trace.ThresholdCrossed|=crossed;Trace.WeaponReady=weaponReady;
+        if(nativeComplete&&Trace.MovementObserved&&Trace.ThresholdCrossed&&weaponReady&&(point-new DoorPoint(Trace.X,Trace.Y,Trace.Z)).Length<=.5)
+        {Trace.Arrived=true;Phase("completed","clear-entry-arrival-confirmed",now);}
+    }
+    public void Tick(double now,bool weaponReady)
+    {
+        if(!Active)return;
+        if(!Valid(now)||now<last){End("clear-invalid-clock");return;}last=now;Trace!.Elapsed=now-started;Trace.WeaponReady=weaponReady;
+        double duration=now-phase;
+        if(Trace.State=="post-blast"&&now-blastAt>=Trace.BlastPause&&weaponReady&&Trace.ThrowAccepted)
+            Phase("entry-ready","clear-blast-and-weapon-confirmed",now);
+        else if(Trace.State=="opening"&&duration>5)End("clear-open-timeout");
+        else if(Trace.State=="throwing"&&duration>5){Trace.GrenadeOutcome="unknown";End("clear-projectile-not-confirmed");}
+        else if(Trace.State=="waiting-blast"&&duration>Math.Max(8,Trace.FuseEstimate+5)){Trace.GrenadeOutcome="unknown";End("clear-explosion-not-confirmed");}
+        else if(Trace.State=="post-blast"&&duration>4)End("clear-weapon-not-ready-after-blast");
+        else if(Trace.State=="entering"&&duration>4)End("clear-entry-timeout");
+        else if(Trace.State is "planning" or "preparing" or "ready" or "throw-ready" or "entry-ready"&&duration>3)End("clear-preparation-timeout");
+        else if(now-started>35)End("clear-total-timeout");
+    }
+    public void End(string reason){if(Trace!=null&&Trace.State!="completed"){Trace.State="ended";Trace.Reason=reason;}}
+    public void Clear(){Trace=null;history.Clear();}
+}
+
+public static class DoorClearGeometry
+{
+    public static double Side(DoorGeometry g,DoorPoint start)=>(start-g.Center).Dot(g.Normal)>=0?1:-1;
+    public static DoorPoint Destination(DoorGeometry g,DoorPoint start,double depth,double lateral)=>g.Center-g.Normal*(Side(g,start)*depth)+g.Axis*lateral;
+    public static double Depth(DoorGeometry g,DoorPoint start,DoorPoint point)=>-(point-g.Center).Dot(g.Normal)*Side(g,start);
+    public static string Route(DoorGeometry g,DoorPoint start,DoorPoint end,DoorPoint[] route,bool complete)
+    {
+        if(!complete||route==null||route.Length<2||route.Length>16||!start.Finite||!end.Finite)return "clear-incomplete-route";
+        if((route[0]-start).Length>.5||(route[route.Length-1]-end).Length>.3||Depth(g,start,end)<1.2)return "clear-invalid-route-endpoints";
+        double length=0;int crossings=0;
+        for(int i=0;i<route.Length;i++)
+        {
+            if(!route[i].Finite||Math.Abs(route[i].Y-start.Y)>.65)return "clear-route-other-floor";
+            if(i==0)continue;
+            var a=route[i-1];var b=route[i];length+=(b-a).Length;
+            double da=Depth(g,start,a),db=Depth(g,start,b);
+            if(da<0&&db>=0||da>=0&&db<0)
+            {crossings++;var cross=a+(b-a)*(-da/(db-da));if(Math.Abs((cross-g.Center).Dot(g.Axis))>g.HalfWidth-.15)return "clear-route-misses-opening";}
+        }
+        return length>8?"clear-route-too-long":crossings!=1?"clear-route-not-one-threshold":"";
+    }
+}

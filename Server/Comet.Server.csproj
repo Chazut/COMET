@@ -1,0 +1,92 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <ItemGroup><Compile Include="../Shared/CombatJournalConfig.cs" Link="Core/CombatJournalConfig.cs" />
+    <Compile Include="../Shared/TacticCountersConfig.cs" Link="Core/TacticCountersConfig.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/PresetIdentity.cs" Link="Core/PresetIdentity.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/DifficultyPresets.cs" Link="Core/DifficultyPresets.cs" /></ItemGroup>
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><AssemblyName>Comet.Server</AssemblyName><ImplicitUsings>enable</ImplicitUsings><SptDir>C:\Games\SPT-4.1\SPT_Runtime</SptDir></PropertyGroup>
+  <ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /><Compile Include="../Shared/CometConfig.cs" Link="Core/CometConfig.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/QuietApproach.cs" Link="Core/QuietApproach.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/GunfireReaction.cs" Link="Core/GunfireReaction.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/FloorHearing.cs" Link="Core/FloorHearing.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/CloseDetection.cs" Link="Core/CloseDetection.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/SilentSearch.cs" Link="Core/SilentSearch.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/ImpactReaction.cs" Link="Core/ImpactReaction.cs" /></ItemGroup>
+  <ItemGroup>
+    <Reference Include="SPTarkov.Server.Core" HintPath="$(SptDir)/SPTarkov.Server.Core.dll" Private="false" />
+    <Reference Include="SPTarkov.Server.Web" HintPath="$(SptDir)/SPTarkov.Server.Web.dll" Private="false" />
+    <Reference Include="SPTarkov.DI" HintPath="$(SptDir)/SPTarkov.DI.dll" Private="false" />
+    <Reference Include="SPTarkov.Common" HintPath="$(SptDir)/SPTarkov.Common.dll" Private="false" />
+    <Reference Include="SemanticVersioning" HintPath="$(SptDir)/SemanticVersioning.dll" Private="false" />
+  </ItemGroup>
+  <ItemGroup><Compile Include="../Shared/SearchAbandonment.cs" Link="Core/SearchAbandonment.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/EnvironmentContext.cs" Link="Core/EnvironmentContext.cs" /><Compile Include="../Shared/DoorApproach.cs" Link="Core/DoorApproach.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/DoorJumpPeek.cs" Link="Core/DoorJumpPeek.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/DoorRunBy.cs" Link="Core/DoorRunBy.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/DoorStepPeek.cs" Link="Core/DoorStepPeek.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/DoorFakeGrenade.cs" Link="Core/DoorFakeGrenade.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/DoorFakeMedical.cs" Link="Core/DoorFakeMedical.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/DoorRoomClear.cs" Link="Core/DoorRoomClear.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/DoorSearchClear.cs" Link="Core/DoorSearchClear.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/DoorAmbush.cs" Link="Core/DoorAmbush.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/DoorHoldSelection.cs" Link="Core/DoorHoldSelection.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/DoorSupport.cs" Link="Core/DoorSupport.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/DoorInterruption.cs" Link="Core/DoorInterruption.cs" /><Compile Include="../Shared/DoorEmergency.cs" Link="Core/DoorEmergency.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/DoorReservation.cs" Link="Core/DoorReservation.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/DoorEntry.cs" Link="Core/DoorEntry.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/CombatStep.cs" Link="Core/CombatStep.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/FirePause.cs" Link="Core/FirePause.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/CornerPeek.cs" Link="Core/CornerPeek.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/CombatLean.cs" Link="Core/CombatLean.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/CornerChase.cs" Link="Core/CornerChase.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/CornerPrefire.cs" Link="Core/CornerPrefire.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/AngleWatch.cs" Link="Core/AngleWatch.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/HoldAngle.cs" Link="Core/HoldAngle.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/CoverTravel.cs" Link="Core/CoverTravel.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/AdsTravel.cs" Link="Core/AdsTravel.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/RetreatWeave.cs" Link="Core/RetreatWeave.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/TacticalJump.cs" Link="Core/TacticalJump.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/CoverFeint.cs" Link="Core/CoverFeint.cs" />
+    <Compile Include="../Shared/OutdoorRelocation.cs" Link="Core/OutdoorRelocation.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/ReloadTiming.cs" Link="Core/ReloadTiming.cs" /><Compile Include="../Shared/PistolSwap.cs" Link="Core/PistolSwap.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/WeaponReturn.cs" Link="Core/WeaponReturn.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/QuickReload.cs" Link="Core/QuickReload.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/WeaponRange.cs" Link="Core/WeaponRange.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/WeaponSync.cs" Link="Core/WeaponSync.cs" /><Compile Include="../Shared/SuppressionDiscipline.cs" Link="Core/SuppressionDiscipline.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/ShotGeometry.cs" Link="Core/ShotGeometry.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/RecoilRecovery.cs" Link="Core/RecoilRecovery.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/HandsRecovery.cs" Link="Core/HandsRecovery.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/GrenadeJudgment.cs" Link="Core/GrenadeJudgment.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/GrenadeTrajectory.cs" Link="Core/GrenadeTrajectory.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/GrenadeChoice.cs" Link="Core/GrenadeChoice.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/OwnGrenadeSafety.cs" Link="Core/OwnGrenadeSafety.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/GrenadeReaction.cs" Link="Core/GrenadeReaction.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/GrenadeDispersion.cs" Link="Core/GrenadeDispersion.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/GrenadeFilter.cs" Link="Core/GrenadeFilter.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/GasExposure.cs" Link="Core/GasExposure.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/FlashContinuity.cs" Link="Core/FlashContinuity.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/ExplosionAwareness.cs" Link="Core/ExplosionAwareness.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/MedicalChoice.cs" Link="Core/MedicalChoice.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/SurgeryInterruption.cs" Link="Core/SurgeryInterruption.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/MedicalPosture.cs" Link="Core/MedicalPosture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/PostCombat.cs" Link="Core/PostCombat.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/ReadyStance.cs" Link="Core/ReadyStance.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/Crossfire.cs" Link="Core/Crossfire.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/SecondaryEntrance.cs" Link="Core/SecondaryEntrance.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/SquadManeuver.cs" Link="Core/SquadManeuver.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/CoverMate.cs" Link="Core/CoverMate.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/SquadTrade.cs" Link="Core/SquadTrade.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/SquadStorm.cs" Link="Core/SquadStorm.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/FireLane.cs" Link="Core/FireLane.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/SquadFire.cs" Link="Core/SquadFire.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/SquadVoice.cs" Link="Core/SquadVoice.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/LightDiscipline.cs" Link="Core/LightDiscipline.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/TacticalDevices.cs" Link="Core/TacticalDevices.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/RestLights.cs" Link="Core/RestLights.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/EncounterAdaptation.cs" Link="Core/EncounterAdaptation.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/TacticalOutcomes.cs" Link="Core/TacticalOutcomes.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/DoorTransit.cs" Link="Core/DoorTransit.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/DoorRecovery.cs" Link="Core/DoorRecovery.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/DoorSpatial.cs" Link="Core/DoorSpatial.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/DoorMotion.cs" Link="Core/DoorMotion.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/DoorClosing.cs" Link="Core/DoorClosing.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../Shared/MovementRecovery.cs" Link="Core/MovementRecovery.cs" /></ItemGroup><ItemGroup><Compile Include="../Shared/CoverScan.cs" Link="Core/CoverScan.cs" /></ItemGroup><ItemGroup><Compile Include="../Shared/FaultIsolation.cs" Link="Core/FaultIsolation.cs" /></ItemGroup><ItemGroup><EmbeddedResource Include="Editing/EditorCatalog.json" LogicalName="Comet.EditorCatalog.json" /></ItemGroup><ItemGroup><Compile Include="../Shared/IntegrationContract.cs" Link="Core/IntegrationContract.cs" /></ItemGroup></Project>

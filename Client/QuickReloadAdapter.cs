@@ -1,0 +1,174 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection.Emit;
+using Comfort.Common;
+using Comet.Core;
+using EFT;
+using EFT.Interactive;
+using EFT.InventoryLogic;
+using HarmonyLib;
+using Newtonsoft.Json;
+using SAIN;
+using SAIN.Components;
+using SAIN.Preset.Shared.Enums;
+using UnityEngine;
+
+namespace Comet.Client;
+
+internal sealed class QuickReloadRuntime
+{
+    internal readonly QuickReloadPolicy Policy=new();
+    internal readonly List<Magazine> Magazines=new();
+    internal Player.FirearmController? Firearm;
+    internal float SampleAt,LogAt=-1000;
+    internal int Token;
+    internal string LogKey="";
+    internal bool Fault;
+    internal void Drop(){Firearm=null;Magazines.Clear();Token++;}
+}
+public sealed partial class Plugin
+{
+    private static void PatchQuickReload(Harmony h)
+    {
+        h.Patch(AccessTools.Method(typeof(BotReload),nameof(BotReload.ReloadMagazine)),
+            transpiler:new HarmonyMethod(typeof(Plugin),nameof(RouteQuickReload)));
+        h.Patch(AccessTools.Method(typeof(GameWorld),nameof(GameWorld.ThrowItem),new[]{typeof(Item),typeof(IPlayer),typeof(Vector3),typeof(Quaternion),typeof(Vector3),typeof(Vector3),typeof(bool),typeof(bool),typeof(float)}),
+            postfix:new HarmonyMethod(typeof(Plugin),nameof(ObserveDroppedReloadMagazine)));
+    }
+    // Redirect only the call inside BotReload. Preserve its original callback, timers, speech and bookkeeping.
+    private static IEnumerable<CodeInstruction> RouteQuickReload(IEnumerable<CodeInstruction> instructions)
+    {
+        // BotReload.ShootController is an interface. Its callvirt operand is NOT the
+        // concrete Player.FirearmController method, even when that is the runtime instance.
+        var list=instructions.ToList();var original=AccessTools.Method(typeof(IFirearmHandsController),nameof(IFirearmHandsController.ReloadMag),new[]{typeof(Magazine),typeof(ItemAddress),typeof(Callback)});
+        int matches=list.Count(i=>i.Calls(original));
+        if(matches!=1)throw new InvalidOperationException("W04 expected one IFirearmHandsController.ReloadMag call in BotReload.ReloadMagazine; found "+matches);
+        foreach(var i in list)
+        {
+            if(!i.Calls(original)){yield return i;continue;}
+            var owner=new CodeInstruction(i){opcode=OpCodes.Ldarg_0,operand=null};
+            yield return owner;
+            yield return new CodeInstruction(OpCodes.Call,AccessTools.Method(typeof(Plugin),nameof(DispatchMagazineReload)));
+        }
+    }
+    private bool QuickReloadScope(BotComponent b)=>config?.Enabled==true&&config.QuickReload.Enabled&&NativeAdapter.IsPmcAi(b)
+        &&b.BotActive&&!b.IsDead&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId)&&b.SAINLayersActive;
+    private static void DispatchMagazineReload(IFirearmHandsController controller,Magazine magazine,ItemAddress address,Callback callback,BotReload reload)
+    {
+        var firearm=controller as Player.FirearmController;
+        var p=Instance;BotState? s=null;BotComponent? b=null;bool quick=false;
+        try
+        {
+            if(firearm!=null&&p!=null&&reload?._owner!=null&&SAINEnableClass.GetSAIN(reload._owner.ProfileId,out b)&&b!=null&&p.QuickReloadScope(b))
+            {
+                if(!p.states.TryGetValue(b,out s)){s=new BotState(b,p.config!,p.session);p.states.Add(b,s);}
+                var r=s.QuickReload;
+                // Another caller cannot start an overlapping native operation, even before animation observation.
+                if(r.Policy.Active){callback?.Fail("COMET quick reload already pending");return;}
+                if(!r.Fault&&p.doorBudget.TryBegin(Time.frameCount))
+                {
+                    p.doorClock.Restart();
+                    try{quick=r.Policy.Evaluate(p.QuickReloadFrameFor(b,s,firearm,magazine),p.config!.QuickReload);}
+                    finally{p.doorClock.Stop();p.doorBudget.Charge(p.doorClock.Elapsed.TotalMilliseconds);r.Magazines.Clear();s.ReloadTiming.Magazines.Clear();s.ReloadTiming.Ammo.Clear();}
+                    p.RecordQuickReload(b,s);
+                }
+            }
+        }
+        catch(Exception ex){if(s!=null)p?.QuickReloadError(s,ex);quick=false;}
+        // Preserve interface dispatch for other implementations and all ineligible bots.
+        if(!quick||firearm==null||p==null||s==null||b==null){controller.ReloadMag(magazine,address,callback);return;}
+        var runtime=s.QuickReload;runtime.Firearm=firearm;runtime.Policy.Request(Time.time);
+        int token=++runtime.Token;var weak=new WeakReference<QuickReloadRuntime>(runtime);bool delivered=false;
+        Callback completion=result=>
+        {
+            if(delivered)return;delivered=true;
+            if(weak.TryGetTarget(out var live)&&live.Token==token)live.Policy.Callback(result.Succeed);
+            callback?.Invoke(result); // Keep the original native result and cleanup exactly once.
+        };
+        p.RecordQuickReload(b,s,true);
+        try{firearm.QuickReloadMag(magazine,completion);}
+        catch(Exception ex)
+        {
+            // Never retry a normal reload after a possibly started native operation.
+            try{if(!delivered)completion.Fail("COMET native quick reload threw");}
+            finally{p.QuickReloadError(s,ex);}
+        }
+    }
+    private QuickReloadFrame QuickReloadFrameFor(BotComponent b,BotState s,Player.FirearmController firearm,Magazine replacement)
+    {
+        var w=firearm.Item;var old=w.GetCurrentMagazine();var r=s.QuickReload;var wm=b.BotOwner.WeaponManager;
+        var f=new QuickReloadFrame{Now=Time.time,Weapon=w.Id.ToString(),OldMagazine=old?.Id.ToString()??"",Replacement=replacement.Id.ToString(),
+            Loaded=ReloadLoaded(w),Capacity=(old?.MaxCount??0)+w.Chambers.Length,OldRounds=old?.Count??0,ReplacementRounds=replacement.Count,
+            External=w is not Revolver&&w.ReloadMode is Weapon.EReloadMode.ExternalMagazine or Weapon.EReloadMode.ExternalMagazineWithInternalReloadSupport,
+            Ready=ReferenceEquals(b.Player.HandsController,firearm)&&ReferenceEquals(wm.CurrentWeapon,w)&&wm.IsReady&&!wm.Selector.IsChanging
+                &&!s.PistolSwap.Policy.Active&&!s.WeaponReturn.Policy.Active&&!firearm.Blindfire&&!firearm.IsInInteraction()&&!firearm.IsInReloadOperation()
+                &&firearm.CanStartReload()&&b.BotOwner.Medecine?.Using!=true&&w.MalfState.State==Weapon.EMalfunctionState.None,
+            Incoming=b.BotOwner.Memory.IsUnderFire||b.Medical.TimeSinceShot<1.5};
+        if(!f.External||!f.Ready)return f;
+        var enemy=b.GoalEnemy;
+        if(enemy!=null)
+        {
+            var context=ReloadFrame(b,enemy,s,w);f.Target=context.Target;f.Source=context.Source;f.ContactAge=context.ContactAge;f.Distance=context.Distance;
+            f.Protected=context.Protected;f.Incoming|=context.Incoming;
+            if(context.ThreatsTruncated)f.Block="quick-threat-budget";
+        }
+        int seen=0;
+        foreach(var e in b.EnemyController.KnownEnemies)
+        {
+            if(++seen>16){f.Block="quick-threat-budget";break;}
+            if(e==null||!e.EnemyKnown)continue;
+            f.Incoming|=e.Status.ShotAtMeRecently;
+            var place=e.KnownPlaces.LastSeenPlace;var heard=e.KnownPlaces.LastHeardPlace;
+            if(heard!=null&&(place==null||heard.TimeSincePositionUpdated<place.TimeSincePositionUpdated))place=heard;
+            if(place==null)continue;
+            double age=Math.Max(0,place.TimeSincePositionUpdated),distance=Vector3.Distance(b.Position,place.Position);
+            if(age<=config!.QuickReload.ContactMemory&&distance<=config.QuickReload.ThreatDistance
+                &&(f.ContactAge>config.QuickReload.ContactMemory||f.Distance>config.QuickReload.ThreatDistance||distance<f.Distance))
+            {f.Target=e.EnemyProfileId;f.Source=ReferenceEquals(place,heard)?"personal-hearing":"personal-vision";f.ContactAge=age;f.Distance=distance;f.Protected=false;}
+        }
+        var slot=w.GetMagazineSlot();b.Player.InventoryController.GetReachableItemsOfTypeNonAlloc(r.Magazines);
+        if(r.Magazines.Count>128){f.Block="quick-inventory-budget";return f;}
+        foreach(var m in r.Magazines)
+            if(!ReferenceEquals(m,old)&&m.Count>0&&m.IsAmmoCompatible(w.Chambers)&&slot!=null&&ItemManipulator.CheckMoveIgnoringTargetItem(m,slot,b.Player.InventoryController).Succeeded)
+            {f.SpareMagazines++;if(ReferenceEquals(m,replacement))f.Reachable=true;}
+        return f;
+    }
+    private static void ObserveDroppedReloadMagazine(Item item,IPlayer player,LootItem __result)
+    {
+        var p=Instance;if(p==null||__result==null||item is not Magazine mag||player==null)return;
+        BotState? s=null;
+        try
+        {
+            if(!SAINEnableClass.GetSAIN(player.ProfileId,out var b)||b==null||!p.states.TryGetValue(b,out s)||!s.QuickReload.Policy.Active)return;
+            if(!ReferenceEquals(__result.Item,item)||s.QuickReload.Policy.Trace?.OldMagazine!=item.Id.ToString())return;
+            s.QuickReload.Policy.Drop(item.Id.ToString(),mag.Count);p.RecordQuickReload(b,s,true);
+        }
+        catch(Exception ex){if(s!=null)p.QuickReloadError(s,ex);}
+    }
+    private void SampleQuickReload(BotComponent b,BotState s)
+    {
+        var r=s.QuickReload;if(r.Firearm==null)return;
+        if(!QuickReloadScope(b)){EndQuickReload(s,"quick-out-of-scope");return;}
+        if(Time.time<r.SampleAt)return;r.SampleAt=Time.time+.1f;
+        var f=r.Firearm;bool same=ReferenceEquals(b.Player.HandsController,f);
+        r.Policy.Observe(Time.time,same,same&&f.IsInReloadOperation(),b.BotOwner.WeaponManager?.Reload?.Reloading==true,
+            same?f.Item.GetCurrentMagazine()?.Id.ToString()??"":"",same?ReloadLoaded(f.Item):0);
+        RecordQuickReload(b,s);if(!r.Policy.Active)r.Drop();
+    }
+    private void EndQuickReload(BotState s,string why)
+    {var r=s.QuickReload;if(!r.Policy.Active&&r.Firearm==null)return;r.Policy.End(why);r.Drop();RecordQuickReload(null,s,true);}
+    private void QuickReloadError(BotState s,Exception ex)
+    {if(s.QuickReload.Fault)return;s.QuickReload.Fault=true;EndQuickReload(s,"quick-adapter-error");Logger.LogWarning("W04 yielded to native reload: "+ex.GetBaseException().Message);}
+    private void RecordQuickReload(BotComponent? b,BotState s,bool force=false)
+    {
+        var r=s.QuickReload;var t=r.Policy.Trace;if(t==null)return;
+        if(b!=null)t.Action=b.Decision.CurrentSelfDecision==ESelfActionType.Reload?"Reload":b.Decision.CurrentCombatDecision.ToString();
+        string key=t.State+":"+t.Choice+":"+t.Reason+":"+t.Dropped+":"+t.CallbackSeen;
+        if(!force&&key==r.LogKey&&Time.time-r.LogAt<.25f)return;r.LogKey=key;r.LogAt=Time.time;
+        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="W04",stage="evaluated",decision="QuickReload",reason=t.Reason,
+            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
+            quickReload=t,quickReloadConfig=config?.QuickReload},Diagnostics.Json);
+        diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
+    }
+}
