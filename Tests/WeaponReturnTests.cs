@@ -119,7 +119,7 @@ static class WeaponReturnTests
             var md=pe.GetMetadataReader();var type=md.TypeDefinitions.Select(md.GetTypeDefinition).Single(t=>md.GetString(t.Name)=="Plugin");
             MethodDefinition M(string name)=>type.GetMethods().Select(md.GetMethodDefinition).Single(m=>md.GetString(m.Name)==name);
             foreach(var gate in new[]{"IsPmcAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding","get_SAINLayersActive"})Check(ReloadTimingTests.Calls(pe,md,M("WeaponReturnScope"),gate)==1,"compiled scope "+gate);
-            Check(ReloadTimingTests.Calls(pe,md,M("PatchWeaponReturn"),"Patch")==4,"all four arbitration hooks installed");
+            Check(ReloadTimingTests.Calls(pe,md,M("PatchWeaponReturn"),"Patch")==5,"both main-return entry points and three arbitration hooks installed");
             foreach(var method in new[]{"WeaponReturnFrameFor","ReadReturnGun","AuthorizeWeaponSwitch","ObserveWeaponReturn","NativeWeaponRequest"})
                 foreach(var forbidden in new[]{"get_RealDistance","get_EnemyPosition","get_BulletCount","CanReload","BotCancelReload","SetSlotItem","AddAmmoToMagazines","FastForward"})
                     Check(ReloadTimingTests.Calls(pe,md,M(method),forbidden)==0,"no hidden info, cached ammo, mutating reload query or forced animation "+method+forbidden);

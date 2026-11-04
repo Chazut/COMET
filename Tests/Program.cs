@@ -5,6 +5,7 @@ using System.Reflection.PortableExecutable;
 using System.Text.Json;
 
 int checks = 0;
+checks += await DiagnosticConfigurationTests.Run();
 checks += TacticCountersTests.Run();
 checks += ControlJournalTests.Run()+CombatJournalTests.Run();
 checks += IntegrationTests.Run();

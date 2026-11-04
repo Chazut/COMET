@@ -55,6 +55,23 @@ Check(!pooled.states.ContainsKey(pb),"replacement player cannot inherit old life
 
 var next=new Plugin();var nb=next.Add();nb.IsDead=true;next.Act(nb);next.Sweep();next.NextRaid();nb.IsDead=false;next.states[nb]=new(nb,next.config!,next.session);next.Act(nb);
 Check(next.Actions==1,"new raid clears terminal lifecycle");
+// Raid teardown may clear the owner before the still-live Player/health objects.
+foreach(var missing in new[]{"owner","manager","selector","ending"})
+{
+    var retiring=new Plugin();var bot=retiring.Add();var state=retiring.states[bot];retiring.Act(bot);
+    if(missing=="owner")bot.BotOwner=null;
+    if(missing=="manager")bot.BotOwner!.WeaponManager=null;
+    if(missing=="selector")bot.BotOwner!.WeaponManager!.Selector=null;
+    if(missing=="ending")bot.GameEnding=true;
+    int beforeRetire=events.Count;retiring.Callback(state);retiring.Act(bot);retiring.Sweep();
+    Check(state.Retired&&retiring.Actions==1&&retiring.OldCallbacks==0&&!retiring.states.ContainsKey(bot),"partial teardown blocks deferred execution: "+missing);
+    Check(events.Skip(beforeRetire).Any(x=>x.Contains("\"feature\":\"C09\""))&&!events.Skip(beforeRetire).Any(x=>x.Contains("\"feature\":\"C08\"")),"teardown is lifecycle, not module failure: "+missing);
+    int cleanupCount=retiring.CleanupLog.Count;
+    for(int i=0;i<50;i++){retiring.Act(bot);retiring.Callback(state);}
+    Check(retiring.CleanupLog.Count==cleanupCount,"teardown cleanup once: "+missing);
+    bot.BotOwner=new();bot.GameEnding=false;Time.unscaledTimeAsDouble+=1;retiring.Sweep();
+    Check(retiring.states.ContainsKey(bot)==(missing!="ending"),"unavailability may recover but raid end stays terminal: "+missing);
+}
 var first=events.Select(JObject.Parse).First(x=>(string?)x["feature"]=="C09");
 Check((int?)first["lifecycle"]?["cleanupSteps"]>=70&&first["profileId"]!.ToString().Length>0,"actual production cleanup and event schema exercised");
 var sleep=new Plugin();var sb=sleep.Add();var beforeSleep=sleep.states[sb];sleep.Act(sb);sleep.InGhost=true;sleep.Act(sb);sleep.Sweep();

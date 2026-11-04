@@ -16,6 +16,7 @@ try {
     Run dotnet @('run', '--project', 'Tests/ControlHarness/ControlHarness.csproj', '-c', 'Release')
     Run dotnet @('run', '--project', 'Tests/FaultHarness/FaultHarness.csproj', '-c', 'Release')
     Run dotnet @('run', '--project', 'Tests/LifecycleHarness/LifecycleHarness.csproj', '-c', 'Release')
+    Run dotnet @('run', '--project', 'Tests/WeaponReturnHarness/WeaponReturnHarness.csproj', '-c', 'Release')
     Run dotnet @('run', '--project', 'Tests/ValidityHarness/ValidityHarness.csproj', '-c', 'Release')
     Run dotnet @('run', '--project', 'Tests/RaidCleanupHarness/RaidCleanupHarness.csproj', '-c', 'Release')
     Run dotnet @('run', '--project', 'Tests/PresetHarness/PresetHarness.csproj', '-c', 'Release')

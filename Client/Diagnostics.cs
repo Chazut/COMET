@@ -54,6 +54,20 @@ namespace Comet.Api
 
 namespace Comet.Client
 {
+    // The revision on every decision resolves to one full snapshot per raid/revision.
+    // Keep snapshots in both the local journal and RR's ordinary decision stream.
+    internal sealed class DecisionConfiguration
+    {
+        private string session="";
+        private long revision;
+        private bool sent;
+        internal Comet.Core.CometConfig? Take(Comet.Core.CometConfig? config,string raid)
+        {
+            if(config==null)return null;
+            if(sent&&session==raid&&revision==config.Revision)return null;
+            sent=true;session=raid;revision=config.Revision;return config;
+        }
+    }
     internal sealed class Diagnostics : IDisposable
     {
         internal static readonly JsonSerializerSettings Json = new JsonSerializerSettings { ContractResolver = new CamelCasePropertyNamesContractResolver() };
@@ -64,6 +78,12 @@ namespace Comet.Client
         private int closed;
         private int completed;
         internal Task Completion => writer;
+        private readonly DecisionConfiguration configuration=new();
+        internal void ConfigureSnapshot(Comet.Core.CometConfig config,string session)
+        {
+            var snapshot=configuration.Take(config,session);if(snapshot==null)return;
+            Write(JsonConvert.SerializeObject(new{schema=1,session,feature="U01",stage="configuration",configRevision=config.Revision,config=snapshot},Json));
+        }
         internal void ConfigureJournal(bool combatEnabled,bool weaponEnabled,long revision,string session)
             => Write(JsonConvert.SerializeObject(new{schema=1,session,feature="T01",stage="configuration",combatEnabled,weaponEnabled,configRevision=revision},Json));
         internal void ConfigureControlJournal(bool enabled,long revision,string session)

@@ -252,6 +252,7 @@ public sealed partial class Plugin : BaseUnityPlugin
         if (!raidLifetime.Active) return;
         if (loading.Take(raidLifetime.Generation, out var loaded, out var loadError))
         {
+            if(loaded!=null)diagnostics?.ConfigureSnapshot(loaded,session);
             if (loaded != null) { config = loaded; diagnostics?.ConfigureJournal(config.Enabled && config.CombatJournal.Enabled && Authority, config.Enabled && config.WeaponJournal.Enabled && Authority, config.Revision, session); diagnostics?.ConfigureControlJournal(config.Enabled && config.ControlJournal.Enabled && Authority, config.Revision, session); diagnostics?.ConfigureCounters(config.Enabled && config.TacticCounters.Enabled && Authority, config.TacticCounters.MaxOpportunities, config.Revision, session); Logger.LogInfo("COMET raid config revision " + config.Revision + ", enabled=" + config.Enabled); ReportDifficultyPreset(); }
             else Logger.LogError("COMET config unavailable. SAIN retains control for this raid. " + loadError?.Message);
         }
@@ -621,13 +622,14 @@ public sealed partial class Plugin : BaseUnityPlugin
         catch (Exception ex) { __result = false; plugin.YieldToSain(state, "cover-continuation-error", "error"); plugin.Logger.LogWarning(ex.Message); }
     }
 
+    private readonly DecisionConfiguration decisionConfiguration=new();
     private void Emit(BotState state, string stage, string reason, string? featureOverride = null)
     {
         string json = JsonConvert.SerializeObject(new {
             schema = 1, session, sequence = ++sequence, feature = featureOverride ?? state.Feature, stage, reason,
             handoff = featureOverride == "A13" ? state.Handoff.Current : null,
             realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"), configRevision = config?.Revision ?? 0,
-            cometVersion = "0.1.0", config,
+            cometVersion = "0.1.0", config=decisionConfiguration.Take(config,session),
             profileId = state.ProfileId, name = state.Name, botInstance = state.Id,
             decision = state.Decision, candidates = state.Candidates, mixing = state.Mixing, tacticObservationVersion = 1,
             doorEmergency = state.Feature=="D13" ? state.Emergency.Policy.Trace : null,

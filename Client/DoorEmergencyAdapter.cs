@@ -107,6 +107,7 @@ public sealed partial class Plugin
             }
             bool fake=s.Fake.Policy.Active&&s.Fake.Door!=null;
             bool prep=s.RoomClear.Policy.Active&&s.RoomClear.Policy.SafeToSuspend;
+            if(!fake&&!prep)return;
             if(!DoorEmergencyRules.CanStart(config?.DoorEmergency.Enabled==true,FakeScope(b),EmergencyPriority(b,s),fake,prep,
                 b.BotOwner.WeaponManager?.Grenades.ThrowindNow==true||s.RoomClear.Policy.Active&&s.RoomClear.Policy.Trace?.ThrowRequested==true))return;
             var work=fake?s.Fake.Door:s.RoomClear.Door;if(work==null)return;

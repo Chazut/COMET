@@ -2,6 +2,17 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
+// Narrow runtime harnesses execute selected production methods with native test doubles.
+if(args[0]=="--methods")
+{
+    var tree=CSharpSyntaxTree.ParseText(File.ReadAllText(args[1])).GetCompilationUnitRoot();
+    var names=args[3].Split(',');
+    var selected=names.Select(name=>tree.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m=>m.Identifier.Text==name));
+    var code="using System; using Comet.Core; using EFT; using EFT.InventoryLogic; using SAIN; using SAIN.Components; using UnityEngine;\nnamespace Comet.Client; public sealed partial class Plugin {\n"
+        +string.Join("\n",selected.Select(m=>m.ToFullString()))+"\n}";
+    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(args[2]))!);File.WriteAllText(args[2],code);return;
+}
+
 // Execute the real registration bodies against reference assemblies, replacing only patch installation
 // and BigBrain registration with recorders. No Unity game is started and no native action is executed.
 string input=Path.GetFullPath(args[0]), output=Path.GetFullPath(args[1]);Directory.CreateDirectory(output);

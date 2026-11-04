@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><NoWarn>CS0649;CS8602;CS8601</NoWarn></PropertyGroup>
+ <ItemGroup><Compile Include="../../Shared/*.cs" Link="Core/%(Filename)%(Extension)" /></ItemGroup>
+ <Target Name="ProductionMethods" BeforeTargets="CoreCompile">
+  <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/IntegrationAudit&quot; -c Release -- --methods &quot;$(MSBuildProjectDirectory)/../../Client/WeaponReturnAdapter.cs&quot; &quot;$(MSBuildProjectDirectory)/obj/WeaponReturnMethods.cs&quot; WeaponReturnScope,WeaponReturnState,WeaponHandsReady,NativeWeaponRequest,ChooseWeaponReturn" />
+  <ItemGroup><Compile Include="obj/WeaponReturnMethods.cs" /></ItemGroup>
+ </Target>
+</Project>

@@ -35,6 +35,7 @@ public sealed partial class Plugin
             finalizer:new HarmonyMethod(typeof(Plugin),nameof(WeaponSwitchException)));
         h.Patch(AccessTools.Method(typeof(BotWeaponSelector),nameof(BotWeaponSelector.TryChangeWeapon)),prefix:new HarmonyMethod(typeof(Plugin),nameof(ChooseWeaponFallback)));
         h.Patch(AccessTools.Method(typeof(BotWeaponSelector),nameof(BotWeaponSelector.TryChangeToMain)),prefix:new HarmonyMethod(typeof(Plugin),nameof(ChooseWeaponReturn)));
+        h.Patch(AccessTools.Method(typeof(BotWeaponSelector),nameof(BotWeaponSelector.ChangeToMain)),prefix:new HarmonyMethod(typeof(Plugin),nameof(ChooseWeaponReturn)));
         h.Patch(AccessTools.Method(typeof(BotWeaponSelector),nameof(BotWeaponSelector.ShallChangeIfNoAmmo)),prefix:new HarmonyMethod(typeof(Plugin),nameof(SuppressRandomWeaponSwap)));
     }
     private bool WeaponReturnScope(BotComponent b)=>config?.Enabled==true&&(config.WeaponReturn.Enabled||config.WeaponRange.Enabled)&&NativeAdapter.IsPmcAi(b)
@@ -56,8 +57,9 @@ public sealed partial class Plugin
     }
     private static bool WeaponHandsReady(BotComponent b,Player.FirearmController? firearm)
     {
-        var wm=b.BotOwner.WeaponManager;
-        return firearm!=null&&wm!=null&&wm.IsReady&&wm.Selector.IsWeaponReady&&!wm.Selector.IsChanging
+        if(b==null||b.GameEnding||b.IsDead)return false;
+        var wm=b.BotOwner?.WeaponManager;var selector=wm?.Selector;
+        return firearm!=null&&wm!=null&&selector!=null&&wm.IsReady&&selector.IsWeaponReady&&!selector.IsChanging
             &&!firearm.IsInInteraction()&&!firearm.IsInReloadOperation()&&firearm.CanStartReload();
     }
     private WeaponReturnGun ReadReturnGun(BotComponent b,BotState s,EquipmentSlot slot)
@@ -201,7 +203,15 @@ public sealed partial class Plugin
         try {
             if(p==null||!p.config!.WeaponReturn.Enabled||!p.WeaponReturnState(__instance,out var b,out s)||b.Player.HandsController is not Player.FirearmController)return true;
             __result=false;p.ObserveWeaponReturn(b,s);if(s.WeaponReturn.Policy.Active)return false;
-            var f=p.WeaponReturnFrameFor(b,s);if(f!=null)__result=p.NativeWeaponRequest(b,s,f.Main,"native-return");
+            var f=p.WeaponReturnFrameFor(b,s);
+            // Both native return entry points must consult the arbiter BEFORE
+            // issuing a slot request. A rejected empty main is not a failed draw.
+            if(f!=null)
+            {
+                if(s.WeaponReturn.Policy.Evaluate(f,f.Main,"native-return",p.RangeArbiterConfig()))
+                    __result=p.NativeWeaponRequest(b,s,f.Main,"native-return");
+                else p.RecordWeaponReturn(b,s);
+            }
             return false;
         }catch(Exception ex){if(s!=null)p?.WeaponReturnError(s,ex);return true;}
     }

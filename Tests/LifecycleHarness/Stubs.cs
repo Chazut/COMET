@@ -10,11 +10,12 @@ namespace EFT
  public class Info {public Settings Settings=new();}
  public class Settings {public WildSpawnType Role=WildSpawnType.pmcUSEC;}
  public class RevivablePlayer:Player{public bool ThrowRead;private bool downed;public bool Downed{get{if(ThrowRead)throw new Exception("downed unavailable");return downed;}set=>downed=value;}}
- public class BotOwner{public BotComponent Bot=new(); public T? GetComponent<T>() where T:class=>Bot as T;}
+ public class BotOwner{public BotComponent? Bot; public WeaponManager? WeaponManager=new(); public T? GetComponent<T>() where T:class=>Bot as T;}
+ public class WeaponManager{public object? Selector=new();}
 }
 namespace SAIN.Components
 {
- public class BotComponent {public bool IsDead,BotActive=true,GameEnding;public string ProfileId=Guid.NewGuid().ToString("N");public EFT.Player Player=new();public Cover Cover=new();}
+ public class BotComponent {public bool IsDead,BotActive=true,GameEnding;public string ProfileId=Guid.NewGuid().ToString("N");public EFT.Player Player=new();public EFT.BotOwner? BotOwner=new();public Cover Cover=new();}
  public class Cover{public object? CoverFinder=new();}
 }
 namespace Comet.Client

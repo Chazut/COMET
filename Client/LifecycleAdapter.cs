@@ -52,11 +52,14 @@ public sealed partial class Plugin
     }
     private static string LifeStatus(BotComponent b)
     {
-        if(b==null||b.Player==null)return "removed";
+        if(b==null||b.GameEnding||b.Player==null)return "removed";
         var p=b.Player;
         if(ReadDowned(p))return "downed"; // Before IsDead: Fika can report dead health while downed.
         if(p.HealthController==null)return "unavailable";
         if(!p.HealthController.IsAlive||b.IsDead)return "dead";
+        // Player/health can outlive the bot owner during teardown. Do not let
+        // deferred action callbacks dereference already-disposed native modules.
+        if(b.BotOwner==null||b.BotOwner.WeaponManager==null||b.BotOwner.WeaponManager.Selector==null)return "unavailable";
         if(LifePmc(b)&&Instance?.Ghost(b.ProfileId)==true)return "sleeping";
         return "alive";
     }
