@@ -34,6 +34,17 @@ static class DiagnosticConfigurationTests
         Check(local.Length==2&&warnings.Count==0,"local journal records one complete snapshot per revision even without decisions");
         Check((double?)local[0]["config"]?["weaponReturn"]?["calmDelay"]==9&&(double?)local[1]["config"]?["weaponReturn"]?["calmDelay"]==10,"snapshots detached from later config changes");
         Check((long?)lines.Last()["queueDropped"]==0&&(long?)lines.Last()["fileLimitDropped"]==0,"snapshot journal drains without loss");
+        // Crossing the former size limit must preserve every event and one footer.
+        string splitDir=Path.Combine(dir,"segments");var split=new Diagnostics(splitDir,"segmented",warnings.Add,512);
+        for(int i=0;i<150;i++)split.Write(JsonConvert.SerializeObject(new{schema=1,sequence=i,stage="test",text=new string('x',120)},Diagnostics.Json));
+        split.Dispose();await split.Completion;
+        var files=Directory.GetFiles(splitDir,"*.jsonl").OrderBy(p=>p.Contains(".part")?int.Parse(Path.GetFileNameWithoutExtension(p).Split(new[]{".part"},StringSplitOptions.None).Last()):0).ToArray();
+        var all=files.SelectMany(File.ReadLines).Select(JObject.Parse).ToArray();
+        Check(files.Length>1,"small segment budget rotates on the worker");
+        Check(all.Where(l=>(string?)l["stage"]=="test").Select(l=>(int)l["sequence"]!).SequenceEqual(Enumerable.Range(0,150)),"all events retained in original order across segments");
+        Check(all.Count(l=>(string?)l["stage"]=="diagnostics-end")==1,"exactly one closing footer");
+        Check((int?)all.Last()["segments"]==files.Length&&(long?)all.Last()["writeFailed"]==0,"footer reports complete segment set and no write failures");
+        Check(warnings.Count==0,"rotation does not warn or lose data");
         Console.WriteLine($"Diagnostic configuration: {n} assertions passed.");return n;
     }
 }

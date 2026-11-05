@@ -1,0 +1,1190 @@
+[
+  {
+    "id": "A01",
+    "name": "decisions after losing sight of an enemy",
+    "status": "runtime",
+    "trace": "",
+    "config": "enabled",
+    "counting": "choice",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "A02",
+    "name": "visible enemy decisions",
+    "status": "runtime",
+    "trace": "visible",
+    "config": "visibleCombat",
+    "counting": "choice",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "A03",
+    "name": "continuity through brief sight loss",
+    "status": "runtime",
+    "trace": "continuity",
+    "config": "sightContinuity",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "A04",
+    "name": "variety between good decisions",
+    "status": "runtime",
+    "trace": "mixing",
+    "config": "decisionVariety",
+    "counting": "draw",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "A05",
+    "name": "occasional tactical mistakes",
+    "status": "runtime",
+    "trace": "mixing.mistake",
+    "config": "tacticalMistakes",
+    "counting": "draw",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "A06",
+    "name": "Fear and panic",
+    "status": "runtime",
+    "trace": "fear",
+    "config": "fear",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "A07",
+    "name": "Target priority",
+    "status": "runtime",
+    "trace": "threat",
+    "config": "threatSelection",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "A08",
+    "name": "Equipment awareness",
+    "status": "runtime",
+    "trace": "loadout",
+    "config": "loadout",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "A09",
+    "name": "Perceived opponent assessment",
+    "status": "runtime",
+    "trace": "opponent",
+    "config": "opponent",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "A10",
+    "name": "Personally heard opportunities",
+    "status": "runtime",
+    "trace": "opportunity",
+    "config": "opportunity",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "A11",
+    "name": "Fight or take cover",
+    "status": "runtime",
+    "trace": "coverResponse",
+    "config": "coverResponse",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "A12",
+    "name": "Plan progress and sterile-decision recovery",
+    "status": "runtime",
+    "trace": "progress",
+    "config": "progress",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "A13",
+    "name": "Clean handoff to native SAIN",
+    "status": "runtime",
+    "trace": "handoff",
+    "config": "handoff",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C01",
+    "name": "Door traversal",
+    "status": "runtime",
+    "trace": "doorTransit",
+    "config": "doorTransit",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C02",
+    "name": "Recover stalled door interactions",
+    "status": "runtime",
+    "trace": "doorRecovery",
+    "config": "doorRecovery",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C03",
+    "name": "Door frames and live panels",
+    "status": "runtime",
+    "trace": "doorSpatial",
+    "config": "doorSpatial",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C04",
+    "name": "Push doors away and unjam reversed leaves",
+    "status": "runtime",
+    "trace": "doorMotion",
+    "config": "doorMotion",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C05",
+    "name": "Automatic door closing",
+    "status": "runtime",
+    "trace": "doorClosing",
+    "config": "doorClosing",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C06",
+    "name": "Progressive stuck movement recovery",
+    "status": "runtime",
+    "trace": "movementRecovery",
+    "config": "movementRecovery",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C07",
+    "name": "Stable cover results during a search",
+    "status": "runtime",
+    "trace": "coverScan",
+    "config": "coverScan",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C08",
+    "name": "Isolate runtime errors by bot and module",
+    "status": "runtime",
+    "trace": "faultIsolation",
+    "config": "faultIsolation",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C09",
+    "name": "Death, downing and revive safety",
+    "status": "runtime",
+    "trace": "lifecycle",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C10",
+    "name": "Invalid movement and player reference safety",
+    "status": "runtime",
+    "trace": "validity",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C11",
+    "name": "Corpse decal cleanup excluded",
+    "status": "excluded",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C12",
+    "name": "Simulation corpse cleanup rejected entirely",
+    "status": "excluded",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C13",
+    "name": "End-of-raid cleanup",
+    "status": "runtime",
+    "trace": "raidCleanup",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C14",
+    "name": "Read the selected SAIN preset",
+    "status": "runtime",
+    "trace": "sainPreset",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D01",
+    "name": "Door selection and protected approach",
+    "status": "runtime",
+    "trace": "doorApproach",
+    "config": "doorApproach",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D02",
+    "name": "Doorway jump peek",
+    "status": "runtime",
+    "trace": "doorJumpPeek",
+    "config": "doorJumpPeek",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D03",
+    "name": "Doorway run-by",
+    "status": "runtime",
+    "trace": "doorRunBy",
+    "config": "doorRunBy",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D04",
+    "name": "Small doorway peeks",
+    "status": "runtime",
+    "trace": "doorStepPeek",
+    "config": "doorStepPeek",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D05",
+    "name": "Fake grenade at a doorway",
+    "status": "runtime",
+    "trace": "doorFakeGrenade",
+    "config": "doorFakeGrenade",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D06",
+    "name": "Fake heal or stimulant at a doorway",
+    "status": "runtime",
+    "trace": "doorFakeMedical",
+    "config": "doorFakeMedical",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D07",
+    "name": "Prepared room entry",
+    "status": "runtime",
+    "trace": "doorRoomClear",
+    "config": "doorRoomClear",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D08",
+    "name": "Check a room while searching",
+    "status": "runtime",
+    "trace": "doorSearchClear",
+    "config": "doorSearchClear",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D09",
+    "name": "Hold a doorway exit",
+    "status": "runtime",
+    "trace": "doorAmbush",
+    "config": "doorAmbush",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D10",
+    "name": "Choose a useful Hold position",
+    "status": "runtime",
+    "trace": "doorHold",
+    "config": "holdAngle",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D11",
+    "name": "Door support and rear watch",
+    "status": "runtime",
+    "trace": "doorSupport",
+    "config": "doorSupport",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D12",
+    "name": "Interrupt and resume a door plan",
+    "status": "runtime",
+    "trace": "doorInterruption",
+    "config": "doorInterruption",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D13",
+    "name": "Doorway emergency reaction",
+    "status": "runtime",
+    "trace": "doorEmergency",
+    "config": "doorEmergency",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D14",
+    "name": "Door reservation",
+    "status": "runtime",
+    "trace": "doorReservation",
+    "config": "doorReservation",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "D15",
+    "name": "Native breach and crossing",
+    "status": "runtime",
+    "trace": "doorEntry",
+    "config": "doorEntry",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "E01",
+    "name": "Historical player-style recording rejected",
+    "status": "excluded",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "E02",
+    "name": "Player-action diagnostic tool (deferred)",
+    "status": "deferred",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "E03",
+    "name": "Encounter-local repeated-peek adaptation",
+    "status": "runtime",
+    "trace": "encounter",
+    "config": "encounter",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "E04",
+    "name": "Encounter-local tactical feedback",
+    "status": "runtime",
+    "trace": "outcome",
+    "config": "outcomes",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "E05",
+    "name": "Test-raid tagging rejected",
+    "status": "excluded",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "E06",
+    "name": "Human equipment exemption covered by A09/S06",
+    "status": "integrated",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "G01",
+    "name": "Decide whether a grenade is worthwhile",
+    "status": "runtime",
+    "trace": "grenadeJudgment",
+    "config": "grenadeJudgment",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "G02",
+    "name": "Grenade trajectories, corners and open doors",
+    "status": "runtime",
+    "trace": "grenadeTrajectory",
+    "config": "grenadeTrajectory",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "G03",
+    "name": "Choose a grenade by its fuse",
+    "status": "runtime",
+    "trace": "grenadeChoice",
+    "config": "grenadeChoice",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "G04",
+    "name": "Avoid own grenades and wait for confirmed explosions",
+    "status": "runtime",
+    "trace": "ownGrenadeSafety",
+    "config": "ownGrenadeSafety",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "G05",
+    "name": "Personality-based grenade reactions",
+    "status": "runtime",
+    "trace": "grenadeReaction",
+    "config": "grenadeReaction",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "G06",
+    "name": "Squad grenade dispersion",
+    "status": "runtime",
+    "trace": "grenadeDispersion",
+    "config": "grenadeDispersion",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "G07",
+    "name": "Offensive grenade types",
+    "status": "runtime",
+    "trace": "grenadeFilter",
+    "config": "grenadeFilter",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "G08",
+    "name": "CS gas reactions",
+    "status": "runtime",
+    "trace": "gasExposure",
+    "config": "gasExposure",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "G09",
+    "name": "Preserve ongoing flash effects",
+    "status": "runtime",
+    "trace": "flashContinuity",
+    "config": "flashContinuity",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "G10",
+    "name": "Nearby explosions and thrower knowledge",
+    "status": "runtime",
+    "trace": "explosionAwareness",
+    "config": "explosionAwareness",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "H01",
+    "name": "First aid, useful stimulants, surgery or waiting",
+    "status": "runtime",
+    "trace": "medicalChoice",
+    "config": "medicalChoice",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "H02",
+    "name": "Interrupt unsafe surgery",
+    "status": "runtime",
+    "trace": "surgeryInterruption",
+    "config": "surgeryInterruption",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "H03",
+    "name": "Keep the body in during treatment",
+    "status": "runtime",
+    "trace": "medicalPosture",
+    "config": "medicalPosture",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "H04",
+    "name": "Recover after a fight",
+    "status": "runtime",
+    "trace": "postCombat",
+    "config": "postCombat",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "H05",
+    "name": "Keep the weapon ready after a fight",
+    "status": "runtime",
+    "trace": "readyStance",
+    "config": "readyStance",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "I01",
+    "name": "Integrating with official SAIN",
+    "status": "interface",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "I02",
+    "name": "Return control to the installed out-of-combat system",
+    "status": "runtime",
+    "trace": "controlHandoff",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "I03",
+    "name": "PMC-only scope already covered",
+    "status": "integrated",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "I04",
+    "name": "Mod-added bots and custom brains: deferred",
+    "status": "deferred",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "I05",
+    "name": "ClassicMovement compatibility: deferred",
+    "status": "deferred",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "I06",
+    "name": "Third-party door-mod compatibility: deferred",
+    "status": "deferred",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "L01",
+    "name": "Lamp and laser discipline during ambushes",
+    "status": "runtime",
+    "trace": "lightDiscipline",
+    "config": "lightDiscipline",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "L02",
+    "name": "All tactical accessories and bounded retries",
+    "status": "runtime",
+    "trace": "tacticalDevices",
+    "config": "tacticalDevices",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "L03",
+    "name": "Lights during quiet pauses",
+    "status": "runtime",
+    "trace": "restLights",
+    "config": "restLights",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "L04",
+    "name": "Preserve pain and agony voices",
+    "status": "integrated",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "M01",
+    "name": "Short combat steps",
+    "status": "runtime",
+    "trace": "combatStep",
+    "config": "combatStep",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "M02",
+    "name": "Pause to fire",
+    "status": "runtime",
+    "trace": "firePause",
+    "config": "firePause",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "M03",
+    "name": "Corner peeks",
+    "status": "runtime",
+    "trace": "cornerPeek",
+    "config": "cornerPeek",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "M04",
+    "name": "Head movement in combat",
+    "status": "runtime",
+    "trace": "combatLean",
+    "config": "combatLean",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "M05",
+    "name": "Chase around a corner",
+    "status": "runtime",
+    "trace": "cornerChase",
+    "config": "cornerChase",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "M06",
+    "name": "Short corner prefire",
+    "status": "runtime",
+    "trace": "cornerPrefire",
+    "config": "cornerPrefire",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "M07",
+    "name": "Watch a useful angle",
+    "status": "runtime",
+    "trace": "angleWatch",
+    "config": "angleWatch",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "M08",
+    "name": "Open the watched angle",
+    "status": "runtime",
+    "trace": "holdAngle",
+    "config": "holdAngle",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "M09",
+    "name": "Face the close threat while travelling to cover",
+    "status": "runtime",
+    "trace": "coverTravel",
+    "config": "coverTravel",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "M10",
+    "name": "Release ADS during non-firing tactical movement",
+    "status": "runtime",
+    "trace": "adsTravel",
+    "config": "adsTravel",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "M11",
+    "name": "Zigzag retreat, head down and running jumps",
+    "status": "runtime",
+    "trace": "retreatWeave",
+    "config": "retreatWeave",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "M12",
+    "name": "Tactical jumps and firing in the air",
+    "status": "runtime",
+    "trace": "tacticalJump",
+    "config": "tacticalJump",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "M13",
+    "name": "Outdoor relocation after contact",
+    "status": "runtime",
+    "trace": "outdoorRelocation",
+    "config": "outdoorRelocation",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "M14",
+    "name": "Cover feints",
+    "status": "runtime",
+    "trace": "coverFeint",
+    "config": "coverFeint",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "P01",
+    "name": "Hear other bots moving",
+    "status": "runtime",
+    "trace": "hearing",
+    "config": "movementHearing",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "P02",
+    "name": "Quiet approach",
+    "status": "runtime",
+    "trace": "quiet",
+    "config": "quietApproach",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "P03",
+    "name": "Graduated reactions to gunfire",
+    "status": "runtime",
+    "trace": "gunfire",
+    "config": "gunfire",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "P04",
+    "name": "Hearing between floors",
+    "status": "runtime",
+    "trace": "floorHearing",
+    "config": "floorHearing",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "P05",
+    "name": "Notice close enemies",
+    "status": "runtime",
+    "trace": "closeDetection",
+    "config": "closeDetection",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "P06",
+    "name": "Silent proximity detection: design decision",
+    "status": "integrated",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "P07",
+    "name": "React to real bullet impacts",
+    "status": "runtime",
+    "trace": "impact",
+    "config": "impactReaction",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "P08",
+    "name": "Search after silence",
+    "status": "runtime",
+    "trace": "silentSearch",
+    "config": "silentSearch",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "P09",
+    "name": "Finish an empty search",
+    "status": "runtime",
+    "trace": "searchAbandonment",
+    "config": "searchAbandonment",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "P10",
+    "name": "Indoor and overhead context",
+    "status": "runtime",
+    "trace": "environmentContext",
+    "config": "environmentContext",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "S01",
+    "name": "Squad crossfire angles",
+    "status": "runtime",
+    "trace": "crossfire",
+    "config": "crossfire",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "S02",
+    "name": "Watch another entrance, then consider entry",
+    "status": "runtime",
+    "trace": "crossfire.entrance",
+    "config": "secondaryEntrance",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "S03",
+    "name": "Squad support and coordinated flanking",
+    "status": "runtime",
+    "trace": "crossfire.maneuver",
+    "config": "squadManeuver",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "S04",
+    "name": "Cover a busy teammate",
+    "status": "runtime",
+    "trace": "crossfire.coverMate",
+    "config": "coverMate",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "S05",
+    "name": "React to a teammate death",
+    "status": "runtime",
+    "trace": "crossfire.trade",
+    "config": "squadTrade",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "S06",
+    "name": "Coordinated assault on a perceived vulnerable enemy",
+    "status": "runtime",
+    "trace": "crossfire.storm",
+    "config": "squadStorm",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "S07",
+    "name": "Avoid allied firing lanes",
+    "status": "runtime",
+    "trace": "fireLane",
+    "config": "fireLane",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "S08",
+    "name": "Protect your own squad while firing",
+    "status": "runtime",
+    "trace": "squadFire",
+    "config": "squadFire",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "S09",
+    "name": "PMC squad voice",
+    "status": "runtime",
+    "trace": "squadVoice",
+    "config": "squadVoice",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "T01",
+    "name": "Raid combat journal",
+    "status": "runtime",
+    "trace": "combatJournal",
+    "config": "combatJournal",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "T02",
+    "name": "Raid decision and probability counters",
+    "status": "runtime",
+    "trace": "tacticCounters",
+    "config": "tacticCounters",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "T03",
+    "name": "Weapon-change diagnostics",
+    "status": "runtime",
+    "trace": "weaponJournal",
+    "config": "weaponJournal",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "T04",
+    "name": "Control transition diagnostics",
+    "status": "runtime",
+    "trace": "controlJournal",
+    "config": "controlJournal",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "T05",
+    "name": "In-game SimLab",
+    "status": "excluded",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "U01",
+    "name": "COMET difficulty presets",
+    "status": "runtime",
+    "trace": "cometPreset",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "U02",
+    "name": "Per-role SAIN difficulty editor excluded",
+    "status": "excluded",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "U03",
+    "name": "SAIN or vanilla AI per role excluded",
+    "status": "excluded",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "U04",
+    "name": "Additional personality selection excluded",
+    "status": "excluded",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "U05",
+    "name": "Review and edit COMET settings",
+    "status": "interface",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "U06",
+    "name": "Equipment stealth editor and automatic modded-item support excluded",
+    "status": "excluded",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "U07",
+    "name": "Protected defaults and personal presets",
+    "status": "interface",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "U08",
+    "name": "Clear English setting descriptions",
+    "status": "interface",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "U09",
+    "name": "Separate spawn-difficulty history excluded",
+    "status": "excluded",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "U10",
+    "name": "Low-spec bundle and global SAIN preset changes excluded",
+    "status": "excluded",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "U11",
+    "name": "Release information deferred; no direct editor port",
+    "status": "deferred",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "W01",
+    "name": "Choose when to reload",
+    "status": "runtime",
+    "trace": "reloadTiming",
+    "config": "reloadTiming",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "W02",
+    "name": "Draw a loaded pistol under pressure",
+    "status": "runtime",
+    "trace": "pistolSwap",
+    "config": "pistolSwap",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "W03",
+    "name": "Return to the primary weapon without switch loops",
+    "status": "runtime",
+    "trace": "weaponReturn",
+    "config": "weaponReturn",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "W04",
+    "name": "Emergency fast reload with magazine drop",
+    "status": "runtime",
+    "trace": "quickReload",
+    "config": "quickReload",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "W05",
+    "name": "Choose a primary weapon for the combat distance",
+    "status": "runtime",
+    "trace": "weaponRange",
+    "config": "weaponRange",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "W06",
+    "name": "Keep weapon information in sync with actual equipment",
+    "status": "runtime",
+    "trace": "weaponSync",
+    "config": "weaponSync",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "W07",
+    "name": "Economical suppression bursts",
+    "status": "runtime",
+    "trace": "suppressionDiscipline",
+    "config": "suppressionDiscipline",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "W08",
+    "name": "Avoid wasted manual shots into obstacles",
+    "status": "runtime",
+    "trace": "shotGeometry",
+    "config": "shotGeometry",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "W09",
+    "name": "Optional faster DMR and sniper recoil recovery",
+    "status": "runtime",
+    "trace": "recoilRecovery",
+    "config": "recoilRecovery",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "W10",
+    "name": "Recover stuck hands and stale reloads",
+    "status": "runtime",
+    "trace": "handsRecovery",
+    "config": "handsRecovery",
+    "counting": "trace",
+    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  }
+]

@@ -30,6 +30,7 @@
 **/config.json
 **/config.json.*
 **/presets.json
+/Tools/RaidArchive/settings.json
 **/diagnostics/
 *.log
 *.etl

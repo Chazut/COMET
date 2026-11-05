@@ -95,7 +95,7 @@ namespace Comet.Client
             => Write(JsonConvert.SerializeObject(new{schema=1,session,feature="T02",stage="configuration",enabled,maxOpportunities,configRevision=revision},Json));
         // Keep target-selection events bounded as unrelated module configuration grows.
         internal static object ThreatConfig(Comet.Core.CometConfig c)=>new { c.Enabled, c.ThreatSelection };
-        public Diagnostics(string directory, string session, Action<string> warning)
+        public Diagnostics(string directory, string session, Action<string> warning, long segmentBytes = 64L*1024*1024)
         {
             warn = warning;
             Directory.CreateDirectory(directory);
@@ -103,17 +103,24 @@ namespace Comet.Client
             writer = Task.Run(() =>
             {
                 var counters=new TacticCounters(session);var journal=new CombatReport(session);
-                StreamWriter? output=null;long bytes=0,skipped=0;
+                StreamWriter? output=null;long bytes=0,skipped=0;int segment=0;
+                string SegmentPath()=>segment==0?path:Path.Combine(directory,Path.GetFileNameWithoutExtension(path)+".part"+segment.ToString("D4")+".jsonl");
+                void Open(){output=new StreamWriter(new FileStream(SegmentPath(),FileMode.CreateNew,FileAccess.Write,FileShare.Read));bytes=0;}
                 void Line(string line,bool final=false)
                 {
-                    if(output==null)return;
-                    if(!final&&bytes>=64*1024*1024){skipped++;return;}
-                    try{output.WriteLine(line);bytes+=System.Text.Encoding.UTF8.GetByteCount(line)+2;}
-                    catch(Exception ex){try{output.Dispose();}catch{}output=null;Warn("COMET diagnostic file failed; counters continue: "+ex.Message);}
+                    if(output==null){skipped++;return;}
+                    try
+                    {
+                        // Only this background writer touches files. Keep every event;
+                        // segment boundaries never reset sequence numbers or summaries.
+                        if(!final&&bytes>=Math.Max(128,segmentBytes)){output.Dispose();output=null;segment++;Open();}
+                        output!.WriteLine(line);bytes+=System.Text.Encoding.UTF8.GetByteCount(line)+2;
+                    }
+                    catch(Exception ex){skipped++;try{output?.Dispose();}catch{}output=null;Warn("COMET diagnostic file failed; counters continue: "+ex.Message);}
                 }
                 try
                 {
-                    try{output=new StreamWriter(new FileStream(path,FileMode.CreateNew,FileAccess.Write,FileShare.Read));}
+                    try{Open();}
                     catch(Exception ex){Warn("COMET diagnostic file unavailable; counters continue: "+ex.Message);}
                     foreach (string line in queue.GetConsumingEnumerable())
                     {
@@ -130,8 +137,8 @@ namespace Comet.Client
                         if(json.Length>32768){Warn("COMET counter summary page exceeded 32 KiB.");continue;}
                         Line(json,true);Comet.Api.Decisions.PublishSummary(json,Warn);
                     }
-                    Line(JsonConvert.SerializeObject(new { schema = 1, stage = "diagnostics-end", queueDropped = Interlocked.Read(ref dropped), fileLimitDropped = skipped }, Json),true);
-                    if (skipped > 0) Warn("COMET diagnostic file reached 64 MiB; skipped " + skipped + " events. RR event publishing continued.");
+                    Line(JsonConvert.SerializeObject(new { schema = 1, session, stage = "diagnostics-end", segments=segment+1,
+                        queueDropped = Interlocked.Read(ref dropped), fileLimitDropped = 0, writeFailed = skipped }, Json),true);
                 }
                 catch (Exception ex) { Interlocked.Exchange(ref closed,1); Warn("COMET diagnostics writer failed: " + ex.Message); }
                 finally{try{output?.Dispose();}catch(Exception ex){Warn("COMET diagnostic close failed: "+ex.Message);}}

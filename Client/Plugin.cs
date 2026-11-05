@@ -247,6 +247,12 @@ public sealed partial class Plugin : BaseUnityPlugin
                 var log = Logger; // Writer holds the logger, never the Plugin/world.
                 try { diagnostics = new Diagnostics(Path.Combine(BepInEx.Paths.PluginPath, "..", "COMET", "diagnostics"), session, text => log.LogWarning(text)); }
                 catch (Exception ex) { Logger.LogError("COMET cannot open diagnostic file; RR events remain available. " + ex.Message); }
+                diagnostics?.Write(JsonConvert.SerializeObject(new {schema=1,session,stage="raid-start",map=current.LocationId,
+                    utc=DateTime.UtcNow.ToString("O"),realtime=Time.realtimeSinceStartup,
+                    cometVersion=typeof(Plugin).Assembly.GetName().Version?.ToString(),
+                    assemblyMvid=typeof(Plugin).Assembly.ManifestModule.ModuleVersionId.ToString(),
+                    sainMvid=typeof(BotComponent).Assembly.ManifestModule.ModuleVersionId.ToString(),
+                    authority=Authority,fika=fikaPresent,diagnosticMode="detailed",segmentBytes=64L*1024*1024},Diagnostics.Json));
                 loading.Start(raidLifetime.Generation, static () => { var c = JsonConvert.DeserializeObject<CometConfig>(RequestHandler.GetJson("/comet/config")) ?? throw new InvalidDataException("Missing COMET config."); c.Validate(); return c; });
             }
         }
