@@ -26,7 +26,7 @@ internal static class ProgressAdapter
         var keys=state.Progress.CandidateAttempts; keys.Clear();
         keys["Push"]=keys["Search"]=GoalKey(bot);
         keys["Cover"]=keys["FallBack"]=CoverKey(state.SelectedCover);
-        // Native shift can try multiple points. Its mover hook excludes only the blocked point.
+        keys["Flank"]=CoverKey(state.Flank.Point);
     }
     internal static ProgressFrame Capture(BotComponent bot,BotState state,bool authority,bool ghost,CometConfig config)
     {
@@ -58,7 +58,7 @@ internal static class ProgressAdapter
         {f.Paused=false;f.PauseReason="";}
         if(PlanProgress.IsMove(f.Action))
         {
-            var cover=bot.Cover.CoverPoint_MovingTo ?? state.SelectedCover;
+            var cover=f.Action=="Flank"?state.Flank.Point:bot.Cover.CoverPoint_MovingTo ?? state.SelectedCover;
             f.Attempt=f.Action=="Cover"||f.Action=="FallBack"||f.Action=="Flank"?CoverKey(cover):GoalKey(bot);
             f.Intent=f.Attempt;
             if(path!=null && path.PathStatus==NavMeshPathStatus.PathComplete && path.PathPoints!=null && path.PathPoints.Count>=2 && path.PathPoints.Count<=128)
@@ -86,7 +86,7 @@ internal static class ProgressAdapter
             if((f.Action=="Cover"||f.Action=="FallBack") && bot.Cover.CoverInUse is CoverPoint used
                 && Vector3.Distance(p,used.Position)<=1.5f)
             {f.Arrived=true;f.Attempt=CoverKey(used);}
-            if(f.Action=="Flank" && bot.Decision.EnemyDecisions.ShiftCoverComplete)f.Arrived=true;
+            if(f.Action=="Flank")f.Arrived=FlankAdapter.Arrived(bot,state);
         }
         return f;
     }

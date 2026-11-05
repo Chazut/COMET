@@ -13,6 +13,7 @@ public sealed class VisibleSituation
     public bool ThreatsTruncated;
     // Adapter evidence for the already executing action, never a substitute probe for new choices.
     public bool ContinuationSafe;
+    public string ContinuationReason = "not-evaluated", ProbePendingReason = "";
     public string CoverId = "", ThreatSignature = "", CoverReason = "no-reachable-cover", PushReason = "no-current-complete-path";
     public int ThreatCount;
     public double RecentHitAt;
@@ -76,12 +77,7 @@ public sealed class VisibleEnemyDecision
     public VisibleChoice Evaluate(VisibleSituation v)
     {
         var rejection = Ineligible(v, config);
-        if (rejection == "exposure-probe-pending" && current.HasValue && !nativeRetry && v.ContinuationSafe
-            && v.Contact.Target == target && v.ThreatSignature == threats
-            && !(config.Fear.Enabled && v.Contact.Fear?.Panic == true)
-            && (!v.RecentHit || hit && v.RecentHitAt <= lastHit + .01)
-            && Danger(v.Contact, config) == danger
-            && pendingProbe.Keep(v.Contact.Now, config.Handoff.Grace, target + ":" + current, true))
+        if (rejection == "exposure-probe-pending" && TryContinuePending(v))
         {
             mixer.Retain("kept-pending-exposure");
             return new VisibleChoice { Decision = current, Reason = "plan-kept-pending-exposure",
@@ -157,6 +153,23 @@ public sealed class VisibleEnemyDecision
         lastCandidates = candidates;
         return new VisibleChoice { Decision = next, Changed = changed, Reason = reason, Candidates = candidates, Mixing = mixer.Last };
     }
+    // Shared by the chooser and SAIN's early ContinueMoveToCover branch. One deadline
+    // survives both call paths; repeated acceptance cannot extend an unmeasured plan.
+    public bool TryContinuePending(VisibleSituation v)
+    {
+        string reason = Ineligible(v, config) != "exposure-probe-pending" ? "not-pending"
+            : !current.HasValue ? "no-accepted-plan" : nativeRetry ? "native-refused"
+            : !v.ContinuationSafe ? (v.ContinuationReason.Length > 0 ? v.ContinuationReason : "unverified-plan")
+            : v.Contact.Target != target ? "contact-changed" : v.ThreatSignature != threats ? "threats-changed"
+            : config.Fear.Enabled && v.Contact.Fear?.Panic == true ? "panic"
+            : v.RecentHit && (!hit || v.RecentHitAt > lastHit + .01) ? "new-hit"
+            : Danger(v.Contact,config) != danger ? "danger-changed" : "";
+        if(reason.Length==0&&!pendingProbe.Keep(v.Contact.Now,config.Handoff.Grace,target+":"+current,true))reason="grace-expired";
+        if(reason.Length>0){v.ContinuationReason=reason;return false;}
+        v.ContinuationReason="verified-plan-retained";
+        return true;
+    }
+    public void ProbeRefreshed() => pendingProbe.Clear();
     private static string Danger(Situation s, CometConfig c) => s.Hurt + "/" + s.LowAmmo + "/" + s.Suppressed
         + "/" + (c.Fear.Enabled && s.Fear?.Panic == true) + "/" + (c.Loadout.Enabled ? s.Loadout?.PlanKey : "");
     public VisibleChoice Release(string reason)

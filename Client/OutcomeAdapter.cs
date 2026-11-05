@@ -68,7 +68,7 @@ public sealed partial class Plugin
     private static DoorPoint? OutcomeDestination(BotComponent b,BotState s,string action)
     {
         if(action is "Push" or "Search") {var p=b.GoalEnemy?.KnownPlaces.LastKnownPosition;return p.HasValue?DP(p.Value):null;}
-        if(action is "Cover" or "FallBack" or "Flank") {var p=s.SelectedCover??b.Cover.CoverPoint_MovingTo??b.Cover.CoverInUse;return p==null?null:DP(p.Position);}
+        if(action is "Cover" or "FallBack" or "Flank") {var p=action=="Flank"?s.Flank.Point:s.SelectedCover??b.Cover.CoverPoint_MovingTo??b.Cover.CoverInUse;return p==null?null:DP(p.Position);}
         return null;
     }
     private void SampleOutcome(BotComponent b,BotState s)

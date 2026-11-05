@@ -25,7 +25,8 @@ internal sealed class ExposureProbe
     internal CoverPoint? Cover;
     internal List<KnownThreat> Threats = new List<KnownThreat>();
     internal double Current, CoverEnd, CoverRoute, PushRoute;
-    internal bool PushComplete;
+    internal bool PushComplete, UnderFire;
+    internal double HitAt;
     internal float PushLength;
     internal int Rays;
     internal double Milliseconds;
@@ -113,39 +114,46 @@ internal static class VisibleAdapter
         var cache = state.Probe;
         // Keep only an action already accepted and executing against the same evidence.
         // No added rays/path searches while the shared probe budget is busy.
-        bool stableEvidence = cache != null && Time.time >= cache.At && Time.time - cache.At <= .75 + config.Handoff.Grace
-            && (cache.Origin - bot.Position).sqrMagnitude < 4 && !v.ThreatsTruncated
-            && cache.Threats.Count == threats.Count && cache.Threats.Zip(threats, (a,b) => a.Id == b.Id
-                && a.Visible == b.Visible && (a.Position-b.Position).sqrMagnitude < 1).All(x => x);
-        bool owned = state.Feature == "A02" && state.ActiveLabel == "COMET:" + state.Decision
-            && state.Situation?.Target == contact.Target && bot.SAINLayersActive
-            && bot.Decision.CurrentCombatDecision == state.Expected && bot.Decision.CurrentSelfDecision.ToString() == "None"
-            && bot.Decision.CurrentSquadDecision.ToString() == "None" && bot.BotOwner.Medecine?.Using != true
-            && !bot.BotOwner.DoorOpener.Interacting && bot.Grenade.GrenadeDangerPoint == null
-            && !bot.Decision.DogFightDecision.DogFightActive && !bot.BotOwner.Memory.IsUnderFire;
-        v.ContinuationSafe = stableEvidence && owned && !v.RecentHit && (state.Decision == "Shoot"
-            ? v.CanShoot && bot.CurrentAction?.GetType().Name == "StandAndShootAction"
-            : state.Decision == "Cover" && ReferenceEquals(cover,state.SelectedCover) && cover != null
-                && ReferenceEquals(cache!.Cover,cover) && cache.CoverPathSignature == coverSignature && ValidCover(bot,cover)
-                && bot.CurrentAction?.GetType().Name == "SeekCoverAction"
-                && (cover.BotInThisCover || bot.Mover.ActivePath?.Moving == true
-                    && (bot.Mover.ActivePath.Destination-cover.Position).sqrMagnitude <= 1)
-                && !state.ProgressUnavailable && !state.Progress.Blocked(ProgressAdapter.CoverKey(cover),Time.time)
-                && state.Progress.Current.Reconsider == false);
-        bool same = cache != null && Time.time - cache.At <= .75f && (cache.Origin - bot.Position).sqrMagnitude < (config.CoverResponse.Enabled ? .25f : 4)
+        v.ContinuationReason = cache == null ? "no-exposure-cache"
+            : Time.time < cache.At || Time.time-cache.At > .75+config.Handoff.Grace ? "exposure-cache-expired"
+            : (cache.Origin-bot.Position).sqrMagnitude >= 4 ? "origin-moved"
+            : v.ThreatsTruncated ? "threats-truncated"
+            : !SameThreats(cache.Threats,threats,4) ? "threat-evidence-changed"
+            : state.Feature!="A02" || state.ActiveLabel!="COMET:"+state.Decision ? "not-owned"
+            : cache.Threats[0].Id!=contact.Target ? "contact-changed"
+            : !bot.SAINLayersActive || bot.Decision.CurrentCombatDecision!=state.Expected ? "native-action-changed"
+            : bot.Decision.CurrentSelfDecision.ToString()!="None" || bot.Decision.CurrentSquadDecision.ToString()!="None" ? "native-priority"
+            : bot.BotOwner.Medecine?.Using==true || !v.WeaponReady ? "hands-busy"
+            : bot.BotOwner.DoorOpener.Interacting || bot.Grenade.GrenadeDangerPoint!=null
+                || bot.Decision.DogFightDecision.DogFightActive ? "emergency-or-door"
+            : bot.BotOwner.Memory.IsUnderFire&&!cache.UnderFire ? "new-incoming-fire"
+            : v.RecentHit && v.RecentHitAt>cache.HitAt+.01 ? "new-hit"
+            : state.Decision=="Shoot" ? (v.CanShoot&&bot.CurrentAction?.GetType().Name=="StandAndShootAction"?"":"shot-no-longer-executable")
+            : state.Decision!="Cover" ? "action-not-retainable"
+            : cover==null || !ReferenceEquals(cover,state.SelectedCover)||!ReferenceEquals(cache.Cover,cover) ? "cover-changed"
+            : !ValidCover(bot,cover) || cache.CoverEnd>.5 || cache.CoverRoute>config.VisibleCombat.RiskTolerance ? "cover-no-longer-safe"
+            : bot.CurrentAction?.GetType().Name!="SeekCoverAction" ? "cover-action-not-executing"
+            : !(cover.BotInThisCover || bot.Mover.ActivePath?.Moving==true
+                && (bot.Mover.ActivePath.Destination-cover.Position).sqrMagnitude<=1) ? "cover-route-not-executing"
+            : !state.ProgressUnavailable && (state.Progress.Blocked(ProgressAdapter.CoverKey(cover),Time.time)
+                ||state.Progress.Current.Reconsider) ? "cover-progress-rejected" : "";
+        v.ContinuationSafe = v.ContinuationReason.Length==0;
+        bool same = cache != null && Time.time >= cache.At && Time.time - cache.At <= .75f
+            && (cache.Origin - bot.Position).sqrMagnitude < (config.CoverResponse.Enabled ? .25f : 4)
             && cache.CoverPathSignature == coverSignature && cache.PushPathSignature == pushSignature
             && cache.Cover == cover && cache.PushComplete == push && Math.Abs(cache.PushLength - v.PushPathLength) < 2
-            && cache.Threats.Count == threats.Count && cache.Threats.Zip(threats, (a, b) => a.Id == b.Id && a.Visible == b.Visible
-                && (a.Position - b.Position).sqrMagnitude < 4).All(x => x);
+            && SameThreats(cache.Threats,threats,4);
         if (!same)
         {
             // At most one complete probe globally per frame, at most 28 terrain rays. No scene scan or new path search.
             // A deferred bot may continue its verified action briefly; never rank a new route from partial measurements.
-            if (probeFrame == Time.frameCount || Time.time < state.NextExposureAttempt) return v;
+            if (probeFrame == Time.frameCount || Time.time < state.NextExposureAttempt)
+            { v.ProbePendingReason=probeFrame==Time.frameCount?"shared-frame-budget":"bot-probe-interval";return v; }
             state.NextExposureAttempt = Time.time + .05f;
             probeFrame = Time.frameCount;
             long started = System.Diagnostics.Stopwatch.GetTimestamp(); rays = 0;
             cache = new ExposureProbe { At = Time.time, Origin = bot.Position, Cover = cover, Threats = threats, PushComplete = push, PushLength = (float)v.PushPathLength };
+            cache.UnderFire=bot.BotOwner.Memory.IsUnderFire;cache.HitAt=v.RecentHitAt;
             cache.CoverPathSignature = coverSignature; cache.PushPathSignature = pushSignature;
             cache.Current = Exposure(bot.Position, threats, config.ContactLifetime);
             if (cover != null)
@@ -183,6 +191,18 @@ internal static class VisibleAdapter
                 CanSprint = movement.CanSprint && bot.BotOwner.CanSprintPlayer && bot.Cover.CoverInUse == null };
         }
         return v;
+    }
+    private static bool SameThreats(List<KnownThreat> previous,List<KnownThreat> current,float squaredTolerance)
+    {
+        if(previous.Count!=current.Count||previous.Count==0||previous[0].Id!=current[0].Id)return false;
+        // Secondary distance ordering can change without a new contact or changed evidence.
+        foreach(var a in previous)
+        {
+            bool found=false;
+            foreach(var b in current)if(a.Id==b.Id&&a.Visible==b.Visible&&(a.Position-b.Position).sqrMagnitude<squaredTolerance){found=true;break;}
+            if(!found)return false;
+        }
+        return true;
     }
     private static int PathSignature(NavMeshPath? path)
     {

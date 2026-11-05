@@ -71,9 +71,8 @@ internal static class NativeAdapter
             s.Unavailable[Tactic.Search] = "sain-personality-audio-search-disabled";
         if (config.SilentSearch.Enabled && (enemy.KnownPlaces.LastKnownPlace?.HasArrivedPersonal == true || enemy.KnownPlaces.LastKnownPlace?.HasArrivedSquad == true))
             s.Unavailable[Tactic.Search] = "silent-search-already-searched";
-        bool cover = false, shift = false;
+        bool cover = false;
         if(config.Progress.Enabled && !state.ProgressUnavailable) state.SelectedCover=VisibleAdapter.SelectCover(bot,state.Progress);
-        var used = bot.Cover.CoverInUse;
         // Reuse SAIN's cover cache. No global scene searches or new NavMesh scans.
         int scannedCover=0;
         foreach (var point in bot.Cover.CoverPoints)
@@ -82,14 +81,10 @@ internal static class NativeAdapter
             if (point == null || point.CoverData.IsBad || point.PathToPoint == null || point.PathToPoint.status != NavMeshPathStatus.PathComplete || (point.PathData.TimeSinceLastUpdated > 3 && !Plugin.RetainedCover(bot, point))) continue;
             if(!state.ProgressUnavailable && state.Progress.Blocked(ProgressAdapter.CoverKey(point),s.Now))continue;
             cover = true;
-            if (used != null && point.CoverHeight > used.CoverHeight && (point.Position - used.Position).sqrMagnitude > 5) shift = true;
         }
         if (!cover) s.Unavailable[Tactic.FallBack] = "no-reachable-cover";
-        if (state.Engine.Current == Tactic.Flank && bot.Decision.CurrentCombatDecision == ECombatDecision.ShiftCover
-            && !bot.Decision.EnemyDecisions.ShiftCoverComplete) shift = true;
-        if (!shift) s.Unavailable[Tactic.Flank] = "no-native-shift-cover-target";
-        if (state.Engine.Current == Tactic.Flank && bot.Decision.EnemyDecisions.ShiftCoverComplete)
-            s.Unavailable[Tactic.Flank] = "cover-shift-finished";
+        string flankReason=FlankAdapter.Capability(bot,state);
+        if(flankReason.Length>0)s.Unavailable[Tactic.Flank]=flankReason;
         var weapon = bot.BotOwner.WeaponManager;
         if (weapon == null || !weapon.HaveBullets || weapon.Reload.Reloading || weapon.Selector.IsChanging || bot.Player.HandsController.IsInInteractionStrictCheck())
         {

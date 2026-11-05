@@ -20,6 +20,13 @@ foreach(string gate in new[]{"none","disabled","client","scav","human","ghost","
     if(gate=="diagnostic-fault")Check(cs.CounterObserverFailed&&cs.ActiveLabel=="COMET:Cover"&&cb.Decision.CurrentCombatDecision==ECombatDecision.SeekCover&&cp.Logger.Warnings.Count==1,"T02 diagnostic failure cannot release combat or spam logs");
 }
 (Plugin p,BotComponent b,BotState s) Setup(){var p=new Plugin();Plugin.Instance=p;var b=new BotComponent();var s=new BotState();p.states[b]=s;return(p,b,s);}
+{
+ var flank=Setup();
+ Check(flank.p.Destination(flank.b,flank.s,"Flank")==null,"flank without a selected point cannot borrow a different cover destination");
+ flank.s.Flank.Point=new(){Position=new(8,0,0)};
+ Check(flank.p.Destination(flank.b,flank.s,"Flank")?.X==8,"outcome follows the exact flank destination");
+ Check(flank.p.Destination(flank.b,flank.s,"Cover")?.X==2,"regular cover destination stays independent");
+}
 void Tick(Plugin p,BotComponent b,BotState s,float t,bool probe=true){Time.time=Time.realtimeSinceStartup=t;Time.frameCount++;if(probe&&s.Probe!=null){s.Probe.At=t;s.Probe.Origin=b.Position;}p.Tick(b,s);}
 void Good(Plugin p,BotComponent b,BotState s,float start){b.Position=default;b.Cover.CoverInUse=null;s.Probe!.Current=.8;Tick(p,b,s,start);b.Position=new(2,0,0);b.Cover.CoverInUse=new();s.Probe.Current=.1;for(int i=1;i<=13;i++)Tick(p,b,s,start+i*.125f);}
 var (p,b,s)=Setup();Good(p,b,s,0);Check(s.Outcomes.Memory.Trace.Result=="favorable","native confirmed protective cover");Check(p.diagnostics!.Lines.Count>2,"production diagnostics emitted");

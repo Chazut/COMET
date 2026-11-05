@@ -57,6 +57,7 @@ public sealed partial class Plugin
                 p.ArbitrationEvent(old, "tactical-priority-over-" + squad, solo + "/" + self + "/" + squad);
                 solo = proposed; squad = ESquadDecision.None;
             }
+            else p.ArbitrationEvent(old,"native-squad-fallback-no-comet-choice",solo+"/"+self+"/"+squad);
         }
         finally { old.ArbitratingSquad = false; }
     }

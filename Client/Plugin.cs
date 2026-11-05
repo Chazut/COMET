@@ -219,6 +219,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             RunIntegration("PatchCrossfire",()=>PatchCrossfire(harmony));
             harmony.Patch(AccessTools.Method(typeof(SAINMoverClass), "GoToCoverPoint", new[] { typeof(CoverPoint), typeof(bool), typeof(ESprintUrgency) }),
                 prefix: new HarmonyMethod(typeof(Plugin), nameof(ProgressCoverMove)));
+            RunIntegration("flank-execution",()=>PatchFlank(harmony));
             RunIntegration("fault-owner-contracts",PrepareFaultOwners);
             RunIntegration("PatchDoorEntry",()=>PatchDoorEntry(harmony!));
             RunIntegration("installed-hook-manifest",VerifyInstalledIntegration);
@@ -662,12 +663,25 @@ public sealed partial class Plugin : BaseUnityPlugin
                 if (s.Loadout?.PlanKey != state.LoadoutAtSelection?.PlanKey) { __result = false; return; }
                 if (s.Fear.Panic) { __result = false; return; }
                 var v = VisibleAdapter.Capture(bot, enemy, s, state, plugin.config);
-                if (VisibleEnemyDecision.Ineligible(v, plugin.config) != null || v.CoverRouteRisk > plugin.config.VisibleCombat.RiskTolerance
-                    || v.CoverExposure > .5 || v.ThreatSignature != state.VisibleSituation?.ThreatSignature
-                    || (v.RecentHit && (state.VisibleSituation?.RecentHit != true || v.RecentHitAt > state.VisibleSituation.RecentHitAt + .01))
-                    || s.Hurt != state.Situation?.Hurt || s.LowAmmo != state.Situation?.LowAmmo || s.Suppressed != state.Situation?.Suppressed)
-                { __result = false; return; }
-                state.Situation = s; state.VisibleSituation = v;
+                string? ineligible = VisibleEnemyDecision.Ineligible(v, plugin.config);
+                if(ineligible == "exposure-probe-pending")
+                {
+                    bool kept=state.VisibleEngine.TryContinuePending(v);
+                    plugin.ArbitrationEvent(state,kept?"cover-kept-pending-exposure":"cover-pending-refused:"+v.ContinuationReason,v.ProbePendingReason);
+                    if(!kept){__result=false;return;}
+                    // Keep the last measured snapshot. A deferred probe contains no new risk measurement.
+                    state.Situation=s;
+                }
+                else
+                {
+                    if (ineligible != null || v.CoverRouteRisk > plugin.config.VisibleCombat.RiskTolerance
+                        || v.CoverExposure > .5 || v.ThreatSignature != state.VisibleSituation?.ThreatSignature
+                        || (v.RecentHit && (state.VisibleSituation?.RecentHit != true || v.RecentHitAt > state.VisibleSituation.RecentHitAt + .01))
+                        || s.Hurt != state.Situation?.Hurt || s.LowAmmo != state.Situation?.LowAmmo || s.Suppressed != state.Situation?.Suppressed)
+                    { __result = false; return; }
+                    state.VisibleEngine.ProbeRefreshed();
+                    state.Situation = s; state.VisibleSituation = v;
+                }
             }
             else if (!state.Intent.Allows(enemy.EnemyProfileId, Time.time)) { __result = false; return; }
             else state.Situation = NativeAdapter.Capture(bot, enemy, plugin.Authority, false);
@@ -694,6 +708,8 @@ public sealed partial class Plugin : BaseUnityPlugin
             cometVersion = "0.1.0", config=decisionConfiguration.Take(config,session),
             profileId = state.ProfileId, name = state.Name, botInstance = state.Id,
             decision = state.Decision, candidates = state.Candidates, mixing = state.Mixing, tacticObservationVersion = 1,
+            flank = state.Decision=="Flank" ? new { accepted=state.Flank.MoveAccepted, reason=state.Flank.Reason,
+                destination=state.Flank.Point==null?null:new {x=state.Flank.Point.Position.x,y=state.Flank.Point.Position.y,z=state.Flank.Point.Position.z} } : null,
             doorEmergency = state.Feature=="D13" ? state.Emergency.Policy.Trace : null,
             hearing = state.Situation?.Target == state.MovementSource && Time.time - state.MovementHeardAt <= 5 ? state.MovementEvidence : null,
             quiet = state.Quiet.Current.Applied ? state.Quiet.Current : null,
@@ -718,6 +734,8 @@ public sealed partial class Plugin : BaseUnityPlugin
                 knownThreats = state.VisibleSituation?.ThreatCount, threatsTruncated = state.VisibleSituation?.ThreatsTruncated,
                 coverId = state.VisibleSituation?.CoverId, probeAge = state.Probe == null ? (float?)null : Time.time - state.Probe.At,
                 probeMilliseconds = state.Probe?.Milliseconds, probeRays = state.Probe?.Rays,
+                probeReady = state.VisibleSituation?.ProbeReady, pendingReason = state.VisibleSituation?.ProbePendingReason,
+                continuationReason = state.VisibleSituation?.ContinuationReason,
                 coverPosition = state.SelectedCover == null ? null : new { x = state.SelectedCover.Position.x, y = state.SelectedCover.Position.y, z = state.SelectedCover.Position.z }
             } : null,
             contact = new { target = state.Situation?.Target, age = state.Feature == "A03" && state.SightEvent != null
@@ -794,6 +812,7 @@ public sealed partial class Plugin : BaseUnityPlugin
 
 internal sealed class BotState
 {
+    internal readonly FlankRuntime Flank = new();
     internal readonly PlanServiceRuntime PlanService = new();
     internal HandoffTrace? ContinuityTrace;
     internal string ContinuityKey="";

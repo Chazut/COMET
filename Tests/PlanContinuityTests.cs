@@ -35,6 +35,15 @@ internal static class PlanContinuityTests
             var e=new VisibleEnemyDecision(Config());var f=Frame();e.Evaluate(f);e.NotifyNativeRefusal();f.Contact.Now+=.1;f.ProbeReady=false;
             Check(e.Evaluate(f).Decision==null,"native execution failure gets no grace");
         }
+        {
+            var e=new VisibleEnemyDecision(Config());var f=Frame();e.Evaluate(f);f.ProbeReady=false;f.Contact.Now=10.1;
+            Check(e.TryContinuePending(f),"native continuation can use the same lease");
+            f.Contact.Now=10.4;Check(e.Evaluate(f).Decision==VisibleTactic.Shoot,"chooser shares continuation deadline");
+            f.Contact.Now=10.61;Check(!e.TryContinuePending(f)&&f.ContinuationReason=="grace-expired","switching entry points cannot reset deadline");
+            e.ProbeRefreshed();f.Contact.Now=10.7;Check(e.TryContinuePending(f),"new measured probe clears pending lease");
+            f.ContinuationSafe=false;f.ContinuationReason="";
+            Check(!e.TryContinuePending(f)&&f.ContinuationReason=="unverified-plan","missing diagnostic reason cannot bypass safety");
+        }
         return n;
     }
 }

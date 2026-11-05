@@ -20,19 +20,28 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(EnemyKnownChecker),"ShallKnowEnemy"),postfix:new HarmonyMethod(typeof(Plugin),nameof(CheckSearchedPlace)));
         h.Patch(AccessTools.Method(typeof(EnemyKnownChecker),nameof(EnemyKnownChecker.TickEnemy)),postfix:new HarmonyMethod(typeof(Plugin),nameof(SearchForgetObserved)));
     }
+    private static bool NeedsAbandonment(EnemyKnownChecker checker,bool pending)
+    {
+        var p=Instance;if(p?.config==null)return false;
+        var e=abandonmentEnemy(checker);
+        if(!p.states.TryGetValue(e.Bot,out var s))return false;
+        return pending ? s.AbandonPending?.Target==e.EnemyProfileId
+            : ReferenceEquals(e.Bot.GoalEnemy,e)||s.Abandonment.Remembers(e.EnemyProfileId);
+    }
     private static void CheckSearchedPlace(EnemyKnownChecker __instance,float currentTime,ref bool __result)
     {
         var p=Instance;if(p?.config==null)return;
         var e=abandonmentEnemy(__instance);var b=e.Bot;
         if(!p.states.TryGetValue(b,out var s))return;
+        // Irrelevant contacts cannot invalidate the current inspection. Filter them
+        // before repeated authority, ghost, hands and lifecycle reads.
+        if(!ReferenceEquals(b.GoalEnemy,e)&&!s.Abandonment.Remembers(e.EnemyProfileId))return;
         try
         {
             if(s.AbandonFault||!p.config.Enabled||!p.config.SearchAbandonment.Enabled||!NativeAdapter.IsPmcAi(b)
                 ||!b.BotActive||b.IsDead||b.GameEnding||!p.Authority||p.Ghost(b.ProfileId))
             {p.EndAbandonment(s,"search-check-out-of-scope",true);return;}
             if(s.Entry.Policy.Active||s.Fake.Policy.Active||s.StepPeek.Policy.Active||s.Jump.Policy.Active||s.RunBy.Policy.Active){p.EndAbandonment(s,"search-check-door-jump");return;}
-            // Other known contacts must not reset the active contact's inspection each tick.
-            if(!ReferenceEquals(b.GoalEnemy,e)&&!s.Abandonment.Remembers(e.EnemyProfileId))return;
             var place=e.KnownPlaces.LastKnownPlace;
             if(!__result||place==null){p.EndAbandonment(s,"search-check-native-expiry");return;}
             bool unsafeNow=b.Flashed.IsFlashed||e.IsVisible||b.EnemyController.VisibleEnemies.Count>0||b.BotOwner.Memory.IsUnderFire

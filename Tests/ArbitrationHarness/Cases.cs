@@ -10,7 +10,7 @@ public static class Cases
  static void Check(bool value,string name){checks++;if(!value)throw new Exception(name);}
  static (Plugin p,BotComponent b,BotState s) Setup(string feature="A01",string action="FallBack")
  {
-  ContactSafety.Allowed=true;Time.time=10;Time.frameCount=100;var b=new BotComponent();b.Decision.Bot=b;
+  ContactSafety.Allowed=true;VisibleAdapter.Pending=false;Time.time=10;Time.frameCount=100;var b=new BotComponent();b.Decision.Bot=b;
   var p=new Plugin();var s=new BotState(b,p.config,"raid"){Feature=feature,Decision=action,ActiveLabel="COMET:"+action,
    LastSelection=10,Expected=action=="FallBack"?ECombatDecision.Retreat:ECombatDecision.SeekCover};
   s.SelectedCover=b.Cover.CoverPoint_MovingTo=new CoverPoint();s.Probe.Cover=s.SelectedCover;
@@ -87,6 +87,15 @@ public static class Cases
    bool continued=invalid!="no-native-continuation";p.Continue(b.Decision,ref continued);
    Check(s.RequestedFrame==-1,"never claim invalid continuation: "+invalid);
    if(invalid!="wrong-plan")Check(!continued,"invalid continuation returns to native chooser: "+invalid);
+  }
+  foreach(bool keep in new[]{true,false})
+  {
+   var(p,b,s)=Setup("A02","Cover");VisibleAdapter.Pending=true;s.VisibleEngine.KeepPending=keep;
+   var measured=s.VisibleSituation;Time.time=10.1f;bool continued=true;p.Continue(b.Decision,ref continued);
+   Check(continued==keep&&s.VisibleEngine.PendingChecks==1,"early native cover branch uses continuation policy");
+   Check(ReferenceEquals(measured,s.VisibleSituation),"pending exposure cannot replace measured snapshot");
+   Check(s.VisibleEngine.Refreshed==0,"pending callback cannot clear shared deadline");
+   Check(p.Events.Any(x=>x.StartsWith(keep?"cover-kept-pending-exposure":"cover-pending-refused")),"continuation disposition is observable");
   }
   // All current squad values plus an unknown future value. Safety retreats remain SAIN-owned.
   foreach(ESquadDecision squad in Enum.GetValues(typeof(ESquadDecision)))
@@ -185,11 +194,11 @@ class Enemy{public bool IsZombie,IsVisible;public string EnemyProfileId="target"
 class CoverPoint{public bool Valid=true;}class Cover{public CoverPoint CoverPoint_MovingTo;}
 class Config{public bool Enabled=true;public ConfigToggle MedicalChoice=new(),ReloadTiming=new();public float ContactLifetime=30,Commitment=2;public VisibleConfig VisibleCombat=new();}class VisibleConfig{public float Commitment=2,RiskTolerance=1;}class ConfigToggle{public bool Enabled=true;}
 class Situation{public string Target="target";public bool Hurt,LowAmmo,Suppressed;public Fear Fear=new();public Loadout Loadout=new();public object Opponent;}
-class VisibleSituation{public float CoverRouteRisk,CoverExposure,RecentHitAt;public bool RecentHit;public string ThreatSignature="";}
+class VisibleSituation{public float CoverRouteRisk,CoverExposure,RecentHitAt;public bool RecentHit;public string ThreatSignature="",ContinuationReason="",ProbePendingReason="";public bool Pending;}
 class Fear{public bool Panic;}class FearRuntime{public Fear Current=new();}class Loadout{public string PlanKey="default";}class Probe{public CoverPoint Cover;}
 class Policy{public bool Active;}class Runtime{public Policy Policy=new();}class Progress{public bool IsBlocked;public bool Blocked(string key,float now)=>IsBlocked;}class Intent{public bool Allowed=true;public bool Allows(string target,float time)=>Allowed;}
 class Engine{public int Failures;public void Fail(Tactic tactic,float now,string reason)=>Failures++;}
-class VisibleEngine{public int Refusals;public void NotifyNativeRefusal()=>Refusals++;}
+class VisibleEngine{public bool KeepPending=true;public int PendingChecks,Refreshed;public bool TryContinuePending(VisibleSituation v){PendingChecks++;return KeepPending;}public void ProbeRefreshed()=>Refreshed++;public int Refusals;public void NotifyNativeRefusal()=>Refusals++;}
 class BotState
 {
  public string ProfileId="pmc";public PlanServiceRuntime PlanService=new();public ServiceRuntime Medical=new(),ReloadTiming=new();public Handoff Handoff=new();
@@ -199,8 +208,8 @@ class BotState
  public Probe Probe=new();public FearRuntime Fear=new();public Loadout LoadoutAtSelection=new();public Intent Intent=new();
 }
 static class NativeAdapter{public static bool IsPmcAi(BotComponent b)=>b.Pmc;public static Situation Capture(BotComponent b,Enemy e,bool authority,bool ghost)=>new(){Target=e.EnemyProfileId,Hurt=b.Hurt,LowAmmo=b.LowAmmo,Suppressed=b.Suppressed};}
-static class VisibleAdapter{public static bool WeaponReady(BotComponent b)=>!b.BotOwner.WeaponManager.Reload.Reloading;public static bool ValidCover(BotComponent b,CoverPoint p)=>p?.Valid==true;public static VisibleSituation Capture(BotComponent b,Enemy e,Situation s,BotState state,Config c)=>new();}
-static class ProgressAdapter{public static string CoverKey(CoverPoint p)=>"cover";}static class VisibleEnemyDecision{public static object Ineligible(VisibleSituation v,Config c)=>null;}
+static class VisibleAdapter{public static bool Pending;public static bool WeaponReady(BotComponent b)=>!b.BotOwner.WeaponManager.Reload.Reloading;public static bool ValidCover(BotComponent b,CoverPoint p)=>p?.Valid==true;public static VisibleSituation Capture(BotComponent b,Enemy e,Situation s,BotState state,Config c)=>new(){Pending=Pending};}
+static class ProgressAdapter{public static string CoverKey(CoverPoint p)=>"cover";}static class VisibleEnemyDecision{public static string Ineligible(VisibleSituation v,Config c)=>v.Pending?"exposure-probe-pending":null;}
 class Log{public void LogWarning(string text)=>throw new Exception(text);}
 class FreezeAction{}class StandAndShootAction{}class RushEnemyAction{}class SearchAction{}class ShiftCoverAction{}class SeekCoverAction{}class ThrowGrenadeAction{}
 partial class Plugin

@@ -31,6 +31,7 @@ namespace Comet.Client
   internal readonly Dictionary<BotComponent,BotState> states=new();
   private readonly Dictionary<BotComponent,object> motionWatches=new();
   private Diagnostics? diagnostics;
+  internal int GuardCalls;partial void GuardLifecycle(FaultScope scope,ref bool allowed){GuardCalls++;}
   internal bool Authority=true;
   internal TestLogger Logger=new();internal int CleanupCalls,OtherCleanupCalls;
   internal Plugin(){Instance=this;}

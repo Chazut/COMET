@@ -64,6 +64,17 @@ policy.Ready(key,"M",10,out _);Check(!policy.Ready(key,"M",14,out _)&&policy.Rea
 foreach(var invalid in new[]{new FaultIsolationConfig{RetrySeconds=0},new FaultIsolationConfig{ErrorLimit=1},new FaultIsolationConfig{WindowSeconds=9},new FaultIsolationConfig{RetrySeconds=30,WindowSeconds=10}})
 {try{invalid.Validate();throw new Exception("accepted invalid config");}catch(ArgumentException){checks++;}}
 
+// The generated preflight must skip expensive ownership/lifecycle work only for no-ops.
+var hot=new Plugin();var vision=new VisionProbe();var search=new SearchProbe();
+bool nativeKnown=true;int guards=hot.GuardCalls;
+for(int i=0;i<1000;i++){hot.CloseVisibleAfter(vision,false);hot.CheckSearchedPlace(search,ref nativeKnown);hot.SearchForgetObserved(search);}
+Check(hot.GuardCalls==guards&&hot.SearchChecks==0&&hot.PendingChecks==0&&hot.Acquisitions==0&&nativeKnown,"no-op callbacks preserve native result without lifecycle scans");
+vision.IsVisible=true;search.Relevant=search.Pending=true;
+hot.CloseVisibleAfter(vision,false);hot.CheckSearchedPlace(search,ref nativeKnown);hot.SearchForgetObserved(search);
+Check(hot.GuardCalls==guards+3&&hot.SearchChecks==1&&hot.PendingChecks==1&&hot.Acquisitions==1&&!nativeKnown,"all actual work retains its lifecycle guard");
+int recorded=events.Count;hot.ThrowPreflight=true;nativeKnown=true;hot.CheckSearchedPlace(search,ref nativeKnown);
+Check(nativeKnown&&events.Count==recorded+1,"preflight exceptions remain caught and native refs preserved");
+
 // Normal-path cost: reusable stack, no per-call closure or fault table allocation.
 var perf=new Plugin();var perfBot=perf.Add();for(int i=0;i<1000;i++)perf.Healthy(perfBot);
 long allocated=GC.GetAllocatedBytesForCurrentThread();var watch=System.Diagnostics.Stopwatch.StartNew();

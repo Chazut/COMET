@@ -57,7 +57,8 @@ namespace Comet.Client {
  internal class ExposureProbe {public float At;public Vector3 Origin;public double Current=.8;public List<KnownThreat> Threats=new(){new()};}
  internal static class VisibleAdapter {public static bool ValidCover(BotComponent b,CoverPoint c)=>c.Valid;public static bool WeaponReady(BotComponent b)=>b.BotOwner.WeaponReady;}
  internal static class NativeAdapter {public static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
- internal class BotState {public OutcomeRuntime Outcomes=new();public string ProfileId="observer",Name="Test PMC",Id="native-observer",Decision="Cover",Feature="A02",ActiveLabel="COMET:Cover";
+ internal class FlankRuntime {public CoverPoint? Point;}
+ internal class BotState {public FlankRuntime Flank=new();public OutcomeRuntime Outcomes=new();public string ProfileId="observer",Name="Test PMC",Id="native-observer",Decision="Cover",Feature="A02",ActiveLabel="COMET:Cover";
   public string CounterFeature="";public int CounterEncounter,CounterOpportunity;public bool CounterObserverFailed;public MixTrace? Mixing;
   public ECombatDecision Expected=ECombatDecision.SeekCover;public CoverPoint? SelectedCover=new();public ExposureProbe? Probe=new();public Situation? Situation;public List<Candidate> Candidates=new();}
  internal static class Diagnostics {public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
@@ -70,6 +71,7 @@ namespace Comet.Client {
   private bool Ghost(string id)=>IsGhost;private bool ThreatUsable(BotComponent b,Enemy e)=>e.Valid&&b.EnemyController.KnownEnemies.Contains(e);
   private static DoorPoint DP(Vector3 p)=>new(p.x,p.y,p.z);
   internal void Tick(BotComponent b,BotState s)=>SampleOutcome(b,s);
+  internal DoorPoint? Destination(BotComponent b,BotState s,string action)=>OutcomeDestination(b,s,action);
   internal bool ThrowCounterEmit;internal int CounterEvents;
   internal void CounterTick(BotComponent b,BotState s)=>SampleCounterExecution(b,s);
   private void Emit(BotState s,string stage,string reason){if(ThrowCounterEmit)throw new Exception("injected diagnostic failure");if(stage!="started")throw new Exception("wrong stage");CounterEvents++;}

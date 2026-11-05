@@ -87,12 +87,22 @@ sealed class Boundaries(string file,Dictionary<string,string> callbacks,List<obj
   string outs=string.Join("\n",pars.Where(p=>p.Modifiers.Any(SyntaxKind.OutKeyword)).Select(p=>$"{p.Identifier}=default!;"));
   var original=m.Body??SyntaxFactory.Block(SyntaxFactory.ParseStatement(ret=="void"?m.ExpressionBody!.Expression+";":"return "+m.ExpressionBody!.Expression+";"));
   var body=new Catches().Visit(original)!.NormalizeWhitespace().ToFullString();
+  // Read-only rejection gates stay inside the exception boundary, but do not
+  // resolve/validate a bot when this callback has no work for it. Relevant work
+  // always passes the same lifecycle, authority and quarantine checks below.
+  string preflight = file=="CloseDetectionAdapter" && name=="CloseVisibleAfter"
+   ? "if (__state || !__instance.IsVisible) return;"
+   : file=="SearchAbandonmentAdapter" && name=="CheckSearchedPlace"
+   ? "if (!NeedsAbandonment(__instance, false)) return;"
+   : file=="SearchAbandonmentAdapter" && name=="SearchForgetObserved"
+   ? "if (!NeedsAbandonment(__instance, true)) return;" : "";
   string wrapped=$$"""
   {
    {{outs}}
    {{saves}}
    var __faultScope = global::Comet.Client.Plugin.EnterFault("{{module}}", "{{name}}", null, {{cleanup.ToString().ToLower()}}, {{telemetry.ToString().ToLower()}});
    try {
+    {{preflight}}
     global::Comet.Client.Plugin.BindFault(ref __faultScope, {{identity}});
     {{(state!=null?$"global::Comet.Client.Plugin.BindFaultState(ref __faultScope, {state.Identifier});":"")}}
     if (!global::Comet.Client.Plugin.AllowFault(__faultScope)) { {{restore}} {{outs}} {{fallback}} }
