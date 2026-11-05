@@ -41,7 +41,8 @@ public sealed class ControlJournal
     static bool Outside(string owner)=>owner is "orbit" or "questing" or "looting" or "extraction" or "other";
     static bool Combat(string owner)=>owner=="combat";
     static bool Suspended(string owner)=>owner is "sleep" or "downed" or "removed";
-    static string Key(ControlObservation x)=>x.Owner+"|"+x.Layer+"|"+x.Action+"|"+x.Feature+"|"+x.Blocker+"|"+x.Residual;
+    static bool Same(ControlObservation a,ControlObservation b)=>a.Owner==b.Owner&&a.Layer==b.Layer&&a.Action==b.Action
+        &&a.Feature==b.Feature&&a.Blocker==b.Blocker&&a.Residual==b.Residual;
     private ControlJournalEvent Event(string kind,ControlObservation x,string reason,double elapsed=0)=>new(){
         Kind=kind,Owner=x.Owner,PreviousOwner=previous?.Owner??"",Layer=x.Layer,Action=x.Action,Feature=x.Feature,
         Blocker=x.Blocker,Reason=reason,Residual=x.Residual,Elapsed=Math.Max(0,elapsed>0?elapsed:waitAt>=0?last-waitAt:0),Waiting=waitAt>=0,
@@ -61,7 +62,7 @@ public sealed class ControlJournal
         sampled+=dt;if(waitAt>=0)waitSampled+=dt;
         while(cycles.Count>0&&now-cycles.Peek()>c.Window)cycles.Dequeue();
         if(incident&&cycles.Count<c.CycleThreshold){events.Add(Event("incident-end",x,"rapid-cycle-window-ended"));incident=false;}
-        bool changed=Key(previous)!=Key(x);
+        bool changed=!Same(previous,x);
         if(Suspended(x.Owner))
         {
             if(!Suspended(previous.Owner))events.Add(Event("suspended",x,x.Owner));

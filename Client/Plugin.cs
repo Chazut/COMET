@@ -48,6 +48,7 @@ public sealed partial class Plugin : BaseUnityPlugin
     private float nextSweep;
     private bool subscriberWarned;
     private PropertyInfo? fikaServer;
+    private Func<bool>? readFikaServer;
     private bool fikaPresent;
     private Func<string, bool>? isGhost;
     private bool orbitUnavailable;
@@ -61,6 +62,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             fikaPresent = Chainloader.PluginInfos.Keys.Any(k => k.IndexOf("fika", StringComparison.OrdinalIgnoreCase) >= 0);
             fikaServer = AccessTools.TypeByName("Fika.Core.Main.Utils.FikaBackendUtils")?.GetProperty("IsServer", BindingFlags.Public | BindingFlags.Static);
             if (fikaPresent && fikaServer?.PropertyType != typeof(bool)) throw new InvalidOperationException("Unknown Fika authority API. COMET is inactive.");
+            if(fikaPresent)readFikaServer=(Func<bool>)Delegate.CreateDelegate(typeof(Func<bool>),fikaServer!.GetGetMethod()!);
             var orbit = AccessTools.TypeByName("Orbit.Api.OrbitTelemetry");
             if (orbit != null)
             {
@@ -225,7 +227,7 @@ public sealed partial class Plugin : BaseUnityPlugin
         catch (Exception ex) { FailIntegration(ex); }
     }
 
-    private bool Authority => !fikaPresent || (bool)fikaServer!.GetValue(null);
+    private bool Authority => !fikaPresent || readFikaServer!();
     private bool Ghost(string profileId) => Sleeping(profileId);
 
     private void Update()
@@ -307,6 +309,9 @@ public sealed partial class Plugin : BaseUnityPlugin
             var bot = pair.Key;
             try
             {
+                if(bot==null)continue;
+                if(bot.GoalEnemy!=null && !ContactSafety.AllowsGoal(bot))
+                { ReleaseThreat(bot,pair.Value,"contact-ended-own-squad"); Release(pair.Value,"contact-ended-own-squad"); continue; }
                 if(!BlastScope(bot))StopBlast(pair.Value,"explosion-out-of-scope");
                 if(!GasScope(bot))DropGas(bot,pair.Value,"gas-out-of-scope");
                 if(!FlashScope(bot))DropFlash(bot,pair.Value,"flash-out-of-scope",DeadFlashOwner(bot));
@@ -349,6 +354,19 @@ public sealed partial class Plugin : BaseUnityPlugin
             {
                 state = new BotState(bot, plugin.config, plugin.session); plugin.states.Add(bot, state);
             }
+            if(!ContactSafety.Allows(bot,enemy))
+            {
+                plugin.ReleaseThreat(bot,state,"contact-ended-own-squad");
+                plugin.Release(state,"contact-ended-own-squad");
+                if(state.RejectedContact!=enemy.EnemyProfileId)
+                {
+                    state.RejectedContact=enemy.EnemyProfileId;
+                    state.Situation=new Situation{Target=enemy.EnemyProfileId};
+                    plugin.Emit(state,"rejected","contact-own-squad-rejected","A13");
+                }
+                return true;
+            }
+            state.RejectedContact="";
             var situation = NativeAdapter.Capture(bot, enemy, plugin.Authority, plugin.Ghost(bot.ProfileId));
             if (!plugin.config.Enabled || !situation.IsAuthority || !situation.IsActive || situation.Ghost)
             { plugin.Release(state, "disabled-inactive-ghost-or-non-authority"); state.Handoff.Clear(); return true; }
@@ -567,6 +585,7 @@ public sealed partial class Plugin : BaseUnityPlugin
     private static bool FindCover(SAINCoverClass __instance, ref CoverPoint __result)
     {
         var plugin = Instance;
+        if(!ContactSafety.AllowsGoal(__instance.Bot))return true;
         if(plugin!=null && plugin.states.TryGetValue(__instance.Bot,out var relocation) && plugin.FindRelocationCover(__instance,relocation,ref __result))return false;
         if (plugin == null || !plugin.states.TryGetValue(__instance.Bot, out var state)
             || !(state.Feature == "A02" && state.ActiveLabel == "COMET:Cover"
@@ -583,9 +602,12 @@ public sealed partial class Plugin : BaseUnityPlugin
                 && (state.Feature == "A01" || state.Probe != null && Time.time - state.Probe.At <= 1 && ReferenceEquals(state.Probe.Cover, point))
                 && !(moveRefused=!bot.Mover.GoToCoverPoint(point!, false, ESprintUrgency.High)))
             { __result = point!; return false; }
-            plugin.Emit(state, "rejected", "selected-cover-refused-by-native-mover");
-            if(moveRefused)state.Progress.Fail(ProgressAdapter.CoverKey(point),Time.time,"progress-native-move-refused");
+            // A stale/rejected point is still a failed attempt, even when validation
+            // prevented calling the mover. Do not select it again on the next tick.
+            if(point!=null)state.Progress.Fail(ProgressAdapter.CoverKey(point),Time.time,
+                moveRefused?"progress-native-move-refused":"progress-cover-invalidated");
             state.ProgressAtSelection=state.Progress.Current;
+            plugin.Emit(state, "rejected", moveRefused?"selected-cover-refused-by-native-mover":"selected-cover-invalidated-before-move");
             state.VisibleEngine.NotifyNativeRefusal();
             plugin.YieldToSain(state, "selected-cover-no-longer-usable");
         }
@@ -769,6 +791,7 @@ public sealed partial class Plugin : BaseUnityPlugin
 
 internal sealed class BotState
 {
+    internal string RejectedContact="";
         internal string CounterFeature = "";
         internal int CounterEncounter, CounterOpportunity;
         internal bool CounterObserverFailed;

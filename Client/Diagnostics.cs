@@ -16,7 +16,14 @@ namespace Comet.Api
         internal static string RaidSession = "";
         internal static bool RaidClosed;
         public static string GetRaidSession() => RaidSession;
-        public static event Action<string>? Published;
+        private static readonly object SubscriberLock=new();
+        private static Action<string>? published;
+        private static Delegate[] subscribers=Array.Empty<Delegate>();
+        public static event Action<string>? Published
+        {
+            add { lock(SubscriberLock){published+=value;Volatile.Write(ref subscribers,published?.GetInvocationList()??Array.Empty<Delegate>());} }
+            remove { lock(SubscriberLock){published-=value;Volatile.Write(ref subscribers,published?.GetInvocationList()??Array.Empty<Delegate>());} }
+        }
         // Final, value-only T01-T04 pages. May arrive off-thread after raid teardown.
         // Consumers must use the supplied session, never Unity or the current raid.
         public static event Action<string>? SummaryPublished;
@@ -40,9 +47,10 @@ namespace Comet.Api
         internal static void Publish(string json, Action<Exception> onError)
         {
             if (RaidClosed) return;
-            var handlers = Published;
-            if (handlers == null) return;
-            foreach (Action<string> subscriber in handlers.GetInvocationList())
+            // Subscription changes are rare. Keep dispatch synchronous for RR's
+            // main-thread contract without allocating a delegate array for every event.
+            var handlers = Volatile.Read(ref subscribers);
+            foreach (Action<string> subscriber in handlers)
             {
                 if (FailedSubscribers.Contains(subscriber)) continue;
                 try { subscriber(json); }

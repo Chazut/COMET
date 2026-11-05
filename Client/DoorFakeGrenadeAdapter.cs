@@ -59,7 +59,7 @@ public sealed partial class Plugin
         // Failed cleanup is not permission to throw the feint grenade. Release as soon as other hands take over.
         return t.Guard||t.RecoveryFailed&&stillOwns;
     }
-    private bool FakeScope(BotComponent b)=>world!=null&&b!=null&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
+    private bool FakeScope(BotComponent b)=>ContactSafety.AllowsGoal(b)&&world!=null&&b!=null&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
     private static bool FakeWeaponReady(BotComponent b)=>b.Player.HandsController?.Item is Weapon&&b.Player.HandsController is not IGrenadeController&&VisibleAdapter.WeaponReady(b);
     private bool TryStartDoorFake(BotComponent b,Enemy e,BotState s,DoorWork door,bool ambush=false)
     {

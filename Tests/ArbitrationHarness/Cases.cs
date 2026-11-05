@@ -10,7 +10,7 @@ public static class Cases
  static void Check(bool value,string name){checks++;if(!value)throw new Exception(name);}
  static (Plugin p,BotComponent b,BotState s) Setup(string feature="A01",string action="FallBack")
  {
-  Time.time=10;Time.frameCount=100;var b=new BotComponent();b.Decision.Bot=b;
+  ContactSafety.Allowed=true;Time.time=10;Time.frameCount=100;var b=new BotComponent();b.Decision.Bot=b;
   var p=new Plugin();var s=new BotState(b,p.config,"raid"){Feature=feature,Decision=action,ActiveLabel="COMET:"+action,
    LastSelection=10,Expected=action=="FallBack"?ECombatDecision.Retreat:ECombatDecision.SeekCover};
   s.SelectedCover=b.Cover.CoverPoint_MovingTo=new CoverPoint();s.Probe.Cover=s.SelectedCover;
@@ -42,10 +42,10 @@ public static class Cases
    Time.frameCount++;b.Cover.CoverPoint_MovingTo=new();continued=true;p.Continue(b.Decision,ref continued);
    Check(!continued,"native-chosen cover cannot silently change destination");
   }
-  foreach(string invalid in new[]{"target","cover","visible","hurt","ammo","suppressed","ghost","replica","scav","dead","ending","disabled","medical","reload","grenade","danger","dogfight","hands","self","squad","blocked","timeout","no-native-continuation","wrong-plan"})
+  foreach(string invalid in new[]{"own-squad","target","cover","visible","hurt","ammo","suppressed","ghost","replica","scav","dead","ending","disabled","medical","reload","grenade","danger","dogfight","hands","self","squad","blocked","timeout","no-native-continuation","wrong-plan"})
   {
    var(p,b,s)=Setup();Time.time=10.1f;
-   switch(invalid){case "target":b.GoalEnemy.EnemyProfileId="other";break;case "cover":b.Cover.CoverPoint_MovingTo=new();break;
+   switch(invalid){case "own-squad":ContactSafety.Allowed=false;break;case "target":b.GoalEnemy.EnemyProfileId="other";break;case "cover":b.Cover.CoverPoint_MovingTo=new();break;
     case "visible":b.GoalEnemy.IsVisible=true;break;case "hurt":b.Hurt=true;break;case "ammo":b.LowAmmo=true;break;case "suppressed":b.Suppressed=true;break;
     case "ghost":p.IsGhost=true;break;case "replica":p.Authority=false;break;case "scav":b.Pmc=false;break;case "dead":b.BotActive=false;break;
     case "ending":b.GameEnding=true;break;case "disabled":p.config.Enabled=false;break;case "medical":b.BotOwner.Medecine.Using=true;break;
@@ -68,10 +68,10 @@ public static class Cases
    Check(ordinary?solo==ECombatDecision.Freeze&&committed==ESquadDecision.None:committed==squad&&solo==ECombatDecision.None,"native vs COMET commit "+squad);
    Check(!s.ArbitratingSquad,"no leaked arbitration flag");
   }
-  foreach(string guard in new[]{"self","grenade-decision","dogfight-decision","melee-decision","zombies","enemy-null","enemy-zombie","no-contact","stale","negative-age","disabled","scav","ghost","replica","inactive","ending","no-world","medicine","meds-controller","reload","switch","throwing","hands","door","danger","dogfight","melee","cooldown","reentrant","no-choice","throws"})
+  foreach(string guard in new[]{"own-squad","self","grenade-decision","dogfight-decision","melee-decision","zombies","enemy-null","enemy-zombie","no-contact","stale","negative-age","disabled","scav","ghost","replica","inactive","ending","no-world","medicine","meds-controller","reload","switch","throwing","hands","door","danger","dogfight","melee","cooldown","reentrant","no-choice","throws"})
   {
    var(p,b,s)=Setup();var solo=ECombatDecision.None;var squad=ESquadDecision.GroupSearch;var self=ESelfActionType.None;Enemy e=b.GoalEnemy;
-   switch(guard){case "self":self=ESelfActionType.Reload;break;case "grenade-decision":solo=ECombatDecision.AvoidGrenade;break;
+   switch(guard){case "own-squad":ContactSafety.Allowed=false;break;case "self":self=ESelfActionType.Reload;break;case "grenade-decision":solo=ECombatDecision.AvoidGrenade;break;
     case "dogfight-decision":solo=ECombatDecision.DogFight;break;case "melee-decision":solo=ECombatDecision.MeleeAttack;break;case "zombies":solo=ECombatDecision.FightZombies;break;
     case "enemy-null":e=null;break;case "enemy-zombie":e.IsZombie=true;break;case "no-contact":e.KnownPlaces.LastKnownPosition=null;break;
     case "stale":e.TimeSinceLastKnownUpdated=100;break;case "negative-age":e.TimeSinceLastKnownUpdated=-1;break;
@@ -190,3 +190,5 @@ partial class Plugin
  void Emit(BotState s,string stage,string reason,string feature=null)=>Events.Add(reason);
  void YieldToSain(BotState s,string reason,string kind="unavailable"){Yields++;s.ActiveLabel="";s.Decision="";s.RequestedFrame=-1;s.Execution.Clear();}
 }
+
+internal static class ContactSafety {internal static bool Allowed=true;internal static bool Allows(object b,object e)=>Allowed;}

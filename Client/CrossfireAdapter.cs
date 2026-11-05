@@ -42,7 +42,7 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(BotDecisionManager),nameof(BotDecisionManager.ManualUpdate)),postfix:new HarmonyMethod(typeof(Plugin),nameof(ObserveCrossfire)));
         BrainManager.AddCustomLayer(typeof(CrossfireLayer),new(){"PMC","PmcUsec","PmcBear","Assault","ExUsec","Knight","BigPipe","BirdEye"},21);
     }
-    private bool CrossfireScope(BotComponent b)=>config?.Enabled==true&&(config.Crossfire.Enabled||config.CoverMate.Enabled||config.SquadTrade.Enabled||config.SquadStorm.Enabled)&&world!=null&&Authority
+    private bool CrossfireScope(BotComponent b)=>ContactSafety.AllowsGoal(b)&&config?.Enabled==true&&(config.Crossfire.Enabled||config.CoverMate.Enabled||config.SquadTrade.Enabled||config.SquadStorm.Enabled)&&world!=null&&Authority
         &&b!=null&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
     private string CrossfireBlock(BotComponent b,BotState s,bool maneuverCandidate=false)
     {

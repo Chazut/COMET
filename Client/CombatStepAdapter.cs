@@ -129,7 +129,7 @@ public sealed partial class Plugin
         bool other=s.Entry.Policy.Active||s.Door.Policy.Active||s.Jump.Policy.Active||s.RunBy.Policy.Active||s.StepPeek.Policy.Active
             ||s.Fake.Policy.Active||s.RoomClear.Policy.Active||s.Emergency.Policy.Active||s.Support!=null;
         var movement=b.Player.MovementContext;
-        return new(){Now=Time.time,Enabled=config?.Enabled==true, Pmc=NativeAdapter.IsPmcAi(b),Authority=Authority,Ghost=Ghost(b.ProfileId),
+        return new(){Now=Time.time,Enabled=config?.Enabled==true&&ContactSafety.Allows(b,e), Pmc=NativeAdapter.IsPmcAi(b),Authority=Authority,Ghost=Ghost(b.ProfileId),
             Active=b.BotActive&&!b.IsDead&&!b.GameEnding&&b.SAINLayersActive,Action=name,Target=e?.EnemyProfileId??"",Personality=b.Info.Personality.ToString(),
             Visible=e?.IsVisible==true&&seen!=null,Source=seen!=null?"personal-vision":"",Known=DP(known),ContactAge=seen?.TimeSincePositionUpdated??0,
             Position=DP(b.Position),Distance=Vector3.Distance(b.Position,known),Grounded=movement.IsGrounded,Sprinting=b.Player.IsSprintEnabled||b.Mover.Running,

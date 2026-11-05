@@ -42,8 +42,12 @@ public sealed partial class Plugin
             foreach(var e in watch.Journal.Observe(Time.time,o,config.ControlJournal))
             {
                 if(Time.time-watch.JournalBudgetAt>=1){watch.JournalBudgetAt=Time.time;watch.JournalEvents=0;}
-                if(++watch.JournalEvents>16)
-                {if(watch.JournalEvents==17)ControlJournalUnavailable("per-bot-event-limit");continue;}
+                // Observe emits a bounded set of real transitions/intervals per call.
+                // A rapid native layer cycle must remain inspectable, including its end.
+                // Warn on the burst without throwing away the accounting intervals.
+                if(++watch.JournalEvents==17)
+                    diagnostics?.Write(JsonConvert.SerializeObject(new{schema=1,session,feature="T04",stage="observer-burst",
+                        source="rapid-control-transitions",profileId=s.ProfileId,realtime=Time.realtimeSinceStartup,eventsRetained=true},Diagnostics.Json));
                 string json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="T04",stage="evaluated",decision="ControlJournal",
                     reason=e.Reason,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,personality=b.Info.Personality.ToString(),
                     realtime=Time.realtimeSinceStartup,configRevision=config.Revision,controlJournal=e},Diagnostics.Json);

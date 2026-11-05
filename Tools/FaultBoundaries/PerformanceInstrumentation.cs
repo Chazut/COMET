@@ -12,7 +12,12 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
     public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax m)
     {
         string name=m.Identifier.Text;
+        // Lifecycle guards run inside every nested fault boundary. Timing each tiny
+        // read recursively dominated the observer itself (raid385: 231M scopes).
+        // Their cost remains charged to the enclosing action, plus the lifecycle sweep.
         if(File.StartsWith("Performance")||File=="FaultIsolationAdapter"||File is "TacticCounters" or "CombatReport"||
+            File.StartsWith("Lifecycle") && name is not ("SampleLifecycles" or "RetireLife") ||
+            File.StartsWith("RaidCleanup") && name=="GuardRaid" ||
             m.Modifiers.Any(SyntaxKind.AsyncKeyword)||m.ReturnType is RefTypeSyntax||name.StartsWith("Patch")||name is "Awake" or "ValidateContracts"||
             m.Body==null&&m.ExpressionBody==null||m.DescendantNodes().OfType<YieldStatementSyntax>().Any())return m;
         string body=m.ToString();

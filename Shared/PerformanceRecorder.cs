@@ -36,6 +36,7 @@ public sealed class PerformanceReport
     public long SlowFrames { get; set; }
     public long OmittedSlowFrames { get; set; }
     public long ScopeOverflows { get; set; }
+    public long CoalescedScopes { get; set; }
     public double CometMs { get; set; }
     public double MaxCometFrameMs { get; set; }
     public double MaxFrameMs { get; set; }
@@ -74,6 +75,12 @@ public sealed class PerformanceRecorder
     private double realtime, windowStart;
     private bool first=true, finished;
     public int Depth => depth;
+    private long coalesced;
+    public bool Coalesce(int module)
+    {
+        if(depth==0||stack[depth-1].Module!=module)return false;
+        coalesced++;return true;
+    }
     public PerformanceRecorder(string[] modules, long frequency, bool allocations, double slowMs, double interval)
     {
         names=(string[])modules.Clone();toMs=1000.0/frequency;this.allocations=allocations;this.slowMs=slowMs;this.interval=interval;
@@ -161,7 +168,7 @@ public sealed class PerformanceRecorder
     {
         Stage=final?"performance-summary":"performance-window",FirstFrame=t.First,LastFrame=t.Last,Frames=t.Frames,
         UnknownDurationFrames=t.Unknown,UnobservedFrames=t.Missing,SlowFrames=t.Slow,OmittedSlowFrames=t.Omitted,
-        ScopeOverflows=overflows,CometMs=t.CometMs,MaxCometFrameMs=t.MaxCometMs,MaxFrameMs=t.MaxFrameMs,
+        ScopeOverflows=overflows,CoalescedScopes=coalesced,CometMs=t.CometMs,MaxCometFrameMs=t.MaxCometMs,MaxFrameMs=t.MaxFrameMs,
         Modules=Metrics(t.Modules),Hitches=hitches.ToArray()
     };
     private PerformanceModule[] Metrics(Metric[] source)

@@ -73,7 +73,7 @@ public sealed partial class Plugin
 
     private bool ThreatUsable(BotComponent bot, Enemy? e)
     {
-        if (e == null || !e.EnemyKnown || !e.CheckValid() || !Enemy.IsEnemyActive(e) || e.IsZombie || Ghost(e.EnemyProfileId)) return false;
+        if (e == null || !ContactSafety.Allows(bot,e) || !e.EnemyKnown || !e.CheckValid() || !Enemy.IsEnemyActive(e) || e.IsZombie || Ghost(e.EnemyProfileId)) return false;
         return bot.EnemyController.Enemies.TryGetValue(e.EnemyProfileId, out var member) && ReferenceEquals(e, member);
     }
 

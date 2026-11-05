@@ -21,7 +21,7 @@ internal static class PerformanceCapture
     internal static Scope Enter(int module)
     {
         var s=active;if(s==null||s.Thread!=Environment.CurrentManagedThreadId)return default;
-        try { if(s.Recorder.Depth==0)s.Tick();return new Scope(s,s.Recorder.Enter(module,Stopwatch.GetTimestamp(),s.Allocated())); }
+        try { if(s.Recorder.Coalesce(module))return default;if(s.Recorder.Depth==0)s.Tick();return new Scope(s,s.Recorder.Enter(module,Stopwatch.GetTimestamp(),s.Allocated())); }
         catch(Exception ex){s.Fail(ex);return default;}
     }
     internal static void Tick()
@@ -66,6 +66,7 @@ internal static class PerformanceCapture
                 version=typeof(Plugin).Assembly.GetName().Version?.ToString(),utc=DateTime.UtcNow.ToString("O"),realtime=Time.realtimeSinceStartupAsDouble,
                 frame=Time.frameCount,settings=c,allocationsAvailable=allocations,modules=PerformanceCatalog.Modules,
                 instrumentedMethods=PerformanceCatalog.MethodCount,
+                scopePolicy="Nested calls in the same module share one timer. Lifecycle guard cost is charged to its caller; lifecycle sweeps retain their own timer. Calls count measured entries, not every helper invocation.",
                 timing="Main-thread elapsed time, including native callees and synchronous subscribers. Not GPU time or whole-game CPU time.",
                 nesting="Inclusive includes children; add SelfMs, not InclusiveMs. Instrumentation overhead remains in measured frames.",
                 coverage="Synchronous COMET entry points and adapters; suspended iterators, async continuations and Fika addon internals are excluded. Background diagnostics reported separately.",

@@ -32,7 +32,8 @@ try
     var lines=File.ReadAllLines(Directory.GetFiles(dir).Single()).Select(JObject.Parse).ToArray();
     Check((string?)lines[0]["session"]=="first"&&(int?)lines[0]["configRevision"]==7,"metadata identifies exact raid and config");
     var report=lines.Single(x=>(string?)x["stage"]=="performance-summary");
-    Check((long?)report["modules"]?[0]?["calls"]==5,"generated nested scopes and exception scopes recorded");
+    Check((long?)report["modules"]?[0]?["calls"]==3,"same-module children reuse parent timing, including exceptions");
+    Check((long?)report["coalescedScopes"]==2,"reused nested scopes explicitly counted");
     Check((int?)report["hitches"]?[0]?["frame"]==100,"real runtime aligns hitch to previous frame");
     Check((bool?)lines.Last()["complete"]==true&&warnings.Count==0,"teardown emits complete clean footer");
     reads=Clock.Reads;using(PerformanceCapture.Enter(0)){}Check(Clock.Reads==reads,"no stale active session after raid end");
@@ -41,7 +42,7 @@ try
     PerformanceCapture.Start(new PerformanceConfig{Enabled=true,MeasureAllocations=false},dir,"second",8,"other-map",true,warnings.Add);
     Fixture.EmitRoot(false);PerformanceCapture.Stop(null).GetAwaiter().GetResult();
     var second=File.ReadAllLines(Directory.GetFiles(dir).Single(x=>x.Contains("second"))).Select(JObject.Parse).ToArray();
-    Check((long?)second.Single(x=>(string?)x["stage"]=="performance-summary")["modules"]?[0]?["calls"]==2,"next raid has independent totals");
+    Check((long?)second.Single(x=>(string?)x["stage"]=="performance-summary")["modules"]?[0]?["calls"]==1,"next raid has independent totals");
     Check((bool?)second[0]["allocationsAvailable"]==false,"allocation switch honored at runtime");
 
     Clock.Frame++;PerformanceCapture.Start(new PerformanceConfig{Enabled=true},dir,"overhead",8,"map",true,warnings.Add);
@@ -51,7 +52,7 @@ try
     PerformanceCapture.Stop(null).GetAwaiter().GetResult();
 
     Clock.Frame++;PerformanceCapture.Start(new PerformanceConfig{Enabled=true},dir,"broken",9,"map",true,warnings.Add);
-    var one=PerformanceCapture.Enter(0);var two=PerformanceCapture.Enter(0);one.Dispose();two.Dispose();
+    var one=PerformanceCapture.Enter(0);var two=PerformanceCapture.Enter(1);one.Dispose();two.Dispose();
     Check(warnings.Count==1,"malformed scopes disable only profiler and warn once");
     // No exception escapes into gameplay; capture can start again after failure.
     Clock.Frame++;PerformanceCapture.Start(new PerformanceConfig{Enabled=true},dir,"recovered",10,"map",true,warnings.Add);

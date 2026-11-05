@@ -1,4 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><Compile Remove="CoverSelectionHarness/**/*.cs" /></ItemGroup>
+  <ItemGroup><Compile Remove="ContactSafetyHarness/**/*.cs" /><Compile Remove="Support/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="ArbitrationHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="PathHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="PerformanceHarness/**/*.cs" /></ItemGroup>

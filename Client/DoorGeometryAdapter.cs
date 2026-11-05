@@ -16,8 +16,20 @@ public sealed partial class Plugin
     private static bool TryDoorGeometry(DoorDataStruct d,out DoorGeometry g)
     {
         g=new();if(d.Door==null||d.Link==null)return false;
-        return DoorSpatial.Decode(d.Door.Id??d.Link.Id.ToString(),d.Door.DoorState.ToString(),d.Link.name,
-            DP(d.Link.Close1),DP(d.Link.Close2_Normal),DP(d.Link.Open1),DP(d.Link.Open2),d.Link.BottomY,out g);
+        double bottom=d.Link.BottomY;
+        if(d.Link.name?.StartsWith("DoorLink_Custom_",StringComparison.Ordinal)==true)
+        {
+            // Waypoints builds world-space endpoints but leaves BottomY at its zero
+            // default. Read the physical leaf's foot, independent of its rotation.
+            bottom=d.Link.Open1.y;
+            var panels=d.Door.CollisionColliders;
+            bool found=false;
+            if(panels!=null&&panels.Count<=16)foreach(var panel in panels)
+                if(panel!=null&&panel.enabled&&panel.gameObject.activeInHierarchy&&!panel.isTrigger)
+                { double y=panel.bounds.min.y;if(!double.IsNaN(y)&&!double.IsInfinity(y)){bottom=found?Math.Min(bottom,y):y;found=true;} }
+        }
+        return DoorSpatial.Decode(d.Door.Id??d.Link.Id.ToString(),d.Door.DoorState.ToString(),d.Link.name??"",
+            DP(d.Link.Close1),DP(d.Link.Close2_Normal),DP(d.Link.Open1),DP(d.Link.Open2),bottom,out g);
     }
     // Called inside the existing bounded door planning/revalidation budget. This guards
     // tactical stopping positions; it must not prevent native traversal of the threshold.
@@ -91,7 +103,9 @@ public sealed partial class Plugin
     {
         if(!point.Finite)point=new();
         RecordDoorSpatial(b,new(){Door=string.IsNullOrEmpty(data.Door?.Id)?"unknown":data.Door!.Id,DoorState=data.Door?.DoorState.ToString()??"unknown",
-            Source="unknown",Margin=config?.DoorSpatial.Clearance??.55,Reason="geometry-invalid-frame",X=point.X,Y=point.Y,Z=point.Z});
+            Source=data.Link?.name??"unknown",Margin=config?.DoorSpatial.Clearance??.55,Reason="geometry-invalid-frame",X=point.X,Y=point.Y,Z=point.Z,
+            RawBottom=data.Link?.BottomY,RawClose1=data.Link==null?null:DP(data.Link.Close1),RawClose2=data.Link==null?null:DP(data.Link.Close2_Normal),
+            RawOpen1=data.Link==null?null:DP(data.Link.Open1),RawOpen2=data.Link==null?null:DP(data.Link.Open2)});
     }
     private void EndDoorSpatial(BotState s,string reason)
     {

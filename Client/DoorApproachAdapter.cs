@@ -54,6 +54,7 @@ public sealed partial class Plugin
     }
     private string DoorGate(BotComponent b,Enemy? e,BotState s)
     {
+        if(!ContactSafety.Allows(b,e))return "door-no-hostile-contact";
         if(MedicalPostureGuard(b))return "medical-posture-protected";
         var c=config!;bool scope=c.Enabled&&!s.Door.Fault&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
         bool search=s.ActiveLabel=="COMET:Search"&&s.Feature=="A01"&&s.Decision=="Search"&&b.Decision.CurrentCombatDecision==ECombatDecision.Search
@@ -69,6 +70,7 @@ public sealed partial class Plugin
     {
         var p=Instance;var b=__instance.Bot;
         if(p?.config==null||!p.states.TryGetValue(b,out var s))return true;
+        if(!ContactSafety.Allows(b,enemy)){p.Release(s,"contact-ended-own-squad");return true;}
         if(s.Entry.Policy.Active){p.RefreshDoorEntry(b,s);return !s.Entry.Policy.Active;}
         try{if(!p.GuardDoorReservation(b,s))return true;p.RefreshDoorInterruption(b,s);if(!p.GuardDoorReservation(b,s))return true;bool fallback=s.Interruption.Policy.Pending?p.StepDoorResume(b,s):s.RoomClear.Policy.Active?p.StepDoorClear(b,s):s.Fake.Policy.Active?p.StepDoorFake(b,s):s.StepPeek.Policy.Active?p.StepDoorPeek(b,enemy,s):s.RunBy.Policy.Active?p.StepDoorRun(b,enemy,s):s.Jump.Policy.Active?p.StepDoorJump(b,enemy,s):p.StepDoor(b,enemy,s);return p.CompleteDoorReservationStep(b,s,fallback);}
         catch(Exception ex){if(s.Interruption.Policy.Pending||s.Interruption.Policy.Resumed)p.AbandonDoorResume(s,"door-resume-adapter-error");if(s.RoomClear.Policy.Active){s.RoomClear.Fault=true;p.EndDoorClear(s,"clear-adapter-error");}if(s.Fake.Policy.Active)p.EndDoorFake(s,"fake-adapter-error");if(s.StepPeek.Policy.Active){s.StepPeek.Fault=true;p.EndDoorStep(s,"step-adapter-error");}if(s.RunBy.Policy.Active){s.RunBy.Fault=true;p.EndDoorRun(s,"run-by-adapter-error");}if(s.Jump.Policy.Active){s.Jump.Fault=true;p.EndDoorJump(s,"peek-adapter-error");}s.Door.Fault=true;p.EndDoor(s,"door-adapter-error");p.ReleaseDoorReservation(s,"reservation-adapter-error");p.Logger.LogWarning("COMET doorway adapter yielded: "+ex.Message);return true;}
@@ -76,7 +78,7 @@ public sealed partial class Plugin
     // false means this one Search invocation was replaced by an already accepted, bounded native move.
     private bool StepDoor(BotComponent b,Enemy e,BotState s)
     {
-        var r=s.Door;if(s.Interruption.Policy.Pending)return true;string gate=DoorGate(b,e,s);
+        var r=s.Door;if(s.Interruption.Policy.Pending)return true;string gate=ContactSafety.Allows(b,e)?DoorGate(b,e,s):"door-own-squad-contact";
         if(gate.Length>0){if(r.Policy.Active||r.Policy.Planning)EndDoor(s,gate);return true;}
         var known=e.KnownPlaces.LastKnownPosition!.Value;var c=config!.DoorApproach;
         if(r.Policy.Active)

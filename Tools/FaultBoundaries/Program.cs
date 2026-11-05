@@ -58,7 +58,7 @@ sealed class Boundaries(string file,Dictionary<string,string> callbacks,List<obj
  {
   string name=m.Identifier.Text,owner=(m.Parent as TypeDeclarationSyntax)?.Identifier.Text??"";
   bool callback=callbacks.TryGetValue(name,out var kind)&&kind!="transpiler";
-  if(m.Body==null&&m.ExpressionBody==null||m.Modifiers.Any(SyntaxKind.PartialKeyword)||name.StartsWith("Patch")||kind=="transpiler"||name.EndsWith("Error")||name=="IsPmcAi")return m;
+  if(file=="ContactSafety"||m.Body==null&&m.ExpressionBody==null||m.Modifiers.Any(SyntaxKind.PartialKeyword)||name.StartsWith("Patch")||kind=="transpiler"||name.EndsWith("Error")||name=="IsPmcAi")return m;
   // Skip diagnostics as their own independent sink boundary below; never quarantine combat for a consumer failure.
   bool telemetry=(name.StartsWith("Record")||name=="Emit")&&m.ToString().Contains("JsonConvert.SerializeObject");
   var pars=m.ParameterList.Parameters;

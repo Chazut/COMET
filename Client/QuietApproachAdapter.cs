@@ -36,7 +36,7 @@ public sealed partial class Plugin
             postfix:new HarmonyMethod(typeof(Plugin),nameof(QuietLootHeard)));
     }
     private static string QuietAction(BotComponent b)=>b==null?"":b.CurrentAction?.GetType().Name switch { "SearchAction"=>"Search","MoveToEngageAction"=>"MoveToEngage",_=>"" };
-    private bool QuietScoped(BotComponent b)=>config?.Enabled==true && config.QuietApproach.Enabled && NativeAdapter.IsPmcAi(b)
+    private bool QuietScoped(BotComponent b)=>ContactSafety.AllowsGoal(b)&&config?.Enabled==true && config.QuietApproach.Enabled && NativeAdapter.IsPmcAi(b)
         && b.BotActive && !b.GameEnding && Authority && !Ghost(b.ProfileId) && b.SAINLayersActive;
     private static string QuietUnsafe(BotComponent b,Enemy? enemy)
     {

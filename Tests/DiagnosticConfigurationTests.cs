@@ -8,6 +8,17 @@ static class DiagnosticConfigurationTests
     public static async Task<int> Run()
     {
         int n=0;void Check(bool value,string why){n++;if(!value)throw new Exception("Diagnostic configuration: "+why);}
+        var delivered=new List<string>();var errors=new List<Exception>();
+        Action<string>? once=null;once=x=>{delivered.Add("once:"+x);Comet.Api.Decisions.Published-=once;};
+        Action<string> healthy=x=>delivered.Add(x),broken=_=>throw new InvalidOperationException("subscriber test");
+        Comet.Api.Decisions.RaidClosed=false;Comet.Api.Decisions.Clear();
+        Comet.Api.Decisions.Published+=once;Comet.Api.Decisions.Published+=broken;Comet.Api.Decisions.Published+=healthy;
+        Comet.Api.Decisions.Publish("first",errors.Add);Comet.Api.Decisions.Publish("second",errors.Add);
+        Check(delivered.SequenceEqual(new[]{"once:first","first","second"}),"subscription mutation preserves in-flight immutable snapshot and next dispatch");
+        Check(errors.Count==1,"failed subscriber isolated without dropping healthy subscriber");
+        Comet.Api.Decisions.Published-=broken;Comet.Api.Decisions.Published-=healthy;
+        Comet.Api.Decisions.Publish("third",errors.Add);Check(delivered.Count==3,"unsubscribed callbacks not retained in dispatch");
+        Comet.Api.Decisions.Clear();
         var config=new CometConfig{Revision=1};var snapshots=new DecisionConfiguration();
         Check(snapshots.Take(null,"raid")==null,"unavailable config does not consume snapshot");
         string Emit(int i)=>JsonConvert.SerializeObject(new{schema=1,session="raid",sequence=i,feature="A01",stage="selected",reason="test",

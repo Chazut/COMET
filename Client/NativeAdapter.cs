@@ -50,7 +50,7 @@ internal static class NativeAdapter
         return new Situation {
             Now = Time.time, Target = enemy.EnemyProfileId, Personality = bot.Info.Personality.ToString(),
             IsAi = bot.Player.IsAI, IsPmc = IsPmcAi(bot), IsAuthority = authority, IsActive = bot.BotActive && !bot.IsDead,
-            Ghost = ghost, Visible = enemy.IsVisible, HasContact = known.HasValue,
+            Ghost = ghost, Visible = enemy.IsVisible, HasContact = known.HasValue && ContactSafety.Allows(bot,enemy),
             ContactAge = enemy.TimeSinceLastKnownUpdated, KnownDistance = known.HasValue ? Vector3.Distance(bot.Position, known.Value) : 0,
             KnownX = known?.x ?? 0, KnownY = known?.y ?? 0, KnownZ = known?.z ?? 0, ContactSource = source,
             LowAmmo = bot.Decision.SelfActionDecisions.LowOnAmmo(.3f), Hurt = health == ETagStatus.BadlyInjured || health == ETagStatus.Dying,
@@ -128,7 +128,7 @@ internal static class NativeAdapter
     internal static void ContinueGrenadeSearch(BotComponent b,BotState s,CometConfig c)
     {
         var e=b.GoalEnemy;var known=e?.KnownPlaces.LastKnownPosition;
-        if(e!=null&&known.HasValue)GrenadeCapability(b,e,known.Value,s,c);
+        if(e!=null&&known.HasValue&&ContactSafety.Allows(b,e))GrenadeCapability(b,e,known.Value,s,c);
     }
     internal static bool GrenadeFriendsClear(BotComponent b,Vector3 target)
         =>(bool)checkGrenadeFriends.Invoke(b.Grenade.GrenadeThrowDecider,new object[]{target});
@@ -138,7 +138,11 @@ internal static class NativeAdapter
         string reason=GrenadeCapability(b,e,e.KnownPlaces.LastKnownPosition!.Value,s,c);
         return reason=="ready"?"":reason;
     }
-    internal static bool Throw(BotComponent bot, Enemy enemy, out string reason) => bot.Grenade.GrenadeThrowDecider.GetDecision(enemy, out reason);
+    internal static bool Throw(BotComponent bot, Enemy enemy, out string reason)
+    {
+        if(!ContactSafety.Allows(bot,enemy)){reason="grenade-own-squad-contact";return false;}
+        return bot.Grenade.GrenadeThrowDecider.GetDecision(enemy, out reason);
+    }
     internal static ECombatDecision Map(Tactic tactic) => tactic switch {
         Tactic.Push => ECombatDecision.RushEnemy, Tactic.Grenade => ECombatDecision.ThrowGrenade,
         Tactic.Hold => ECombatDecision.Freeze, Tactic.Flank => ECombatDecision.ShiftCover,

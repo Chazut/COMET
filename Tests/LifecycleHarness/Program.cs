@@ -72,6 +72,12 @@ foreach(var missing in new[]{"owner","manager","selector","ending"})
     bot.BotOwner=new();bot.GameEnding=false;Time.unscaledTimeAsDouble+=1;retiring.Sweep();
     Check(retiring.states.ContainsKey(bot)==(missing!="ending"),"unavailability may recover but raid end stays terminal: "+missing);
 }
+var nestedLife=new Plugin();var nestedBot=nestedLife.Add();var nestedState=nestedLife.states[nestedBot];
+nestedLife.NestedDeath(nestedState);
+Check(nestedLife.OldCallbacks==0&&nestedState.Retired,"inherited state still checks immediate death inside nested callback");
+var crossLife=new Plugin();var liveBot=crossLife.Add();var deadBot=crossLife.Add();deadBot.IsDead=true;
+crossLife.OtherBot(crossLife.states[liveBot],deadBot);
+Check(crossLife.Actions==0&&!crossLife.states[liveBot].Retired&&crossLife.states[deadBot].Retired,"nested different bot never inherits caller lifecycle state");
 var first=events.Select(JObject.Parse).First(x=>(string?)x["feature"]=="C09");
 Check((int?)first["lifecycle"]?["cleanupSteps"]>=70&&first["profileId"]!.ToString().Length>0,"actual production cleanup and event schema exercised");
 var sleep=new Plugin();var sb=sleep.Add();var beforeSleep=sleep.states[sb];sleep.Act(sb);sleep.InGhost=true;sleep.Act(sb);sleep.Sweep();

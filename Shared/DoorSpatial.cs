@@ -12,6 +12,11 @@ public sealed class DoorSpatialConfig
 
 public sealed class DoorSpatialTrace
 {
+    public double? RawBottom { get; set; }
+    public DoorPoint? RawClose1 { get; set; }
+    public DoorPoint? RawClose2 { get; set; }
+    public DoorPoint? RawOpen1 { get; set; }
+    public DoorPoint? RawOpen2 { get; set; }
     public string State {get;set;}="rejected";
     public string Reason {get;set;}="geometry-uncertain";
     public string Door {get;set;}="";

@@ -11,7 +11,8 @@ namespace UnityEngine {
   public static Vector3 operator *(Vector3 a,float t)=>new(a.x*t,a.y*t,a.z*t);
  }
  public class GameObject {public bool activeInHierarchy=true;}
- public class Collider {public Door? Door;public bool enabled=true,isTrigger;public GameObject gameObject=new();public Vector3 A,B;public float Low=0,High=2;
+ public struct Bounds {public Vector3 min;}
+ public class Collider {public Bounds bounds=>new(){min=new(0,Low,0)};public Door? Door;public bool enabled=true,isTrigger;public GameObject gameObject=new();public Vector3 A,B;public float Low=0,High=2;
   public T? GetComponentInParent<T>() where T:class=>Door as T;}
  public enum QueryTriggerInteraction {Ignore}
  public static class Physics {

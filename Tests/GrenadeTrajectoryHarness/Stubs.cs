@@ -116,7 +116,7 @@ namespace Comet.Client {
   private bool GrenadeChoiceScope(BotComponent b)=>false;
   private bool ChooseGrenade(BotComponent b,Enemy e,BotState s,bool arc)=>arc;
   private bool ValidateGrenadeChoice(BotComponent b,Enemy e,BotState s,bool execution)=>true;
-  private void StopGrenadeChoice(BotState s,string reason){}
+  private void StopGrenadeChoice(BotState s,string reason,string state="ended"){}
   private void EnsureClearEvents(){clearEvents=EventsAvailable?new object():null;}
   internal Plugin(){NativeAdapter.FriendsClear=true;Instance=this;PatchGrenadeJudgment(new());Physics.BlockArc=Physics.BlockLanding=Physics.BlockMargin=false;UnityEngine.AI.NavMesh.NoLanding=UnityEngine.AI.NavMesh.NoRoute=UnityEngine.AI.NavMesh.Detour=false;AIGrenadeHelper.Calls=0;AIGrenadeHelper.Allowed=(v,a)=>true;}
   internal CometConfig Settings=>config!;internal int Count=>states.Count;internal int Draws=>jumpRandom.Draws;internal List<string> Events=>diagnostics!.Events;internal List<Player> Players=>world!.RegisteredPlayers;internal BotState State(BotComponent b)=>states[b];

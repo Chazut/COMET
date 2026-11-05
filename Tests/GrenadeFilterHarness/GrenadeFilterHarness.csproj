@@ -9,4 +9,4 @@
   <Compile Include="../../Client/GrenadeFilterAdapter.cs" Link="GrenadeFilterAdapter.cs" /><Compile Include="../../Shared/GrenadeFilter.cs" Link="GrenadeFilter.cs" />
   <Compile Include="../../Client/GrenadeFilterPatches.cs" Link="GrenadeFilterPatches.cs" />
  </ItemGroup>
-</Project>
+<ItemGroup><Compile Include="../Support/ContactSafetyDouble.cs" /></ItemGroup></Project>

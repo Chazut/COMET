@@ -89,4 +89,11 @@ foreach(var changed in new Action<Plugin,BotComponent>[] {
  (p,b)=>b.Player.Inventory.Items.Add(new ThrowWeap{Id="short"}),
  (p,b)=>{foreach(var item in b.Player.Inventory.Items.OfType<ThrowWeap>())item.GetExplDelay=1;}})
 {var(p,b)=Setup(false,false);changed(p,b);Check(!Ready(p,b)&&p.State(b).GrenadeChoice.Trace!.State=="blocked"&&b.BotOwner.WeaponManager.Grenades.Selections==0,"bounded inventory rejects invalid/ambiguous/no-safe choices");}
+{
+ var(p,b)=Setup(false,false);Check(Ready(p,b),"owned grenade prepared against hostile");
+ ContactSafety.Allowed=false;
+ Check(!p.Throw(b)&&p.Requests==0&&!p.State(b).GrenadeJudgment.Arc,"contact becoming squadmate blocks prepared throw");
+ Check(!p.Find(b),"own squad cannot start another grenade plan");
+ ContactSafety.Allowed=true;
+}
 Console.WriteLine($"G03 production adapter harness: {checks} checks passed (native contracts, not Unity/Fika raid).");

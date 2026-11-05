@@ -2,4 +2,4 @@
  <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
  <ItemGroup><Compile Include="../../Client/GrenadeJudgmentAdapter.cs" Link="GrenadeJudgmentAdapter.cs" /><Compile Include="../../Shared/GrenadeJudgment.cs" Link="GrenadeJudgment.cs" /></ItemGroup>
  <ItemGroup><Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" /></ItemGroup>
-<ItemGroup><Compile Include="../../Shared/GrenadeTrajectory.cs" Link="GrenadeTrajectory.cs" /></ItemGroup><ItemGroup><Compile Include="../../Client/GrenadeTrajectoryAdapter.cs" Link="GrenadeTrajectoryAdapter.cs" /></ItemGroup></Project>
+<ItemGroup><Compile Include="../../Shared/GrenadeTrajectory.cs" Link="GrenadeTrajectory.cs" /></ItemGroup><ItemGroup><Compile Include="../../Client/GrenadeTrajectoryAdapter.cs" Link="GrenadeTrajectoryAdapter.cs" /></ItemGroup><ItemGroup><Compile Include="../Support/ContactSafetyDouble.cs" /></ItemGroup></Project>

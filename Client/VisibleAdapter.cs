@@ -63,7 +63,7 @@ internal static class VisibleAdapter
     {
         // Respect an existing destination. FindCoverPoint is patched only when COMET owns the choice.
         var owned = bot.Cover.CoverInUse ?? bot.Cover.CoverPoint_MovingTo;
-        if (owned != null && progress?.Blocked(ProgressAdapter.CoverKey(owned),Time.time)!=true) return ValidCover(bot, owned) ? owned : null;
+        if (owned != null && progress?.Blocked(ProgressAdapter.CoverKey(owned),Time.time)!=true && ValidCover(bot, owned)) return owned;
         CoverPoint? best = null; float length = float.MaxValue;
         int checkedPoints = 0;
         foreach (var p in bot.Cover.CoverPoints)
@@ -84,6 +84,7 @@ internal static class VisibleAdapter
         var threats = new List<KnownThreat>();
         void Add(Enemy e)
         {
+            if(!ContactSafety.Allows(bot,e))return;
             var p = e.KnownPlaces.LastKnownPosition;
             float age = e.TimeSinceLastKnownUpdated;
             if (!p.HasValue || !Finite(p.Value) || age < 0 || float.IsNaN(age) || age > config.ContactLifetime) return;

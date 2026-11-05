@@ -74,17 +74,22 @@ public sealed partial class Plugin
         if(lifeCleaning||scope.Bot is not BotComponent b)return;
         if(scope.State?.Retired==true){allowed=false;return;}
         if(scope.Cleanup)return;
-        allowed=LifeAllows(b);
+        allowed=LifeAllows(b,scope.State);
     }
     partial void GuardFaultReset(BotComponent bot,ref bool allowed)
     { allowed=!lives.TryGetValue(bot,out var life)||life.Phase=="alive"; }
-    private bool LifeAllows(BotComponent b)
+    private bool LifeAllows(BotComponent b,BotState? known=null)
     {
         try{if(!Authority)return false;}catch{return false;}
         try
         {
-            if(lives.TryGetValue(b,out var existing)&&existing.Phase!="alive")return false;
-            bool tracked=states.ContainsKey(b);
+            bool tracked=known!=null&&ReferenceEquals(known.Owner,b);
+            if(tracked && known!.Retired)return false;
+            if(!tracked)
+            {
+                if(lives.TryGetValue(b,out var existing)&&existing.Phase!="alive")return false;
+                tracked=states.ContainsKey(b);
+            }
             // There is no COMET state to retire before the first decision. In particular,
             // an untracked downed PMC must remain eligible after a later revive.
             if(!tracked)return !LifePmc(b)||LifeStatus(b)=="alive";

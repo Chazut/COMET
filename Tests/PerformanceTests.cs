@@ -13,6 +13,9 @@ internal static class PerformanceTests
     public static async Task<int> Run()
     {
         int n=0;void Check(bool v,string why){n++;if(!v)throw new Exception("Performance: "+why);}
+        Check(!PerformanceAllocation.Probe(()=>0),"Mono constant allocation stub is unavailable, not zero allocations");
+        Check(!PerformanceAllocation.Probe(()=>throw new NotSupportedException()),"unsupported allocation API safely disabled");
+        Check(PerformanceAllocation.Probe(GC.GetAllocatedBytesForCurrentThread),"working allocation API detected");
         void Near(double actual,double expected,string why)=>Check(Math.Abs(actual-expected)<.00001,why+": "+actual);
         var c=new CometConfig();Check(!c.Performance.Enabled&&c.Performance.MeasureAllocations,"capture opt-in, allocations available by default");
         var old=Newtonsoft.Json.JsonConvert.DeserializeObject<CometConfig>("{\"Performance\":null}")!;old.Validate();Check(!old.Performance.Enabled,"old/null configs migrate OFF");

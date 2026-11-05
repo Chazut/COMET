@@ -89,6 +89,7 @@ public sealed partial class Plugin
         var s=p.GrenadeState(b);var r=s.GrenadeJudgment;
         try
         {
+            if(!ContactSafety.Allows(b,__0)){r.Arc=false;p.StopGrenadeTrajectory(s,"trajectory-own-squad-contact");p.StopGrenadeChoice(s,"choice-own-squad-contact","blocked");__result=false;return false;}
             if(p.GrenadeChoiceInProgress(b)||!p.PrepareOffensiveGrenade(b,s)){__result=false;return false;}
             if(!p.GrenadeJudgmentScope(b)&&!p.GrenadeTrajectoryScope(b)&&!p.GrenadeChoiceScope(b)){__state=s;return true;}
             var f=p.GrenadeFrame(b,__0,s);
@@ -164,6 +165,7 @@ public sealed partial class Plugin
         var s=p.GrenadeState(b);
         try
         {
+            if(!ContactSafety.AllowsGoal(b)){s.GrenadeJudgment.Arc=false;p.StopGrenadeTrajectory(s,"trajectory-own-squad-contact");p.StopGrenadeChoice(s,"choice-own-squad-contact","blocked");__result=false;return false;}
             if(b.GoalEnemy==null||!p.ValidateGrenadeTrajectory(b,b.GoalEnemy,s)||!p.ValidateGrenadeChoice(b,b.GoalEnemy,s,true)||!p.AssessGrenade(b,b.GoalEnemy,s,true)||!p.ValidateOffensiveGrenade(b,s)){__result=false;return false;}
             if(!p.GrenadeJudgmentScope(b))return true;
             p.EnsureClearEvents();if(p.clearEvents==null){__result=false;return false;}

@@ -59,8 +59,12 @@ js.ActiveLabel="COMET:Hold";Tick(303);journal.Sample();Tick(304);journal.Sample(
 Check(js.ActiveLabel=="COMET:Hold","T04 does not repair residual records");
 Tick(305);js.Owner.BotOwner.Medecine.Using=true;journal.Sample();Check(Decisions.Events.Any(e=>e.Contains("medical-in-progress")),"observed medical context");
 js.Owner.BotOwner.Medecine.Using=false;js.Owner.BotOwner.WeaponManager.Reload.Reloading=true;Tick(306);journal.Sample();Check(Decisions.Events.Any(e=>e.Contains("reload-in-progress")),"observed reload context");
+Tick(306.1f);int burstStart=Decisions.Events.Count;
+for(int i=0;i<32;i++)jbrain.Select(i%2==0?"SAIN : Combat Layer":"OrbitBrainLayer");
+Check(Decisions.Events.Count-burstStart>16,"rapid control transitions retained beyond former 16-event cap");
+int releasesAfterBurst=journal.Releases;
 journal.Downed=true;Tick(307);journal.Sample();Check(Decisions.Events.Any(e=>e.Contains("downed")),"downed observation suspended");journal.Downed=false;
 before=Decisions.Events.Count;journal.Authority=false;Tick(308);journal.Sample();Check(Decisions.Events.Count==before,"replica emits no T04");journal.Authority=true;
-js.Owner.Info=null!;Tick(309);journal.Sample();Check(journal.Logger.Lines.Any(e=>e.StartsWith("T04 diagnostic unavailable")),"diagnostic fault isolated");Check(journal.Releases==1,"T04 fault does not change combat");
+js.Owner.Info=null!;Tick(309);journal.Sample();Check(journal.Logger.Lines.Any(e=>e.StartsWith("T04 diagnostic unavailable")),"diagnostic fault isolated");Check(journal.Releases==releasesAfterBurst,"T04 fault does not change combat");
 journal.Clear();before=Decisions.Events.Count;jbrain.Select("SAIN : Combat Layer");Check(Decisions.Events.Count==before,"no T04 callbacks after cleanup");
 Console.WriteLine($"T04 and I02 production adapter: {checks} checks passed.");

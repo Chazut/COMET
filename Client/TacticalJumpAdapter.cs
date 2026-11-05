@@ -53,7 +53,7 @@ public sealed partial class Plugin
         if(count!=expected)throw new InvalidOperationException("M12 unexpected official Rush jump call count: "+count);
         return result;
     }
-    private bool JumpScope(BotComponent b,BotState s)=>config?.Enabled==true&&Authority&&!Ghost(s.ProfileId)
+    private bool JumpScope(BotComponent b,BotState s)=>ContactSafety.AllowsGoal(b)&&config?.Enabled==true&&Authority&&!Ghost(s.ProfileId)
         &&NativeAdapter.IsPmcAi(b)&&!b.IsDead&&b.BotActive&&!b.GameEnding&&b.SAINLayersActive;
     private TacticalJumpFrame JumpFrame(BotComponent b,BotState s,string source,string kind,Vector3 direction,Vector3 landing,double minSpeed,double minStamina,bool clearance,double age)
     {

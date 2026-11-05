@@ -51,12 +51,13 @@ public sealed partial class Plugin
     {
         var stack=faultStack??=new(32);
         var scope=new FaultScope{Index=stack.Count,Module=module,Entry=entry,Bot=bot??(stack.Count>0?stack[stack.Count-1].Bot:null),Cleanup=cleanup,Telemetry=telemetry};
+        if(stack.Count>0 && ReferenceEquals(scope.Bot,stack[stack.Count-1].Bot))scope.State=stack[stack.Count-1].State;
         stack.Add(scope);return scope;
     }
     internal static void BindFault(ref FaultScope scope,BotComponent? bot)
-    { if(bot!=null){scope.Bot=bot;faultStack![scope.Index]=scope;} }
+    { if(bot!=null){if(!ReferenceEquals(scope.Bot,bot))scope.State=null;scope.Bot=bot;faultStack![scope.Index]=scope;} }
     internal static BotComponent? FaultBot(BotComponent? bot,BotState? state)=>bot??state?.Owner;
-    internal static void BindFaultState(ref FaultScope scope,BotState? state){scope.State=state;}
+    internal static void BindFaultState(ref FaultScope scope,BotState? state){scope.State=state;faultStack![scope.Index]=scope;}
     partial void GuardLifecycle(FaultScope scope,ref bool allowed);
     partial void GuardFaultReset(BotComponent bot,ref bool allowed);
     internal static void LeaveFault(FaultScope scope)

@@ -71,8 +71,16 @@ internal static class PerformanceAllocation
     private static Func<long>? Create()
     {
         try { var method=typeof(GC).GetMethod("GetAllocatedBytesForCurrentThread",Type.EmptyTypes);
-            if(method==null)return null;var read=(Func<long>)Delegate.CreateDelegate(typeof(Func<long>),method);read();return read; }
+            if(method==null)return null;var read=(Func<long>)Delegate.CreateDelegate(typeof(Func<long>),method);
+            return Probe(read)?read:null; }
         catch{return null;}
+    }
+    internal static bool Probe(Func<long> read)
+    {
+        // Some Mono implementations expose the API but always return zero.
+        // Probe once, outside combat; unavailable must never be reported as zero allocation.
+        try { long before=read();var proof=new byte[4096];long after=read();GC.KeepAlive(proof);return before>=0&&after-before>=4096; }
+        catch{return false;}
     }
 }
 internal sealed class PerformanceBackground
