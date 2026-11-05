@@ -40,6 +40,9 @@ namespace Comet.Client {
  internal class Diagnostics {internal static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};internal void Write(string text){} }
  public sealed partial class Plugin {
   private bool ReadDowned(object player)=>Downed;private bool OutcomeAction(BotComponent b,string choice)=>b.Decision.CurrentCombatDecision==choice;internal bool Downed;
+  // ArbitrationHarness covers actual H01/W01 ownership; supply it here to exercise journal transitions.
+  internal string TestOwnedService="";
+  private string OwnedPlanService(BotComponent b,BotState s,bool committed)=>b.SAINLayersActive?TestOwnedService:"";
   internal static Plugin? Instance;internal Config? config=new();internal Integration integration=new();internal Log Logger=new();
   internal Dictionary<BotComponent,BotState> states=new();internal Func<string,bool>? isGhost;internal bool orbitUnavailable,Authority=true;
   internal object? world=new();internal string session="i02-controlled";internal long sequence;internal Diagnostics? diagnostics;

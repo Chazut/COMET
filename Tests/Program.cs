@@ -5,6 +5,7 @@ using System.Reflection.PortableExecutable;
 using System.Text.Json;
 
 int checks = 0;
+checks += PlanContinuityTests.Run();
 checks += await PerformanceTests.Run();
 checks += await DiagnosticConfigurationTests.Run();
 checks += TacticCountersTests.Run();

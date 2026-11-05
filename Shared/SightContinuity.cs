@@ -8,7 +8,7 @@ public sealed class SightFrame
     public double Now, X, Y, Z, Distance, SeenAge, HitAt;
     public string Target = "", Action = "", Weapon = "";
     public bool Eligible, Visible, Observed, WeaponReady, Urgent, OtherThreat, Hurt, LowAmmo, Suppressed, PushPathValid;
-    public bool Panic;
+    public bool Panic, OwnedPlan;
 }
 
 public sealed class SightHold
@@ -61,7 +61,8 @@ public sealed class SightContinuity
         {
             Current = null;
             if (!f.Observed || !Finite(f.X) || !Finite(f.Y) || !Finite(f.Z) || !Finite(f.Distance)
-                || f.Distance < 0 || f.Distance > c.MaxDistance || !Finite(f.SeenAge) || f.SeenAge < 0 || f.SeenAge > .25)
+                || f.Distance < 0 || f.Distance > c.MaxDistance && (!f.OwnedPlan || f.Action != "Shoot" || config.Handoff.Grace <= 0)
+                || !Finite(f.SeenAge) || f.SeenAge < 0 || f.SeenAge > .25)
                 return Reset("sight-observation-invalid");
             if (!wasVisible) visibleSince = f.Now;
             wasVisible = true;
@@ -74,9 +75,15 @@ public sealed class SightContinuity
         }
         wasVisible = false; visibleSince = -1;
         if (!armed || lastSeen < 0) { Reason = "sight-no-stable-view"; return Current = null; }
+        // Outside A03's normal range, only keep an already owned firing angle for
+        // the short transition tolerance. Never acquire a new target or fire blind.
+        bool distantAngle = distance > c.MaxDistance;
+        if (distantAngle && (!f.OwnedPlan || action != "Shoot" || config.Handoff.Grace <= 0))
+            return Reset("sight-owned-plan-ended");
         if (action == "Push" && (distance > c.CloseDistance || !f.PushPathValid || f.Hurt || f.LowAmmo || f.Suppressed))
             return Reset("sight-push-no-longer-safe");
-        if (deadline < 0) deadline = lastSeen + (distance <= c.CloseDistance ? c.CloseDuration : c.MediumDuration);
+        if (deadline < 0) deadline = lastSeen + (distantAngle ? Math.Min(config.Handoff.Grace,c.MediumDuration)
+            : distance <= c.CloseDistance ? c.CloseDuration : c.MediumDuration);
         if (f.Now >= deadline) return Reset("sight-window-expired");
         Reason = action == "Push" ? "sight-continue-known-route" : "sight-hold-last-seen";
         return Current ??= new SightHold(target, action, x, y, z, distance, lastSeen, deadline);

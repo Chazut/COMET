@@ -16,6 +16,9 @@ internal static class SightAdapter
         frame.Now = Time.time; frame.Target = e?.EnemyProfileId ?? "";
         frame.Eligible = NativeAdapter.IsPmcAi(bot) && bot.BotActive && authority && !ghost && e != null;
         frame.Visible = e?.IsVisible == true; frame.WeaponReady = VisibleAdapter.WeaponReady(bot);
+        frame.OwnedPlan = (state.Feature == "A02" && state.ActiveLabel == "COMET:Shoot"
+            || state.Feature == "A03" && state.ActiveLabel == "COMET:KeepAngle")
+            && bot.SAINLayersActive && bot.Decision.CurrentCombatDecision == state.Expected;
         frame.Weapon = bot.Player.HandsController?.Item?.Id.ToString() ?? "";
         frame.Urgent = bot.Decision.CurrentSelfDecision != ESelfActionType.None || bot.Decision.CurrentSquadDecision != ESquadDecision.None;
         frame.Action = bot.Decision.CurrentCombatDecision == ECombatDecision.StandAndShoot ? "Shoot"

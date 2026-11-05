@@ -12,6 +12,10 @@ string[] methods={"TacticalScope","TacticalHandsBusy","NativeChoiceHasPriority",
 string source="using System; using Comet.Core; namespace Comet.Client; partial class Plugin {\n"
  +string.Join("\n",methods.Select(n=>Method("DecisionArbitrationAdapter",n).ToString()))
  +Method("Plugin","ContinueCover")+"\n"+Method("OutcomeAdapter","OutcomeAction")+"\n}";
+source += "\npartial class Plugin {"+Method("PlanContinuityAdapter","OwnedPlanService")
+ +"\n"+Method("PlanContinuityAdapter","ObservePlanService")+"\n"+Method("MedicalChoiceAdapter","MedicalAction")+"}";
+source += CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Client/PlanContinuityAdapter.cs"))).GetRoot()
+ .DescendantNodes().OfType<ClassDeclarationSyntax>().Single(c=>c.Identifier.Text=="PlanServiceRuntime").ToString();
 // Check the actual chooser uses the audited gate; the gate is executed below, not copied.
 var choose=Method("Plugin","Choose");
 if(!choose.ToString().Contains("NativeChoiceHasPriority(bot,state)")||!choose.ToString().Contains("state.Execution.CoolingDown(Time.time)"))

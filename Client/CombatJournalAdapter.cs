@@ -63,15 +63,17 @@ public sealed partial class Plugin
         if(!allowDead&&!JournalScope(b))return null;
         if(!states.TryGetValue(b,out var s)){s=new BotState(b,config,session);states.Add(b,s);}return s;
     }
-    private object JournalContext(BotState s)
+    private object JournalContext(BotState s,string? observedService=null)
     {
         var b=s.Owner;var e=b.GoalEnemy;var known=e?.KnownPlaces.LastKnownPosition;
         string action=s.Feature=="A03"?s.Decision=="ContinuePush"?"Push":s.Decision=="KeepAngle"?"Shoot":"":s.Decision;
         bool active=s.ActiveLabel.Length>0&&b.SAINLayersActive&&b.Decision.CurrentCombatDecision==s.Expected
             &&b.Decision.CurrentSelfDecision.ToString()=="None"&&b.Decision.CurrentSquadDecision.ToString()=="None"&&OutcomeAction(b,action);
+        string service=observedService??OwnedPlanService(b,s,false);
         return new { action=b.SAINLayersActive?b.CurrentAction?.GetType().Name??"":"OtherLayer",sainActive=b.SAINLayersActive,combat=b.Decision.CurrentCombatDecision.ToString(),
             self=b.Decision.CurrentSelfDecision.ToString(),squad=b.Decision.CurrentSquadDecision.ToString(),
-            feature=active?s.Feature:"",choice=active?s.Decision:"",reason=active&&s.Feature=="A01"?s.Choice?.Reason??"":"",
+            feature=service.Length>0?(service=="Reload"?"W01":"H01"):active?s.Feature:"",
+            choice=service.Length>0?service:active?s.Decision:"",reason=active&&s.Feature=="A01"?s.Choice?.Reason??"":"",
             target=e?.EnemyProfileId??"",visible=e?.IsVisible==true,contactAge=e?.TimeSinceLastKnownUpdated,
             knownDistance=known.HasValue?(double?)Vector3.Distance(b.Position,known.Value):null,
             underFire=b.BotOwner.Memory.IsUnderFire,personality=b.Info.Personality.ToString() };
@@ -112,9 +114,10 @@ public sealed partial class Plugin
                 JournalWeaponEvents(s,r.Weapons.Observe(Time.time,gun?.Item?.Id.ToString()??"",WeaponHandsReady(b,gun),config.WeaponJournal));
             }
             if(!config.CombatJournal.Enabled||Time.time<r.SampleAt)return;r.SampleAt=Time.time+config.CombatJournal.SampleInterval;
-            string key=(b.CurrentAction?.GetType().Name??"")+":"+b.SAINLayersActive+":"+b.Decision.CurrentCombatDecision+":"+b.Decision.CurrentSelfDecision+":"+b.Decision.CurrentSquadDecision+":"+b.GoalEnemy?.EnemyProfileId+":"+b.GoalEnemy?.IsVisible+":"+s.ActiveLabel;
+            string service=OwnedPlanService(b,s,false);
+            string key=(b.CurrentAction?.GetType().Name??"")+":"+b.SAINLayersActive+":"+b.Decision.CurrentCombatDecision+":"+b.Decision.CurrentSelfDecision+":"+b.Decision.CurrentSquadDecision+":"+b.GoalEnemy?.EnemyProfileId+":"+b.GoalEnemy?.IsVisible+":"+s.ActiveLabel+":"+service;
             if(key!=r.Context||Time.time-r.ContextAt>=5)
-            {r.Context=key;r.ContextAt=Time.time;JournalWrite(s,"T01","context","observed-native-context",new{kind="context",context=JournalContext(s)});}
+            {r.Context=key;r.ContextAt=Time.time;JournalWrite(s,"T01","context","observed-native-context",new{kind="context",context=JournalContext(s,service)});}
         }catch(Exception ex){JournalError(s,ex);}
     }
     private object[] JournalWeapons(BotState s)

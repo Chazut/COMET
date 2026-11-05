@@ -68,3 +68,17 @@ before=Decisions.Events.Count;journal.Authority=false;Tick(308);journal.Sample()
 js.Owner.Info=null!;Tick(309);journal.Sample();Check(journal.Logger.Lines.Any(e=>e.StartsWith("T04 diagnostic unavailable")),"diagnostic fault isolated");Check(journal.Releases==releasesAfterBurst,"T04 fault does not change combat");
 journal.Clear();before=Decisions.Events.Count;jbrain.Select("SAIN : Combat Layer");Check(Decisions.Events.Count==before,"no T04 callbacks after cleanup");
 Console.WriteLine($"T04 and I02 production adapter: {checks} checks passed.");
+
+var services=new Plugin();services.config!.ControlJournal.Enabled=true;var ss=services.Add();ss.ActiveLabel="";
+ss.Owner.Decision.CurrentSelfDecision="Heal";services.Connect(new());Tick(400);services.Sample();
+foreach(var (service,feature) in new[]{("FirstAid","H01"),("Surgery","H01"),("Stims","H01"),("Reload","W01")})
+{
+ services.TestOwnedService=service;Tick(Time.time+1);services.Sample();
+ var ev=Decisions.Events.Select(JObject.Parse).Last(x=>x["controlJournal"] is JObject);
+ Check((string?)ev["controlJournal"]?["feature"]==feature,"control journal attributes COMET service: "+service);
+ services.TestOwnedService="";Tick(Time.time+.3f);services.Sample();
+ ev=Decisions.Events.Select(JObject.Parse).Last(x=>x["controlJournal"] is JObject);
+ Check((string?)ev["controlJournal"]?["feature"]=="","native service no longer inherits COMET ownership");
+}
+Check(services.Releases==0,"service attribution never forces a layer release");services.Clear();
+Console.WriteLine($"T04/I02 including service continuity: {checks} checks passed.");

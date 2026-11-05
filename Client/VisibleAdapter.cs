@@ -44,7 +44,7 @@ internal static class VisibleAdapter
     {
         var w = bot.BotOwner.WeaponManager;
         return w != null && w.HaveBullets && !w.Reload.Reloading && !w.Selector.IsChanging
-            && !bot.Player.HandsController.IsInInteractionStrictCheck();
+            && bot.Player.HandsController != null && !bot.Player.HandsController.IsInInteractionStrictCheck();
     }
     internal static bool ValidCover(BotComponent bot, CoverPoint? p)
     {
@@ -111,6 +111,27 @@ internal static class VisibleAdapter
         v.PushPathLength = Math.Max(0, enemy.Path.PathLength);
         int coverSignature = PathSignature(cover?.PathToPoint), pushSignature = PathSignature(enemy.Path.PathToEnemy);
         var cache = state.Probe;
+        // Keep only an action already accepted and executing against the same evidence.
+        // No added rays/path searches while the shared probe budget is busy.
+        bool stableEvidence = cache != null && Time.time >= cache.At && Time.time - cache.At <= .75 + config.Handoff.Grace
+            && (cache.Origin - bot.Position).sqrMagnitude < 4 && !v.ThreatsTruncated
+            && cache.Threats.Count == threats.Count && cache.Threats.Zip(threats, (a,b) => a.Id == b.Id
+                && a.Visible == b.Visible && (a.Position-b.Position).sqrMagnitude < 1).All(x => x);
+        bool owned = state.Feature == "A02" && state.ActiveLabel == "COMET:" + state.Decision
+            && state.Situation?.Target == contact.Target && bot.SAINLayersActive
+            && bot.Decision.CurrentCombatDecision == state.Expected && bot.Decision.CurrentSelfDecision.ToString() == "None"
+            && bot.Decision.CurrentSquadDecision.ToString() == "None" && bot.BotOwner.Medecine?.Using != true
+            && !bot.BotOwner.DoorOpener.Interacting && bot.Grenade.GrenadeDangerPoint == null
+            && !bot.Decision.DogFightDecision.DogFightActive && !bot.BotOwner.Memory.IsUnderFire;
+        v.ContinuationSafe = stableEvidence && owned && !v.RecentHit && (state.Decision == "Shoot"
+            ? v.CanShoot && bot.CurrentAction?.GetType().Name == "StandAndShootAction"
+            : state.Decision == "Cover" && ReferenceEquals(cover,state.SelectedCover) && cover != null
+                && ReferenceEquals(cache!.Cover,cover) && cache.CoverPathSignature == coverSignature && ValidCover(bot,cover)
+                && bot.CurrentAction?.GetType().Name == "SeekCoverAction"
+                && (cover.BotInThisCover || bot.Mover.ActivePath?.Moving == true
+                    && (bot.Mover.ActivePath.Destination-cover.Position).sqrMagnitude <= 1)
+                && !state.ProgressUnavailable && !state.Progress.Blocked(ProgressAdapter.CoverKey(cover),Time.time)
+                && state.Progress.Current.Reconsider == false);
         bool same = cache != null && Time.time - cache.At <= .75f && (cache.Origin - bot.Position).sqrMagnitude < (config.CoverResponse.Enabled ? .25f : 4)
             && cache.CoverPathSignature == coverSignature && cache.PushPathSignature == pushSignature
             && cache.Cover == cover && cache.PushComplete == push && Math.Abs(cache.PushLength - v.PushPathLength) < 2
@@ -119,7 +140,7 @@ internal static class VisibleAdapter
         if (!same)
         {
             // At most one complete probe globally per frame, at most 28 terrain rays. No scene scan or new path search.
-            // A deferred bot yields to SAIN, never ranks using a partially measured route.
+            // A deferred bot may continue its verified action briefly; never rank a new route from partial measurements.
             if (probeFrame == Time.frameCount || Time.time < state.NextExposureAttempt) return v;
             state.NextExposureAttempt = Time.time + .05f;
             probeFrame = Time.frameCount;

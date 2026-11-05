@@ -100,6 +100,19 @@ internal static class SightContinuityTests
             f.Visible=true;Arm(e,f);f.Visible=false;f.Now+=.1;Check(e.Evaluate(f)==null,"global toggle revokes");
         }
         var defaults=new CometConfig();
+        foreach(double distance in new[]{46d,76d,301d})
+        {
+            var c=new CometConfig();var e=new SightContinuity(c);var f=Frame(distance:distance);f.OwnedPlan=true;Arm(e,f);
+            double last=f.Now;f.Visible=false;f.Now+=.1;
+            Check(Math.Abs(e.Evaluate(f)!.Until-last-c.Handoff.Grace)<1e-8,"owned distant angle uses bounded transition grace");
+            for(int i=2;i<=8;i++){f.Now=last+i*.1;Check((e.Evaluate(f)!=null)==(i<5),"distant grace expires without hidden tracking");}
+            f.Visible=true;f.Now+=.1;Arm(e,f);f.Visible=false;f.Now+=.1;f.OwnedPlan=false;
+            Check(e.Evaluate(f)==null,"lost ownership cancels distant angle");
+        }
+        {
+            var c=new CometConfig();c.Handoff.Grace=0;var e=new SightContinuity(c);var f=Frame(distance:76);f.OwnedPlan=true;Arm(e,f);
+            f.Visible=false;f.Now+=.1;Check(e.Evaluate(f)==null,"zero tolerance disables distant grace");
+        }
         Check(defaults.SightContinuity.Enabled && defaults.SightContinuity.CloseDuration==.8
             && defaults.SightContinuity.MediumDuration==1 && defaults.SightContinuity.CloseDistance==8
             && defaults.SightContinuity.MaxDistance==45 && defaults.SightContinuity.StableSight==.35,"approved defaults");

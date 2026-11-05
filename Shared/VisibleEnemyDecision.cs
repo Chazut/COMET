@@ -11,6 +11,8 @@ public sealed class VisibleSituation
     public Situation Contact = new Situation();
     public bool WeaponReady, CanShoot, CoverReachable, PushReachable, RecentHit, ProbeReady;
     public bool ThreatsTruncated;
+    // Adapter evidence for the already executing action, never a substitute probe for new choices.
+    public bool ContinuationSafe;
     public string CoverId = "", ThreatSignature = "", CoverReason = "no-reachable-cover", PushReason = "no-current-complete-path";
     public int ThreatCount;
     public double RecentHitAt;
@@ -43,6 +45,8 @@ public sealed class VisibleEnemyDecision
     private bool resuming;
     private bool nativeRetry;
     private string responsePlan = "";
+    private readonly PlanContinuity pendingProbe = new();
+    private List<Candidate> lastCandidates = new();
     private double responseChangedAt = double.NegativeInfinity;
     private readonly OpportunityRecheck opportunityRecheck = new OpportunityRecheck();
     public VisibleTactic? Current => current;
@@ -72,7 +76,19 @@ public sealed class VisibleEnemyDecision
     public VisibleChoice Evaluate(VisibleSituation v)
     {
         var rejection = Ineligible(v, config);
+        if (rejection == "exposure-probe-pending" && current.HasValue && !nativeRetry && v.ContinuationSafe
+            && v.Contact.Target == target && v.ThreatSignature == threats
+            && !(config.Fear.Enabled && v.Contact.Fear?.Panic == true)
+            && (!v.RecentHit || hit && v.RecentHitAt <= lastHit + .01)
+            && Danger(v.Contact, config) == danger
+            && pendingProbe.Keep(v.Contact.Now, config.Handoff.Grace, target + ":" + current, true))
+        {
+            mixer.Retain("kept-pending-exposure");
+            return new VisibleChoice { Decision = current, Reason = "plan-kept-pending-exposure",
+                Candidates = lastCandidates, Mixing = mixer.Last };
+        }
         if (rejection != null) return Release(rejection);
+        pendingProbe.Clear();
         var s = v.Contact; var c = config.VisibleCombat;
         double a = config.Aggression.TryGetValue(s.Personality, out var aggression) ? aggression : .5;
         var candidates = new List<Candidate>();
@@ -109,7 +125,7 @@ public sealed class VisibleEnemyDecision
         bool panic = config.Fear.Enabled && s.Fear?.Panic == true;
         var best = candidates.Where(x => x.Eligible).OrderByDescending(x => x.Score).FirstOrDefault();
         var previous = candidates.FirstOrDefault(x => x.Eligible && x.Decision == current?.ToString());
-        string nextDanger = s.Hurt + "/" + s.LowAmmo + "/" + s.Suppressed + "/" + panic + "/" + (config.Loadout.Enabled ? s.Loadout?.PlanKey : "");
+        string nextDanger = Danger(s, config);
         bool invalidate = s.Target != target || v.ThreatSignature != threats || (current == VisibleTactic.Cover && cover != v.CoverId)
             || (v.RecentHit && (!hit || v.RecentHitAt > lastHit + .01)) || nextDanger != danger || responseChanged;
         string reason = best?.Reason ?? "no-feasible-option";
@@ -138,10 +154,13 @@ public sealed class VisibleEnemyDecision
         if (changed && !kept) since = s.Now;
         current = next; target = s.Target; threats = v.ThreatSignature; cover = v.CoverId; hit = v.RecentHit; lastHit = v.RecentHitAt; danger = nextDanger;
         resuming = false;
+        lastCandidates = candidates;
         return new VisibleChoice { Decision = next, Changed = changed, Reason = reason, Candidates = candidates, Mixing = mixer.Last };
     }
+    private static string Danger(Situation s, CometConfig c) => s.Hurt + "/" + s.LowAmmo + "/" + s.Suppressed
+        + "/" + (c.Fear.Enabled && s.Fear?.Panic == true) + "/" + (c.Loadout.Enabled ? s.Loadout?.PlanKey : "");
     public VisibleChoice Release(string reason)
-    { bool changed = current.HasValue; current = null; target = threats = cover = responsePlan = ""; responseChangedAt = double.NegativeInfinity;
+    { pendingProbe.Clear(); lastCandidates = new(); bool changed = current.HasValue; current = null; target = threats = cover = responsePlan = ""; responseChangedAt = double.NegativeInfinity;
         hit = resuming = false; return new VisibleChoice { Changed = changed, Reason = reason }; }
     private static bool Finite(double x) => !double.IsNaN(x) && !double.IsInfinity(x);
 }

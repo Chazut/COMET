@@ -325,10 +325,8 @@ public sealed partial class Plugin : BaseUnityPlugin
                 if (pair.Value.Retired || bot == null || bot.IsDead) continue; // C09 owns retirement and independent cleanup.
                 else if (!bot.BotActive || Ghost(bot.ProfileId) || !Authority) { EndCrossfire(bot,pair.Value,"crossfire-inactive"); EndReadyStance(pair.Value,"ready-stance-inactive"); EndPostCombat(bot,pair.Value,"post-combat-inactive",true); DropGrenadeEscape(bot,pair.Value,"grenade-bot-inactive"); DropOwnSafety(bot,pair.Value,"own-grenade-inactive"); pair.Value.CloseEvidence.Clear(); pair.Value.Progress.Clear(); ReleaseThreat(bot, pair.Value, "threat-inactive-ghost-or-non-authority"); Release(pair.Value, "inactive-ghost-or-non-authority"); pair.Value.Handoff.Clear(); }
                 else if (bot.GoalEnemy == null && !pair.Value.Impact.Owned) { ReleaseThreat(bot, pair.Value, "threat-contact-ended"); Release(pair.Value, "contact-ended"); pair.Value.Handoff.Clear(); }
-                else if (!pair.Value.Entry.Policy.Active && pair.Value.Feature == "A01" && bot.GoalEnemy?.IsVisible == true) Release(pair.Value, "enemy-visible", false);
-                else if (!pair.Value.Entry.Policy.Active && pair.Value.Feature == "A02" && bot.GoalEnemy != null && !bot.GoalEnemy.IsVisible && pair.Value.Sight.Current == null
-                    && !(pair.Value.Decision == "Cover" && pair.Value.Intent.Allows(bot.GoalEnemy.EnemyProfileId, Time.time)))
-                    Release(pair.Value, "enemy-not-visible", false);
+                // Visibility changes are reconciled inside Choose, in the same decision tick.
+                // Eager cleanup here erased the old plan before its replacement was evaluated.
                 if(bot!=null && !bot.IsDead) { RefreshDoorAmbush(bot,pair.Value); RefreshDoorClear(bot,pair.Value); RefreshDoorFake(bot,pair.Value); RefreshDoorStep(bot,pair.Value); RefreshDoorRun(bot,pair.Value); RefreshDoorJump(bot,pair.Value); RefreshDoor(bot,pair.Value); if(!GasScope(bot))DropGas(bot,pair.Value,"gas-out-of-scope");
                 if(!FlashScope(bot))DropFlash(bot,pair.Value,"flash-out-of-scope",DeadFlashOwner(bot));
                 GuardDoorReservation(bot,pair.Value); RefreshEnvironment(bot,pair.Value); RefreshProgress(bot,pair.Value); if(config!=null)RefreshQuiet(bot,pair.Value); }
@@ -372,6 +370,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             { plugin.Release(state, "disabled-inactive-ghost-or-non-authority"); state.Handoff.Clear(); return true; }
             plugin.SampleOutcome(bot,state);
             state.Situation=situation;
+            if(plugin.ObservePlanService(bot,state,false))return true;
             if(NativeChoiceHasPriority(bot,state))
             {plugin.YieldToSain(state,"handoff-native-priority","priority");return true;}
             if(state.Execution.CoolingDown(Time.time))return true;
@@ -436,6 +435,8 @@ public sealed partial class Plugin : BaseUnityPlugin
                 state.VisibleSituation = visible;
                 situation.Outcome = plugin.ReviewOutcome(bot,state);
                 var choice = state.VisibleEngine.Evaluate(visible);
+                if(choice.Reason == "plan-kept-pending-exposure")
+                    plugin.ContinuityEvent(state,"kept",choice.Reason);
                 state.CoverResponseAtSelection = visible.CoverResponse;
                 state.OpponentAtSelection = situation.Opponent?.Copy();
                 state.Mixing = choice.Mixing;
@@ -531,6 +532,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             if(plugin.config?.Enabled!=true || state.Retired || !NativeAdapter.IsPmcAi(__instance.Bot)
                 || !__instance.Bot.BotActive || !plugin.Authority || plugin.Ghost(state.ProfileId))
             {plugin.Release(state,"disabled-inactive-ghost-or-non-authority");return;}
+            if(plugin.ObservePlanService(__instance.Bot,state,true))return;
             if(plugin.FeintAccepted(__instance,state)){state.RequestedFrame=-1;return;}
             if(plugin.RelocationAccepted(__instance,state)){state.RequestedFrame=-1;return;}
             if(plugin.ImpactDecisionObserved(__instance,state)){state.RequestedFrame=-1;return;}
@@ -684,7 +686,7 @@ public sealed partial class Plugin : BaseUnityPlugin
     {
         string json = JsonConvert.SerializeObject(new {
             schema = 1, session, sequence = ++sequence, feature = featureOverride ?? state.Feature, stage, reason,
-            handoff = featureOverride == "A13" ? state.Handoff.Current : null,
+            handoff = featureOverride == "A13" ? state.ContinuityTrace ?? state.Handoff.Current : null,
             execution = state.Execution.Active || state.Execution.Phase == "timed-out" ? state.Execution : null,
             arbitration = featureOverride == "A13" && state.ArbitrationReason == reason
                 ? new { reason=state.ArbitrationReason, native=state.ArbitrationNative, expected=state.Expected.ToString(), decision=state.Decision } : null,
@@ -726,9 +728,10 @@ public sealed partial class Plugin : BaseUnityPlugin
         diagnostics?.Write(json);
         Api.Decisions.Publish(json, ex => { if (!subscriberWarned) { subscriberWarned = true; Logger.LogWarning("COMET telemetry subscriber failed: " + ex.Message); } });
     }
-    private void Release(BotState state, string reason, bool clearIntent = true, bool preserveVisiblePlan = false)
+    private void Release(BotState state, string reason, bool clearIntent = true, bool preserveVisiblePlan = false, bool suspendPlan = false)
     {
-        if(state.ActiveLabel.Length>0)ObserveControlRelease(state,reason);
+        if(!suspendPlan)state.PlanService.Clear();
+        if(state.ActiveLabel.Length>0 && !suspendPlan)ObserveControlRelease(state,reason);
         EndDoorSpatial(state,reason);
         EndDoorRecovery(state,reason);
         EndDoorTransit(state,reason);
@@ -767,8 +770,8 @@ public sealed partial class Plugin : BaseUnityPlugin
         if (state.Engine.Current.HasValue || state.VisibleEngine.Current.HasValue || state.ActiveLabel.Length > 0
             || (state.Feature == "A03" && state.Decision.Length > 0)) Emit(state, "released", reason);
         } finally {
-        state.Engine.Release(reason); state.ActiveLabel = ""; state.RequestedFrame = -1; state.Execution.Clear();
-        if (preserveVisiblePlan) { state.VisibleEngine.SuspendForSight(); state.Mixing = state.VisibleEngine.Mixing; }
+        if(!suspendPlan)state.Engine.Release(reason); state.ActiveLabel = ""; state.RequestedFrame = -1; state.Execution.Clear();
+        if (preserveVisiblePlan || suspendPlan) { state.VisibleEngine.SuspendForSight(); state.Mixing = state.VisibleEngine.Mixing; }
         else { state.VisibleEngine.Release(reason); state.Mixing = null; }
         state.Decision = "";
         if (reason.IndexOf("ghost", StringComparison.Ordinal) >= 0 || reason.IndexOf("inactive", StringComparison.Ordinal) >= 0
@@ -791,6 +794,10 @@ public sealed partial class Plugin : BaseUnityPlugin
 
 internal sealed class BotState
 {
+    internal readonly PlanServiceRuntime PlanService = new();
+    internal HandoffTrace? ContinuityTrace;
+    internal string ContinuityKey="";
+    internal float ContinuityAt=-100;
     internal string RejectedContact="";
         internal string CounterFeature = "";
         internal int CounterEncounter, CounterOpportunity;

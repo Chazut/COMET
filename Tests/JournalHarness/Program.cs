@@ -50,3 +50,16 @@ p.Stop(storm);Check(p.diagnostics.Events.Any(x=>x.Contains("omitted")),"throttle
 At(4);p.Switch(storm,false,true);Check(Events().Any(x=>WeaponState(x)=="refused"&&(string?)(x["weaponJournal"] as JObject)?["change"]?["reason"]=="native-request-threw"),"native exception is observed without changing its propagation");
 p.End();p.world=null;before=Events().Length;p.Die(bot.Player,null);p.Switch(bot,true);Check(Events().Length==before,"callbacks cannot publish into a closed raid");
 Console.WriteLine($"T01/T03 production observer: {n} checks passed (platform doubles, generated boundary).");
+
+// Same native self action can start or stop belonging to COMET without a layer change.
+p.world=new();var serviceBot=Bot("service");p.Track(serviceBot);serviceBot.Decision.CurrentSelfDecision="Heal";
+foreach(var (service,feature) in new[]{("FirstAid","H01"),("Surgery","H01"),("Stims","H01"),("Reload","W01")})
+{
+ At(Time.time+1);p.TestOwnedService=service;p.Sample(serviceBot);
+ var context=Events().Last()["combatJournal"]?["context"];
+ Check((string?)context?["feature"]==feature&&(string?)context?["choice"]==service,"owned service attributed independently of native layer: "+service);
+ int count=Events().Length;At(Time.time+.3f);p.Sample(serviceBot);Check(Events().Length==count,"stable service context does not spam events");
+ p.TestOwnedService="";At(Time.time+.3f);p.Sample(serviceBot);
+ Check(Events().Length==count+1&&(string?)Events().Last()["combatJournal"]?["context"]?["feature"]=="","service ownership end recorded before five-second heartbeat");
+}
+p.End();Console.WriteLine($"T01/T03 including service continuity: {n} checks passed.");

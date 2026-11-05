@@ -24,10 +24,11 @@ public sealed partial class Plugin
             || w.Grenades.ThrowindNow || b.Player.HandsController.IsInInteractionStrictCheck();
     }
 
-    private static bool NativeChoiceHasPriority(BotComponent b, BotState s) => !s.ArbitratingSquad
-        && (b.Decision.CurrentSelfDecision != ESelfActionType.None
-            || b.Decision.CurrentSquadDecision != ESquadDecision.None
-                && !TacticalPriority.OrdinarySquad(b.Decision.CurrentSquadDecision.ToString()));
+    // Reaching EnemyDecisions means SAIN's CURRENT safety/self/squad selection declined.
+    // Current* still contains the PREVIOUS commit here; it cannot veto the next choice.
+    private static bool NativeChoiceHasPriority(BotComponent b, BotState s) => TacticalHandsBusy(b)
+        || b.BotOwner.DoorOpener.Interacting || b.Grenade.GrenadeDangerPoint != null
+        || b.Decision.DogFightDecision.DogFightActive || b.BotOwner.WeaponManager.IsMelee;
 
     // Called only after SAIN has made its emergency/self-care/close-combat decision.
     // Override ordinary squad tactics at the commit point, without mutating the previous
@@ -74,8 +75,9 @@ public sealed partial class Plugin
 
     private void SampleDecisionExecution(BotComponent b, BotState s)
     {
-        if (!s.Execution.Active || Time.time < s.ExecutionSampleAt) return;
+        if ((!s.Execution.Active && !s.PlanService.Active) || Time.time < s.ExecutionSampleAt) return;
         s.ExecutionSampleAt = Time.time + .1f;
+        if(s.PlanService.Active) { ObservePlanService(b,s,true); return; }
         if (s.Retired || !TacticalScope(b, b.GoalEnemy)) { s.Execution.Clear(); return; }
         var d = b.Decision;
         bool paused = TacticalHandsBusy(b) || b.BotOwner.DoorOpener.Interacting

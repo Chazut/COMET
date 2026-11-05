@@ -19,6 +19,36 @@ public static class Cases
  }
  public static void Run()
  {
+  foreach(string action in new[]{"FirstAid","Surgery","Stims","Reload"})
+  {
+   var(p,b,s)=Setup("A02","Shoot");var policy=action=="Reload"?s.ReloadTiming.Policy:s.Medical.Policy;
+   policy.Active=true;policy.Trace=new ServiceTrace{Choice=action,Accepted=true,Started=true,Weapon="weapon"};
+   b.Decision.CurrentSelfDecision=Enum.Parse<ESelfActionType>(action);
+   if(action=="Reload")b.BotOwner.WeaponManager.Reload.Reloading=true;else b.BotOwner.Medecine.Using=true;
+   Check(p.Service(b,s,true)&&s.PlanService.Plan=="Shoot"&&s.PlanService.Action==action,"owned service suspends plan "+action);
+   Check(s.ActiveLabel==""&&s.Decision==""&&p.Suspends==1&&Api.Decisions.Label=="COMET:"+action,"no old tactical execution label during service");
+   for(int i=0;i<50;i++){Time.time+=.1f;Check(p.Service(b,s,true),"native service continuation");}
+   Check(p.Suspends==1,"service does not repeatedly release or erase saved plan");
+   Check(p.ServiceOwned(b,s,false)==action,"journal requires observed hands");
+   b.BotOwner.Medecine.Using=false;b.BotOwner.WeaponManager.Reload.Reloading=false;
+   Check(p.ServiceOwned(b,s,false)=="","stale self label is not evidence of execution");
+   policy.Active=false;
+   Check(!p.Service(b,s,true)&&!s.PlanService.Active&&Api.Decisions.Label=="","completed service clears ownership for fresh reevaluation");
+  }
+  foreach(string invalid in new[]{"disabled","feature-off","world","retired","authority","scav","inactive","dead","downed","ending","ghost","layer","grenade","avoid","dogfight","melee","fault","inactive-policy","wrong-self","no-commit","native-reload","wrong-weapon"})
+  {
+   var(p,b,s)=Setup();s.Medical.Policy.Active=true;s.Medical.Policy.Trace=new ServiceTrace{Choice="Surgery"};b.Decision.CurrentSelfDecision=ESelfActionType.Surgery;
+   bool committed=true;
+   switch(invalid){case "disabled":p.config.Enabled=false;break;case "feature-off":p.config.MedicalChoice.Enabled=false;break;
+    case "world":p.world=null;break;case "retired":s.Retired=true;break;case "authority":p.Authority=false;break;case "scav":b.Pmc=false;break;
+    case "inactive":b.BotActive=false;break;case "dead":b.IsDead=true;break;case "downed":b.Player.Downed=true;break;case "ending":b.GameEnding=true;break;case "ghost":p.IsGhost=true;break;
+    case "layer":b.SAINLayersActive=false;break;case "grenade":b.Grenade.GrenadeDangerPoint=new();break;case "avoid":b.Decision.CurrentCombatDecision=ECombatDecision.AvoidGrenade;break;
+    case "dogfight":b.Decision.DogFightDecision.DogFightActive=true;break;case "melee":b.BotOwner.WeaponManager.IsMelee=true;break;
+    case "fault":s.Medical.Fault=true;break;case "inactive-policy":s.Medical.Policy.Active=false;break;case "wrong-self":b.Decision.CurrentSelfDecision=ESelfActionType.Reload;break;
+    case "no-commit":committed=false;break;case "native-reload":b.Decision.CurrentSelfDecision=ESelfActionType.Reload;b.BotOwner.WeaponManager.Reload.Reloading=true;break;
+    case "wrong-weapon":b.Decision.CurrentSelfDecision=ESelfActionType.Reload;s.ReloadTiming.Policy.Active=true;s.ReloadTiming.Policy.Trace=new ServiceTrace{Choice="Reload",Accepted=true,Weapon="other"};break;}
+   Check(!p.Service(b,s,committed)&&p.Suspends==0,"no false ownership or suspension: "+invalid);
+  }
   foreach(string feature in new[]{"A01","A02"})
   {
    var(p,b,s)=Setup(feature,feature=="A01"?"FallBack":"Cover");
@@ -89,7 +119,8 @@ public static class Cases
    Check(guard=="reentrant"||!s.ArbitratingSquad,"flag released even on errors");
   }
   {
-   var(p,b,s)=Setup();b.Decision.CurrentSelfDecision=ESelfActionType.Reload;Check(p.Priority(b,s),"ordinary chooser preserves previous self decision");
+   var(p,b,s)=Setup();b.Decision.CurrentSelfDecision=ESelfActionType.Reload;Check(!p.Priority(b,s),"previous self decision cannot veto a new enemy decision after native self selection declined");
+   b.BotOwner.WeaponManager.Reload.Reloading=true;Check(p.Priority(b,s),"actual reload still takes priority");b.BotOwner.WeaponManager.Reload.Reloading=false;
    // SetDecisions has a NEW self=None commit; stale previous self is not proof of an ongoing reload.
    var solo=ECombatDecision.None;var squad=ESquadDecision.GroupSearch;p.Arbitrate(b.Decision,ref solo,ref squad,ESelfActionType.None,b.GoalEnemy);
    Check(solo==ECombatDecision.Freeze,"new native self=None commit replaces stale self state");
@@ -141,18 +172,18 @@ public static class Cases
 static class Time{public static float time;public static int frameCount;}
 enum ECombatDecision{None,Freeze,SeekCover,Retreat,AvoidGrenade,DogFight,MeleeAttack,FightZombies}
 enum ESquadDecision{None,Surround,Retreat,Suppress,PushSuppressedEnemy,BoundingRetreat,Regroup,SpreadOut,HoldPositions,Help,Search,GroupSearch,FutureUnknown}
-enum ESelfActionType{None,Reload}
+enum ESelfActionType{None,Reload,FirstAid,Surgery,Stims}
 enum Tactic{Hold,FallBack,Shoot,Push,Search,Flank,Cover,Grenade}
-class BotComponent{public bool Pmc=true,BotActive=true,GameEnding,SAINLayersActive=true,Hurt,LowAmmo,Suppressed;public string ProfileId="pmc";public BotDecisionManager Decision=new();public Owner BotOwner=new();public Player Player=new();public Grenade Grenade=new();public Enemy GoalEnemy=new();public EnemyController EnemyController=new();public Cover Cover=new();public object CurrentAction;}
+class BotComponent{public bool Pmc=true,BotActive=true,IsDead,GameEnding,SAINLayersActive=true,Hurt,LowAmmo,Suppressed;public string ProfileId="pmc";public BotDecisionManager Decision=new();public Owner BotOwner=new();public Player Player=new();public Grenade Grenade=new();public Enemy GoalEnemy=new();public EnemyController EnemyController=new();public Cover Cover=new();public object CurrentAction;}
 class BotDecisionManager{public BotComponent Bot;public ECombatDecision CurrentCombatDecision;public ESelfActionType CurrentSelfDecision;public ESquadDecision CurrentSquadDecision;public DogFight DogFightDecision=new();public object EnemyDecisions=new();}
 class Owner{public Weapon WeaponManager=new();public Medicine Medecine=new();public Door DoorOpener=new();}
 class Weapon{public Reload Reload=new();public Selector Selector=new();public Grenade Grenades=new();public bool IsMelee;}
 class Reload{public bool Reloading;}class Selector{public bool IsChanging;}class Medicine{public bool Using;}class Door{public bool Interacting;}class DogFight{public bool DogFightActive;}
 class Grenade{public object GrenadeDangerPoint;public bool ThrowindNow;}
-class Player{public Hands HandsController=new();}class Hands{public bool Busy;public bool IsInInteractionStrictCheck()=>Busy;}interface IMedsController{}class Meds:Hands,IMedsController{}
+class Player{public bool Downed;public Hands HandsController=new();}class Hands{public Item Item=new();public bool Busy;public bool IsInInteractionStrictCheck()=>Busy;}class Item{public string Id="weapon";}interface IMedsController{}class Meds:Hands,IMedsController{}
 class Enemy{public bool IsZombie,IsVisible;public string EnemyProfileId="target";public float TimeSinceLastKnownUpdated;public Places KnownPlaces=new();}class Places{public int? LastKnownPosition=1;}class EnemyController{public object KnownEnemies=new();}
 class CoverPoint{public bool Valid=true;}class Cover{public CoverPoint CoverPoint_MovingTo;}
-class Config{public bool Enabled=true;public float ContactLifetime=30,Commitment=2;public VisibleConfig VisibleCombat=new();}class VisibleConfig{public float Commitment=2,RiskTolerance=1;}
+class Config{public bool Enabled=true;public ConfigToggle MedicalChoice=new(),ReloadTiming=new();public float ContactLifetime=30,Commitment=2;public VisibleConfig VisibleCombat=new();}class VisibleConfig{public float Commitment=2,RiskTolerance=1;}class ConfigToggle{public bool Enabled=true;}
 class Situation{public string Target="target";public bool Hurt,LowAmmo,Suppressed;public Fear Fear=new();public Loadout Loadout=new();public object Opponent;}
 class VisibleSituation{public float CoverRouteRisk,CoverExposure,RecentHitAt;public bool RecentHit;public string ThreatSignature="";}
 class Fear{public bool Panic;}class FearRuntime{public Fear Current=new();}class Loadout{public string PlanKey="default";}class Probe{public CoverPoint Cover;}
@@ -161,6 +192,7 @@ class Engine{public int Failures;public void Fail(Tactic tactic,float now,string
 class VisibleEngine{public int Refusals;public void NotifyNativeRefusal()=>Refusals++;}
 class BotState
 {
+ public string ProfileId="pmc";public PlanServiceRuntime PlanService=new();public ServiceRuntime Medical=new(),ReloadTiming=new();public Handoff Handoff=new();
  public BotState(BotComponent b,Config c,string session){}public bool ArbitratingSquad,Retired;public string Feature="",Decision="",ActiveLabel="",ArbitrationKey="",ArbitrationReason="",ArbitrationNative="";
  public float LastSelection,ExecutionSampleAt,ArbitrationAt=-100;public int RequestedFrame=-1;public ECombatDecision Expected;public Situation Situation=new();public VisibleSituation VisibleSituation=new();
  public DecisionExecution Execution=new();public Engine Engine=new();public VisibleEngine VisibleEngine=new();public Runtime CoverFeint=new(),Relocation=new(),Emergency=new();public Progress Progress=new();public CoverPoint SelectedCover;
@@ -173,6 +205,11 @@ class Log{public void LogWarning(string text)=>throw new Exception(text);}
 class FreezeAction{}class StandAndShootAction{}class RushEnemyAction{}class SearchAction{}class ShiftCoverAction{}class SeekCoverAction{}class ThrowGrenadeAction{}
 partial class Plugin
 {
+ private static bool ReadDowned(Player p)=>p.Downed;
+ public int Suspends;public bool Service(BotComponent b,BotState s,bool committed)=>ObservePlanService(b,s,committed);
+ public string ServiceOwned(BotComponent b,BotState s,bool committed)=>OwnedPlanService(b,s,committed);
+ void Release(BotState s,string why,bool clearIntent=true,bool suspendPlan=false){if(!suspendPlan||clearIntent)throw new Exception("must preserve engine plans");Suspends++;s.ActiveLabel=s.Decision="";s.Execution.Clear();}
+ void ContinuityEvent(BotState s,string phase,string reason,string feature=null,string action=null)=>Events.Add(phase+":"+reason);
  public static Plugin Instance;public Config config=new();public object world=new();public bool Authority=true,IsGhost,AllowChoose=true,ThrowChoose;public string session="raid";
  public Dictionary<BotComponent,BotState> states=new();public List<string> Events=new();public int ChooseCalls,Yields;Log Logger=new();
  bool Ghost(string profile)=>IsGhost;
@@ -192,3 +229,8 @@ partial class Plugin
 }
 
 internal static class ContactSafety {internal static bool Allowed=true;internal static bool Allows(object b,object e)=>Allowed;}
+class ServiceRuntime{public bool Fault;public ServicePolicy Policy=new();}
+class ServicePolicy{public bool Active;public ServiceTrace Trace;}
+class ServiceTrace{public string Choice="",Weapon="";public bool Started,Accepted;}
+class Handoff{public void Clear(){}}
+static class Api{public static class Decisions{public static string Label="";public static void Set(string profile,string label)=>Label=label;}}

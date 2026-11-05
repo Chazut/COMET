@@ -42,7 +42,9 @@ public sealed partial class Plugin
             {
                 string reason = state.Sight.Reason == "sight-armed" || state.Sight.Reason == "sight-waiting-stable-view"
                     ? "sight-reacquired" : state.Sight.Reason;
-                Release(state, reason, false, reason == "sight-reacquired");
+                // Reacquisition is a COMET-to-COMET transition at the next decision commit.
+                // Keep the current native action until then. Invalid/expired memory still releases immediately.
+                if(reason != "sight-reacquired")Release(state, reason, false);
             }
         }
         catch (Exception ex)

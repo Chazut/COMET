@@ -29,6 +29,8 @@ public sealed partial class Plugin
                 if(s.ActiveLabel.Length>0&&b.SAINLayersActive&&b.Decision.CurrentCombatDecision==s.Expected
                     &&b.Decision.CurrentSelfDecision.ToString()=="None"&&b.Decision.CurrentSquadDecision.ToString()=="None"&&OutcomeAction(b,choice))o.Feature=s.Feature;
                 if(ControlHandoff.IsCometLayer(layer))o.Feature=layer=="COMET : Crossfire"?"S01":"H04";
+                string service=OwnedPlanService(b,s,false);
+                if(service.Length>0)o.Feature=service=="Reload"?"W01":"H01";
                 // These are observed states, not guesses about why another mod declined control.
                 o.Blocker=b.BotOwner.Medecine?.Using==true?"medical-in-progress":
                     b.BotOwner.WeaponManager.Reload.Reloading?"reload-in-progress":

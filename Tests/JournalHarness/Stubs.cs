@@ -55,6 +55,9 @@ namespace Comet.Client {
  public sealed partial class Plugin {
   internal static Plugin? Instance;internal CometConfig? config=new();internal object? world=new();internal bool Authority=true,Sleep;internal string session="raid";internal long sequence;internal Diagnostics diagnostics=new();internal Log Logger=new();internal Dictionary<BotComponent,BotState> states=new();
   internal bool Ghost(string id)=>Sleep;internal static bool ReadDowned(Player p)=>p.Downed;
+  // H01/W01 ownership is exercised by ArbitrationHarness; this harness verifies its journal attribution.
+  internal string TestOwnedService="";
+  private string OwnedPlanService(BotComponent b,BotState s,bool committed)=>b.SAINLayersActive?TestOwnedService:"";
   private static bool GunSlot(EquipmentSlot slot)=>true;
   internal Dictionary<(BotComponent,EquipmentSlot),Weapon> Guns=new();
   private static Weapon? SlotGun(BotComponent b,EquipmentSlot slot)=>Instance!.Guns.TryGetValue((b,slot),out var w)?w:null;

@@ -8612,8 +8612,8 @@
       "Unit": "s"
     },
     "Handoff.Grace": {
-      "Label": "Brief path interruption tolerance",
-      "Help": "Tolerance for a brief interruption during an accepted move with a verified safe route and observed progress. Confirmed failures get no grace.",
+      "Label": "Brief plan interruption tolerance",
+      "Help": "Keeps a verified plan briefly while a path or exposure check is pending. Also holds an already chosen firing angle after brief sight loss beyond the normal sight-continuity range, without firing blind. New danger or confirmed failures cancel immediately; repeated checks cannot extend the delay. Zero disables this grace.",
       "Min": 0.0,
       "Max": 2.0,
       "Scale": 1,
