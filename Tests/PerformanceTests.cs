@@ -45,6 +45,17 @@ internal static class PerformanceTests
         Check(end.Modules[0].Calls==3&&end.Frames==3&&end.UnknownDurationFrames==1,"final totals include all windows and incomplete final frame");
         Near(end.Modules[0].MaxFrameSelfMs,70,"max self frame is not cumulative total");
         Check(r.Enter(0,200,0)==0,"completed capture ignores new work");
+        Check(end.DurationMismatchFrames==1,"scope versus Unity duration mismatch explicitly counted");
+
+        r=new PerformanceRecorder(new[]{"Combat"},1000,false,50,60);
+        r.Advance(1,0,16,0,0,0);a=r.Enter(0,0,0);r.Leave(a,90,0);
+        r.Advance(2,.09,double.NaN,0,0,0);end=r.Finish(0,0,0);
+        Check(end.Hitches.Length==1&&end.Hitches[0].FrameMs==null&&end.Hitches[0].CometMs==90,"slow scope retained when frame clock unavailable");
+        Check(end.UnknownDurationFrames==2&&end.DurationMismatchFrames==0,"unknown duration is never presented as valid frame timing");
+        r=new PerformanceRecorder(new[]{"Combat"},1000,false,50,60);
+        r.Advance(1,0,16,0,0,0);a=r.Enter(0,0,0);r.Leave(a,90,0);
+        r.Advance(2,.09,20,0,0,0);end=r.Finish(0,0,0);
+        Check(end.Hitches.Single().DurationMismatch&&end.DurationMismatchFrames==1,"inconsistent hitch clocks remain visible with flag");
 
         r=new PerformanceRecorder(new[]{"Combat"},1000,false,50,60);
         r.Advance(1,0,10,0,0,0);a=r.Enter(0,0,0);r.Leave(a,2,200);

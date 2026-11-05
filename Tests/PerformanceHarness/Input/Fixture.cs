@@ -5,9 +5,10 @@ internal static class Fixture
     {
         JsonConvert.SerializeObject(new{value=1});EmitChild(fail);
     }
-    private static void EmitChild(bool fail)
+    private static void EmitChild(bool fail,int depth=1)
     {
         JsonConvert.SerializeObject(new{value=2});
+        if(depth>0)EmitChild(fail,depth-1);
         if(fail)throw new InvalidOperationException("expected fixture exception");
     }
     internal static async Task EmitAsync()

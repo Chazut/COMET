@@ -192,14 +192,20 @@ public sealed partial class Plugin
         weaponSyncFrame=Time.frameCount;doorClock.Restart();r.Applying=true;
         try {
             var blocked=SyncBlock(b,s);
-            if(blocked=="sync-not-initialized"){r.Schedule.Defer(Time.time);return;}
+            if(blocked.Length>0)
+            {
+                // Keep the request pending without traversing equipment during a native operation.
+                r.Schedule.Defer(Time.time);
+                r.Trace=new WeaponSyncTrace{Trigger=r.Schedule.Trigger,Reason=blocked};
+                RecordWeaponSync(b,s);return;
+            }
             int revision=r.Schedule.Revision;var snap=ReadWeaponSync(b,s);var f=snap.Frame;
             var t=new WeaponSyncTrace{Trigger=r.Schedule.Trigger,Held=f.Held,NativeCurrentBefore=f.NativeCurrent,SainCurrentBefore=f.SainCurrent,Slots=f.Slots};
             if(!WeaponSyncPlan.Prepare(f))
             {t.Reason=f.Block.Length>0?f.Block:"sync-invalid-equipment";r.Schedule.Defer(Time.time);r.Trace=t;RecordWeaponSync(b,s);return;}
             bool work=WeaponSyncPlan.NeedsWork(f);
             if(work&&!ApplyWeaponSync(b,s,snap,t)){t.Reason="sync-equipment-changed-before-apply";r.Schedule.Defer(Time.time);r.Trace=t;RecordWeaponSync(b,s);return;}
-            var after=ReadWeaponSync(b,s);t.NativeCurrentAfter=after.Frame.NativeCurrent;t.SainCurrentAfter=after.Frame.SainCurrent;
+            var after=work?ReadWeaponSync(b,s):snap;t.NativeCurrentAfter=after.Frame.NativeCurrent;t.SainCurrentAfter=after.Frame.SainCurrent;
             for(int i=0;i<3;i++){t.Slots[i].NativeAfter=after.Frame.Slots[i].NativeBefore;t.Slots[i].SainAfter=after.Frame.Slots[i].SainBefore;}
             t.Verified=WeaponSyncPlan.Matches(after.Frame);t.State=t.Verified?"verified":"applied";t.Reason=t.Verified?"sync-equipment-verified":"sync-verification-pending";
             bool report=work||r.Trace?.State=="deferred"||r.Trace?.State=="failed";
@@ -228,7 +234,7 @@ public sealed partial class Plugin
     {
         var r=s.WeaponSync;var t=r.Trace;if(t==null)return;
         if(r.Applying)t.SampleMilliseconds=doorClock.Elapsed.TotalMilliseconds;
-        if(b!=null)t.Action=b.Decision.CurrentSelfDecision==SAIN.Preset.Shared.Enums.ESelfActionType.Reload?"Reload":b.Decision.CurrentCombatDecision.ToString();
+        if(b?.Decision!=null)t.Action=b.Decision.CurrentSelfDecision==SAIN.Preset.Shared.Enums.ESelfActionType.Reload?"Reload":b.Decision.CurrentCombatDecision.ToString();
         var key=t.State+":"+t.Reason+":"+t.Held+":"+string.Join("|",t.Slots.Select(x=>x.Actual+":"+x.NativeBefore+":"+x.SainBefore));
         if(!force&&key==r.LogKey&&Time.time-r.LogAt<1)return;r.LogKey=key;r.LogAt=Time.time;
         var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="W06",stage="evaluated",decision="WeaponSync",reason=t.Reason,

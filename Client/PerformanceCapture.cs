@@ -77,7 +77,9 @@ internal static class PerformanceCapture
         internal void Tick()
         {
             int frame=Time.frameCount;if(frame==sampledFrame)return;sampledFrame=frame;
-            var report=Recorder.Advance(frame,Time.realtimeSinceStartupAsDouble,Time.unscaledDeltaTime*1000.0,GC.CollectionCount(0),GC.CollectionCount(1),GC.CollectionCount(2));
+            // In FixedUpdate Unity returns the physics step, not the rendered frame duration.
+            var duration=Time.inFixedTimeStep?double.NaN:Time.unscaledDeltaTime*1000.0;
+            var report=Recorder.Advance(frame,Time.realtimeSinceStartupAsDouble,duration,GC.CollectionCount(0),GC.CollectionCount(1),GC.CollectionCount(2));
             if(report!=null)Writer.Enqueue(report);
         }
         internal void Leave(long token)

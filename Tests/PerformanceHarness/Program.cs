@@ -34,6 +34,7 @@ try
     var report=lines.Single(x=>(string?)x["stage"]=="performance-summary");
     Check((long?)report["modules"]?[0]?["calls"]==3,"same-module children reuse parent timing, including exceptions");
     Check((long?)report["coalescedScopes"]==2,"reused nested scopes explicitly counted");
+    Check(report["modules"]!.Count()==2&&(string?)report["modules"]?[1]?["module"]=="Diagnostics.BuildEvent.EmitChild","event builders have separate attribution");
     Check((int?)report["hitches"]?[0]?["frame"]==100,"real runtime aligns hitch to previous frame");
     Check((bool?)lines.Last()["complete"]==true&&warnings.Count==0,"teardown emits complete clean footer");
     reads=Clock.Reads;using(PerformanceCapture.Enter(0)){}Check(Clock.Reads==reads,"no stale active session after raid end");
@@ -50,6 +51,12 @@ try
     Check(measuredBytes==0,"enabled hot scopes allocate nothing after warmup: "+measuredBytes);
     Console.WriteLine($"10,000 enabled empty scopes: {timer.Elapsed.TotalMilliseconds:0.###} ms, {measuredBytes} bytes (desktop harness, not Unity performance).");
     PerformanceCapture.Stop(null).GetAwaiter().GetResult();
+
+    Clock.Frame++;PerformanceCapture.Start(new PerformanceConfig{Enabled=true},dir,"physics",8,"map",true,warnings.Add);
+    Fixture.EmitRoot(false);Clock.Frame++;Clock.inFixedTimeStep=true;Clock.Delta=.2f;PerformanceCapture.Tick();Clock.inFixedTimeStep=false;
+    PerformanceCapture.Stop(null).GetAwaiter().GetResult();
+    var physics=File.ReadAllLines(Directory.GetFiles(dir).Single(x=>x.Contains("physics"))).Select(JObject.Parse).Single(x=>(string?)x["stage"]=="performance-summary");
+    Check((long?)physics["unknownDurationFrames"]==2&&(double?)physics["maxFrameMs"]==0,"physics time step never treated as rendered frame duration");
 
     Clock.Frame++;PerformanceCapture.Start(new PerformanceConfig{Enabled=true},dir,"broken",9,"map",true,warnings.Add);
     var one=PerformanceCapture.Enter(0);var two=PerformanceCapture.Enter(1);one.Dispose();two.Dispose();
@@ -68,6 +75,7 @@ namespace UnityEngine
     internal static class Time
     {
         internal static int Frame,Reads;internal static double Now;internal static float Delta=.016f;
+        public static bool inFixedTimeStep;
         public static int frameCount {get{Reads++;return Frame;}}
         public static double realtimeSinceStartupAsDouble => Now;
         public static float unscaledDeltaTime => Delta;

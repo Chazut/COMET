@@ -140,6 +140,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             RunIntegration("PatchCoverScan",()=>PatchCoverScan(harmony));
 
             RunIntegration("PatchSilentSearch",()=>PatchSilentSearch(harmony));
+            RunIntegration("PatchSearchExecution",()=>PatchSearchExecution(harmony));
 
             RunIntegration("PatchSearchAbandonment",()=>PatchSearchAbandonment(harmony));
 
@@ -502,6 +503,13 @@ public sealed partial class Plugin : BaseUnityPlugin
                 }
                 if (!choice.Decision.HasValue) { plugin.YieldToSain(state, "no-feasible-option"); return true; }
                 var tactic = choice.Decision.Value;
+                if (tactic == Tactic.Search && !SearchExecutionAdapter.Prepare(bot.Search, enemy, out var searchReason))
+                {
+                    plugin.Emit(state, "rejected", searchReason);
+                    state.Engine.Fail(tactic, situation.Now, searchReason);
+                    situation.Unavailable[tactic] = searchReason;
+                    continue;
+                }
                 if (tactic == Tactic.Grenade && !NativeAdapter.Throw(bot, enemy, out var reason))
                 {
                     plugin.Emit(state, "rejected", "native-throw-refused:" + reason);
@@ -575,7 +583,8 @@ public sealed partial class Plugin : BaseUnityPlugin
                     }
                     plugin.Emit(state, "accepted", "sain-decision-accepted");
                 }
-                else plugin.YieldToSain(state, "sain-priority:" + __instance.CurrentCombatDecision + "/" + __instance.CurrentSelfDecision + "/" + __instance.CurrentSquadDecision,"priority");
+                else plugin.YieldToSain(state, __instance.CurrentCombatDecision == ECombatDecision.None && __instance.CurrentSelfDecision == ESelfActionType.None && __instance.CurrentSquadDecision == ESquadDecision.None
+                    ? "native-decision-cleared" : "sain-priority:" + __instance.CurrentCombatDecision + "/" + __instance.CurrentSelfDecision + "/" + __instance.CurrentSquadDecision,"priority");
             }
             if(!applied && state.Handoff.Yielded && NativeAdapter.IsPmcAi(__instance.Bot) && __instance.Bot.BotActive
                 && plugin.Authority && !plugin.Ghost(state.ProfileId)

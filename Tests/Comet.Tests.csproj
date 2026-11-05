@@ -4,6 +4,7 @@
   <ItemGroup><Compile Remove="ContactSafetyHarness/**/*.cs" /><Compile Remove="Support/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="ArbitrationHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="PathHarness/**/*.cs" /></ItemGroup>
+  <ItemGroup><Compile Remove="Raid387Harness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="PerformanceHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Include="../Client/PerformanceWriter.cs" Link="PerformanceWriter.cs" /></ItemGroup>
   <ItemGroup><None Include="fixtures/u01-original-defaults.json" Link="u01-original-defaults.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>

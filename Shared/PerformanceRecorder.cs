@@ -20,6 +20,7 @@ public sealed class PerformanceFrame
     public double Realtime { get; set; }
     public double? FrameMs { get; set; }
     public bool Partial { get; set; }
+    public bool DurationMismatch { get; set; }
     public double CometMs { get; set; }
     public long? CometBytes { get; set; }
     public int[] Collections { get; set; } = Array.Empty<int>();
@@ -32,6 +33,7 @@ public sealed class PerformanceReport
     public int LastFrame { get; set; }
     public long Frames { get; set; }
     public long UnknownDurationFrames { get; set; }
+    public long DurationMismatchFrames { get; set; }
     public long UnobservedFrames { get; set; }
     public long SlowFrames { get; set; }
     public long OmittedSlowFrames { get; set; }
@@ -57,7 +59,7 @@ public sealed class PerformanceRecorder
     private sealed class Totals
     {
         public int First=-1, Last;
-        public long Frames, Unknown, Missing, Slow, Omitted;
+        public long Frames, Unknown, Missing, Slow, Omitted, Mismatches;
         public double CometMs, MaxCometMs, MaxFrameMs;
         public readonly Metric[] Modules;
         public Totals(int n) { Modules=new Metric[n]; }
@@ -122,7 +124,9 @@ public sealed class PerformanceRecorder
     {
         double cost=0;long bytes=0;
         for(int i=0;i<frame.Length;i++){cost+=frame[i].SelfTicks*toMs;bytes+=frame[i].SelfBytes;raid.Modules[i].Add(frame[i]);window.Modules[i].Add(frame[i]);}
-        bool slow=duration.HasValue&&duration.Value>=slowMs;
+        bool slow=(duration.HasValue&&duration.Value>=slowMs)||cost>=slowMs;
+        bool mismatch=duration.HasValue&&cost>duration.Value+1;
+        if(mismatch){raid.Mismatches++;window.Mismatches++;}
         AddFrame(raid,duration,cost,slow);AddFrame(window,duration,cost,slow);
         if(slow)
         {
@@ -130,8 +134,8 @@ public sealed class PerformanceRecorder
             if(hitches.Count==64)
             {
                 window.Omitted++;raid.Omitted++;
-                for(int i=0;i<hitches.Count;i++)if(replace<0||hitches[i].FrameMs<hitches[replace].FrameMs)replace=i;
-                if(duration<=hitches[replace].FrameMs)replace=-2;
+                for(int i=0;i<hitches.Count;i++)if(replace<0||HitchCost(hitches[i])<HitchCost(hitches[replace]))replace=i;
+                if(Math.Max(duration??0,cost)<=HitchCost(hitches[replace]))replace=-2;
             }
             if(replace!=-2)
             {
@@ -141,13 +145,14 @@ public sealed class PerformanceRecorder
                 for(int i=0;i<Math.Min(12,top.Length);i++)selected.Add(top[i]);
                 Array.Sort(top,(a,b)=>(b.SelfBytes??0).CompareTo(a.SelfBytes??0));
                 for(int i=0;i<Math.Min(6,top.Length);i++)if(!selected.Contains(top[i]))selected.Add(top[i]);
-                var f=new PerformanceFrame{Frame=frameId,Realtime=realtime,FrameMs=duration,Partial=first,CometMs=cost,CometBytes=allocations?bytes:(long?)null,
+                var f=new PerformanceFrame{Frame=frameId,Realtime=realtime,FrameMs=duration,Partial=first,DurationMismatch=mismatch,CometMs=cost,CometBytes=allocations?bytes:(long?)null,
                     Collections=new[]{Math.Max(0,g0-gc0),Math.Max(0,g1-gc1),Math.Max(0,g2-gc2)},TopModules=selected.ToArray()};
                 if(replace>=0)hitches[replace]=f;else hitches.Add(f);
             }
         }
         Array.Clear(frame,0,frame.Length);first=false;
     }
+    private static double HitchCost(PerformanceFrame f)=>Math.Max(f.FrameMs??0,f.CometMs);
     private void AddFrame(Totals t,double? duration,double cost,bool slow)
     {
         if(t.First<0)t.First=frameId;t.Last=frameId;t.Frames++;
@@ -167,7 +172,7 @@ public sealed class PerformanceRecorder
     private PerformanceReport Snapshot(Totals t,bool final) => new()
     {
         Stage=final?"performance-summary":"performance-window",FirstFrame=t.First,LastFrame=t.Last,Frames=t.Frames,
-        UnknownDurationFrames=t.Unknown,UnobservedFrames=t.Missing,SlowFrames=t.Slow,OmittedSlowFrames=t.Omitted,
+        UnknownDurationFrames=t.Unknown,DurationMismatchFrames=t.Mismatches,UnobservedFrames=t.Missing,SlowFrames=t.Slow,OmittedSlowFrames=t.Omitted,
         ScopeOverflows=overflows,CoalescedScopes=coalesced,CometMs=t.CometMs,MaxCometFrameMs=t.MaxCometMs,MaxFrameMs=t.MaxFrameMs,
         Modules=Metrics(t.Modules),Hitches=hitches.ToArray()
     };
