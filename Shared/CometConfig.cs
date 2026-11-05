@@ -21,6 +21,7 @@ public sealed class MovementHearingConfig
 
 public sealed class CometConfig
 {
+    public PerformanceConfig Performance { get; set; } = new();
     public CombatJournalConfig CombatJournal { get; set; } = new();
     public ControlJournalConfig ControlJournal { get; set; } = new();
     public WeaponJournalConfig WeaponJournal { get; set; } = new();
@@ -146,6 +147,7 @@ public sealed class CometConfig
 
     public void Validate()
     {
+        if(Performance==null)Performance=new();Performance.Validate();
         if(CombatJournal==null)CombatJournal=new();CombatJournal.Validate();
         if(ControlJournal==null)ControlJournal=new();ControlJournal.Validate();
         if(WeaponJournal==null)WeaponJournal=new();WeaponJournal.Validate();

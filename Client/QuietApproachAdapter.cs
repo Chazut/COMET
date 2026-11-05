@@ -79,10 +79,10 @@ public sealed partial class Plugin
     }
     private QuietFrame CaptureQuiet(BotComponent b,Enemy e,BotState s)
     {
-        var known=e.KnownPlaces.LastKnownPosition;var p=b.Position;var corners=e.Path.PathCorners;
-        bool complete=known.HasValue && e.Path.PathToEnemy?.status==NavMeshPathStatus.PathComplete && corners!=null && corners.Length>=2 && corners.Length<=128
+        var known=e.KnownPlaces.LastKnownPosition;var p=b.Position;var corners=EnemyPathCorners.Read(e.Path);
+        bool complete=known.HasValue && e.Path.PathToEnemy?.status==NavMeshPathStatus.PathComplete && corners.Length>=2 && corners.Length<=128
             && Vector3.Distance(corners[0],p)<=4 && Vector3.Distance(corners[corners.Length-1],known.Value)<=2;
-        double length=0;if(complete)for(int i=1;i<corners!.Length;i++)length+=Vector3.Distance(corners[i-1],corners[i]);
+        double length=0;if(complete)for(int i=1;i<corners.Length;i++)length+=Vector3.Distance(corners[i-1],corners[i]);
         bool threat=known.HasValue&&e.TimeSinceLastKnownUpdated<=config!.ContactLifetime,otherVisible=false;int count=0;
         foreach(var other in b.EnemyController.KnownEnemies)
         {if(++count>32){otherVisible=threat=true;break;}if(other==null)continue;

@@ -75,7 +75,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             ConnectControlIntegrations(harmony);
             integration.Report.Phase="core-decision-hooks";
             harmony.Patch(AccessTools.Method(typeof(EnemyDecisionClass), "GetDecision"), prefix: new HarmonyMethod(typeof(Plugin), nameof(Choose)));
-            harmony.Patch(AccessTools.Method(typeof(BotDecisionManager), "SetDecisions"), postfix: new HarmonyMethod(typeof(Plugin), nameof(Accepted)));
+            harmony.Patch(AccessTools.Method(typeof(BotDecisionManager), "SetDecisions"), prefix: new HarmonyMethod(typeof(Plugin), nameof(ArbitrateSquad)), postfix: new HarmonyMethod(typeof(Plugin), nameof(Accepted)));
             harmony.Patch(AccessTools.Method(typeof(SAINCoverClass), "FindCoverPoint"), prefix: new HarmonyMethod(typeof(Plugin), nameof(FindCover)));
             harmony.Patch(AccessTools.Method(typeof(BotDecisionManager), "ContinueMoveToCover"), postfix: new HarmonyMethod(typeof(Plugin), nameof(ContinueCover)));
 
@@ -230,6 +230,7 @@ public sealed partial class Plugin : BaseUnityPlugin
 
     private void Update()
     {
+        PerformanceCapture.Tick();
         FlushFloorCounters();
         FlushCloseCounters();
         FlushImpactCounters();
@@ -252,6 +253,7 @@ public sealed partial class Plugin : BaseUnityPlugin
         if (!raidLifetime.Active) return;
         if (loading.Take(raidLifetime.Generation, out var loaded, out var loadError))
         {
+            if(loaded!=null)StartPerformance(loaded);
             if(loaded!=null)diagnostics?.ConfigureSnapshot(loaded,session);
             if (loaded != null) { config = loaded; diagnostics?.ConfigureJournal(config.Enabled && config.CombatJournal.Enabled && Authority, config.Enabled && config.WeaponJournal.Enabled && Authority, config.Revision, session); diagnostics?.ConfigureControlJournal(config.Enabled && config.ControlJournal.Enabled && Authority, config.Revision, session); diagnostics?.ConfigureCounters(config.Enabled && config.TacticCounters.Enabled && Authority, config.TacticCounters.MaxOpportunities, config.Revision, session); Logger.LogInfo("COMET raid config revision " + config.Revision + ", enabled=" + config.Enabled); ReportDifficultyPreset(); }
             else Logger.LogError("COMET config unavailable. SAIN retains control for this raid. " + loadError?.Message);
@@ -262,7 +264,7 @@ public sealed partial class Plugin : BaseUnityPlugin
         ResetFaultedBots();
         if (config != null && config.Enabled)
             foreach (var pair in states)
-            { SampleCombatJournal(pair.Key,pair.Value); SampleCounterExecution(pair.Key,pair.Value); SampleOutcome(pair.Key,pair.Value); SampleEncounter(pair.Key,pair.Value); try { SampleMedicalPosture(pair.Key,pair.Value); } catch(Exception ex) { MedicalPostureError(pair.Value,ex); }
+            { SampleDecisionExecution(pair.Key,pair.Value); SampleCombatJournal(pair.Key,pair.Value); SampleCounterExecution(pair.Key,pair.Value); SampleOutcome(pair.Key,pair.Value); SampleEncounter(pair.Key,pair.Value); try { SampleMedicalPosture(pair.Key,pair.Value); } catch(Exception ex) { MedicalPostureError(pair.Value,ex); }
               RefreshFear(pair.Key, pair.Value); if (config.SightContinuity.Enabled) RefreshSight(pair.Key, pair.Value);
               try { SampleCoverTravel(pair.Key,pair.Value); } catch(Exception ex) { CoverTravelError(pair.Value,ex); }
               try { SampleHoldAngle(pair.Key,pair.Value); } catch(Exception ex) { HoldAngleError(pair.Value,ex); }
@@ -346,8 +348,9 @@ public sealed partial class Plugin : BaseUnityPlugin
             { plugin.Release(state, "disabled-inactive-ghost-or-non-authority"); state.Handoff.Clear(); return true; }
             plugin.SampleOutcome(bot,state);
             state.Situation=situation;
-            if(bot.Decision.CurrentSelfDecision!=ESelfActionType.None || bot.Decision.CurrentSquadDecision!=ESquadDecision.None)
+            if(NativeChoiceHasPriority(bot,state))
             {plugin.YieldToSain(state,"handoff-native-priority","priority");return true;}
+            if(state.Execution.CoolingDown(Time.time))return true;
             if(!plugin.GuardDoorReservation(bot,state))return true;
             plugin.RefreshEnvironment(bot,state);
             if (Time.time < state.FaultUntil) return true;
@@ -518,7 +521,12 @@ public sealed partial class Plugin : BaseUnityPlugin
             plugin.SupportAccepted(state,applied);
             plugin.DoorResumeAccepted(state,applied);
             plugin.DoorEmergencyAccepted(state,applied);
-            if(applied)state.Handoff.Accepted(Time.time,state.Feature,state.Decision,HandoffContact(state.Situation));
+            if(applied)
+            {
+                state.Handoff.Accepted(Time.time,state.Feature,state.Decision,HandoffContact(state.Situation));
+                if(state.Feature is "A01" or "A02" or "A03")state.Execution.Accept(Time.time,state.Feature,state.Decision,state.Situation?.Target ?? "");
+                else state.Execution.Clear();
+            }
             string label = applied ? "COMET:" + state.Decision : "";
             if (applied && state.Feature == "A02" && state.Decision == "Cover" && state.Situation?.Visible == true)
                 state.Intent.Accepted(state.Situation.Target, Time.time, plugin.config!.VisibleCombat.CoverMemory);
@@ -586,20 +594,36 @@ public sealed partial class Plugin : BaseUnityPlugin
         if(plugin?.states.TryGetValue(__instance.Bot,out var relocate)==true && relocate.Relocation.Policy.Active){__result=false;return;}
         if(plugin?.states.TryGetValue(__instance.Bot,out var emergency)==true&&emergency.Emergency.Policy.Active)
         {__result=false;return;}
-        if (!__result || plugin?.config == null || !plugin.states.TryGetValue(__instance.Bot, out var state)
-            || state.Feature != "A02" || state.ActiveLabel != "COMET:Cover") return;
+        if (!__result || plugin?.config == null || !plugin.states.TryGetValue(__instance.Bot, out var state)) return;
+        bool hidden = state.Feature == "A01" && state.ActiveLabel == "COMET:FallBack";
+        if (!hidden && !(state.Feature == "A02" && state.ActiveLabel == "COMET:Cover")) return;
         try
         {
             var bot = __instance.Bot; var enemy = bot.GoalEnemy;
             plugin.RefreshProgress(bot,state);
             if(state.ActiveLabel.Length==0 || state.Progress.Blocked(ProgressAdapter.CoverKey(state.SelectedCover),Time.time)) {__result=false;return;}
-            bool valid = NativeAdapter.IsPmcAi(bot) && bot.BotActive && plugin.Authority && !plugin.Ghost(bot.ProfileId)
+            // With progress monitoring disabled, A01 lets SAIN choose the actual cover.
+            // Capture that destination once; never silently follow a later unrelated cover.
+            var point = state.SelectedCover ?? (hidden ? bot.Cover.CoverPoint_MovingTo : null);
+            bool valid = plugin.TacticalScope(bot,enemy) && !TacticalHandsBusy(bot)
+                && bot.Grenade.GrenadeDangerPoint == null && !bot.Decision.DogFightDecision.DogFightActive
+                && bot.Decision.CurrentSelfDecision == ESelfActionType.None && bot.Decision.CurrentSquadDecision == ESquadDecision.None
                 && enemy != null && enemy.EnemyProfileId == state.Situation?.Target && VisibleAdapter.WeaponReady(bot)
-                && ReferenceEquals(state.SelectedCover, bot.Cover.CoverPoint_MovingTo) && VisibleAdapter.ValidCover(bot, state.SelectedCover);
+                && ReferenceEquals(point, bot.Cover.CoverPoint_MovingTo) && VisibleAdapter.ValidCover(bot, point)
+                && !state.Progress.Blocked(ProgressAdapter.CoverKey(point),Time.time);
             // Return to the chooser periodically, even when SAIN would continue moving indefinitely.
-            if (!valid || Time.time - state.LastSelection >= plugin.config.VisibleCombat.Commitment)
+            if (!valid || Time.time - state.LastSelection >= (hidden ? plugin.config.Commitment : plugin.config.VisibleCombat.Commitment))
             { __result = false; return; }
-            if (enemy!.IsVisible)
+            state.SelectedCover = point;
+            if (hidden)
+            {
+                if(enemy!.IsVisible) { __result=false;return; }
+                var s=NativeAdapter.Capture(bot,enemy,plugin.Authority,false);
+                if(s.Hurt!=state.Situation?.Hurt || s.LowAmmo!=state.Situation?.LowAmmo || s.Suppressed!=state.Situation?.Suppressed)
+                {__result=false;return;}
+                state.Situation=s;
+            }
+            else if (enemy!.IsVisible)
             {
                 var s = NativeAdapter.Capture(bot, enemy, plugin.Authority, false);
                 plugin.RefreshFear(bot, state); s.Fear = state.Fear.Current;
@@ -617,6 +641,11 @@ public sealed partial class Plugin : BaseUnityPlugin
             }
             else if (!state.Intent.Allows(enemy.EnemyProfileId, Time.time)) { __result = false; return; }
             else state.Situation = NativeAdapter.Capture(bot, enemy, plugin.Authority, false);
+            // SAIN continues both Retreat and SeekCover through its SeekCover action.
+            // Renew this specific validated plan, not an arbitrary matching native decision.
+            if(hidden && state.Expected!=ECombatDecision.SeekCover)
+                plugin.ArbitrationEvent(state,"fallback-cover-continuation","SeekCover");
+            state.Expected=ECombatDecision.SeekCover;
             state.RequestedFrame = Time.frameCount;
         }
         catch (Exception ex) { __result = false; plugin.YieldToSain(state, "cover-continuation-error", "error"); plugin.Logger.LogWarning(ex.Message); }
@@ -628,6 +657,9 @@ public sealed partial class Plugin : BaseUnityPlugin
         string json = JsonConvert.SerializeObject(new {
             schema = 1, session, sequence = ++sequence, feature = featureOverride ?? state.Feature, stage, reason,
             handoff = featureOverride == "A13" ? state.Handoff.Current : null,
+            execution = state.Execution.Active || state.Execution.Phase == "timed-out" ? state.Execution : null,
+            arbitration = featureOverride == "A13" && state.ArbitrationReason == reason
+                ? new { reason=state.ArbitrationReason, native=state.ArbitrationNative, expected=state.Expected.ToString(), decision=state.Decision } : null,
             realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"), configRevision = config?.Revision ?? 0,
             cometVersion = "0.1.0", config=decisionConfiguration.Take(config,session),
             profileId = state.ProfileId, name = state.Name, botInstance = state.Id,
@@ -707,7 +739,7 @@ public sealed partial class Plugin : BaseUnityPlugin
         if (state.Engine.Current.HasValue || state.VisibleEngine.Current.HasValue || state.ActiveLabel.Length > 0
             || (state.Feature == "A03" && state.Decision.Length > 0)) Emit(state, "released", reason);
         } finally {
-        state.Engine.Release(reason); state.ActiveLabel = ""; state.RequestedFrame = -1;
+        state.Engine.Release(reason); state.ActiveLabel = ""; state.RequestedFrame = -1; state.Execution.Clear();
         if (preserveVisiblePlan) { state.VisibleEngine.SuspendForSight(); state.Mixing = state.VisibleEngine.Mixing; }
         else { state.VisibleEngine.Release(reason); state.Mixing = null; }
         state.Decision = "";
@@ -880,6 +912,10 @@ internal sealed class BotState
     internal string ActiveLabel = "";
     internal ECombatDecision Expected;
     internal int RequestedFrame = -1;
+    internal readonly DecisionExecution Execution = new();
+    internal bool ArbitratingSquad;
+    internal float ExecutionSampleAt, ArbitrationAt = -100;
+    internal string ArbitrationKey = "", ArbitrationReason = "", ArbitrationNative = "";
     internal float FaultUntil, NextGrenadeProbe;
     internal readonly SainHandoff Handoff;
     internal bool GrenadeReady;

@@ -13,13 +13,16 @@ foreach(var stale in Directory.GetFiles(output,"*.cs"))if(!sourceNames.Contains(
 foreach(var file in files)foreach(Match m in Regex.Matches(File.ReadAllText(file),@"(prefix|postfix|finalizer|transpiler):\s*new HarmonyMethod\(typeof\(\w+\),\s*nameof\((?:\w+\.)?(\w+)\)"))callbacks[m.Groups[2].Value]=m.Groups[1].Value;
 var manifest=new List<object>();
 var fields=new List<object>();
+var performance=File.Exists(Path.Combine(input,"PerformanceCapture.cs"))?new PerformanceInstrumentation():null;
 foreach(var file in files){var source=File.ReadAllText(file);var tree=CSharpSyntaxTree.ParseText(source);var name=Path.GetFileNameWithoutExtension(file);
  foreach(var f in tree.GetRoot().DescendantNodes().OfType<FieldDeclarationSyntax>().Where(f=>(f.Parent as ClassDeclarationSyntax)?.Identifier.Text=="Plugin"))
  foreach(var v in f.Declaration.Variables)fields.Add(new{file=name,name=v.Identifier.Text,type=f.Declaration.Type.ToString(),modifiers=f.Modifiers.ToString()});
  // Counter observation has its own local sink boundary. Never quarantine/release
  // a combat action because a diagnostic read failed (including nested methods).
- var root=name=="FaultIsolationAdapter"||name.StartsWith("Lifecycle")||name.StartsWith("RaidCleanup")||name=="ControlIntegration"||name=="ControlJournalAdapter"||name=="ValidityAdapter"||name=="Diagnostics"||name=="TacticCountersAdapter"||name=="CombatJournalAdapter"?tree.GetRoot():new Boundaries(name,callbacks,manifest).Visit(tree.GetRoot())!;
+ var root=name.StartsWith("Performance")||name=="FaultIsolationAdapter"||name.StartsWith("Lifecycle")||name.StartsWith("RaidCleanup")||name=="ControlIntegration"||name=="ControlJournalAdapter"||name=="ValidityAdapter"||name=="Diagnostics"||name=="TacticCountersAdapter"||name=="CombatJournalAdapter"?tree.GetRoot():new Boundaries(name,callbacks,manifest).Visit(tree.GetRoot())!;
+ if(performance!=null){performance.File=name;root=performance.Visit(root)!;}
  File.WriteAllText(Path.Combine(output,Path.GetFileName(file)),root.NormalizeWhitespace().ToFullString());}
+performance?.Save(output);
 File.WriteAllText(Path.Combine(output,"boundaries.json"),JsonSerializer.Serialize(manifest,new JsonSerializerOptions{WriteIndented=true}));
 File.WriteAllText(Path.Combine(output,"fields.json"),JsonSerializer.Serialize(fields,new JsonSerializerOptions{WriteIndented=true}));
 if (File.Exists(Path.Combine(input,"IntegrationAdapter.cs")))

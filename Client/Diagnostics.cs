@@ -78,6 +78,9 @@ namespace Comet.Client
         private int closed;
         private int completed;
         internal Task Completion => writer;
+        // Optional per-raid worker measurements. No profiler dependency in journal harnesses.
+        internal Action<long,long>? PerformanceSample;
+        internal Func<long>? PerformanceAllocation;
         private readonly DecisionConfiguration configuration=new();
         internal void ConfigureSnapshot(Comet.Core.CometConfig config,string session)
         {
@@ -114,8 +117,12 @@ namespace Comet.Client
                     catch(Exception ex){Warn("COMET diagnostic file unavailable; counters continue: "+ex.Message);}
                     foreach (string line in queue.GetConsumingEnumerable())
                     {
+                        var sample=Volatile.Read(ref PerformanceSample);
+                        long start=sample!=null?System.Diagnostics.Stopwatch.GetTimestamp():0;
+                        long allocated=sample!=null?(PerformanceAllocation?.Invoke()??0):0;
                         counters.Observe(line);journal.Observe(line);Line(line);
                         if(queue.Count==0&&output!=null)try{output.Flush();}catch(Exception ex){try{output.Dispose();}catch{}output=null;Warn("COMET diagnostic flush failed: "+ex.Message);}
+                        if(sample!=null)try{sample(System.Diagnostics.Stopwatch.GetTimestamp()-start,(PerformanceAllocation?.Invoke()??0)-allocated);}catch{}
                     }
                     foreach(var page in System.Linq.Enumerable.Concat(counters.Finish(Interlocked.Read(ref dropped)),journal.Finish(Interlocked.Read(ref dropped))))
                     {

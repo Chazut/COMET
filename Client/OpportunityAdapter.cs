@@ -49,11 +49,11 @@ public sealed partial class Plugin
             if (t.State != "assess") return t.Episode == 0 ? null : t;
             // Reuse the A02 bounded, shared-budget probe. No extra path query, scene scan or hidden transform access.
             var v = visible ?? VisibleAdapter.Capture(bot, enemy, s, state, config);
-            var corners = enemy.Path.PathCorners;
+            var corners = EnemyPathCorners.Read(enemy.Path);
             double length = 0, vertical = 0;
-            int count = corners?.Length ?? 0;
+            int count = corners.Length;
             if (count > 128) { count = 0; }
-            else for (int i = 1; i < count; i++) { length += Vector3.Distance(corners![i - 1], corners[i]); vertical += Math.Abs(corners[i].y - corners[i - 1].y); }
+            else for (int i = 1; i < count; i++) { length += Vector3.Distance(corners[i - 1], corners[i]); vertical += Math.Abs(corners[i].y - corners[i - 1].y); }
             var own = bot.Player.MovementContext;
             OpportunityModel.Assess(t, s, new OpportunityTravel {
                 Ready = v.ProbeReady, Complete = v.PushReachable, WeaponReady = v.WeaponReady,

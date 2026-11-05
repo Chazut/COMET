@@ -11,6 +11,7 @@ namespace Comet.Client;
 // Explicit C13 boundaries. Do not wrap this coordinator in the generated C08 guard.
 public sealed partial class Plugin
 {
+    partial void StopPerformance(System.Threading.Tasks.Task? diagnosticsDone);
     partial void ClearControlHandoffs();
     partial void FinishCombatJournal();
     private readonly RaidLifetime raidLifetime = new();
@@ -127,6 +128,7 @@ public sealed partial class Plugin
             } catch(Exception ex) { SafeFaultLog("C13 report could not be written: "+ex); }
             var writer=diagnostics;diagnostics=null;
             try { writer?.Dispose(); } catch(Exception ex) { SafeFaultLog("C13 diagnostics close failed: "+ex); } // Drains strings off-thread, no Unity wait.
+            StopPerformance(writer?.Completion);
             session="";Api.Decisions.RaidSession="";Api.Decisions.RaidClosed=true;
             faultCleaning=old;faultCleanupFailed=oldFailed;faultCleanupError=oldError;
         }

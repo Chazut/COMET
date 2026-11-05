@@ -617,6 +617,12 @@
       "Description": "Observe actual layers and COMET execution separately. Explain medical/reload/recovery waits where observed; unknown reasons stay unknown. Group repeated rapid returns without delaying combat. Idle does not mean stuck. Existing ORBIT/QB delays stay unchanged. Settings apply next raid.",
       "Category": "Diagnostics",
       "Summary": "Read-only handoff diagnostics and raid report in RR."
+    },
+    "Performance": {
+      "Title": "Performance capture",
+      "Description": "Temporarily record COMET timings, managed allocations and slow frames during normal play. Reports are saved on the machine running the game in BepInEx/COMET/performance. The next raid uses these settings. This adds measurement overhead; switch it off after testing. It does not replace a GPU or whole-game profiler.",
+      "Category": "Diagnostics",
+      "Summary": "Find costly COMET features and correlate them with stutters."
     }
   },
   "Fields": {
@@ -9204,6 +9210,36 @@
       "Label": "Repeated transition window",
       "Help": "Rolling window for rapid returns. Three within twenty seconds by default.",
       "Section": "ControlJournal",
+      "Simple": false,
+      "Min": 5,
+      "Max": 60,
+      "Unit": "s"
+    },
+    "Performance.Enabled": {
+      "Label": "Record COMET performance",
+      "Help": "Enable for a diagnostic raid, then turn off. Costs are grouped by feature and separated from event preparation and synchronous Raid Review subscribers.",
+      "Section": "Performance",
+      "Simple": false
+    },
+    "Performance.MeasureAllocations": {
+      "Label": "Measure managed allocations",
+      "Help": "Track allocated bytes on the main thread and diagnostic writer when the runtime supports it. This measures allocation traffic, not retained memory or a proven leak.",
+      "Section": "Performance",
+      "Simple": false
+    },
+    "Performance.SlowFrameMs": {
+      "Label": "Slow frame threshold",
+      "Help": "Include detailed module costs for slow frames. Keep up to 64 worst frames per report window; omitted details are counted.",
+      "Section": "Performance",
+      "Simple": false,
+      "Min": 16,
+      "Max": 1000,
+      "Unit": "ms"
+    },
+    "Performance.ReportIntervalSeconds": {
+      "Label": "Report interval",
+      "Help": "Write an aggregate periodically in the background, plus totals at raid end. No per-frame disk writes. An interrupted game keeps completed windows.",
+      "Section": "Performance",
       "Simple": false,
       "Min": 5,
       "Max": 60,

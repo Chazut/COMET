@@ -60,9 +60,9 @@ internal static class NativeAdapter
     internal static void Capabilities(BotComponent bot, Enemy enemy, Situation s, BotState state, CometConfig config)
     {
         var path = enemy.Path.PathToEnemy;
-        var corners = enemy.Path.PathCorners;
+        var corners = EnemyPathCorners.Read(enemy.Path);
         var known = enemy.KnownPlaces.LastKnownPosition!.Value;
-        bool complete = path != null && path.status == NavMeshPathStatus.PathComplete && corners != null && corners.Length > 1
+        bool complete = path != null && path.status == NavMeshPathStatus.PathComplete && corners.Length > 1
             && (corners[corners.Length - 1] - known).sqrMagnitude <= 4 && (corners[0] - bot.Position).sqrMagnitude <= 16;
         if (!complete) { s.Unavailable[Tactic.Push] = "no-current-complete-path"; s.Unavailable[Tactic.Search] = "no-current-complete-path"; }
         else if (enemy.Path.PathLength > config.PushMaxDistance) s.Unavailable[Tactic.Push] = "push-path-too-long";

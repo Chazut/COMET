@@ -1,4 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><Compile Remove="ArbitrationHarness/**/*.cs" /></ItemGroup>
+  <ItemGroup><Compile Remove="PathHarness/**/*.cs" /></ItemGroup>
+  <ItemGroup><Compile Remove="PerformanceHarness/**/*.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Client/PerformanceWriter.cs" Link="PerformanceWriter.cs" /></ItemGroup>
   <ItemGroup><None Include="fixtures/u01-original-defaults.json" Link="u01-original-defaults.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
   <ItemGroup><Compile Remove="WeaponReturnHarness/**/*.cs" /></ItemGroup>
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>

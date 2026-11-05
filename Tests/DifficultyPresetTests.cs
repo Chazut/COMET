@@ -13,7 +13,7 @@ internal static class DifficultyPresetTests
         Check(JsonSerializer.Serialize(hard)==JsonSerializer.Serialize(new CometConfig()),"Hard exactly preserves constructor defaults");
         var oldDefaults=JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"u01-original-defaults.json")));
         var currentDefaults=JsonSerializer.SerializeToNode(hard)!.AsObject(); currentDefaults.Remove("DifficultyPreset");
-        currentDefaults.Remove("CombatJournal");currentDefaults.Remove("ControlJournal");currentDefaults.Remove("WeaponJournal");currentDefaults.Remove("TacticCounters"); // T02 diagnostics do not change gameplay defaults.
+        currentDefaults.Remove("CombatJournal");currentDefaults.Remove("ControlJournal");currentDefaults.Remove("WeaponJournal");currentDefaults.Remove("TacticCounters");currentDefaults.Remove("Performance"); // Diagnostics do not change gameplay defaults.
         currentDefaults.Remove("PresetSource"); // U07 adds provenance, not a gameplay setting.
         Check(JsonNode.DeepEquals(oldDefaults,currentDefaults),"Hard matches pre-U01 configuration snapshot, field for field");
         var original=DifficultyPresets.Values(hard);

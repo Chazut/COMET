@@ -29,6 +29,10 @@ Supported integration targets are SAIN alone, SAIN with ORBIT, or SAIN with Ques
 
 Configuration is available in the server web interface at `/comet`. Changes apply to the next raid. Local diagnostic files are written to `BepInEx/COMET/diagnostics`. The matching Raid Review integration displays decisions and observed outcomes separately: selecting an action does not prove it completed.
 
+COMET takes priority over ordinary SAIN squad tactics when it has a usable combat plan. Grenade avoidance, active healing/reloading, close combat and safety retreats keep priority. Diagnostics distinguish accepted plans from observed native actions; an unobserved core action yields after 2 seconds of eligible observation, with a 3-second retry delay. Native cover continuation keeps the original COMET plan when its target and destination still match.
+
+For a stutter investigation, search **Performance** in that interface and enable **Record COMET performance**, then save and play a raid. It is off by default. Reports in `BepInEx/COMET/performance` contain feature timings, managed allocations, slow frames and separate diagnostic/subscriber costs. Keep the whole file and turn capture off afterwards. Measurements add overhead and cover COMET, not the entire game or GPU; a GC counter beside a hitch does not prove COMET caused it. Completed raids have a `performance-end` footer; interrupted sessions keep the report windows already written.
+
 ## Build and test
 
 Use the **.NET 10 SDK** and your own local game/mod references. The development projects currently use Windows paths under `C:/Games/SPT-4.1` and `C:/Dev`; adjust those paths for your setup.

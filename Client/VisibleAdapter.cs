@@ -142,7 +142,7 @@ internal static class VisibleAdapter
                 }
             }
             else { cache.CoverEnd = cache.CoverRoute = 1; }
-            cache.PushRoute = push ? RouteRisk(enemy.Path.PathCorners, bot.Position, threats[0].Position, threats, config.ContactLifetime,
+            cache.PushRoute = push ? RouteRisk(EnemyPathCorners.Read(enemy.Path), bot.Position, threats[0].Position, threats, config.ContactLifetime,
                 Exposure(threats[0].Position, threats, config.ContactLifetime), out _) : 1;
             cache.Rays = rays; cache.Milliseconds = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000d / System.Diagnostics.Stopwatch.Frequency;
             state.Probe = cache;
@@ -191,13 +191,13 @@ internal static class VisibleAdapter
     }
     private static bool Finite(Vector3 p) => !float.IsNaN(p.x) && !float.IsInfinity(p.x) && !float.IsNaN(p.y)
         && !float.IsInfinity(p.y) && !float.IsNaN(p.z) && !float.IsInfinity(p.z);
-    private static double RouteRisk(Vector3[]? corners, Vector3 origin, Vector3 destination, List<KnownThreat> threats, double lifetime, double endExposure,
+    private static double RouteRisk(ReadOnlySpan<Vector3> corners, Vector3 origin, Vector3 destination, List<KnownThreat> threats, double lifetime, double endExposure,
         out double[] samples, bool sampleShortRoute = false)
     {
         samples = new[] { 1d, 1d };
         bool close = (destination - origin).sqrMagnitude < 1;
         if (close && !sampleShortRoute) return 0;
-        if (corners == null || corners.Length < 2 || corners.Length >= 128) return 1;
+        if (corners.Length < 2 || corners.Length >= 128) return 1;
         float length = 0;
         for (int i = 1; i < corners.Length; i++) length += Vector3.Distance(corners[i - 1], corners[i]);
         double sum = endExposure;
