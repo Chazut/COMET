@@ -115,12 +115,19 @@ internal static class NativeAdapter
         // Preparation computes a trajectory but NEVER throws. Actual DoThrow occurs only after selection.
         if (config.GrenadeTrajectory.Enabled || Time.time >= state.NextGrenadeProbe || (known - state.GrenadeTarget).sqrMagnitude > 1)
         {
-            state.GrenadeReady = false;
-            if (!config.GrenadeTrajectory.Enabled && probeFrame == Time.frameCount) return "probe-budget-deferred";
-            probeFrame = Time.frameCount;
-            state.NextGrenadeProbe = Time.time + .75f; state.GrenadeTarget = known;
-            Plugin.Instance?.RefreshEnvironment(bot,state,true);
-            state.GrenadeReady = (bool)prepareThrow.Invoke(decider, new object[] { enemy });
+            // Capability, room-clearing and search continuation can all query in
+            // one frame. Advance the same incremental trajectory at most once.
+            bool same=state.GrenadeProbeGate.Same(Time.frameCount,enemy.EnemyProfileId,known.x,known.y,known.z);
+            if(state.GrenadeProbeGate.TryEnter(Time.frameCount,enemy.EnemyProfileId,known.x,known.y,known.z))
+            {
+                  state.GrenadeReady = false;
+                  if (!config.GrenadeTrajectory.Enabled && probeFrame == Time.frameCount) return "probe-budget-deferred";
+                  probeFrame = Time.frameCount;
+                  state.NextGrenadeProbe = Time.time + .75f; state.GrenadeTarget = known;
+                  Plugin.Instance?.RefreshEnvironment(bot,state,true);
+                  state.GrenadeReady = (bool)prepareThrow.Invoke(decider, new object[] { enemy });
+            }
+            else if(!same)return "probe-budget-deferred";
         }
         bool ready=state.GrenadeReady && grenades.ReadyToThrow;
         if(ready && config.GrenadeJudgment.Enabled && Plugin.Instance!=null)ready=Plugin.Instance.AssessGrenade(bot,enemy,state,true);

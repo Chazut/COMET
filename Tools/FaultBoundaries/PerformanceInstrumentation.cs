@@ -22,12 +22,12 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
             m.Modifiers.Any(SyntaxKind.AsyncKeyword)||m.ReturnType is RefTypeSyntax||name.StartsWith("Patch")||name is "Awake" or "ValidateContracts"||
             m.Body==null&&m.ExpressionBody==null||m.DescendantNodes().OfType<YieldStatementSyntax>().Any())return m;
         string body=m.ToString();
-        bool telemetry=(name.StartsWith("Record")||name.StartsWith("Emit")||name.StartsWith("Configure"))&&body.Contains("JsonConvert.SerializeObject");
+        bool telemetry=(name.StartsWith("Record")||name.StartsWith("Emit")||name.StartsWith("Configure"))&&(body.Contains("JsonConvert.SerializeObject")||body.Contains("Diagnostics.Serialize("));
         bool diagnostic=File=="Diagnostics"&&(name is "Publish" or "Dispatch" or "Write"||telemetry);
         bool observer=File is "CombatJournalAdapter" or "ControlJournalAdapter" or "ControlIntegration" or "TacticCountersAdapter" or "ValidityAdapter" || File.StartsWith("Lifecycle") || File.StartsWith("RaidCleanup");
         if(!body.Contains("Plugin.EnterFault(")&&!telemetry&&!diagnostic&&!observer)return m;
         string module=telemetry?"Diagnostics.BuildEvent."+name:File=="Diagnostics"&&name=="Dispatch"?"Diagnostics.Subscribers":File=="Diagnostics"&&name=="Write"?"Diagnostics.Queue":File.Replace("Adapter","").Replace("Integration","");
-        if(module=="Plugin")module="DecisionCoordinator";
+        if(module=="Plugin")module="DecisionCoordinator."+name;
         int id=modules.IndexOf(module);if(id<0){id=modules.Count;modules.Add(module);}
         var original=m.Body??SyntaxFactory.Block(SyntaxFactory.ParseStatement(m.ReturnType.ToString()=="void"?m.ExpressionBody!.Expression+";":"return "+m.ExpressionBody!.Expression+";"));
         var enter=SyntaxFactory.ParseStatement($"using var __cometPerformanceScope = global::Comet.Client.PerformanceCapture.Enter({id});");

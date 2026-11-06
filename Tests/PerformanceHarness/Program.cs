@@ -9,6 +9,12 @@ string dir=Path.Combine(Path.GetTempPath(),"comet-perf-runtime-"+Guid.NewGuid().
 var warnings=new List<string>();
 try
 {
+    var probe=new FrameProbeGate();
+    Check(probe.TryEnter(10,"enemy",1,2,3),"first probe in a frame advances");
+    for(int i=0;i<100;i++)Check(!probe.TryEnter(10,"enemy",1,2,3)&&probe.Same(10,"enemy",1,2,3),"duplicate callers share geometry but retain their live safety checks");
+    Check(!probe.TryEnter(10,"other",1,2,3)&&!probe.Same(10,"other",1,2,3),"changed target cannot borrow cached readiness");
+    Check(!probe.Same(10,"enemy",2,2,3),"moved target cannot borrow cached readiness");
+    Check(probe.TryEnter(11,"other",1,2,3),"next frame continues incremental search");
     long tick=0;var received=new List<int>();
     var delivery=new FrameDispatchQueue<int>(x=>{received.Add(x);tick+=10;},()=>tick,30,4096);
     for(int i=0;i<207;i++)delivery.Enqueue(i,0);

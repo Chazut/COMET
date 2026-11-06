@@ -1009,6 +1009,7 @@ internal sealed class BotState
     internal float ExecutionSampleAt, ArbitrationAt = -100;
     internal string ArbitrationKey = "", ArbitrationReason = "", ArbitrationNative = "";
     internal float FaultUntil, NextGrenadeProbe;
+    internal readonly FrameProbeGate GrenadeProbeGate=new();
     internal readonly SainHandoff Handoff;
     internal bool GrenadeReady;
     internal Vector3 GrenadeTarget;

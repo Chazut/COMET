@@ -7,7 +7,7 @@ internal static class Fixture
     }
     private static void EmitChild(bool fail,int depth=1)
     {
-        JsonConvert.SerializeObject(new{value=2});
+        Comet.Client.Diagnostics.Serialize(new{value=2});
         if(depth>0)EmitChild(fail,depth-1);
         if(fail)throw new InvalidOperationException("expected fixture exception");
     }
