@@ -23,24 +23,28 @@ namespace SAIN.Classes.Bot.Search {
  }
 }
 namespace Comet.Client {
- public sealed class BotComponent {}
+ public sealed class BotComponent {public Info Info=new();}public sealed class Info{public NativeInfo WeaponInfo=new();}public sealed class NativeInfo{public bool Recalculate;}
  public sealed class Runtime {
   public WeaponSyncSchedule Schedule=new();public bool Applying,WasInScope,ResourcesDirty=true;
   public float RetryAt;public WeaponSyncTrace Trace;public string[] Contents=new string[3];public object[] Observed=new object[3];
  }
- public sealed class BotState { public Runtime WeaponSync=new(); }
- public sealed class Snapshot { public WeaponSyncFrame Frame;public string[] Contents=new string[3];public object[] Guns=new object[3]; }
+ public sealed class LoadoutRuntime{public LoadoutTrace Cached;public LoadoutRefresh Refresh=new();}
+ public sealed class ResourceRuntime{public object LastFrame=new(),Frame=new();public float Next=10;public string Key="old",ReturnId="held";}
+ public sealed class BotState { public Runtime WeaponSync=new();public LoadoutRuntime Loadout=new();public ResourceRuntime ReloadTiming=new(),WeaponReturn=new(),WeaponRange=new(); }
+ public sealed class WeaponSyncSnapshot { public WeaponSyncFrame Frame;public string[] Contents=new string[3];public object[] Guns=new object[3]; }
  public sealed class Budget { public bool Allowed=true;public bool TryBegin(int f)=>Allowed;public void Charge(double ms){} }
  public partial class Plugin {
   public int Reads,Applies,Records,Ends;public bool Scope=true,Work,ApplySucceeds=true;public string Block="";
   private int weaponSyncFrame=-1;public Budget doorBudget=new();private Stopwatch doorClock=new();private CometConfig config=new();
   private bool WeaponSyncScope(BotComponent b)=>Scope;
+  private static readonly System.Reflection.FieldInfo syncForceRecalc=typeof(NativeInfo).GetField("Recalculate");
+  public int RangeEnds;private void EndWeaponRange(BotState s,string reason){RangeEnds++;}
   private string SyncBlock(BotComponent b,BotState s)=>Block;
   private void EndWeaponSync(BotState s,string r){Ends++;}
   private void RecordWeaponSync(BotComponent b,BotState s,bool force=false){Records++;}
-  private Snapshot ReadWeaponSync(BotComponent b,BotState s){Reads++;return new(){Frame=new(){Safe=true,ResourcesChanged=Work,NativeCurrentMatches=true,SainCurrentMatches=true,
+  private WeaponSyncSnapshot ReadWeaponSync(BotComponent b,BotState s){Reads++;return new(){Frame=new(){Safe=true,ResourcesChanged=Work,NativeCurrentMatches=true,SainCurrentMatches=true,
    Slots=new[]{"FirstPrimaryWeapon","SecondPrimaryWeapon","Holster"}.Select(x=>new WeaponSyncSlot{Slot=x,NativeMatches=true,SainMatches=true,SelectorMatches=true}).ToArray()}};}
-  private bool ApplyWeaponSync(BotComponent b,BotState s,Snapshot snap,WeaponSyncTrace t){Applies++;return ApplySucceeds;}
+  private bool ApplyWeaponSync(BotComponent b,BotState s,WeaponSyncSnapshot snap,WeaponSyncTrace t){Applies++;return ApplySucceeds;}
  }
  public static class Cases {
   static int checks;static void Check(bool ok,string reason){checks++;if(!ok)throw new Exception(reason);}
@@ -73,6 +77,23 @@ namespace Comet.Client {
    Check(failed.Reads==1&&failed.Applies==1&&fs.WeaponSync.Schedule.Dirty,"failed transaction remains pending");
    var outside=new Plugin{Scope=false};outside.SampleWeaponSync(bot,new());Check(outside.Reads==0&&outside.Ends==1,"out-of-scope cleanup unchanged");
    var budget=new Plugin();budget.doorBudget.Allowed=false;budget.SampleWeaponSync(bot,new());Check(budget.Reads==0,"shared work budget respected");
+   foreach(bool changed in new[]{false,true}){
+    var p=new Plugin();var s=new BotState();var held=new object();s.WeaponSync.Observed[0]=held;
+    var snap=new WeaponSyncSnapshot{Frame=new(){Slots=new[]{new WeaponSyncSlot{Actual="held"}}}};snap.Guns[0]=changed?new object():held;
+    var cached=new LoadoutTrace{WeaponId="held",Profile="BoltScope",Optic="scope",Ammo="bullet",State="ready",Ready=true,ResourcesKnown=true,LoadedRounds=8,CompatibleMagazines=2,CanFirstAid=true};
+    s.Loadout.Cached=cached;s.Loadout.Refresh.Complete(1,"held","ammo",10);bot.Info.WeaponInfo.Recalculate=false;
+    for(int i=0;i<100;i++){
+     p.InvalidateSyncedEquipment(bot,s,snap);
+     Check(ReferenceEquals(cached,s.Loadout.Cached),"sync retains last classification until a measured refresh");
+     Check(!s.Loadout.Refresh.IsFresh(1.1,"held","ammo"),"sync invalidates freshness");
+     var pending=LoadoutTrace.Pending(s.Loadout.Cached,"held",1.1,"weapon-sync");
+     Check(pending.PlanKey==cached.PlanKey,"same gun cannot manufacture a tactical equipment change");
+     Check(!pending.Ready&&!pending.ResourcesKnown&&!pending.CanFirstAid&&pending.LoadedRounds==0&&pending.CompatibleMagazines==0,"pending sync never claims stale supplies");
+    }
+    Check(LoadoutTrace.Pending(s.Loadout.Cached,"new-gun",1.1,"weapon-sync").Profile=="","different held gun cannot inherit classification");
+    Check(s.ReloadTiming.LastFrame==null&&s.WeaponReturn.Frame==null&&s.ReloadTiming.Next==0,"resource consumers invalidated");
+    Check((p.RangeEnds>0)==changed&&bot.Info.WeaponInfo.Recalculate==changed,"actual equipment changes still refresh range and native weapon info");
+   }
    Console.WriteLine($"Raid387 native-boundary regression: {checks} checks passed.");
   }
  }

@@ -175,7 +175,11 @@ public sealed partial class Plugin
     private void InvalidateSyncedEquipment(BotComponent b,BotState s,WeaponSyncSnapshot snap)
     {
         bool changed=Enumerable.Range(0,3).Any(i=>!ReferenceEquals(s.WeaponSync.Observed[i],snap.Guns[i])||s.WeaponSync.Contents[i]!=snap.Contents[i]);
-        s.Loadout.Cached=null;s.Loadout.Refresh.Invalidate("weapon-sync");
+        // Keep the last known weapon classification during the bounded refresh.
+        // ReadLoadout returns a neutral Pending snapshot (no supplies/ready claim),
+        // and only reuses classification when the held weapon id still matches.
+        // Clearing it made an unchanged gun look like two tactical weapon swaps.
+        s.Loadout.Refresh.Invalidate("weapon-sync");
         s.ReloadTiming.LastFrame=null;s.ReloadTiming.Next=0;s.ReloadTiming.Key="";
         s.WeaponReturn.Frame=null;s.WeaponReturn.Next=0;
         if(!snap.Frame.Slots.Any(x=>x.Actual==s.WeaponReturn.ReturnId))s.WeaponReturn.ReturnId="";
