@@ -43,7 +43,7 @@ public sealed class CombatLeanFrame
     // Own head bone relative to the bot's root, not the enemy's head or aim.
     public double HeadLateral,SmoothedTilt,NativeTilt,NativeSmoothedTilt,BoneHeadLateral;
     public string HeadSource="bone";
-    public bool HeadImitated,HeadAccumulated;
+    public bool HeadImitated,HeadAccumulated,SimplifiedSkeleton;
 }
 public sealed class CombatLeanTrace
 {
@@ -52,7 +52,7 @@ public sealed class CombatLeanTrace
     public double Chance,Roll,BurstChance,BurstRoll,Remaining,PhaseRemaining,ValidFor,ContactAge,KnownX,KnownY,KnownZ;
     public double SmoothedTilt,HeadLateral,HeadTravel,NativeTilt,NativeSmoothedTilt,BoneHeadLateral;
     public string HeadSource="bone";
-    public bool HeadImitated,HeadAccumulated;
+    public bool HeadImitated,HeadAccumulated,SimplifiedSkeleton,AnimatorApplied;
     public bool Selected,Requested,TiltObserved,HeadMotionObserved,BurstAttempted,FirePause,LeftSafe,RightSafe;
     public string[] Alternatives=Array.Empty<string>();
 }
@@ -76,6 +76,7 @@ public sealed class CombatLean
         if(!Finite(b.Now)||b.Now<0||!Finite(b.Distance)||b.Distance<c.MinDistance||b.Distance>c.MaxDistance
             ||!Finite(b.ContactAge)||b.ContactAge<0||!Point(b.Known)||!Finite(f.HeadLateral)||!Finite(f.SmoothedTilt))return "lean-invalid-observation";
         if(!f.NativeLeanEnabled||f.NativeLeanOwned)return "lean-native-lean-priority";
+        if(f.SimplifiedSkeleton)return "lean-physical-animation-unavailable";
         if(f.CornerPeek)return "lean-preserve-corner-peek";
         if(b.Busy||b.Urgent||!b.Ready)return "lean-native-priority";
         if(!b.Grounded||b.Sprinting||b.Immobile)return "lean-mobility-unavailable";
@@ -154,6 +155,7 @@ public sealed class CombatLean
         t.SmoothedTilt=f.SmoothedTilt;t.HeadLateral=f.HeadLateral;t.FirePause=f.FirePause;t.LeftSafe=f.LeftSafe;t.RightSafe=f.RightSafe;
         t.NativeTilt=f.NativeTilt;t.NativeSmoothedTilt=f.NativeSmoothedTilt;t.BoneHeadLateral=f.BoneHeadLateral;
         t.HeadSource=f.HeadSource;t.HeadImitated=f.HeadImitated;t.HeadAccumulated=f.HeadAccumulated;
+        t.SimplifiedSkeleton=f.SimplifiedSkeleton;
     }
     public void End(string why,double now)
     {

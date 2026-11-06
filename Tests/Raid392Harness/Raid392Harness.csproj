@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><NoWarn>CS0649</NoWarn></PropertyGroup>
+  <ItemGroup><Compile Include="../../Shared/*.cs" /></ItemGroup>
+  <Target Name="ExtractMethods" BeforeTargets="CoreCompile">
+    <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/IntegrationAudit&quot; -c Release -- --methods &quot;$(MSBuildProjectDirectory)/../../Client/CombatLeanAdapter.cs&quot; &quot;$(MSBuildProjectDirectory)/obj/Lean.cs&quot; ApplyCombatLeanAnimation,FinishCombatLean,EndCombatLean" />
+    <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/IntegrationAudit&quot; -c Release -- --methods &quot;$(MSBuildProjectDirectory)/../../Client/ReloadTimingAdapter.cs&quot; &quot;$(MSBuildProjectDirectory)/obj/Barrel.cs&quot; BarrelReloadChamberPredicate" />
+    <ItemGroup><Compile Include="obj/Lean.cs" /><Compile Include="obj/Barrel.cs" /></ItemGroup>
+  </Target>
+</Project>

@@ -25,6 +25,8 @@ internal static class CombatLeanTests
         Check(physical.Trace!.HeadMotionObserved&&physical.Trace.HeadSource=="head-collider"&&physical.Trace.HeadImitated
             &&physical.Trace.BoneHeadLateral==.09088&&physical.Trace.NativeSmoothedTilt==3,"physical head evidence remains distinct from imitated bone and desired tilt");
         var p=new CombatLean();Check(!p.Begin(Frame(),c,.6,0,0,0,0,0)&&p.Trace!.Reason=="lean-roll-declined","60 percent boundary");
+        var simplified=Frame();simplified.SimplifiedSkeleton=true;
+        Check(CombatLean.Gate(simplified,c)=="lean-physical-animation-unavailable","simplified skeleton cannot claim physical head evasion");
         Check(!p.Begin(Frame(10.1),c,0,0,0,0,0,0),"no per-frame reroll after decline");
         var paused=Frame();paused.FirePause=true;p=new();
         Check(!p.Begin(paused,c,0,0,0,0,0,0)&&p.Trace==null&&p.NextAttempt==0,"do not start a new lean during M02 firing pause");

@@ -17,7 +17,7 @@ internal sealed class CombatLeanRuntime
     internal LeanClass? Owner;
     internal int TargetInstance;
     internal LeanSetting Applied;
-    internal bool Owns,Fault,LeftSafe,RightSafe;
+    internal bool Owns,Fault,LeftSafe,RightSafe,AnimatorApplied;
     internal float SafetyAt=-1000,LogAt=-1000,CallbackAt=-1000;
     internal Vector3 SafetyPosition,SafetyRight;
     internal string LogKey="";
@@ -31,6 +31,23 @@ public sealed partial class Plugin
         var method=AccessTools.Method(typeof(LeanClass),"UpdateLeanSetting",new[]{typeof(float)})
             ??throw new MissingMethodException("M04 native lean selection");
         h.Patch(method,prefix:new HarmonyMethod(typeof(Plugin),nameof(SelectCombatLean)));
+        h.Patch(AccessTools.Method(typeof(LeanClass),"SetTilt"),postfix:new HarmonyMethod(typeof(Plugin),nameof(ApplyCombatLeanAnimation)));
+    }
+    private static void ApplyCombatLeanAnimation(LeanClass __instance)
+    {
+        var p=Instance;var b=__instance.Bot;
+        if(p?.config==null||!p.states.TryGetValue(b,out var s))return;
+        var r=s.CombatLean;
+        if(!r.Owns||!r.Policy.Active||!ReferenceEquals(r.Owner,__instance)||__instance.LeanDirection!=r.Applied)return;
+        try {
+            var f=p.LeanFrame(b,s,__instance);f.GeometryFresh=f.LeftSafe=f.RightSafe=true;
+            if(CombatLean.Gate(f,p.config.CombatLean).Length>0){p.EndCombatLean(s,"lean-animation-priority-changed");return;}
+            // SAIN has already smoothed this value. Running EFT inertia over that
+            // continuously changing target can leave the physical tilt at zero.
+            // Preserve SAIN's smooth trajectory and feed it to the native animator.
+            b.Player.MovementContext.SetTilt((float)f.SmoothedTilt,true);
+            r.AnimatorApplied=true;r.Policy.Trace!.AnimatorApplied=true;
+        }catch(Exception ex){r.Fault=true;p.EndCombatLean(s,"lean-animation-adapter-error");p.Logger.LogWarning("M04 animation yielded: "+ex.Message);}
     }
     private static bool SelectCombatLean(LeanClass __instance)
     {
@@ -65,7 +82,7 @@ public sealed partial class Plugin
                 p.FinishCombatLean(s);return true;
             }
             r.Applied=r.Policy.Trace!.Side<0?LeanSetting.Left:LeanSetting.Right;r.Owns=true;
-            __instance.FastLean(r.Applied); // Desired side only: no direct MovementContext.SetTilt or smoothing override.
+            __instance.FastLean(r.Applied); // SAIN smooths the desired side; our SetTilt postfix applies that smoothed value.
             p.RecordCombatLean(s);return false;
         }catch(Exception ex) {
             r.Fault=true;
@@ -90,7 +107,8 @@ public sealed partial class Plugin
             FirePause=s.CombatStep.Pause.Pausing,SmoothedTilt=lean.LeanAngleValue.LastSmoothedValue,
             HeadLateral=Vector3.Dot(position-b.Position,right),HeadSource=source,
             BoneHeadLateral=Vector3.Dot(head.position-b.Position,right),HeadImitated=head.UseImitation,HeadAccumulated=head.AccumulatePositionAndRotation,
-            NativeTilt=b.Player.MovementContext.Tilt,NativeSmoothedTilt=b.Player.MovementContext.SmoothedTilt};
+            NativeTilt=b.Player.MovementContext.Tilt,NativeSmoothedTilt=b.Player.MovementContext.SmoothedTilt,
+            SimplifiedSkeleton=b.Player.UsedSimplifiedSkeleton};
     }
     private void LeanSafety(BotComponent b,BotState s,CombatLeanFrame f)
     {
@@ -144,8 +162,9 @@ public sealed partial class Plugin
         var r=s.CombatLean;var lean=r.Owner;
         try {
             // Release our desired side only. Never clear another system's explicit held lean.
-            if(r.Owns&&lean!=null&&Authority&&!lean.IsHoldingLean&&lean.Bot.Cover.CoverInUse==null&&lean.LeanDirection==r.Applied)lean.FastLean(LeanSetting.None);
-        }finally{r.Owns=false;r.Owner=null;RecordCombatLean(s,true);}
+            if(r.Owns&&lean!=null&&Authority&&!lean.IsHoldingLean&&lean.Bot.Cover.CoverInUse==null&&lean.LeanDirection==r.Applied)
+            {lean.FastLean(LeanSetting.None);if(r.AnimatorApplied)lean.Bot.Player.MovementContext.SetTilt(0,true);}
+        }finally{r.Owns=false;r.AnimatorApplied=false;r.Owner=null;RecordCombatLean(s,true);}
     }
     private void RecordCombatLean(BotState s,bool force=false)
     {
