@@ -7,7 +7,7 @@ namespace Comet.Core;
 public sealed class ProgressFrame
 {
     public double Now, X, Y, Z;
-    public bool Scoped = true, HasThreat, Owned, Paused, Arrived;
+    public bool Scoped = true, HasThreat, Owned, Paused, Arrived, Productive;
     public string Action = "", Attempt = "", Intent = "", Route = "", PauseReason = "", Target = "";
     public double? Remaining;
     public double CueAt = -1, CueX, CueY, CueZ;
@@ -31,6 +31,7 @@ public sealed class ProgressTrace
     public double RetryRemaining { get; set; }
     public int Failures { get; set; }
     public bool Reconsider { get; set; }
+    public bool Productive { get; set; }
 }
 
 // One bounded memory per bot, shared by A01/A02/A03. Only detached observations enter it.
@@ -103,6 +104,13 @@ public sealed class PlanProgress
             }
         }
         bool active=f.Owned && !f.Paused;
+        // Actual firing is useful work, unlike a paused path, a fresh target or
+        // an animation request. A cover's idle clock measures continuous idle
+        // time since useful work, not the sum of gaps between shots in a fight.
+        if (f.Owned && f.Productive)
+        {
+            hold=0; Current.HoldSeconds=0; Current.Productive=true;
+        }
         if (!active)
         {
             eligibleInterval=false; Current.State=f.Paused?"paused":"idle";
@@ -113,7 +121,7 @@ public sealed class PlanProgress
         eligibleInterval=true;
         Current.State="tracking"; Current.Reason="progress-observing";
         bool waiting=IsHold(f.Action) || IsMove(f.Action) && f.Arrived;
-        if (waiting && priorWaiting) hold+=dt;
+        if (waiting && priorWaiting && !f.Productive) hold+=dt;
         if (IsHold(f.Action))
         {
             Current.State=f.Now<justifiedUntil?"justified":"holding";

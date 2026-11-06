@@ -58,6 +58,34 @@ static class PlanProgressTests
         m=new(c);f=Frame("Search");m.Observe(f);Advance(m,f,4.75);f.Arrived=true;f.Now=5;m.Observe(f);Check(!m.Blocked("wall",5),"true arrival wins over stall deadline");
         var disabled=new PlanProgress(new(){Enabled=false});disabled.Fail("a",0,"bad");f=Frame();disabled.Observe(f);Check(!disabled.Blocked("a",0),"disabled neutral");
 
+        // Raid391 Kelltic: firing from a reached cover must reset idle gaps,
+        // while real inactivity and sterile travel retain their deadlines.
+        foreach(var action in new[]{"Cover","FallBack","Hold"}) {
+            m=new(c);f=Frame(action);f.Arrived=true;m.Observe(f);
+            for(int i=1;i<=400;i++) {
+                f.Now=i*.25;f.Paused=f.Productive=i%40==0;f.PauseReason="progress-shooting";
+                Check(!m.Observe(f),"productive combat does not exhaust cover: "+action);
+            }
+            Check(!m.Blocked("wall",f.Now),"useful cover remains available");
+            f.Paused=f.Productive=false;Advance(m,f,121);
+            Check(m.Current.Reconsider||m.Blocked("wall",f.Now),"idle limit resumes after firing stops");
+        }
+        m=new(c);f=Frame("Push");m.Observe(f);Advance(m,f,4);
+        f.Paused=f.Productive=true;Advance(m,f,8);f.Paused=f.Productive=false;Advance(m,f,10);
+        Check(m.Blocked("wall",f.Now),"shooting cannot erase an unreachable travel route");
+
+        {
+            var late=new CometConfig();late.DecisionVariety.Enabled=false;late.TacticalMistakes.Enabled=false;
+            Situation Contact(double age)=>new(){Now=100+age,Target="heard-enemy",HasContact=true,IsAi=true,IsPmc=true,IsAuthority=true,IsActive=true,ContactAge=age,KnownDistance=15};
+            var decision=new HiddenEnemyDecision(late).Evaluate(Contact(late.ContactLifetime-.12));
+            Check(decision.Candidates.Where(x=>x.Decision is "Flank" or "Push" or "Search").All(x=>!x.Eligible&&x.Reason=="contact-window-too-short-to-start"),"raid391 no new movement for a contact expiring in 120ms");
+            Check(decision.Candidates.Any(x=>x.Decision=="FallBack"&&x.Eligible),"protective retreat stays available for stale contact");
+            foreach(var key in late.Weights.Keys.ToArray())late.Weights[key]=key=="Flank"?1:0;
+            var engine=new HiddenEnemyDecision(late);
+            Check(engine.Evaluate(Contact(late.ContactLifetime-2)).Decision==Tactic.Flank,"fresh contact permits flank");
+            Check(engine.Evaluate(Contact(late.ContactLifetime-.12)).Decision==Tactic.Flank,"already executing flank keeps its remaining memory");
+            Check(engine.Evaluate(Contact(late.ContactLifetime+.01)).Reason=="contact-expired","no artificial extension of memory");
+        }
         // Production decision engines use the shared memory before candidate selection, including commitment.
         config.DecisionVariety.Enabled=false;config.TacticalMistakes.Enabled=false;
         foreach(var k in config.Weights.Keys.ToArray())config.Weights[k]=k=="Hold"||k=="Search"?1:0;

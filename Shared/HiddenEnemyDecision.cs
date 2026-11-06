@@ -122,6 +122,9 @@ public sealed class HiddenEnemyDecision
             if (config.Weights[tactic.ToString()] == 0) reason = "disabled-by-config";
             else if (blockedUntil.TryGetValue(tactic, out var until) && until > s.Now) reason = "retry-cooldown";
             else if (s.Unavailable.TryGetValue(tactic, out var why)) reason = why;
+            else if ((tactic == Tactic.Push || tactic == Tactic.Flank || tactic == Tactic.Search)
+                && (targetChanged || current != tactic)
+                && config.ContactLifetime - s.ContactAge < Math.Min(1, config.Commitment)) reason = "contact-window-too-short-to-start";
             else if (tactic == Tactic.Push && s.KnownDistance > config.PushMaxDistance) reason = "push-too-far";
             else if ((tactic == Tactic.Push || tactic == Tactic.Flank || tactic == Tactic.Search) && s.LowAmmo) reason = "low-ammo";
             else if (tactic == Tactic.Push && (s.Hurt || s.Suppressed)) reason = "unsafe-push";

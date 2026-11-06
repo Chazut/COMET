@@ -61,8 +61,13 @@ internal static class ProgressAdapter
         else if(w==null || w.Reload.Reloading || w.Selector.IsChanging || bot.Player.HandsController.IsInInteractionStrictCheck())f.PauseReason="progress-hands-pause";
         else if(path?.Status==EBotMoveStatus.Paused || (state.Decision=="Search" && bot.Search.CurrentState.ToString()=="Wait"))f.PauseReason="progress-search-pause";
         // An actual shooting action from a static cover is purposeful, even if its parent decision is Cover/Search.
-        else if(bot.BotOwner.ShootData.Shooting || bot.ManualShoot.Shooting)f.PauseReason="progress-shooting";
+        else if(bot.BotOwner.ShootData.Shooting || bot.ManualShoot.Shooting)
+        { f.PauseReason="progress-shooting"; f.Productive=true; }
         f.Paused=f.PauseReason.Length>0;
+        // Native paths can be paused precisely because the bot is firing.
+        // Do not lose that evidence behind the path-pause branch above.
+        f.Productive=bot.BotOwner.ShootData.Shooting && d.CurrentSelfDecision==ESelfActionType.None
+            && w!=null && !w.Reload.Reloading && !w.Selector.IsChanging;
         // D09 is still the same Hold, including its approach and optional bait. Never reset or pause its shared wait budget.
         if(state.Ambush.Policy.Active&&f.Action=="Hold"&&d.CurrentSelfDecision==ESelfActionType.None&&d.CurrentSquadDecision==ESquadDecision.None)
         {f.Paused=false;f.PauseReason="";}
