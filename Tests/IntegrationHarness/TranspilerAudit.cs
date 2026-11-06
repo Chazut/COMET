@@ -13,14 +13,27 @@ static class TranspilerAudit
 
     public static void Check(MethodBase target,MethodInfo transpiler)
     {
+        foreach(var variant in new[]{"original","long branches","long branches and locals"})CheckVariant(target,transpiler,variant);
+        if(transpiler.Name=="PartialBarrelReload")BarrelReloadAudit.Check(transpiler,Read(target));
+        if(transpiler.Name=="FloorRangeTranspiler")FloorRangeAudit.Check(transpiler,Read(target));
+    }
+
+    static void CheckVariant(MethodBase target,MethodInfo transpiler,string variant)
+    {
         var input=Read(target);
-        var generator=new DynamicMethod("labels",typeof(void),Type.EmptyTypes).GetILGenerator();
-        foreach(var i in input)i.labels.Add(generator.DefineLabel());
+        foreach(var instruction in input)
+        {
+            // Harmony's Mono pipeline widens branches before our transpiler runs.
+            // Also exercise equivalent wide local operands used by other IL pipelines.
+            if((variant!="original" && instruction.opcode.OperandType==OperandType.ShortInlineBrTarget)
+                ||(variant=="long branches and locals" && instruction.opcode.OperandType==OperandType.ShortInlineVar))
+                instruction.opcode=Opcodes.Values.Single(o=>o.Name==instruction.opcode.Name![..^2]);
+        }
         var before=input.Select(i=>new CodeInstruction(i)).ToArray();
         var args=transpiler.GetParameters().Select(p=>p.Name=="__originalMethod"?(object)target:input).ToArray();
         CodeInstruction[] after;
         try { after=((IEnumerable<CodeInstruction>)transpiler.Invoke(null,args)!).ToArray(); }
-        catch(Exception e){throw new InvalidOperationException($"{transpiler.Name} on {target.DeclaringType}.{target.Name}: {e.GetBaseException().Message}",e);}
+        catch(Exception e){throw new InvalidOperationException($"{transpiler.Name} ({variant}) on {target.DeclaringType}.{target.Name}: {e.GetBaseException().Message}",e);}
         foreach(var original in before)
         {
             var label=original.labels.Single();
@@ -57,7 +70,7 @@ static class TranspilerAudit
                 if(!expectedType.IsAssignableFrom(actual))throw new Exception($"{transpiler.Name}: {actual} cannot bind {expectedType}");
             }
         }
-        Console.WriteLine($"  IL OK: {transpiler.Name} -> {target.DeclaringType}.{target.Name}");
+        Console.WriteLine($"  IL OK ({variant}): {transpiler.Name} -> {target.DeclaringType}.{target.Name}");
         if(transpiler.Name=="RouteQuickReload")
         {
             var reload=before.Single(i=>i.operand is MethodInfo m&&m.Name=="ReloadMag");
@@ -69,7 +82,7 @@ static class TranspilerAudit
             {
                 bool rejected=false;
                 try { ((IEnumerable<CodeInstruction>)transpiler.Invoke(null,new object[]{code})!).ToArray(); }
-                catch(InvalidOperationException){rejected=true;}
+                catch(Exception e) when(e.GetBaseException() is InvalidOperationException){rejected=true;}
                 if(!rejected)throw new Exception("W04 accepted "+scenario);
             }
             Console.WriteLine("  W04: missing, duplicate and wrong-owner calls rejected.");
@@ -81,9 +94,11 @@ static class TranspilerAudit
         var bytes=method.GetMethodBody()?.GetILAsByteArray()??throw new Exception("No method body: "+method);
         using var reader=new BinaryReader(new MemoryStream(bytes));
         var result=new List<CodeInstruction>();var module=method.Module;
+        var offsets=new List<int>();var ends=new List<int>();
         var types=method.DeclaringType?.GetGenericArguments();var methods=method.IsGenericMethod?method.GetGenericArguments():null;
         while(reader.BaseStream.Position<bytes.Length)
         {
+            offsets.Add((int)reader.BaseStream.Position);
             byte b=reader.ReadByte();short key=b==0xfe?(short)(0xfe00|reader.ReadByte()):b;
             var op=Opcodes[key];object? operand=op.OperandType switch {
                 OperandType.InlineNone=>null,
@@ -99,6 +114,18 @@ static class TranspilerAudit
                 _=>throw new NotSupportedException(op.OperandType.ToString())
             };
             result.Add(new CodeInstruction(op,operand));
+            ends.Add((int)reader.BaseStream.Position);
+        }
+        // Match Harmony operands: branch destinations are Labels, not raw byte offsets.
+        var generator=new DynamicMethod("labels",typeof(void),Type.EmptyTypes).GetILGenerator();
+        var labels=offsets.ToDictionary(o=>o,_=>generator.DefineLabel());
+        for(int i=0;i<result.Count;i++)
+        {
+            var instruction=result[i];instruction.labels.Add(labels[offsets[i]]);
+            if(instruction.opcode.OperandType is OperandType.ShortInlineBrTarget or OperandType.InlineBrTarget)
+                instruction.operand=labels[ends[i]+(int)instruction.operand];
+            else if(instruction.opcode.OperandType==OperandType.InlineSwitch)
+                instruction.operand=((int[])instruction.operand).Select(delta=>labels[ends[i]+delta]).ToArray();
         }
         return result;
     }

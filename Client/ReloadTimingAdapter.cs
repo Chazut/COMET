@@ -44,9 +44,13 @@ public sealed partial class Plugin
         var code=instructions.ToList();
         var getter=AccessTools.PropertyGetter(typeof(Weapon),nameof(Weapon.ChamberAmmoCount));
         var hits=code.Select((x,i)=>(x,i)).Where(x=>x.x.Calls(getter)).ToArray();
+        // Harmony can widen short branches before invoking the transpiler. Both sizes
+        // express the same predicate; keep checking the condition and constant values.
         if(hits.Length!=1||hits[0].i+4>=code.Count
-            ||code[hits[0].i+1].opcode!=OpCodes.Brfalse_S||code[hits[0].i+2].opcode!=OpCodes.Ldc_I4_0
-            ||code[hits[0].i+3].opcode!=OpCodes.Br_S||code[hits[0].i+4].opcode!=OpCodes.Ldc_I4_1)
+            ||(code[hits[0].i+1].opcode!=OpCodes.Brfalse_S&&code[hits[0].i+1].opcode!=OpCodes.Brfalse)
+            ||code[hits[0].i+2].opcode!=OpCodes.Ldc_I4_0
+            ||(code[hits[0].i+3].opcode!=OpCodes.Br_S&&code[hits[0].i+3].opcode!=OpCodes.Br)
+            ||code[hits[0].i+4].opcode!=OpCodes.Ldc_I4_1)
             throw new InvalidOperationException("W01 partial barrel reload contract changed: "+string.Join("; ",hits.SelectMany(hit=>code.Skip(hit.i).Take(5))));
         // Only the empty-chamber predicate changes during our request. Native ammo
         // selection, animation, inventory transactions and completion callback stay intact.

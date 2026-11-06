@@ -35,15 +35,16 @@ public sealed partial class Plugin
         var code = instructions.ToList();
         int env = code.FindIndex(x => x.Calls(AccessTools.Method(typeof(HearingAnalysis), "CalcEnvironmentMod")));
         int occ = code.FindIndex(x => x.Calls(AccessTools.Method(typeof(HearingAnalysis), "CalcOcclusionMod")));
-        if (env < 0 || occ < env || code[env+1].opcode != OpCodes.Stloc_0 || code[occ+1].opcode != OpCodes.Stloc_2)
+        if (env < 0 || occ < env || env+1 >= code.Count || occ+1 >= code.Count
+            || code[env+1].opcode != OpCodes.Stloc_0 || code[occ+1].opcode != OpCodes.Stloc_2)
             throw new InvalidOperationException("P04 native hearing modifiers changed.");
         int matches = 0;
         for (int i = 0; i < code.Count; i++)
         {
             var instruction = code[i];
-            if (instruction.opcode == OpCodes.Stloc_S && LocalIndex(instruction.operand) == 4)
+            if ((instruction.opcode == OpCodes.Stloc_S || instruction.opcode == OpCodes.Stloc) && LocalIndex(instruction.operand) == 4)
             {
-                if (i < occ || code[i-1].opcode != OpCodes.Mul || code[i+1].opcode != OpCodes.Ldarg_1
+                if (i < occ || i+2 >= code.Count || code[i-1].opcode != OpCodes.Mul || code[i+1].opcode != OpCodes.Ldarg_1
                     || !code[i+2].LoadsField(AccessTools.Field(typeof(AISoundData), nameof(AISoundData.PlayerDistance))))
                     throw new InvalidOperationException("P04 native final range changed.");
                 matches++;
