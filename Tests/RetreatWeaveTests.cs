@@ -17,6 +17,11 @@ internal static class RetreatWeaveTests
         double Zero()=>0;double High()=>.999;
         Check(c.Enabled&&c.Weave&&c.HeadDown&&c.Jumps&&c.Angle==30&&c.Pitch==55&&c.SwitchMin==.45&&c.SwitchMax==.8,"zzap movement defaults");
         Check(c.SwitchJumpChance==20&&c.LandingJumpChance==60&&c.JumpMinSpeed==3.8&&c.Distance==80,"zzap jumping defaults");
+        var idle=new RetreatWeavePolicy();var blocked=F();blocked.Left=blocked.Right=blocked.Straight=false;
+        idle.Tick(blocked,c,High);idle.Requested(false,false,c);
+        Check(idle.Trace!.State=="ready"&&idle.Trace.ValidFor==0,"safe native sprint without an intervention is not evading");
+        idle.Requested(true,false,c);Check(idle.Trace.State=="evading","actual movement intervention marked");
+        idle.Requested(false,false,c);Check(idle.Trace.State=="ready","no stale applied indication");
         var p=new RetreatWeavePolicy();Check(p.Tick(F(),c,Zero),"start running away");
         Check(p.Trace!.Pitch==55&&Math.Abs(p.Trace.Yaw)==30&&p.Trace.Jump==""&&p.Trace.Switches==0,"first switch delayed, independent head and weave");
         p.Tick(F(10.44,18),c,Zero);Check(p.Trace!.JumpRequests==0,"no immediate startup jump");

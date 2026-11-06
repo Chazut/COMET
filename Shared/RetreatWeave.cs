@@ -116,7 +116,7 @@ public sealed class RetreatWeavePolicy
         }
         if(!Active){yaw=pitch=0;jump="";pendingUntil=0;}
         last=f.Now;
-        Trace=new(){State=Active?"evading":"native",Reason=reason,Action=f.Action,Target=f.Target,Context=f.Context,Source=f.Source,
+        Trace=new(){State=Active?"ready":"native",Reason=reason,Action=f.Action,Target=f.Target,Context=f.Context,Source=f.Source,
             Yaw=yaw,Pitch=pitch,Jump=jump,JumpOutcome=outcome,Speed=Safe(f.Speed),ObservedYaw=Safe(f.ObservedYaw),ObservedPitch=Safe(f.ObservedPitch),
             ContactAge=Safe(Math.Min(f.VisionAge,f.FireAge)),GoalDistance=Safe(f.GoalDistance),Grounded=f.Grounded,LandingRollSpent=landingSpent,
             Switches=switches,JumpRequests=requests,AcceptedJumps=accepted,Takeoffs=takeoffs,Landings=landings,
@@ -134,9 +134,12 @@ public sealed class RetreatWeavePolicy
         return changed;
     }
     public void JumpResult(bool success,double now){if(Trace==null)return;outcome=success?"accepted-awaiting-takeoff":"native-refused";
-        if(success){accepted++;awaitingTakeoff=true;acceptedAt=now;}Trace.AcceptedJumps=accepted;Trace.JumpOutcome=outcome;}
+        if(success){accepted++;awaitingTakeoff=true;acceptedAt=now;}Trace.AcceptedJumps=accepted;Trace.JumpOutcome=outcome;
+        if(Active)Trace.State=Trace.MoveRequested||Trace.GazeRequested||success?"evading":"ready";}
     public void Requested(bool move,bool gaze,RetreatWeaveConfig c){if(Trace==null)return;Trace.MoveRequested=Active&&move;Trace.GazeRequested=Active&&gaze;
-        Trace.ValidFor=Active&&(move||gaze||Trace.Jump.Length>0)?Math.Min(.25,c.Refresh+.1):0;}
+        bool applied=Active&&(move||gaze||awaitingTakeoff||airborne);
+        Trace.State=Active?(applied?"evading":"ready"):Trace.State;
+        Trace.ValidFor=applied?Math.Min(.25,c.Refresh+.1):0;}
     public void End(string reason){Active=false;pendingUntil=0;if(Trace!=null){Trace.State="ended";Trace.Reason=reason;Trace.ValidFor=Trace.Yaw=Trace.Pitch=0;Trace.MoveRequested=Trace.GazeRequested=false;Trace.Jump="";}}
     private static double Interval(RetreatWeaveConfig c,Func<double> r)=>c.SwitchMin+(c.SwitchMax-c.SwitchMin)*r();
     private static bool Nonnegative(double v)=>DoorPolicy.Finite(v)&&v>=0;

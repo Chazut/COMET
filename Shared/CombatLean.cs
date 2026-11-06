@@ -41,14 +41,18 @@ public sealed class CombatLeanFrame
     public bool NativeLeanEnabled=true,NativeLeanOwned,CornerPeek,FirePause;
     public bool GeometryFresh,LeftSafe,RightSafe;
     // Own head bone relative to the bot's root, not the enemy's head or aim.
-    public double HeadLateral,SmoothedTilt;
+    public double HeadLateral,SmoothedTilt,NativeTilt,NativeSmoothedTilt,BoneHeadLateral;
+    public string HeadSource="bone";
+    public bool HeadImitated,HeadAccumulated;
 }
 public sealed class CombatLeanTrace
 {
     public string State="hold",Reason="lean-selected",Target="",Action="",Source="personal-vision";
     public int Episode,Side,Requests,BurstChanges,BurstLimit;
     public double Chance,Roll,BurstChance,BurstRoll,Remaining,PhaseRemaining,ValidFor,ContactAge,KnownX,KnownY,KnownZ;
-    public double SmoothedTilt,HeadLateral,HeadTravel;
+    public double SmoothedTilt,HeadLateral,HeadTravel,NativeTilt,NativeSmoothedTilt,BoneHeadLateral;
+    public string HeadSource="bone";
+    public bool HeadImitated,HeadAccumulated;
     public bool Selected,Requested,TiltObserved,HeadMotionObserved,BurstAttempted,FirePause,LeftSafe,RightSafe;
     public string[] Alternatives=Array.Empty<string>();
 }
@@ -103,6 +107,7 @@ public sealed class CombatLean
         if(now>=Deadline){End("lean-sequence-completed",now);return false;}
         if(!Safe(Trace.Side,f)){End("lean-current-side-obstructed",now);return false;}
         last=now;
+        Snapshot(f);
         // A desired side is never reported as a physical head displacement.
         headMin=Math.Min(headMin,f.HeadLateral);headMax=Math.Max(headMax,f.HeadLateral);
         Trace.HeadTravel=headMax-headMin;
@@ -147,6 +152,8 @@ public sealed class CombatLean
         var t=Trace!;var b=f.Combat;t.Remaining=Math.Max(0,Deadline-b.Now);t.PhaseRemaining=Math.Min(t.Remaining,Math.Max(0,phaseEnd-b.Now));
         t.ValidFor=Math.Min(.2,t.Remaining);t.ContactAge=b.ContactAge;t.KnownX=b.Known.X;t.KnownY=b.Known.Y;t.KnownZ=b.Known.Z;
         t.SmoothedTilt=f.SmoothedTilt;t.HeadLateral=f.HeadLateral;t.FirePause=f.FirePause;t.LeftSafe=f.LeftSafe;t.RightSafe=f.RightSafe;
+        t.NativeTilt=f.NativeTilt;t.NativeSmoothedTilt=f.NativeSmoothedTilt;t.BoneHeadLateral=f.BoneHeadLateral;
+        t.HeadSource=f.HeadSource;t.HeadImitated=f.HeadImitated;t.HeadAccumulated=f.HeadAccumulated;
     }
     public void End(string why,double now)
     {

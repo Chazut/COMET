@@ -77,10 +77,20 @@ public sealed partial class Plugin
     {
         var f=CombatStepFrame(b,s);
         var right=b.Player.Transform.right;
+        var head=b.Player.PlayerBones.Head;
+        var position=head.position;var source="bone";
+        // Prefer the enabled physical hit volume. BifacialTransform can return
+        // an imitated/accumulated position instead of the animated head.
+        var colliders=b.Player.PlayerBones.BodyPartCollidersDictionary;
+        if(colliders!=null && colliders.TryGetValue(EBodyPartColliderType.HeadCommon,out var part)
+            && part?.Collider is SphereCollider sphere && sphere.enabled && sphere.gameObject.activeInHierarchy)
+        { position=sphere.transform.TransformPoint(sphere.center);source="head-collider"; }
         return new(){Combat=f,NativeLeanEnabled=b.Info.FileSettings.Move.LEAN_TOGGLE&&SainPresetAccess.AllowsLean,
             NativeLeanOwned=lean.IsHoldingLean||b.Cover.CoverInUse!=null,CornerPeek=s.CornerPeek.Policy.Active,
             FirePause=s.CombatStep.Pause.Pausing,SmoothedTilt=lean.LeanAngleValue.LastSmoothedValue,
-            HeadLateral=Vector3.Dot(b.Player.PlayerBones.Head.position-b.Position,right)};
+            HeadLateral=Vector3.Dot(position-b.Position,right),HeadSource=source,
+            BoneHeadLateral=Vector3.Dot(head.position-b.Position,right),HeadImitated=head.UseImitation,HeadAccumulated=head.AccumulatePositionAndRotation,
+            NativeTilt=b.Player.MovementContext.Tilt,NativeSmoothedTilt=b.Player.MovementContext.SmoothedTilt};
     }
     private void LeanSafety(BotComponent b,BotState s,CombatLeanFrame f)
     {
@@ -143,9 +153,9 @@ public sealed partial class Plugin
         string key=t.Episode+":"+t.State+":"+t.Reason+":"+t.Requests+":"+t.HeadMotionObserved+":"+t.Alternatives.Length;
         if(!force&&key==r.LogKey&&(!r.Policy.Active||Time.time-r.LogAt<.1f))return;
         r.LogKey=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="M04",stage="evaluated",decision="CombatLean",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="M04",stage="evaluated",decision="CombatLean",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            combatLean=t,combatLeanConfig=config?.CombatLean},Diagnostics.Json);
+            combatLean=t,combatLeanConfig=config?.CombatLean});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

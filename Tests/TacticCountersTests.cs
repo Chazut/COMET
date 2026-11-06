@@ -64,6 +64,12 @@ static class TacticCountersTests
         c=New(limit:1024);for(int i=1;i<=1030;i++)Feed(c,Choice(i));Feed(c,Choice(stage:"started"));pages=Finish(c);
         Check((int)Row(pages,"A01","Hold")["opportunities"]! ==1024&&(int)Row(pages,"A01","Hold")["started"]! ==1,"capacity never evicts old identities; existing lifecycle can finish");
         Check(!(bool)pages[0]["tacticCounters"]!["complete"]!&&(int)pages[0]["tacticCounters"]!["capacitySkipped"]! ==6,"bounded omissions disclosed");
+        c=New();for(int i=0;i<360;i++)c.Observe(Json(new{schema=1,session="raid",stage="diagnostic-delivery",delivery=new{pending=0}}));
+        c.Observe(Json(new{schema=1,session="raid",stage="diagnostic-delivery-final",delivery=new{pending=0}}));
+        Feed(c,Choice());pages=Finish(c);
+        Check((long)pages[0]["tacticCounters"]!["invalidEvents"]! ==0 && (bool)pages[0]["tacticCounters"]!["complete"]!,"delivery heartbeat is not an invalid tactic");
+        c=New();c.Observe(Json(new{schema=1,session="raid",stage="unknown-featureless-event"}));pages=Finish(c);
+        Check((long)pages[0]["tacticCounters"]!["invalidEvents"]! ==1,"unknown featureless records still rejected");
         c=New();c.Observe("[]");c.Observe(new string('x',262145));pages=Finish(c,2,false);
         Check(!(bool)pages[0]["tacticCounters"]!["complete"]!&&(int)pages[0]["tacticCounters"]!["invalidEvents"]! ==1,"malformed, oversized, dropped and missing cleanup make report partial");
         c=New(false);Feed(c,Choice());pages=Finish(c);Check(!Rows(pages).Any()&&!(bool)pages[0]["tacticCounters"]!["enabled"]!,"disabled collection has explicit empty report");

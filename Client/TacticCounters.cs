@@ -97,6 +97,9 @@ internal sealed class TacticCounters
             if(feature=="C13"&&stage=="cleanup") {SawCleanup=true;EndTime=N(e["realtime"])??0;}
             if(enabled&&feature=="T02"&&stage=="observer-unavailable")InvalidEvents++;
             if(!configured||!enabled||feature=="T02")return;
+            // Delivery health is a session diagnostic, not a feature attempt.
+            // Keep rejecting unknown/malformed featureless events.
+            if(feature.Length==0 && (stage=="diagnostic-delivery" || stage=="diagnostic-delivery-final"))return;
             if(feature.Length<2||feature.Length>12){InvalidEvents++;return;}
             if(!coverage.TryGetValue(feature,out var c))
             {

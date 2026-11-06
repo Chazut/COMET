@@ -19,6 +19,11 @@ internal static class CombatLeanTests
         Check(c.Enabled&&c.Chance==60&&c.HoldMin==.35&&c.HoldMax==1&&c.BurstIntervalMin==.25&&c.BurstIntervalMax==.4
             &&c.BurstChangesMin==2&&c.BurstChangesMax==3&&c.BurstChanceClose==45&&c.BurstChanceFar==15&&c.CloseDistance==7,"evasion defaults");
         Check(c.SequenceLimit==3&&c.CooldownMin==2&&c.CooldownMax==4&&c.MinDistance==3&&c.MaxDistance==25,"bounded independent sequences");
+        var physical=Begin();var physicalFrame=Observe(physical,10.1);physicalFrame.HeadSource="head-collider";
+        physicalFrame.NativeTilt=4;physicalFrame.NativeSmoothedTilt=3;physicalFrame.BoneHeadLateral=.09088;physicalFrame.HeadImitated=true;
+        physical.Observe(physicalFrame,c,0,0);
+        Check(physical.Trace!.HeadMotionObserved&&physical.Trace.HeadSource=="head-collider"&&physical.Trace.HeadImitated
+            &&physical.Trace.BoneHeadLateral==.09088&&physical.Trace.NativeSmoothedTilt==3,"physical head evidence remains distinct from imitated bone and desired tilt");
         var p=new CombatLean();Check(!p.Begin(Frame(),c,.6,0,0,0,0,0)&&p.Trace!.Reason=="lean-roll-declined","60 percent boundary");
         Check(!p.Begin(Frame(10.1),c,0,0,0,0,0,0),"no per-frame reroll after decline");
         var paused=Frame();paused.FirePause=true;p=new();
