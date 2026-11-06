@@ -31,6 +31,7 @@ namespace Comet.Client {
   internal CometConfig? config=new();internal long sequence;internal string session="";
   internal Diagnostics? diagnostics;
   internal readonly Dictionary<Bot,BotState> states=new();
+  internal readonly List<KeyValuePair<Bot,BotState>> maintenanceSnapshot=new();
   internal Events? clearEvents;
   internal readonly List<Owned> clearOwnGrenades=new();
   internal readonly Dictionary<object,Scan> coverScans=new();

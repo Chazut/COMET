@@ -13,6 +13,7 @@ p.loading.Start(oldEpoch,()=>{fetchStarted.Set();releaseFetch.Wait();return new 
 Check(fetchStarted.Wait(3000),"old HTTP task started");
 var ev=p.Subscribe();ev.FailThrowRemove=true;
 for(int i=0;i<4;i++){p.states.Add(new Bot{Fail=i==0},new());var owned=new Owned{Fail=i==1};owned.Refs.Add(new object());p.clearOwnGrenades.Add(owned);}
+p.maintenanceSnapshot.AddRange(p.states);
 p.supportOperations.Add(new(),new(){Fail=true});p.movementPending.Add(new(),new(){Fail=true});
 p.motionWatches.Refs.Add(oldWorld);p.spatialPanels[0]=oldWorld;p.quietCaller=oldWorld;
 Comet.Api.DoorMotionNetwork.Fail=true;
@@ -20,7 +21,7 @@ var published=new List<object>();var iterator=new Native{Fail=true};var scan=Mak
 p.coverScans.Add(new(),new(){Runner=scan});scan.MoveNext();
 p.End();
 Check(p.Cleaned==4,"all bots cleaned after earlier failures");
-Check(p.states.Count==0&&p.coverScans.Count==0&&p.clearOwnGrenades.Count==0,"owned bot/scan/tracker registries cleared");
+Check(p.states.Count==0&&p.maintenanceSnapshot.Count==0&&p.coverScans.Count==0&&p.clearOwnGrenades.Count==0,"owned bot/scan/tracker registries cleared");
 Check(p.supportOperations.Count==0&&p.movementPending.Count==0,"failed operations do not keep owners");
 Check(p.world==null&&p.config==null&&!p.loading.Pending,"raid world/config detached");
 Check(ev.Count==0&&p.clearEvents==null,"both event handlers detached despite one failure");

@@ -46,6 +46,7 @@ public sealed partial class Plugin : BaseUnityPlugin
     private string session = "";
     private long sequence;
     private float nextSweep;
+    private readonly List<KeyValuePair<BotComponent,BotState>> maintenanceSnapshot=new(64);
     private bool subscriberWarned;
     private PropertyInfo? fikaServer;
     private Func<bool>? readFikaServer;
@@ -316,13 +317,18 @@ public sealed partial class Plugin : BaseUnityPlugin
             try { SampleTacticalJump(pair.Key,pair.Value); } catch(Exception ex) { TacticalJumpError(pair.Value,ex); } }
         UpdateMovementHearing();
         UpdateBlasts();
-        if (Time.unscaledTime < nextSweep) return;
-        nextSweep = Time.unscaledTime + .25f;
-        SweepClearGrenades();
-        doorReservations.Sweep(Time.time);
-        try { UpdateDoorSupports(); } catch(Exception ex) { ClearDoorSupports("support-adapter-error"); Logger.LogWarning("COMET support yielded: "+ex.Message); }
-        foreach (var pair in states.ToArray())
+        if (Time.unscaledTime >= nextSweep)
         {
+            nextSweep = Time.unscaledTime + .25f;
+            SweepClearGrenades();
+            doorReservations.Sweep(Time.time);
+            try { UpdateDoorSupports(); } catch(Exception ex) { ClearDoorSupports("support-adapter-error"); Logger.LogWarning("COMET support yielded: "+ex.Message); }
+        }
+        maintenanceSnapshot.Clear();
+        foreach(var pair in states)maintenanceSnapshot.Add(pair);
+        foreach (var pair in maintenanceSnapshot)
+        {
+            if(!pair.Value.Maintenance.Due(Time.unscaledTime))continue;
             var bot = pair.Key;
             try
             {
@@ -841,6 +847,8 @@ public sealed partial class Plugin : BaseUnityPlugin
 
 internal sealed class BotState
 {
+    private static int maintenanceOrdinal;
+    internal readonly PeriodicWorkSlot Maintenance=new(System.Threading.Interlocked.Increment(ref maintenanceOrdinal));
     internal readonly FlankRuntime Flank = new();
     internal readonly PlanServiceRuntime PlanService = new();
     internal HandoffTrace? ContinuityTrace;

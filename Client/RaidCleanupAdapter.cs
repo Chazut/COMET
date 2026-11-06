@@ -115,7 +115,7 @@ public sealed partial class Plugin
         }
         finally
         {
-            states.Clear();config=null;loading.Discard();nextSweep=0;subscriberWarned=false;
+            states.Clear();maintenanceSnapshot.Clear();config=null;loading.Discard();nextSweep=0;subscriberWarned=false;
             Step("diagnostic-delivery",Api.Decisions.FlushPending);
             Step("diagnostic-delivery-report",()=>diagnostics?.Write(Diagnostics.Serialize(new {schema=1,session,stage="diagnostic-delivery-final",delivery=Api.Decisions.DeliveryStats()})));
             Step("decision-cache",Api.Decisions.Clear);
