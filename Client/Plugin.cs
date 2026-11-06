@@ -243,6 +243,13 @@ public sealed partial class Plugin : BaseUnityPlugin
     private void Update()
     {
         PerformanceCapture.Tick();
+        Api.Decisions.Pump(Time.frameCount);
+        if(world!=null&&Time.realtimeSinceStartup>=nextDeliveryReport)
+        {
+            nextDeliveryReport=Time.realtimeSinceStartup+5;
+            diagnostics?.Write(JsonConvert.SerializeObject(new {schema=1,session,stage="diagnostic-delivery",
+                realtime=Time.realtimeSinceStartup,delivery=Api.Decisions.DeliveryStats()},Diagnostics.Json));
+        }
         FlushFloorCounters();
         FlushCloseCounters();
         FlushImpactCounters();

@@ -62,4 +62,14 @@ foreach(var (service,feature) in new[]{("FirstAid","H01"),("Surgery","H01"),("St
  p.TestOwnedService="";At(Time.time+.3f);p.Sample(serviceBot);
  Check(Events().Length==count+1&&(string?)Events().Last()["combatJournal"]?["context"]?["feature"]=="","service ownership end recorded before five-second heartbeat");
 }
-p.End();Console.WriteLine($"T01/T03 including service continuity: {n} checks passed.");
+var retiring=Bot("retiring");p.Track(retiring);At(30);p.Sample(retiring);
+p.Guns[(retiring,EquipmentSlot.SecondPrimaryWeapon)]=new Weapon{Id="second"};
+p.Switch(retiring,true);
+Check(retiring.Player.InventoryController.Scans==1,"one reachable inventory scan for all weapons per snapshot");
+Check(p.states[retiring].Journal.Magazines.Count==0&&p.states[retiring].Journal.Ammo.Count==0,"scratch buffers retain no native items");
+retiring.BotActive=false;retiring.Info=null!;retiring.Decision=null!;retiring.Player.InventoryController.Fail=true;
+At(32);p.Sample(retiring);p.Stop(retiring);
+Check(!p.states[retiring].Journal.Fault,"death or Ghost suspension does not read disposed SAIN or inventory");
+Check(Events().Any(x=>(string?)x["profileId"]=="retiring"&&(bool?)(x["weaponJournal"] as JObject)?["cachedContext"]==true),"suspended weapon request retains last value-only context");
+Check(retiring.Player.InventoryController.Scans==1,"suspension never scans the retired inventory");
+p.End();Console.WriteLine($"T01/T03 including service continuity and retirement: {n} checks passed.");

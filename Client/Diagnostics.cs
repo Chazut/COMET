@@ -46,18 +46,36 @@ namespace Comet.Api
         internal static void SetPostCombat(string profileId,string value) { if(value.Length==0)PostCombat.Remove(profileId);else PostCombat[profileId]=value; }
         public static string GetCurrentDecision(string profileId) => Current.TryGetValue(profileId, out var value) ? value : "";
         internal static void Set(string profileId, string value) { if (value.Length == 0) Current.Remove(profileId); else Current[profileId] = value; }
-        internal static void Clear() { Current.Clear();PostCombat.Clear();Crossfire.Clear(); FailedSubscribers.Clear(); }
+        private readonly struct Delivery
+        {
+            internal readonly string Json;internal readonly Delegate[] Handlers;internal readonly Action<Exception> Error;
+            internal Delivery(string json,Delegate[] handlers,Action<Exception> error){Json=json;Handlers=handlers;Error=error;}
+        }
+        private static readonly Comet.Core.FrameDispatchQueue<Delivery> Deliveries=new(Dispatch);
+        private static int deliveryFrame;
+        // Called by RR before it closes its recording. This keeps the tail of a burst in that raid.
+        public static void FlushPending()=>Deliveries.Drain(deliveryFrame,true);
+        internal static void Pump(int frame){deliveryFrame=frame;Deliveries.Drain(frame);}
+        internal static object DeliveryStats()=>new { delivered=Deliveries.Delivered,pending=Deliveries.Pending,
+            peakPending=Deliveries.PeakPending,forcedDrains=Deliveries.ForcedDrains,
+            overBudgetCallbacks=Deliveries.OverBudgetCallbacks,
+            maxCallbackMs=Deliveries.MaxCallbackTicks*1000d/System.Diagnostics.Stopwatch.Frequency,budgetMs=1 };
+        internal static void Clear() { FlushPending();Current.Clear();PostCombat.Clear();Crossfire.Clear(); FailedSubscribers.Clear();Deliveries.ResetCounters(); }
         internal static void Publish(string json, Action<Exception> onError)
         {
             if (RaidClosed) return;
-            // Subscription changes are rare. Keep dispatch synchronous for RR's
-            // main-thread contract without allocating a delegate array for every event.
+            // Serialize at the event time, then spread delivery across frames. Only
+            // immutable strings are queued; Unity-facing subscribers stay on the main thread.
             var handlers = Volatile.Read(ref subscribers);
-            foreach (Action<string> subscriber in handlers)
+            if(handlers.Length!=0)Deliveries.Enqueue(new Delivery(json,handlers,onError),deliveryFrame);
+        }
+        private static void Dispatch(Delivery item)
+        {
+            foreach (Action<string> subscriber in item.Handlers)
             {
                 if (FailedSubscribers.Contains(subscriber)) continue;
-                try { subscriber(json); }
-                catch (Exception ex) { FailedSubscribers.Add(subscriber); try { onError(ex); } catch { } }
+                try { subscriber(item.Json); }
+                catch (Exception ex) { FailedSubscribers.Add(subscriber); try { item.Error(ex); } catch { } }
             }
         }
     }

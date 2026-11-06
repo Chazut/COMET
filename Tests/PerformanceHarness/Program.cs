@@ -9,6 +9,23 @@ string dir=Path.Combine(Path.GetTempPath(),"comet-perf-runtime-"+Guid.NewGuid().
 var warnings=new List<string>();
 try
 {
+    long tick=0;var received=new List<int>();
+    var delivery=new FrameDispatchQueue<int>(x=>{received.Add(x);tick+=10;},()=>tick,30,4096);
+    for(int i=0;i<207;i++)delivery.Enqueue(i,0);
+    Check(received.Count==3&&delivery.Pending==204,"burst yields after budget, preserves pending events");
+    for(int frame=1;delivery.Pending>0;frame++)delivery.Drain(frame);
+    Check(received.SequenceEqual(Enumerable.Range(0,207)),"deferred delivery preserves order without loss");
+    received.Clear();delivery=new FrameDispatchQueue<int>(x=>{received.Add(x);tick+=100;},()=>tick,30,2);
+    for(int i=0;i<10;i++)delivery.Enqueue(i,1);
+    delivery.Drain(1,true);
+    Check(received.SequenceEqual(Enumerable.Range(0,10))&&delivery.Pending==0,"capacity backpressure and shutdown flush lose no messages");
+    Check(delivery.ForcedDrains>0&&delivery.OverBudgetCallbacks==10,"slow subscriber and emergency drain are measurable");
+    var deliveredJson=new List<string>();Action<string> capture=deliveredJson.Add;
+    Comet.Api.Decisions.Published+=capture;
+    for(int i=0;i<207;i++)Comet.Api.Decisions.Publish(i.ToString(),_=>{});
+    Comet.Api.Decisions.FlushPending();
+    Check(deliveredJson.SequenceEqual(Enumerable.Range(0,207).Select(x=>x.ToString())),"public flush delivers raid tail before RR closes");
+    Comet.Api.Decisions.Published-=capture;Comet.Api.Decisions.Clear();
     Check(PerformanceCatalog.MethodCount==2,"generator excludes async/iterator lifetimes and hot control guards");
     Check(ControlIntegration.Sleeping(true)&&!ControlIntegration.Sleeping(false)&&ControlIntegration.WatchControl(true)&&!ControlIntegration.WatchControl(false)&&ControlIntegration.Checks==4,"uninstrumented control guards still execute every check");
     PerformanceCapture.Start(new PerformanceConfig(),dir,"off",1,"test",true,warnings.Add);

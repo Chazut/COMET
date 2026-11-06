@@ -17,7 +17,7 @@ namespace EFT.InventoryLogic {
  public class Magazine:Item{public int Count=20;}
  public class Ammo:Item{public int StackObjectsCount=30;public Result CheckAction(object? o)=>new();}
  public class Weapon:Item { public string ShortName="Rifle";public int ChamberAmmoCount=1;public Magazine Magazine=new();public Slot[] Chambers={new()};public Malf MalfState=new();public Slot MagSlot=new();public Magazine GetCurrentMagazine()=>Magazine;public Slot GetMagazineSlot()=>MagSlot;public class Malf{public string State="None";} }
- public class Inventory {public bool Fail;public void GetReachableItemsOfTypeNonAlloc<T>(List<T> items){if(Fail)throw new Exception("inventory unavailable");}public void GetAcceptableItemsNonAlloc<T>(object slots,List<T> items,Func<T,bool> predicate){if(Fail)throw new Exception("inventory unavailable");}}
+ public class Inventory {public bool Fail;public int Scans;public void GetReachableItemsOfTypeNonAlloc<T>(List<T> items){Scans++;if(Fail)throw new Exception("inventory unavailable");}public void GetAcceptableItemsNonAlloc<T>(object slots,List<T> items,Func<T,bool> predicate){if(Fail)throw new Exception("inventory unavailable");}}
  public static class ItemManipulator{public static Result CheckMoveIgnoringTargetItem(Magazine m,Slot s,Inventory i)=>new();}
 }
 namespace EFT {

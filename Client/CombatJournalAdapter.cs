@@ -23,6 +23,10 @@ internal sealed class CombatJournalRuntime
     internal long Omitted;
     internal bool Fault,Scoped;
     internal string Context="";
+    internal string Personality="";
+    internal object? LastContext;
+    internal readonly List<Magazine> Magazines=new();
+    internal readonly List<Ammo> Ammo=new();
     internal object[] Resources=Array.Empty<object>();
 }
 
@@ -65,12 +69,17 @@ public sealed partial class Plugin
     }
     private object JournalContext(BotState s,string? observedService=null)
     {
+        // Death, suspension and disposal can invalidate SAIN members before our final event.
+        // Retain a value-only last observation, never dereference that disposed body for diagnostics.
+        if(!JournalScope(s.Owner)||s.Owner.Decision==null||s.Owner.Info==null||s.Owner.BotOwner?.Memory==null)
+            return s.Journal.LastContext??new { available=false };
         var b=s.Owner;var e=b.GoalEnemy;var known=e?.KnownPlaces.LastKnownPosition;
+        s.Journal.Personality=b.Info.Personality.ToString();
         string action=s.Feature=="A03"?s.Decision=="ContinuePush"?"Push":s.Decision=="KeepAngle"?"Shoot":"":s.Decision;
         bool active=s.ActiveLabel.Length>0&&b.SAINLayersActive&&b.Decision.CurrentCombatDecision==s.Expected
             &&b.Decision.CurrentSelfDecision.ToString()=="None"&&b.Decision.CurrentSquadDecision.ToString()=="None"&&OutcomeAction(b,action);
         string service=observedService??OwnedPlanService(b,s,false);
-        return new { action=b.SAINLayersActive?b.CurrentAction?.GetType().Name??"":"OtherLayer",sainActive=b.SAINLayersActive,combat=b.Decision.CurrentCombatDecision.ToString(),
+        return s.Journal.LastContext=new { action=b.SAINLayersActive?b.CurrentAction?.GetType().Name??"":"OtherLayer",sainActive=b.SAINLayersActive,combat=b.Decision.CurrentCombatDecision.ToString(),
             self=b.Decision.CurrentSelfDecision.ToString(),squad=b.Decision.CurrentSquadDecision.ToString(),
             feature=service.Length>0?(service=="Reload"?"W01":"H01"):active?s.Feature:"",
             choice=service.Length>0?service:active?s.Decision:"",reason=active&&s.Feature=="A01"?s.Choice?.Reason??"":"",
@@ -85,7 +94,7 @@ public sealed partial class Plugin
         if(limited){if(Time.time-r.BudgetAt>=1){r.BudgetAt=Time.time;r.Events=0;}if(++r.Events>12){r.Omitted++;return;}}
         var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature,stage="evaluated",eventKind=stage,decision=feature=="T01"?"CombatJournal":"WeaponJournal",reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,
-            profileId=s.ProfileId,name=s.Name,botInstance=s.Id,personality=s.Owner.Info.Personality.ToString(),
+            profileId=s.ProfileId,name=s.Name,botInstance=s.Id,personality=r.Personality,
             combatJournal=combat,weaponJournal=weapon},Diagnostics.Json);
         diagnostics?.Write(json);Api.Decisions.Publish(json,_=>{});
     }
@@ -106,7 +115,7 @@ public sealed partial class Plugin
         {
             var r=s.Journal;
             if(!JournalScope(b))
-            {if(r.Scoped){if(config?.CombatJournal.Enabled==true)JournalWrite(s,"T01","pause","observation-suspended",new{kind="pause"});JournalWeaponEvents(s,r.Weapons.Suspend(Time.time,"observation-suspended"));r.Scoped=false;r.Context="";}return;}
+            {if(r.Scoped){if(config?.CombatJournal.Enabled==true)JournalWrite(s,"T01","pause","observation-suspended",new{kind="pause"});JournalWeaponEvents(s,r.Weapons.Suspend(Time.time,"observation-suspended"),true);r.Scoped=false;r.Context="";}return;}
             r.Scoped=true;
             if(config!.WeaponJournal.Enabled&&Time.time>=r.WeaponAt)
             {
@@ -123,34 +132,41 @@ public sealed partial class Plugin
     private object[] JournalWeapons(BotState s)
     {
         var r=s.Journal;if(Time.time-r.ResourcesAt<1)return r.Resources;
-        var b=s.Owner;var result=new List<object>();var magazines=new List<Magazine>();var ammo=new List<Ammo>();
+        var b=s.Owner;var result=new List<object>(3);var magazines=r.Magazines;var ammo=r.Ammo;
+        try
+        {
+        // All three weapons share the same reachable inventory. Scan it once per snapshot.
+        b.Player.InventoryController.GetReachableItemsOfTypeNonAlloc(magazines);
         // Read-only APIs: never BotReload.CanReload, which can change the selected weapon.
         foreach(var slot in new[]{EquipmentSlot.FirstPrimaryWeapon,EquipmentSlot.SecondPrimaryWeapon,EquipmentSlot.Holster})
         {
             var w=SlotGun(b,slot);if(w==null)continue;var mag=w.GetCurrentMagazine();var magSlot=w.GetMagazineSlot();int reserve=0,spares=0;bool complete=true;
-            magazines.Clear();ammo.Clear();
-            b.Player.InventoryController.GetReachableItemsOfTypeNonAlloc(magazines);
+            ammo.Clear();
             if(magazines.Count>128)complete=false;
-            foreach(var m in magazines.Take(128))if(!ReferenceEquals(m,mag)&&m.Count>0&&magSlot!=null
-                &&ItemManipulator.CheckMoveIgnoringTargetItem(m,magSlot,b.Player.InventoryController).Succeeded){spares++;reserve+=m.Count;}
+            for(int i=0;i<Math.Min(128,magazines.Count);i++)
+            {var m=magazines[i];if(!ReferenceEquals(m,mag)&&m.Count>0&&magSlot!=null
+                &&ItemManipulator.CheckMoveIgnoringTargetItem(m,magSlot,b.Player.InventoryController).Succeeded){spares++;reserve+=m.Count;}}
             if(w.Chambers.Length>0)
             {
                 b.Player.InventoryController.GetAcceptableItemsNonAlloc(BotReload._availableEquipmentSlots,ammo,
                     (Ammo a)=>a.StackObjectsCount>0&&w.Chambers[0].CanAccept(a)&&a.CheckAction(null).Succeeded);
                 if(ammo.Count>128)complete=false;
             }
+            int loose=0;for(int i=0;i<Math.Min(128,ammo.Count);i++)loose+=ammo[i].StackObjectsCount;
             result.Add(new{id=w.Id.ToString(),name=w.ShortName.Localized(),slot=slot.ToString(),chamber=w.ChamberAmmoCount,magazine=mag?.Count??0,
                 malfunction=w.MalfState.State.ToString(),reachableMagazines=spares,reachableMagazineRounds=reserve,
-                looseRounds=ammo.Take(128).Sum(a=>a.StackObjectsCount),resourcesComplete=complete});
+                looseRounds=loose,resourcesComplete=complete});
         }
         r.ResourcesAt=Time.time;return r.Resources=result.ToArray();
+        }
+        finally { magazines.Clear();ammo.Clear(); }
     }
-    private void JournalWeaponEvents(BotState s,IEnumerable<WeaponJournalEvent> events)
+    private void JournalWeaponEvents(BotState s,IEnumerable<WeaponJournalEvent> events,bool cached=false)
     {
         foreach(var e in events)
         {
             var r=s.Journal;if(Time.time-r.BudgetAt<1&&r.Events>=12){r.Omitted++;continue;}
-            JournalWrite(s,"T03",e.State,e.Reason,weapon:new{change=e,context=JournalContext(s),weapons=JournalWeapons(s),resourcesAge=Math.Max(0,Time.time-r.ResourcesAt)},limited:true);
+            JournalWrite(s,"T03",e.State,e.Reason,weapon:new{change=e,context=cached?r.LastContext:JournalContext(s),weapons=cached?r.Resources:JournalWeapons(s),cachedContext=cached,resourcesAge=Math.Max(0,Time.time-r.ResourcesAt)},limited:true);
         }
     }
     partial void EndJournalBot(BotState s,string reason)
@@ -158,7 +174,7 @@ public sealed partial class Plugin
         try
         {
             if(config?.CombatJournal.Enabled==true)JournalWrite(s,"T01","pause",reason,new{kind="pause"});
-            JournalWeaponEvents(s,s.Journal.Weapons.Suspend(Time.time,reason));
+            JournalWeaponEvents(s,s.Journal.Weapons.Suspend(Time.time,reason),true);
             if(s.Journal.Omitted>0){diagnostics?.Write(JsonConvert.SerializeObject(new{schema=1,session,feature="T03",stage="omitted",count=s.Journal.Omitted},Diagnostics.Json));s.Journal.Omitted=0;}
             s.Journal.Scoped=false;s.Journal.Context="";
         }catch(Exception ex){JournalError(s,ex);}
