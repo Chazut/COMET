@@ -91,3 +91,26 @@ foreach(bool inventoryPending in new[]{false,true})
  Check(p.Events.Count<30,"unchanged active native operation sampled normally but diagnostic heartbeat throttled");
 }
 Console.WriteLine($"W10 including raid392 recovery: {count} checks passed");
+
+foreach(var protection in new[]{"none","animating","simplified","wrong-magazine","wrong-weapon","inventory-changing","medical","phase-progress","new-transaction"})
+{
+ var(p,b)=Setup();var gun=(Player.FirearmController)b.Player.HandsController!;gun.Reload=true;
+ var mag=new object();gun.Item!.Magazine=mag;
+ var op=new Player.FirearmController.ReloadExternalMagOperation{ReloadExternalMagResult=new(){Weapon=gun.Item,NextMagazine=mag}};gun.CurrentOperation=op;
+ op.Complete=()=>{gun.Reload=false;gun.CurrentOperation=new Player.FirearmController.Idling();b.BotOwner.WeaponManager.Reload.Reloading=false;};
+ b.BotOwner.WeaponManager.AnimatorIdle=true;
+ if(protection=="animating")b.BotOwner.WeaponManager.AnimatorIdle=false;
+ if(protection=="simplified")b.Player.UsedSimplifiedSkeleton=true;
+ if(protection=="wrong-magazine")op.ReloadExternalMagResult.NextMagazine=new object();
+ if(protection=="wrong-weapon")op.ReloadExternalMagResult.Weapon=new Weapon();
+ if(protection=="inventory-changing")b.Player.InventoryController.IsChangingWeapon=true;
+ if(protection=="medical")b.BotOwner.Medecine.Using=true;
+ Run(p,b,0,25);
+ if(protection=="phase-progress")op._magPulledOutFromWeapon=true;
+ if(protection=="new-transaction")op.ReloadExternalMagResult=new(){Weapon=gun.Item,NextMagazine=mag};
+ Run(p,b,25.5,29.5);Check(op.FastForwardCalls==0,"30 continuous seconds before reconciliation: "+protection);
+ Run(p,b,30,35);Check(op.FastForwardCalls==(protection=="none"?1:0),"only stranded idle matching inventory may reconcile: "+protection);
+ Check(gun.Item.Loaded==20&&ReferenceEquals(gun.Item.Magazine,mag)&&b.BotOwner.WeaponManager.Reload.FillCalls==0,"no ammo or inventory synthesis: "+protection);
+ if(protection=="none")Check(p.State(b).HandsRecovery.Policy.Trace!.State=="recovered","actual native recovery observed");
+}
+Console.WriteLine($"W10 including raid394 stranded reload: {count} checks passed");

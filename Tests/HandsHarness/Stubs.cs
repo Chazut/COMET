@@ -10,7 +10,7 @@ namespace HarmonyLib {
  public static class Priority {public const int First=800;}
  public static class AccessTools {public static object? Method(Type t,string n)=>t.GetMethod(n);}
 }
-namespace EFT.InventoryLogic {public enum EquipmentSlot {FirstPrimaryWeapon,SecondPrimaryWeapon,Holster,Scabbard} public class Weapon {public string Id="rifle";public int Loaded=20;}}
+namespace EFT.InventoryLogic {public enum EquipmentSlot {FirstPrimaryWeapon,SecondPrimaryWeapon,Holster,Scabbard} public class Weapon {public string Id="rifle";public int Loaded=20;public object? Magazine;public object? GetCurrentMagazine()=>Magazine;}}
 namespace EFT {
  public class Item {public string Id="grenade";}
  public class Player {
@@ -19,7 +19,7 @@ namespace EFT {
   public class AbstractHandsController {public Item? Item=new();}
   public class FirearmController:AbstractHandsController {public new Weapon? Item=new();public object CurrentOperation=new Idling();public bool Reload,Interaction,CanReload=true;
    public bool IsInReloadOperation()=>Reload;public bool IsInInteraction()=>Interaction;public bool CanStartReload()=>CanReload;public class Idling{}
-   public class ReloadExternalMagOperation{public int State;public bool _magPulledOutFromWeapon,_magAppeared,_magInsertedToWeapon,_addAmmoInChamber;public int IdleCalls;public Action? Complete;public void OnIdleStartEvent(){IdleCalls++;Complete?.Invoke();}}}
+   public class ReloadExternalMagOperation{public int State;public bool _magPulledOutFromWeapon,_magAppeared,_magInsertedToWeapon,_addAmmoInChamber;public Result? ReloadExternalMagResult;public class Result{public Weapon? Weapon;public object? NextMagazine;}public int FastForwardCalls;public void FastForward(){FastForwardCalls++;Complete?.Invoke();}public int IdleCalls;public Action? Complete;public void OnIdleStartEvent(){IdleCalls++;Complete?.Invoke();}}}
   public class GrenadeHandsController:AbstractHandsController {public object CurrentOperation=new Idling();public bool WaitingForHighThrow,WaitingForLowThrow;public class Idling{}public class HighThrow{} }
  }
 }

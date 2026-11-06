@@ -13,13 +13,13 @@ namespace Comet.Client;
 internal sealed class HandsRecoveryRuntime
 {
     internal readonly HandsRecoveryPolicy Policy=new();
-    internal object? Hands,Operation,Reload;
+    internal object? Hands,Operation,Reload,Transaction,Magazine;
     internal double Next,LogAt=-1000;
     internal int Generation,Loaded=-1;
     internal bool Issuing,Fault;
     internal string LogKey="";
     internal string NativePhase="";
-    internal void Drop(){Hands=Operation=Reload=null;Loaded=-1;Issuing=false;}
+    internal void Drop(){Hands=Operation=Reload=Transaction=Magazine=null;Loaded=-1;Issuing=false;}
 }
 public sealed partial class Plugin
 {
@@ -62,7 +62,9 @@ public sealed partial class Plugin
         int loaded=gun?.Item==null?-1:ReloadLoaded(gun.Item);
         var external=operation as Player.FirearmController.ReloadExternalMagOperation;
         string phase=external==null?"":$"{external.State}:{external._magPulledOutFromWeapon}:{external._magAppeared}:{external._magInsertedToWeapon}:{external._addAmmoInChamber}";
-        if(!ReferenceEquals(r.Hands,hands)||!ReferenceEquals(r.Operation,operation)||!ReferenceEquals(r.Reload,wm.Reload)||loaded!=r.Loaded||phase!=r.NativePhase)r.Generation++;
+        if(!ReferenceEquals(r.Hands,hands)||!ReferenceEquals(r.Operation,operation)||!ReferenceEquals(r.Reload,wm.Reload)||loaded!=r.Loaded||phase!=r.NativePhase
+            ||!ReferenceEquals(r.Transaction,external?.ReloadExternalMagResult)||!ReferenceEquals(r.Magazine,gun?.Item?.GetCurrentMagazine()))r.Generation++;
+        r.Transaction=external?.ReloadExternalMagResult;r.Magazine=gun?.Item?.GetCurrentMagazine();
         r.NativePhase=phase;
         r.Hands=hands;r.Operation=operation;r.Reload=wm.Reload;r.Loaded=loaded;
         var f=new HandsRecoveryFrame{Now=Time.timeAsDouble,Held=hands?.Item?.Id.ToString()??"",Generation=r.Generation,
@@ -70,8 +72,17 @@ public sealed partial class Plugin
             Operation=operation?.GetType().Name??hands?.GetType().Name??"no-hands",GunReady=WeaponHandsReady(b,gun),
             Action=b.Decision.CurrentCombatDecision.ToString(),Contact=s.Situation?.Target??"",NativePhase=phase,SelectorChanging=wm.Selector?.IsChanging==true};
         // Replay only a missed idle notification after the real animator and magazine
-        // insertion agree. Never fast-forward an unfinished reload or synthesize its inventory result.
+        // insertion agree. Inventory reconciliation below has a separate, longer confirmation window.
         f.ReloadIdle=f.NativeReload&&external?._magAppeared==true&&external._magInsertedToWeapon
+            &&!b.Player.UsedSimplifiedSkeleton&&wm.InIdleState();
+        // EFT moves the real inventory before starting the animation. If that animation
+        // is already idle but its events never arrived, reconcile the existing native
+        // transaction after a long, continuously observed stall, without creating ammo.
+        var transaction=external?.ReloadExternalMagResult;
+        f.ReloadStranded=f.NativeReload&&!f.ReloadIdle&&transaction!=null
+            &&ReferenceEquals(transaction.Weapon,gun!.Item)&&transaction.NextMagazine!=null
+            &&ReferenceEquals(gun!.Item!.GetCurrentMagazine(),transaction.NextMagazine)
+            &&ReferenceEquals(wm.CurrentWeapon,gun.Item)&&ReferenceEquals(wm.ShootController,gun)
             &&!b.Player.UsedSimplifiedSkeleton&&wm.InIdleState();
         f.SwitchCompleted=f.SelectorChanging&&gun?.CurrentOperation is Player.FirearmController.Idling
             &&wm.Selector!.IsWeaponReady&&!b.Player.InventoryController.IsChangingWeapon
@@ -86,8 +97,8 @@ public sealed partial class Plugin
         else if(s.WeaponReturn.Policy.Active||s.PistolSwap.Policy.Active||s.QuickReload.Policy.Active)f.Block="hands-other-weapon-request";
         else if(b.Player.InventoryController.IsChangingWeapon)f.Block="hands-inventory-changing";
         else if(wm.Selector.IsChanging&&!f.SwitchCompleted)f.Block="hands-weapon-changing";
-        else if(f.NativeReload&&!f.ReloadIdle)f.Block="hands-native-reload-active";
-        else if(!f.ReloadIdle&&gun!=null&&(gun.IsInInteraction()||!gun.CanStartReload()))f.Block="hands-firearm-operation-active";
+        else if(f.NativeReload&&!f.ReloadIdle&&!f.ReloadStranded)f.Block="hands-native-reload-active";
+        else if(!f.ReloadIdle&&!f.ReloadStranded&&gun!=null&&(gun.IsInInteraction()||!gun.CanStartReload()))f.Block="hands-firearm-operation-active";
         else if(gun==null&&!idleGrenade)f.Block="hands-unknown-or-committed-operation";
         if(grenade!=null&&wm.Selector!=null)
         {
@@ -124,6 +135,10 @@ public sealed partial class Plugin
                 &&b.Player.HandsController is Player.FirearmController firearm
                 &&firearm.CurrentOperation is Player.FirearmController.ReloadExternalMagOperation operation)
             {operation.OnIdleStartEvent();accepted=!firearm.IsInReloadOperation();}
+            else if(command=="reconcile-stranded-reload"&&fresh.ReloadStranded
+                &&b.Player.HandsController is Player.FirearmController stalledGun
+                &&stalledGun.CurrentOperation is Player.FirearmController.ReloadExternalMagOperation stalled)
+            {r.Issuing=true;stalled.FastForward();accepted=!stalledGun.IsInReloadOperation();}
             else if(Enum.TryParse(f.TargetSlot,out EquipmentSlot slot)&&SlotGun(b,slot)?.Id.ToString()==f.TargetWeapon)
             {r.Issuing=true;accepted=b.BotOwner.WeaponManager.Selector.TryChangeToSlot(slot,true);}
         } finally {r.Issuing=false;}
