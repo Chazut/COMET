@@ -40,7 +40,7 @@ namespace Comet.Client {
  internal class BotState {internal RecoilRecoveryRuntime RecoilRecovery=new();internal string ProfileId="p",Name="PMC",Id="instance";internal Situation? Situation=new();
   internal BotState(SAIN.Components.BotComponent b,Comet.Core.CometConfig c,string session){} }
  internal static class NativeAdapter {internal static bool IsPmcAi(SAIN.Components.BotComponent b)=>b.Pmc;}
- internal class Diagnostics {internal static JsonSerializerSettings Json=new(){ContractResolver=new CamelCasePropertyNamesContractResolver()};
+ internal class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);internal static JsonSerializerSettings Json=new(){ContractResolver=new CamelCasePropertyNamesContractResolver()};
   internal bool Throw;internal List<string> Events=new();internal void Write(string s){if(Throw)throw new Exception("test log fault");Events.Add(s);} }
  internal class Log {internal void LogWarning(string s){} }
  namespace Api {internal static class Decisions {internal static void Publish(string s,Action<Exception> callback){} }}

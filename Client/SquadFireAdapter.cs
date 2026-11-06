@@ -180,9 +180,9 @@ public sealed partial class Plugin
         var r=s.SquadFire;var t=r.Policy.Trace;if(t==null)return;
         string key=t.State+":"+t.Reason+":"+t.Ally+":"+t.Execution;
         if(!force&&key==r.LogKey&&(!r.Policy.Blocking||Time.time-r.LogAt<.1f))return;r.LogKey=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="S08",stage="evaluated",decision="SquadFire",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="S08",stage="evaluated",decision="SquadFire",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            squadFire=t,squadFireConfig=config?.SquadFire},Diagnostics.Json);
+            squadFire=t,squadFireConfig=config?.SquadFire});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

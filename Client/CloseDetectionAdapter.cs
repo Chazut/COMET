@@ -129,10 +129,10 @@ public sealed partial class Plugin
         // Separate lanes keep an acquisition observable even just after a calculation record.
         if (Time.time < (acquired ? s.CloseNextAcquired : s.CloseNextLog)) { s.CloseCoalesced++; return; }
         if (acquired) s.CloseNextAcquired = Time.time + .5f; else s.CloseNextLog = Time.time + .5f;
-        var json = JsonConvert.SerializeObject(new { schema = 1, session, sequence = ++sequence, feature = "P05", stage = "evaluated",
+        var json = Diagnostics.Serialize(new { schema = 1, session, sequence = ++sequence, feature = "P05", stage = "evaluated",
             decision = "CloseDetection", reason = t.Reason, realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"),
             cometVersion = "0.1.0", configRevision = config?.Revision ?? 0, closeConfig = config?.CloseDetection,
-            profileId = s.ProfileId, name = s.Name, botInstance = s.Id, closeDetection = t, coalesced = s.CloseCoalesced }, Diagnostics.Json);
+            profileId = s.ProfileId, name = s.Name, botInstance = s.Id, closeDetection = t, coalesced = s.CloseCoalesced });
         s.CloseCoalesced = 0;
         diagnostics?.Write(json); Api.Decisions.Publish(json, ex => { if (!subscriberWarned) { subscriberWarned = true; Logger.LogWarning(ex.Message); } });
     }
@@ -141,8 +141,8 @@ public sealed partial class Plugin
         if (!force && Time.time < nextCloseSummary) return;
         nextCloseSummary = Time.time + 10;
         if (closeCounters.Count == 0) return;
-        diagnostics?.Write(JsonConvert.SerializeObject(new { schema = 1, session, feature = "P05", stage = "summary",
-            reason = "close-counters", realtime = Time.realtimeSinceStartup, counters = closeCounters }, Diagnostics.Json));
+        diagnostics?.Write(Diagnostics.Serialize(new { schema = 1, session, feature = "P05", stage = "summary",
+            reason = "close-counters", realtime = Time.realtimeSinceStartup, counters = closeCounters }));
         closeCounters.Clear();
     }
     private void ClearCloseDetection()

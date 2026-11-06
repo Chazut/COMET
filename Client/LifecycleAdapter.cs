@@ -180,9 +180,9 @@ public sealed partial class Plugin
     {
         try
         {
-            var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="C09",stage="evaluated",decision="Lifecycle",reason=trace.Reason,
+            var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="C09",stage="evaluated",decision="Lifecycle",reason=trace.Reason,
                 realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,
-                profileId=life.Profile,name=life.Name,botInstance=life.Id,lifecycle=trace},Diagnostics.Json);
+                profileId=life.Profile,name=life.Name,botInstance=life.Id,lifecycle=trace});
             diagnostics?.Write(json);Api.Decisions.Publish(json,WarnFaultSink);
         }
         catch(Exception ex){WarnFaultSink(ex);}

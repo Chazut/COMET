@@ -41,7 +41,7 @@ namespace SAIN.Components {
 namespace Comet.Client {
  internal class BotState {public EncounterRuntime Encounter=new();public string ProfileId="observer",Name="Test PMC",Id="native-observer",Decision="";public List<Candidate> Candidates=new();}
  internal static class NativeAdapter {public static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
- internal static class Diagnostics {public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
+ internal static class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
  internal class Sink {public List<string> Lines=new();public void Write(string line)=>Lines.Add(line);}
  internal class Log {public List<string> Warnings=new();public void LogWarning(string line)=>Warnings.Add(line);}
  internal static class Api {public static class Decisions {public static List<string> Lines=new();public static void Publish(string line,Action<Exception> failure)=>Lines.Add(line);}}

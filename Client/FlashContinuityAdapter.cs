@@ -217,9 +217,9 @@ public sealed partial class Plugin
         t.X = t.HasRemembered ? r.Remembered!.Value.x : 0; t.Y = t.HasRemembered ? r.Remembered!.Value.y : 0; t.Z = t.HasRemembered ? r.Remembered!.Value.z : 0;
         t.GasActive = s.Gas.Intensity > 0;
         t.Alternatives = new[] { "Keep each existing flash deadline", "Never update a blind bot from a live enemy position", "Gas modifiers stay separate" };
-        var json = JsonConvert.SerializeObject(new { schema = 1, session, sequence = ++sequence, feature = "G09", stage = "evaluated", decision = "FlashContinuity", reason,
+        var json = Diagnostics.Serialize(new { schema = 1, session, sequence = ++sequence, feature = "G09", stage = "evaluated", decision = "FlashContinuity", reason,
             realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"), configRevision = config?.Revision ?? 0, profileId = s.ProfileId, name = s.Name, botInstance = s.Id,
-            flashContinuity = t, flashContinuityConfig = config?.FlashContinuity }, Diagnostics.Json);
+            flashContinuity = t, flashContinuityConfig = config?.FlashContinuity });
         diagnostics?.Write(json); Api.Decisions.Publish(json, ex => { if (!subscriberWarned) { subscriberWarned = true; Logger.LogWarning(ex.Message); } });
     }
 }

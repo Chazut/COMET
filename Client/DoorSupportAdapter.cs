@@ -293,9 +293,9 @@ public sealed partial class Plugin
     private void PublishDoorSupport(BotState s,DoorSupportTrace t)
     {
         t.SupportName=s.Name; var leader=supportOperations.Values.FirstOrDefault(o=>o.Id==t.Operation)?.Leader; if(leader!=null&&states.TryGetValue(leader,out var leaderState))t.LeaderName=leaderState.Name;
-        string json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="D11",stage="evaluated",decision="DoorSupport",reason=t.Reason,
+        string json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="D11",stage="evaluated",decision="DoorSupport",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            doorSupport=t},Diagnostics.Json);
+            doorSupport=t});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

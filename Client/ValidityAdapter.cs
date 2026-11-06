@@ -174,9 +174,9 @@ public sealed partial class Plugin
         count.Trace.Summary=final;count.Trace.ValidFor=final?0:2;
         count.Published=count.Trace.Blocked;count.Next=Time.unscaledTimeAsDouble+5;
         if(owner.Player.TryGetTarget(out var player)&&player!=null){var b=player.GetComponent<SAIN.Components.BotComponent>();if(b!=null&&states.TryGetValue(b,out var s))owner.Instance=s.Id;}
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="C10",stage="evaluated",decision="Validity",reason=count.Trace.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="C10",stage="evaluated",decision="Validity",reason=count.Trace.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=owner.Profile,name=owner.Name,
-            botInstance=owner.Instance,validity=count.Trace},Diagnostics.Json);
+            botInstance=owner.Instance,validity=count.Trace});
         diagnostics?.Write(json);Api.Decisions.Publish(json,WarnFaultSink);
     }
     private void ClearValidity()

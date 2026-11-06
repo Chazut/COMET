@@ -236,9 +236,9 @@ public sealed partial class Plugin
         string key=t.State+":"+t.Reason+":"+t.HolsterAttempts+":"+t.CallbackCompleted+":"+t.Medical?.ConsumptionObserved+":"+t.Medical?.UseCallbackCompleted+":"+t.Medical?.CooldownRestored;
         if(!force&&key==r.LogKey&&(!r.Policy.Active||Time.time-r.LogAt<.5f))return;
         r.LogKey=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature=t.Medical==null?"D05":"D06",stage="evaluated",decision=t.Medical==null?"DoorFakeGrenade":"DoorFakeMedical",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature=t.Medical==null?"D05":"D06",stage="evaluated",decision=t.Medical==null?"DoorFakeGrenade":"DoorFakeMedical",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            doorFakeGrenade=t.Medical==null?t:null,doorFakeMedical=t.Medical!=null?t:null,doorFakeGrenadeConfig=config?.DoorFakeGrenade,doorFakeMedicalConfig=t.Medical!=null?config?.DoorFakeMedical:null},Diagnostics.Json);
+            doorFakeGrenade=t.Medical==null?t:null,doorFakeMedical=t.Medical!=null?t:null,doorFakeGrenadeConfig=config?.DoorFakeGrenade,doorFakeMedicalConfig=t.Medical!=null?config?.DoorFakeMedical:null});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

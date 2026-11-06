@@ -87,7 +87,7 @@ namespace Comet.Core {public static class ImpactReaction{public static bool Fini
  public class OpportunityMemory {public OpportunityTrace Value=new();public OpportunityTrace Snapshot(string id,int instance,double now,object c)=>Value;}
 }
 namespace Comet.Client {
- internal class Diagnostics {internal static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};internal List<string> Events=new();internal void Write(string value)=>Events.Add(value);}
+ internal class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);internal static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};internal List<string> Events=new();internal void Write(string value)=>Events.Add(value);}
  internal class Log {internal void LogWarning(string s){}}
  internal static class NativeAdapter {internal static bool FriendsClear=true;internal static bool GrenadeFriendsClear(BotComponent b,Vector3 p)=>FriendsClear;internal static void ContinueGrenadeSearch(BotComponent b,BotState s,CometConfig c){Plugin.Instance!.Find(b);}internal static bool IsPmcAi(BotComponent b)=>b.Pmc&&!b.IsDead;}
  internal class FakeRuntime {internal FakePolicy Policy=new();internal bool CallbackPending;}internal class FakePolicy {internal bool Active;}

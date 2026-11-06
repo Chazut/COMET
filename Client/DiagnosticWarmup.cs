@@ -48,6 +48,12 @@ internal static class DiagnosticWarmup
         {
             if (type.Namespace == "Comet.Core") Add(type);
             if (type.ContainsGenericParameters) continue;
+            // First combat use also pays for policy/adapter constructors. Prepare
+            // their code here without running initializers or touching Unity.
+            if(prepareMethods && (type.Namespace=="Comet.Client" || type.Namespace=="Comet.Core"))
+                foreach(var constructor in type.GetConstructors(BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance))
+                    try { RuntimeHelpers.PrepareMethod(constructor.MethodHandle);report.Methods++; }
+                    catch(Exception ex) { report.Failure(type.FullName+".ctor",ex); }
             foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static
                 | BindingFlags.Instance | BindingFlags.DeclaredOnly))
             {

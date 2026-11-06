@@ -252,9 +252,9 @@ public sealed partial class Plugin
         if(b!=null)t.Action=b.Decision.CurrentSelfDecision==ESelfActionType.Reload?"Reload":b.Decision.CurrentCombatDecision.ToString();
         string key=t.State+":"+t.Choice+":"+t.Reason+":"+t.From+":"+t.To+":"+t.Loaded+":"+t.TargetLoaded+":"+t.InHands+":"+t.Ready;
         if(!force&&key==r.LogKey&&Time.time-r.LogAt<.25f)return;r.LogKey=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="W03",stage="evaluated",decision="WeaponReturn",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="W03",stage="evaluated",decision="WeaponReturn",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            weaponReturn=t,weaponReturnConfig=config?.WeaponReturn},Diagnostics.Json);
+            weaponReturn=t,weaponReturnConfig=config?.WeaponReturn});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

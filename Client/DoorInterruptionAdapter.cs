@@ -253,9 +253,9 @@ public sealed partial class Plugin
         var r=s.Interruption;var t=r.Policy.Trace;if(t==null)return;string key=t.State+":"+t.Reason+":"+t.Cause+":"+t.NativeAccepted;
         if(!force&&key==r.LogKey&&(!r.Policy.Pending&&!r.Policy.Resumed||Time.time-r.LogAt<.5))return;
         r.LogKey=key;r.LogAt=Time.time;
-        string json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="D12",stage="evaluated",decision="DoorInterruption",reason=t.Reason,
+        string json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="D12",stage="evaluated",decision="DoorInterruption",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            doorInterruption=t,doorInterruptionConfig=config?.DoorInterruption},Diagnostics.Json);
+            doorInterruption=t,doorInterruptionConfig=config?.DoorInterruption});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

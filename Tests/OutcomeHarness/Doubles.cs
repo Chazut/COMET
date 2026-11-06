@@ -61,7 +61,7 @@ namespace Comet.Client {
  internal class BotState {public FlankRuntime Flank=new();public OutcomeRuntime Outcomes=new();public string ProfileId="observer",Name="Test PMC",Id="native-observer",Decision="Cover",Feature="A02",ActiveLabel="COMET:Cover";
   public string CounterFeature="";public int CounterEncounter,CounterOpportunity;public bool CounterObserverFailed;public MixTrace? Mixing;
   public ECombatDecision Expected=ECombatDecision.SeekCover;public CoverPoint? SelectedCover=new();public ExposureProbe? Probe=new();public Situation? Situation;public List<Candidate> Candidates=new();}
- internal static class Diagnostics {public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
+ internal static class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
  internal class Sink {public List<string> Lines=new();public void Write(string s)=>Lines.Add(s);}
  internal class Log {public List<string> Warnings=new();public void LogWarning(string s)=>Warnings.Add(s);}
  internal static class Api {public static class Decisions {public static List<string> Lines=new();public static void Publish(string line,Action<Exception> failure)=>Lines.Add(line);}}

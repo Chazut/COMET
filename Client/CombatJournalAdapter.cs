@@ -92,21 +92,21 @@ public sealed partial class Plugin
         var r=s.Journal;if(world==null||r.Fault)return;
         // Repeated native requests can be arbitrarily frequent. Cap expensive snapshots and output.
         if(limited){if(Time.time-r.BudgetAt>=1){r.BudgetAt=Time.time;r.Events=0;}if(++r.Events>12){r.Omitted++;return;}}
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature,stage="evaluated",eventKind=stage,decision=feature=="T01"?"CombatJournal":"WeaponJournal",reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature,stage="evaluated",eventKind=stage,decision=feature=="T01"?"CombatJournal":"WeaponJournal",reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,
             profileId=s.ProfileId,name=s.Name,botInstance=s.Id,personality=r.Personality,
-            combatJournal=combat,weaponJournal=weapon},Diagnostics.Json);
+            combatJournal=combat,weaponJournal=weapon});
         diagnostics?.Write(json);Api.Decisions.Publish(json,_=>{});
     }
     private void JournalError(BotState s,Exception ex)
     {
         if(s.Journal.Fault)return;s.Journal.Fault=true;
-        try{diagnostics?.Write(JsonConvert.SerializeObject(new{schema=1,session,feature="T01",stage="observer-unavailable",profileId=s.ProfileId},Diagnostics.Json));Logger.LogWarning("COMET journal unavailable for "+s.ProfileId+": "+ex.Message);}catch{}
+        try{diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,feature="T01",stage="observer-unavailable",profileId=s.ProfileId}));Logger.LogWarning("COMET journal unavailable for "+s.ProfileId+": "+ex.Message);}catch{}
     }
     private void JournalReadError(string source,Exception ex)
     {
         if(journalReadFaultReported)return;journalReadFaultReported=true;
-        try{diagnostics?.Write(JsonConvert.SerializeObject(new{schema=1,session,feature="T01",stage="observer-unavailable",source},Diagnostics.Json));Logger.LogWarning("COMET journal native observation unavailable: "+source+": "+ex.Message);}catch{}
+        try{diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,feature="T01",stage="observer-unavailable",source}));Logger.LogWarning("COMET journal native observation unavailable: "+source+": "+ex.Message);}catch{}
     }
     private void SampleCombatJournal(BotComponent b,BotState s)
     {
@@ -175,7 +175,7 @@ public sealed partial class Plugin
         {
             if(config?.CombatJournal.Enabled==true)JournalWrite(s,"T01","pause",reason,new{kind="pause"});
             JournalWeaponEvents(s,s.Journal.Weapons.Suspend(Time.time,reason),true);
-            if(s.Journal.Omitted>0){diagnostics?.Write(JsonConvert.SerializeObject(new{schema=1,session,feature="T03",stage="omitted",count=s.Journal.Omitted},Diagnostics.Json));s.Journal.Omitted=0;}
+            if(s.Journal.Omitted>0){diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,feature="T03",stage="omitted",count=s.Journal.Omitted}));s.Journal.Omitted=0;}
             s.Journal.Scoped=false;s.Journal.Context="";
         }catch(Exception ex){JournalError(s,ex);}
     }
@@ -248,7 +248,7 @@ public sealed partial class Plugin
         foreach(var s in states.Values)try
         {
             JournalWeaponEvents(s,s.Journal.Weapons.Suspend(Time.time,"raid-ended"));
-            if(s.Journal.Omitted>0)diagnostics?.Write(JsonConvert.SerializeObject(new{schema=1,session,feature="T03",stage="omitted",count=s.Journal.Omitted},Diagnostics.Json));
+            if(s.Journal.Omitted>0)diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,feature="T03",stage="omitted",count=s.Journal.Omitted}));
         }catch(Exception ex){JournalError(s,ex);}
         journalDeaths=new();journalReadFaultReported=false;
     }

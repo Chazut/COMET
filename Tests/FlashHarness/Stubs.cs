@@ -51,7 +51,7 @@ namespace Comet.Client {
  internal class BotState {internal readonly FlashRuntime Flash=new();internal readonly GasRuntime Gas=new();internal string ProfileId,Name="test",Id="instance";internal BotState(BotComponent b){ProfileId=b.ProfileId;}}
  public class Sink{public List<string> Lines=new();public void Write(string s)=>Lines.Add(s);public void Publish(string s,Action<Exception> onError){}}
  public static class Api{public static Sink Decisions=new();}
- public static class Diagnostics{public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
+ public static class Diagnostics{ internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
  public class Log{public void LogWarning(string s)=>Console.WriteLine(s);}
  public sealed partial class Plugin {
   internal static Plugin? Instance;internal Dictionary<BotComponent,BotState> states=new();internal Comet.Core.CometConfig? config=new();internal object? world=new();internal bool Authority=true;internal string session="g09-harness";internal long sequence;internal bool subscriberWarned;internal Sink? diagnostics=new();internal Log Logger=new();internal HashSet<string> ghosts=new();

@@ -290,9 +290,9 @@ public sealed partial class Plugin
     {
         var r=s.Entry;var t=r.Policy.Trace;if(t==null)return;string key=t.State+":"+t.Reason+":"+t.BreachObserved;
         if(!force&&key==r.LogKey&&Time.time-r.LogAt<.5f)return;r.LogKey=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="D15",stage="evaluated",decision="DoorEntry",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="D15",stage="evaluated",decision="DoorEntry",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            doorEntry=t,doorEntryConfig=config?.DoorEntry},Diagnostics.Json);
+            doorEntry=t,doorEntryConfig=config?.DoorEntry});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

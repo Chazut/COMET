@@ -161,9 +161,9 @@ public sealed partial class Plugin
         Api.Decisions.SetPostCombat(s.ProfileId,t.Applied?"COMET:PostCombat"+char.ToUpperInvariant(t.State[0])+t.State.Substring(1):"");
         string key=t.Episode+":"+t.State+":"+t.Reason+":"+t.Execution+":"+t.Applied;
         if(!force&&key==r.Key&&(!t.Applied||Time.time<r.LogAt))return;r.Key=key;r.LogAt=Time.time+.5f;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="H04",stage="evaluated",decision="PostCombat",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="H04",stage="evaluated",decision="PostCombat",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            postCombat=t,postCombatConfig=config?.PostCombat},Diagnostics.Json);
+            postCombat=t,postCombatConfig=config?.PostCombat});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

@@ -75,10 +75,10 @@ public sealed partial class Plugin
         string key=trace.Reported+":"+trace.Ceiling+":"+trace.ProbeReason;
         if(key==s.EnvironmentLogKey&&Time.time==s.EnvironmentLogAt)return;
         s.EnvironmentLogKey=key;s.EnvironmentLogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="P10",stage="evaluated",
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="P10",stage="evaluated",
             decision="EnvironmentContext",reason=trace.Conflict?"environment-conflicting-reports":"environment-observed",
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,
-            environmentConfig=config?.EnvironmentContext,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,environmentContext=trace},Diagnostics.Json);
+            environmentConfig=config?.EnvironmentContext,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,environmentContext=trace});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
     private void ClearEnvironment()

@@ -43,7 +43,7 @@ namespace Comet.Client {
  internal class Budget{public bool Allow=true;public int Calls;public bool TryBegin(int frame){Calls++;return Allow;}public void Charge(double n){}}
  internal class Log{public List<string> Warnings=new();public void LogWarning(string s)=>Warnings.Add(s);}
  internal class Sink{public List<string> Events=new();public void Write(string s)=>Events.Add(s);}
- internal static class Diagnostics{public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
+ internal static class Diagnostics{ internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
  internal static class Api{public static class Decisions{public static void Publish(string s,Action<Exception> e){}}}
  public sealed partial class Plugin {
   internal static Plugin? Instance;internal CometConfig? config=new();internal bool Authority=true,subscriberWarned;internal object? world=new();internal Dictionary<BotComponent,BotState> states=new();internal Budget doorBudget=new();internal System.Diagnostics.Stopwatch doorClock=new();internal Log Logger=new();internal Sink? diagnostics=new();internal string session="s07-harness";internal int sequence;internal bool BodyBlocked,MedicalGuard;

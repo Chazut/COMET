@@ -47,7 +47,7 @@ namespace Comet.Client{
  internal class BotState(BotComponent b){internal OwnGrenadeRuntime OwnGrenade=new();internal GrenadeEscapeRuntime GrenadeEscape=new();internal string ProfileId=b.ProfileId,Name=b.ProfileId,Id=b.ProfileId+"-instance";}
  internal static class NativeAdapter{internal static bool IsPmcAi(BotComponent b)=>b.Pmc;}
  public class Sink{public List<string> Lines=new();public void Write(string s)=>Lines.Add(s);public void Publish(string s,Action<Exception> a){}}
- public static class Api{public static Sink Decisions=new();}public static class Diagnostics{public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
+ public static class Api{public static Sink Decisions=new();}public static class Diagnostics{ internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
  public class Log{public void LogWarning(string s){}}
  public sealed partial class Plugin{
   private void FilterNativeGas(SAIN.SAINComponent.Classes.WeaponFunction.GrenadeReactionClass n){}

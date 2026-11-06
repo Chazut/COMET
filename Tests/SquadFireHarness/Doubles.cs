@@ -39,7 +39,7 @@ namespace Comet.Client {
  internal class Budget{public bool Allow=true;public int Calls;public bool TryBegin(int frame){Calls++;return Allow;}public void Charge(double n){}}
  internal class Log{public List<string> Warnings=new();public void LogWarning(string s)=>Warnings.Add(s);}
  internal class Sink{public List<string> Events=new();public void Write(string s)=>Events.Add(s);}
- internal static class Diagnostics{public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
+ internal static class Diagnostics{ internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
  internal static class Api{public static class Decisions{public static void Publish(string s,Action<Exception> e){}}}
  internal class ShotGeometryRuntime{public object[] Held=new object[32];}
  internal class Ammo{public double PenetrationPower=50,PenetrationPowerDiviation=0,PenetrationChanceObstacle=1,RicochetChance=0;}

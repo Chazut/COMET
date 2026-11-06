@@ -180,7 +180,7 @@ public sealed partial class Plugin
   var r=s.Gas;var t=r.Trace;if(t==null)return;t.HasGoal=r.Path!=null;t.GoalX=r.Goal.x;t.GoalY=r.Goal.y;t.GoalZ=r.Goal.z;t.Alternatives=r.Alternatives.ToArray();t.ValidFor=t.State=="ended"?0:1;
   string key=t.State+"|"+t.Reason+"|"+t.Cloud+"|"+t.Protection;
   if(key==r.Key&&Time.time-r.LogAt<.5f&&!t.Cough)return;r.Key=key;r.LogAt=Time.time;
-  var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="G08",stage="evaluated",decision="GasExposure",reason=t.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,gasExposure=t,gasExposureConfig=config?.GasExposure},Diagnostics.Json);
+  var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="G08",stage="evaluated",decision="GasExposure",reason=t.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,gasExposure=t,gasExposureConfig=config?.GasExposure});
   diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
  }
 }

@@ -41,7 +41,7 @@ namespace SAIN.SAINComponent.Classes.Mover {
 namespace Comet.Client {
  internal static class NativeAdapter {public static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.Player.IsAI&&!b.IsDead;}
  internal class BotState {internal MedicalPostureRuntime MedicalPosture=new();public string ProfileId,Name="COMET Test PMC",Id="test-instance";internal BotState(BotComponent b,CometConfig c,string session){ProfileId=b.ProfileId;}}
- public class Diagnostics {public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};public List<string> Lines=new();public void Write(string x)=>Lines.Add(x);}
+ public class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};public List<string> Lines=new();public void Write(string x)=>Lines.Add(x);}
  public static class Api {public static class Decisions {public static List<string> Lines=new();public static void Publish(string json,Action<Exception> onError)=>Lines.Add(json);}}
  public class Log {public List<string> Lines=new();public void LogWarning(string s)=>Lines.Add(s);}
  public sealed partial class Plugin {

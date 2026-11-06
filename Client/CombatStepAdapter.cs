@@ -330,9 +330,9 @@ public sealed partial class Plugin
         string key=t.Episode+":"+t.State+":"+t.Reason;
         if(!force&&key==r.PauseLogKey&&(!r.Pause.Pausing||Time.time-r.PauseLogAt<.05f))return;
         r.PauseLogKey=key;r.PauseLogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="M02",stage="evaluated",decision="FirePause",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="M02",stage="evaluated",decision="FirePause",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            firePause=t,firePauseConfig=config?.FirePause},Diagnostics.Json);
+            firePause=t,firePauseConfig=config?.FirePause});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
     private void CombatStepError(BotState s,Exception ex)
@@ -342,9 +342,9 @@ public sealed partial class Plugin
         var r=s.CombatStep;var t=r.Policy.Trace;if(t==null)return;
         string key=t.Episode+":"+t.State+":"+t.Reason+":"+t.Requests+":"+t.Alternatives.Length;
         if(!force&&key==r.LogKey&&(!r.Policy.Active||Time.time-r.LogAt<.25f))return;r.LogKey=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="M01",stage="evaluated",decision="CombatStep",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="M01",stage="evaluated",decision="CombatStep",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            combatStep=t,combatStepConfig=config?.CombatStep},Diagnostics.Json);
+            combatStep=t,combatStepConfig=config?.CombatStep});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

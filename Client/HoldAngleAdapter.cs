@@ -275,9 +275,9 @@ public sealed partial class Plugin
         string key=t.Episode+":"+t.State+":"+t.Reason+":"+t.PoseRequested+":"+t.MoveRequested;
         if(!force&&key==r.LogKey&&(!r.Policy.Active||Time.time-r.LogAt<.1f))return;
         r.LogKey=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="M08",stage="evaluated",decision="HoldAngle",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="M08",stage="evaluated",decision="HoldAngle",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            holdAngle=t,holdAngleConfig=config?.HoldAngle},Diagnostics.Json);
+            holdAngle=t,holdAngleConfig=config?.HoldAngle});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

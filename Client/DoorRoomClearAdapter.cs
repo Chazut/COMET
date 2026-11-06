@@ -450,9 +450,9 @@ public sealed partial class Plugin
         var r=s.RoomClear;var t=r.Policy.Trace;if(t==null)return;
         string key=t.State+":"+t.Reason+":"+t.GrenadeOutcome+":"+t.ThresholdCrossed+":"+t.MovementObserved+":"+t.ThrowAccepted;
         if(!force&&key==r.LogKey&&(!r.Policy.Active||Time.time-r.LogAt<.5f))return;r.LogKey=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature=t.Mode=="search"?"D08":"D07",stage="evaluated",decision=t.Mode=="search"?"DoorSearchClear":"DoorRoomClear",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature=t.Mode=="search"?"D08":"D07",stage="evaluated",decision=t.Mode=="search"?"DoorSearchClear":"DoorRoomClear",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            doorRoomClear=t,doorRoomClearConfig=config?.DoorRoomClear,doorSearchClearConfig=t.Mode=="search"?config?.DoorSearchClear:null},Diagnostics.Json);
+            doorRoomClear=t,doorRoomClearConfig=config?.DoorRoomClear,doorSearchClearConfig=t.Mode=="search"?config?.DoorSearchClear:null});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

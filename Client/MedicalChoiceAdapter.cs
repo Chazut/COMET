@@ -318,9 +318,9 @@ public sealed partial class Plugin
         var r=s.Medical;var t=r.Policy.Trace;if(t==null)return;
         string key=t.State+":"+t.Choice+":"+t.Reason+":"+t.Item;
         if(!force&&key==r.Key&&Time.time<r.LogAt)return;r.Key=key;r.LogAt=Time.time+(t.Applied?.5f:4);
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="H01",stage="evaluated",decision="MedicalChoice",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="H01",stage="evaluated",decision="MedicalChoice",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            medicalChoice=t,medicalChoiceConfig=config?.MedicalChoice},Diagnostics.Json);
+            medicalChoice=t,medicalChoiceConfig=config?.MedicalChoice});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

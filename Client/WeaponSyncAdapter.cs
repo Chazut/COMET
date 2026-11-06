@@ -237,9 +237,9 @@ public sealed partial class Plugin
         if(b?.Decision!=null)t.Action=b.Decision.CurrentSelfDecision==SAIN.Preset.Shared.Enums.ESelfActionType.Reload?"Reload":b.Decision.CurrentCombatDecision.ToString();
         var key=t.State+":"+t.Reason+":"+t.Held+":"+string.Join("|",t.Slots.Select(x=>x.Actual+":"+x.NativeBefore+":"+x.SainBefore));
         if(!force&&key==r.LogKey&&Time.time-r.LogAt<1)return;r.LogKey=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="W06",stage="evaluated",decision="WeaponSync",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="W06",stage="evaluated",decision="WeaponSync",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            weaponSync=t,weaponSyncConfig=config?.WeaponSync},Diagnostics.Json);
+            weaponSync=t,weaponSyncConfig=config?.WeaponSync});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

@@ -153,9 +153,9 @@ public sealed partial class Plugin
     {
         try
         {
-            string json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
+            string json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
                 realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),feature="I02",stage="evaluated",decision="ControlHandoff",
-                reason=trace.Reason,controlHandoff=trace,configRevision=config?.Revision??0},Diagnostics.Json);
+                reason=trace.Reason,controlHandoff=trace,configRevision=config?.Revision??0});
             diagnostics?.Write(json);Api.Decisions.Publish(json,WarnFaultSink);
         }
         catch(Exception ex){ControlWarning("diagnostic",ex);}

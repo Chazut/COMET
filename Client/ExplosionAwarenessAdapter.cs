@@ -276,9 +276,9 @@ public sealed partial class Plugin
     {
         if (!force && Time.time < s.Blast.NextLog) return;
         s.Blast.NextLog = Time.time + .5f;
-        var json = JsonConvert.SerializeObject(new { schema = 1, session, sequence = ++sequence, feature = "G10", stage = "evaluated", decision = "ExplosionAwareness", reason = t.Reason,
+        var json = Diagnostics.Serialize(new { schema = 1, session, sequence = ++sequence, feature = "G10", stage = "evaluated", decision = "ExplosionAwareness", reason = t.Reason,
             realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"), configRevision = config?.Revision ?? 0,
-            profileId = s.ProfileId, name = s.Name, botInstance = s.Id, explosionAwareness = t, explosionAwarenessConfig = config?.ExplosionAwareness }, Diagnostics.Json);
+            profileId = s.ProfileId, name = s.Name, botInstance = s.Id, explosionAwareness = t, explosionAwarenessConfig = config?.ExplosionAwareness });
         diagnostics?.Write(json); Api.Decisions.Publish(json, ex => { if (!subscriberWarned) { subscriberWarned = true; Logger.LogWarning(ex.Message); } });
     }
 }

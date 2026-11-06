@@ -129,10 +129,10 @@ public sealed partial class Plugin
         if (Time.timeAsDouble - r.LogAt < 1 && (!urgent || t.State == r.LastState && t.Reason == r.LastReason)) return;
         r.LogAt = Time.timeAsDouble; r.LastState = t.State; r.LastReason = t.Reason;
         string id = states.TryGetValue(b, out var s) ? s.Id : r.Id;
-        var json = JsonConvert.SerializeObject(new { schema = 1, session, sequence = ++sequence, feature = "C07", stage = "evaluated",
+        var json = Diagnostics.Serialize(new { schema = 1, session, sequence = ++sequence, feature = "C07", stage = "evaluated",
             decision = "CoverScan", reason = t.Reason, realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"),
             configRevision = config?.Revision ?? 0, profileId = b.ProfileId, name = b.Player.Profile.Nickname, botInstance = id,
-            coverScan = t, coverScanConfig = config?.CoverScan }, Diagnostics.Json);
+            coverScan = t, coverScanConfig = config?.CoverScan });
         diagnostics?.Write(json); Api.Decisions.Publish(json, ex => { if (!subscriberWarned) { subscriberWarned = true; Logger.LogWarning(ex.Message); } });
     }
 }

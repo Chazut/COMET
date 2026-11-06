@@ -100,9 +100,9 @@ public sealed partial class Plugin
     {
         var r=s.RecoilRecovery;var t=r.Trace;if(t==null)return;
         double now=Time.timeAsDouble;if(!force&&now-r.LogAt<.5)return;r.LogAt=now;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="W09",stage="evaluated",decision="RecoilRecovery",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="W09",stage="evaluated",decision="RecoilRecovery",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            recoilRecovery=t,recoilRecoveryConfig=config?.RecoilRecovery},Diagnostics.Json);
+            recoilRecovery=t,recoilRecoveryConfig=config?.RecoilRecovery});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

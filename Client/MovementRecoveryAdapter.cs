@@ -236,9 +236,9 @@ public sealed partial class Plugin
             ? !coverContext || Time.timeAsDouble-r.LogAt<10
             : Time.timeAsDouble-r.LogAt<config!.MovementRecovery.SampleInterval))return;
         r.Key=key;r.LogAt=Time.timeAsDouble;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="C06",stage="evaluated",decision="MovementRecovery",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="C06",stage="evaluated",decision="MovementRecovery",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            movementRecovery=t,movementRecoveryConfig=config?.MovementRecovery},Diagnostics.Json);
+            movementRecovery=t,movementRecoveryConfig=config?.MovementRecovery});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

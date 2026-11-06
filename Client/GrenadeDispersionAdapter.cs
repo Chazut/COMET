@@ -87,12 +87,12 @@ public sealed partial class Plugin
     {
         var r = s.GrenadeEscape; var t = r.DispersionTrace; if (t == null) return;
         if (!force && Time.time - r.DispersionLogAt < .4f) return; r.DispersionLogAt = Time.time;
-        var json = JsonConvert.SerializeObject(new
+        var json = Diagnostics.Serialize(new
         {
             schema = 1, session, sequence = ++sequence, feature = "G06", stage = "evaluated", decision = "GrenadeDispersion", reason = t.Reason,
             realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"), configRevision = config?.Revision ?? 0,
             profileId = s.ProfileId, name = s.Name, botInstance = s.Id, grenadeDispersion = t, grenadeDispersionConfig = config?.GrenadeDispersion
-        }, Diagnostics.Json);
+        });
         diagnostics?.Write(json); Api.Decisions.Publish(json, ex => { if (!subscriberWarned) { subscriberWarned = true; Logger.LogWarning(ex.Message); } });
     }
 }

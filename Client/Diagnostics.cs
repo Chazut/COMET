@@ -139,6 +139,29 @@ internal sealed class PreparedDiagnosticResolver : CamelCasePropertyNamesContrac
     internal sealed class Diagnostics : IDisposable
     {
         internal static readonly JsonSerializerSettings Json = new JsonSerializerSettings { ContractResolver = new PreparedDiagnosticResolver() };
+        [ThreadStatic] private static JsonSerializer? serializer;
+        [ThreadStatic] private static Func<JsonSerializerSettings>? serializerDefaults;
+        [ThreadStatic] private static System.Text.StringBuilder? buffer;
+        [ThreadStatic] private static bool serializing;
+        // Snapshot live values now, exactly as before. Only immutable JSON goes
+        // to workers/subscribers. Reuse metadata/writer storage, never payloads.
+        internal static string Serialize(object value)
+        {
+            if(serializing)return JsonConvert.SerializeObject(value,Json);
+            serializing=true;
+            var text=buffer??=new System.Text.StringBuilder(4096);text.Clear();
+            try
+            {
+                var defaults=JsonConvert.DefaultSettings;
+                if(serializer==null || !ReferenceEquals(serializerDefaults,defaults))
+                { serializer=JsonSerializer.CreateDefault(Json);serializerDefaults=defaults; }
+                using var output=new StringWriter(text,System.Globalization.CultureInfo.InvariantCulture);
+                using var writer=new JsonTextWriter(output);
+                serializer.Serialize(writer,value);writer.Flush();return text.ToString();
+            }
+            catch { serializer=null;throw; }
+            finally { text.Clear();if(text.Capacity>65536)buffer=null;serializing=false; }
+        }
         private readonly BlockingCollection<string> queue = new BlockingCollection<string>(4096);
         private readonly Action<string> warn;
         private readonly Task writer;

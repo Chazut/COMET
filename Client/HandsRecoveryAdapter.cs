@@ -127,9 +127,9 @@ public sealed partial class Plugin
         double now=Time.timeAsDouble;string key=t.State+"|"+t.Reason+"|"+t.Attempts;
         if(!force&&key==r.LogKey&&(t.ValidFor==0||now-r.LogAt<Math.Max(.5,config?.HandsRecovery.CheckSeconds??.5)))return;
         r.LogKey=key;r.LogAt=now;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="W10",stage="evaluated",decision="HandsRecovery",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="W10",stage="evaluated",decision="HandsRecovery",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            handsRecovery=t,handsRecoveryConfig=config?.HandsRecovery},Diagnostics.Json);
+            handsRecovery=t,handsRecoveryConfig=config?.HandsRecovery});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

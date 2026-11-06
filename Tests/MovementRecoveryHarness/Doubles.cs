@@ -58,7 +58,7 @@ namespace Comet.Api {public static class Decisions{public static List<string> Ev
 namespace Comet.Client {
  internal static class NativeAdapter{internal static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
  internal static class ProgressAdapter{internal static string CoverKey(CoverPoint p)=>Destination(p.Position);internal static string Destination(Vector3 p)=>$"{p.x}/{p.y}/{p.z}";}
- internal class Diagnostics{internal static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};internal void Write(string s){}}
+ internal class Diagnostics{ internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);internal static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};internal void Write(string s){}}
  internal class DummyPolicy{public bool Active;public DummyTrace? Trace;}internal class DummyTrace{public string State="";}internal class DummyRuntime{public DummyPolicy Policy=new();}
  internal sealed class BotState {
   internal MovementRecoveryRuntime MovementRecovery=new();internal DummyRuntime Fake=new(),Entry=new(),RoomClear=new();internal PlanProgress Progress=new(new());internal string ActiveLabel="",Decision="Search",ProfileId="pmc",Name="Test PMC",Id="instance";

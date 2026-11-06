@@ -120,9 +120,9 @@ public sealed partial class Plugin
         if(!force&&s.SpatialKey==key&&Time.time-s.SpatialAt<.5f)return;
         s.SpatialTrace=t;
         s.SpatialKey=key;s.SpatialAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="C03",stage="evaluated",decision="DoorGeometry",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="C03",stage="evaluated",decision="DoorGeometry",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,doorSpatialConfig=config?.DoorSpatial,
-            profileId=s.ProfileId,name=s.Name,botInstance=s.Id,doorSpatial=t},Diagnostics.Json);
+            profileId=s.ProfileId,name=s.Name,botInstance=s.Id,doorSpatial=t});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

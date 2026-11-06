@@ -229,9 +229,9 @@ public sealed partial class Plugin
     {
         var r=s.OwnGrenade;var t=r.Trace;if(t==null)return;string key=t.State+"|"+t.Reason+"|"+t.Owner+"|"+t.Projectile;
         if(!force&&key==r.Key&&Time.time-r.LogAt<.4f)return;r.Key=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="G04",stage="evaluated",decision="OwnGrenadeSafety",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="G04",stage="evaluated",decision="OwnGrenadeSafety",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            ownGrenadeSafety=t,ownGrenadeSafetyConfig=config?.OwnGrenadeSafety},Diagnostics.Json);
+            ownGrenadeSafety=t,ownGrenadeSafetyConfig=config?.OwnGrenadeSafety});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

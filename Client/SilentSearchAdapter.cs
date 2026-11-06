@@ -129,9 +129,9 @@ public sealed partial class Plugin
         if(!force&&Time.time-s.SilentLogAt<1)return;
         // Waiting details have a short heartbeat for replay. No per-frame diagnostic serialization.
         s.SilentLogAt=Time.time;s.SilentLogKey=key;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="P08",stage="evaluated",decision="SilentSearch",
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="P08",stage="evaluated",decision="SilentSearch",
             reason=t.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,
-            silentSearchConfig=config?.SilentSearch,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,silentSearch=t},Diagnostics.Json);
+            silentSearchConfig=config?.SilentSearch,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,silentSearch=t});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

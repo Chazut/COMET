@@ -20,9 +20,9 @@ public sealed partial class Plugin
             var current = SAINPlugin.LoadedPreset;
             var trace = sainPresetAudit.Observe(current,SainPresetAccess.Describe(current),Time.realtimeSinceStartup);
             if(trace == null)return;
-            string json = JsonConvert.SerializeObject(new { schema=1,session,sequence=++sequence,feature="C14",stage="context",
+            string json = Diagnostics.Serialize(new { schema=1,session,sequence=++sequence,feature="C14",stage="context",
                 decision="SainPreset",reason=trace.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),
-                configRevision=config.Revision,profileId="",name="SAIN preset",sainPreset=trace },Diagnostics.Json);
+                configRevision=config.Revision,profileId="",name="SAIN preset",sainPreset=trace });
             diagnostics?.Write(json);Api.Decisions.Publish(json,WarnFaultSink);
             Logger.LogInfo($"C14 selected SAIN preset: {trace.Name}; {trace.Availability}; singleton matches={trace.SingletonMatches}; COMET revision={config.Revision}.");
         }

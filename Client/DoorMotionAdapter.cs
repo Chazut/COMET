@@ -221,9 +221,9 @@ public sealed partial class Plugin
         var point=door.transform.position;
         var t=new DoorMotionTrace{State=state,Reason=reason,Door=door.Id,DoorState=door.DoorState.ToString(),Action=action,
             Angle=door.CurrentAngle,TargetAngle=target,ValidFor=state is "ended" or "confirmed" or "rejected"?0:.35,X=point.x,Y=point.y,Z=point.z};
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="C04",stage="evaluated",decision="DoorMotion",reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="C04",stage="evaluated",decision="DoorMotion",reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,doorMotionConfig=config?.DoorMotion,
-            profileId=s.ProfileId,name=s.Name,botInstance=s.Id,doorMotion=t},Diagnostics.Json);
+            profileId=s.ProfileId,name=s.Name,botInstance=s.Id,doorMotion=t});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>Logger.LogWarning(ex.Message));
     }
     private void ClearDoorMotion()

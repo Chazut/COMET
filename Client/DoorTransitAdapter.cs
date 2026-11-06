@@ -265,9 +265,9 @@ public sealed partial class Plugin
         string key=t.Door+":"+t.State+":"+t.Reason+":"+t.Requested;
         if(!force&&key==r.Key&&(t.State=="ended"||Time.time-r.LogAt<.25f))return;
         r.Key=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="C01",stage="evaluated",decision="DoorTransit",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="C01",stage="evaluated",decision="DoorTransit",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,doorTransitConfig=config?.DoorTransit,
-            profileId=s.ProfileId,name=s.Name,botInstance=s.Id,doorTransit=t},Diagnostics.Json);
+            profileId=s.ProfileId,name=s.Name,botInstance=s.Id,doorTransit=t});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

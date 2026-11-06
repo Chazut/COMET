@@ -293,9 +293,9 @@ public sealed partial class Plugin
         var r=s.GrenadeTrajectory;var t=r.Trace;if(t==null)return;
         string key=t.State+"|"+t.Reason+"|"+t.Attempts;
         if(!force&&r.LogKey==key&&Time.timeAsDouble-r.LogAt<.25)return;r.LogKey=key;r.LogAt=Time.timeAsDouble;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="G02",stage="evaluated",decision="GrenadeTrajectory",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="G02",stage="evaluated",decision="GrenadeTrajectory",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            grenadeTrajectory=t,grenadeTrajectoryConfig=config?.GrenadeTrajectory},Diagnostics.Json);
+            grenadeTrajectory=t,grenadeTrajectoryConfig=config?.GrenadeTrajectory});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

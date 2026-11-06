@@ -294,8 +294,8 @@ public sealed partial class Plugin
     private void FlushMovementSummary()
     {
         if (movementCounts.Count == 0) return;
-        diagnostics?.Write(JsonConvert.SerializeObject(new { schema = 1, session, feature = "P01", stage = "summary", reason = "movement-counters",
-            realtime = Time.realtimeSinceStartup, counters = movementCounts, queuedSignals = movementQueue.Count, pendingListeners = movementPending.Count }, Diagnostics.Json));
+        diagnostics?.Write(Diagnostics.Serialize(new { schema = 1, session, feature = "P01", stage = "summary", reason = "movement-counters",
+            realtime = Time.realtimeSinceStartup, counters = movementCounts, queuedSignals = movementQueue.Count, pendingListeners = movementPending.Count }));
         movementCounts.Clear();
     }
     private void EmitMovement(MovementDelivery d, string outcome, string reason)
@@ -313,14 +313,14 @@ public sealed partial class Plugin
         if (last.At > 0 && Time.time - last.At < 1) { movementLog[key] = (last.At, last.Suppressed + 1); return; }
         if (movementLog.Count >= MovementHearingGate.Capacity && !movementLog.ContainsKey(key)) return;
         movementLog[key] = (Time.time, 0);
-        string json = JsonConvert.SerializeObject(new {
+        string json = Diagnostics.Serialize(new {
             schema = 1, session, sequence = ++sequence, feature = "P01", stage = "evaluated", reason, decision = "MovementHearing",
             realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"), configRevision = config?.Revision ?? 0,
             hearingConfig = config!.MovementHearing,
             cometVersion = "0.1.0", profileId = state.ProfileId, name = state.Name, botInstance = state.Id,
             hearing = evidence, suppressed = last.Suppressed,
             contact = point == null ? null : new { target = sound.ProfileId, source = "heard", age = 0, x = point.Value.x, y = point.Value.y, z = point.Value.z }
-        }, Diagnostics.Json);
+        });
         diagnostics?.Write(json);
         Api.Decisions.Publish(json, ex => { if (!subscriberWarned) { subscriberWarned = true; Logger.LogWarning(ex.Message); } });
         // Hearing is evidence, not an accepted combat action. Never write GetCurrentDecision here.

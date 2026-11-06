@@ -209,9 +209,9 @@ public sealed partial class Plugin
         var t=new DoorClosingTrace{State=state,Reason=reason,Door=d.Id,DoorState=d.DoorState.ToString(),GraceRemaining=grace,
             RetryRemaining=Math.Max(0,h.Retry-Time.time),OccupiedRadius=config?.DoorClosing.OccupiedRadius??1.5,
             ValidFor=state is "considered" or "requested"?.35:0,X=pos.x,Y=pos.y,Z=pos.z};
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="C05",stage="evaluated",decision="DoorClosing",reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="C05",stage="evaluated",decision="DoorClosing",reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,doorClosingConfig=config?.DoorClosing,
-            profileId=a.State.ProfileId,name=a.State.Name,botInstance=a.State.Id,doorClosing=t},Diagnostics.Json);
+            profileId=a.State.ProfileId,name=a.State.Name,botInstance=a.State.Id,doorClosing=t});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>Logger.LogWarning(ex.Message));
     }
     private void ClearDoorClosing(){closingSelected.Clear();closingPending.Clear();closingHistory=new();closingLogs=new();}

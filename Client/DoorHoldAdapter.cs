@@ -63,9 +63,9 @@ public sealed partial class Plugin
     private void RecordDoorHold(BotState s)
     {
         var t=s.Ambush.Selection;if(t==null)return;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="D10",stage="evaluated",decision="DoorHold",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="D10",stage="evaluated",decision="DoorHold",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            doorHold=t},Diagnostics.Json);
+            doorHold=t});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

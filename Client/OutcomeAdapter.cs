@@ -145,9 +145,9 @@ public sealed partial class Plugin
         if(!force&&key==r.LogKey&&Time.time-r.LogAt<.25f)return;
         r.LogKey=key;r.LogAt=Time.time;
         if((t.Remaining<=0||t.ValidFor<=0)&&!force)return;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="E04",stage="evaluated",decision="TacticalOutcome",
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="E04",stage="evaluated",decision="TacticalOutcome",
             reason=t.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,
-            outcomeConfig=config?.Outcomes,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,outcome=t},Diagnostics.Json);
+            outcomeConfig=config?.Outcomes,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,outcome=t});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

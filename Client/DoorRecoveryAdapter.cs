@@ -258,9 +258,9 @@ public sealed partial class Plugin
         // Keep RR observations fresh even when the server selects a faster sample interval.
         if(!force&&r.Key==key&&Time.time-r.LogAt<(float)(config?.DoorRecovery.SampleInterval??.25)-.001f)return;
         r.Key=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="C02",stage="evaluated",decision="DoorRecovery",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="C02",stage="evaluated",decision="DoorRecovery",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,doorRecoveryConfig=config?.DoorRecovery,
-            profileId=s.ProfileId,name=s.Name,botInstance=s.Id,doorRecovery=t},Diagnostics.Json);
+            profileId=s.ProfileId,name=s.Name,botInstance=s.Id,doorRecovery=t});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

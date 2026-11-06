@@ -235,14 +235,14 @@ public sealed partial class Plugin
         if (!changed && stage == "accepted" && r.LastSignature.Length > 0 && Time.time - r.LastLog < 1) return;
         r.LastSignature = signature; r.LastLog = Time.time;
         var contact = trace.Candidates.Find(x => x.Target == trace.Selected);
-        string json = JsonConvert.SerializeObject(new {
+        string json = Diagnostics.Serialize(new {
             schema = 1, session, sequence = ++sequence, feature = "A07", stage, reason = trace.Reason,
             decision = "SelectTarget", realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"),
             configRevision = config?.Revision ?? 0, config = config==null?null:Diagnostics.ThreatConfig(config), cometVersion = "0.1.0", profileId = state.ProfileId, name = state.Name, botInstance = state.Id,
             threat = trace, fear = state.Fear.Current,
             contact = contact == null ? null : new { target = contact.Target, source = contact.Source, age = contact.Age, distance = contact.Distance,
                 x = contact.X, y = contact.Y, z = contact.Z }
-        }, Diagnostics.Json);
+        });
         diagnostics?.Write(json);
         Api.Decisions.Publish(json, ex => { if (!subscriberWarned) { subscriberWarned = true; Logger.LogWarning(ex.Message); } });
         // Deliberately do NOT set GetCurrentDecision: selecting a target is not owning SAIN's action.

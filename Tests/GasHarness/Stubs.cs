@@ -67,7 +67,7 @@ namespace Comet.Client{
  internal static class NativeAdapter{public static bool IsPmcAi(BotComponent b)=>b.Pmc;}
  public class Sink{public List<string> Lines=new();public void Write(string s)=>Lines.Add(s);public void Publish(string s,Action<Exception> a){}}
  public class Log{public List<string> Lines=new();public void LogWarning(string s)=>Lines.Add(s);public void LogInfo(string s)=>Lines.Add(s);}
- public static class Api{public static Sink Decisions=new();}public static class Diagnostics{public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
+ public static class Api{public static Sink Decisions=new();}public static class Diagnostics{ internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
  public sealed partial class Plugin{
   internal static Plugin? Instance;internal Dictionary<BotComponent,BotState> states=new();internal CometConfig? config=new();internal object? world=new();internal bool Authority=true;internal string session="g08-harness";internal long sequence;internal bool subscriberWarned;internal Sink? diagnostics=new();internal Log Logger=new();internal HashSet<string> ghosts=new();
   private static MethodInfo ownDangerSetter=HarmonyLib.AccessTools.Method(typeof(SAIN.SAINComponent.Classes.WeaponFunction.GrenadeReactionClass),"set_DangerGrenade")!,ownReactionSetter=HarmonyLib.AccessTools.Method(typeof(SAIN.SAINComponent.Classes.WeaponFunction.GrenadeReactionClass),"set_Reaction")!;

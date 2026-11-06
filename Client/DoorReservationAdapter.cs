@@ -91,9 +91,9 @@ public sealed partial class Plugin
             RetryRemaining=Math.Max(0,s.Reservation.RetryAt-Time.time),ActionObserved=observed,
             Alternatives=state=="refused"?new[]{"another available door","D11 support if eligible","native action; no waiting queue"}:Array.Empty<string>()};
         if(state=="released"||state=="expired")t.Remaining=0;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="D14",stage="evaluated",decision="DoorReservation",reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="D14",stage="evaluated",decision="DoorReservation",reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            doorReservation=t,doorReservationConfig=config?.DoorReservation},Diagnostics.Json);
+            doorReservation=t,doorReservationConfig=config?.DoorReservation});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

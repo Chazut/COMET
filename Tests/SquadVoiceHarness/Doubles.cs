@@ -100,7 +100,7 @@ namespace Comet.Client
     }
     internal static class NativeAdapter { internal static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.IsAi; }
     internal class Diagnostics
-    {
+    { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);
         internal static readonly JsonSerializerSettings Json=new(){ContractResolver=new DefaultContractResolver{NamingStrategy=new CamelCaseNamingStrategy()}};
         internal List<string> Events=new();internal void Write(string json)=>Events.Add(json);
     }

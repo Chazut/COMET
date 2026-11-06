@@ -35,7 +35,7 @@ namespace Comet.Client {
  internal class DoorWork {public DoorDataStruct Data;}
  internal class BotState {public DoorSpatialTrace? SpatialTrace;public string ProfileId="pmc",Name="Geometry PMC",Id="instance",SpatialKey="";public float SpatialAt=-1000;}
  internal class Sink {public List<string> Lines=new();public void Write(string value)=>Lines.Add(value);}
- internal static class Diagnostics {public static readonly Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
+ internal static class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static readonly Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
  internal static class Api {public static SinkBus Decisions=new();internal class SinkBus {public List<string> Lines=new();public void Publish(string json,Action<Exception> error)=>Lines.Add(json);}}
  internal static class Logger {public static void LogWarning(string message)=>throw new Exception(message);}
  public sealed partial class Plugin {

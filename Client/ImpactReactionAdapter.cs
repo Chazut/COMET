@@ -315,15 +315,15 @@ public sealed partial class Plugin
         if(!force&&Time.time<r.NextLog){r.Coalesced++;return;}
         if(!force&&key==r.LogKey&&Time.time-r.LastHeartbeat<.5f&&t.State=="requested")return;
         r.NextLog=Time.time+.5f;r.LogKey=key;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="P07",stage="evaluated",decision="ImpactReaction",
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="P07",stage="evaluated",decision="ImpactReaction",
             reason=t.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),cometVersion="0.1.0",configRevision=config?.Revision??0,
-            impactConfig=config?.ImpactReaction,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,impact=t,coalesced=r.Coalesced},Diagnostics.Json);
+            impactConfig=config?.ImpactReaction,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,impact=t,coalesced=r.Coalesced});
         r.Coalesced=0;diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
     private void FlushImpactCounters(bool force=false)
     {
         if(!force&&Time.time<nextImpactSummary)return;nextImpactSummary=Time.time+10;
         if(impactCounters.Count==0)return;
-        diagnostics?.Write(JsonConvert.SerializeObject(new{schema=1,session,feature="P07",stage="summary",realtime=Time.realtimeSinceStartup,counters=impactCounters},Diagnostics.Json));impactCounters.Clear();
+        diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,feature="P07",stage="summary",realtime=Time.realtimeSinceStartup,counters=impactCounters}));impactCounters.Clear();
     }
 }

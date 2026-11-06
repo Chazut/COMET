@@ -96,7 +96,7 @@ namespace Comet.Client{
  internal class LoadoutAdapter{public static EquipmentSlot[] Carried=Enum.GetValues<EquipmentSlot>();public static EquipmentSlot? RootSlot(Item i,object equipment)=>i.Removed?null:i.Slot;}
  internal class Budget{public bool Available=true;public int Calls;public bool TryBegin(int f){Calls++;return Available;}public void Charge(double ms){}}
  internal class Diagnostic{public List<string> Lines=new();public void Write(string s)=>Lines.Add(s);}
- internal static class Diagnostics{public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
+ internal static class Diagnostics{ internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
  internal class Logger{public static void LogWarning(string m){}}
  internal static class Api{public static class Decisions{public static Dictionary<string,string> Recovery=new();public static void SetPostCombat(string id,string value){if(value.Length==0)Recovery.Remove(id);else Recovery[id]=value;}public static void Publish(string json,Action<Exception> error){}}}
  public sealed partial class Plugin{

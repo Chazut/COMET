@@ -81,8 +81,8 @@ public sealed partial class Plugin
         var t=new CrossfireTrace{Episode=++s.Crossfire.ManeuverAttempts,State="ended",Reason=p.Reason,Execution="kept native action",Contact=p.Enemy,
             Source="squad observed evidence",ContactAge=b.GoalEnemy.TimeSinceLastKnownUpdated,X=k.x,Y=k.y,Z=k.z,Storm=p.Trace(b.ProfileId,Time.time,config!.SquadStorm),
             Alternatives=new[]{"Continue native SAIN combat","Individual opportunity remains available"}};
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="S06",stage="evaluated",decision="Crossfire",reason=p.Reason,
-            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),profileId=s.ProfileId,name=s.Name,botInstance=s.Id,configRevision=config.Revision,crossfire=t,squadStormConfig=config.SquadStorm},Diagnostics.Json);
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="S06",stage="evaluated",decision="Crossfire",reason=p.Reason,
+            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),profileId=s.ProfileId,name=s.Name,botInstance=s.Id,configRevision=config.Revision,crossfire=t,squadStormConfig=config.SquadStorm});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
     private void ProbeStorm(BotComponent b,BotState s)

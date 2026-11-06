@@ -58,7 +58,7 @@ namespace Comet.Client {
  internal class PolicyFlag {public bool Active;}internal class RuntimeFlag {public PolicyFlag Policy=new();}
  internal class BotState {public RestLightsRuntime RestLights=new();public TacticalDevicesRuntime TacticalDevices=new();public LightDisciplineRuntime LightDiscipline=new();public RuntimeFlag Ambush=new(),HoldAngle=new();public string ProfileId,Name="Test PMC",Id="light-instance";public BotState(BotComponent b,CometConfig c,string session){ProfileId=b.ProfileId;}}
  internal static class NativeAdapter {public static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
- internal static class Diagnostics {public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
+ internal static class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
  internal class Sink {public List<string> Lines=new();public void Write(string line)=>Lines.Add(line);}
  internal class Log {public List<string> Warnings=new();public void LogWarning(string s)=>Warnings.Add(s);}
  internal static class Api {public static class Decisions {public static void Publish(string json,Action<Exception> failure){}}}

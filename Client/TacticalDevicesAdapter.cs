@@ -210,9 +210,9 @@ public sealed partial class Plugin
         string key=t.State+":"+t.Reason+":"+t.Source+":"+t.Weapon+":"+t.Target+":"+t.Requested+":"+t.Accepted+":"+t.ActiveDevices;
         foreach(var a in t.Accessories)key+=":"+a.Id+":"+a.Mode+":"+a.State+":"+a.Rounds;
         if(key==r.Key&&(t.ValidFor==0||Time.time<r.LogAt))return;r.Key=key;r.LogAt=Time.time+.5f;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="L02",stage="evaluated",decision="TacticalDevices",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="L02",stage="evaluated",decision="TacticalDevices",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            tacticalDevices=t,tacticalDevicesConfig=config?.TacticalDevices},Diagnostics.Json);
+            tacticalDevices=t,tacticalDevicesConfig=config?.TacticalDevices});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

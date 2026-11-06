@@ -227,10 +227,10 @@ public sealed partial class Plugin
         // Refused bullets cannot erase an ongoing glance in RR. They remain diagnostic records.
         if (!s.GunfireLog.ShouldWrite(Time.time, t, force)) return;
         int coalesced = s.GunfireLog.TakeCoalesced();
-        var json = JsonConvert.SerializeObject(new { schema = 1, session, sequence = ++sequence, feature = "P03", stage = "evaluated",
+        var json = Diagnostics.Serialize(new { schema = 1, session, sequence = ++sequence, feature = "P03", stage = "evaluated",
             decision = "GunfireReaction", reason = t.Reason, realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"),
             cometVersion = "0.1.0", configRevision = config?.Revision ?? 0, gunfireConfig = config?.Gunfire,
-            profileId = s.ProfileId, name = s.Name, botInstance = s.Id, gunfire = t, coalesced }, Diagnostics.Json);
+            profileId = s.ProfileId, name = s.Name, botInstance = s.Id, gunfire = t, coalesced });
         diagnostics?.Write(json); Api.Decisions.Publish(json, ex => { if (!subscriberWarned) { subscriberWarned = true; Logger.LogWarning(ex.Message); } });
     }
 }

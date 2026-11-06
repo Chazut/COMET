@@ -114,7 +114,7 @@ namespace Comet.Client {
   internal string Feature="A01",Decision="Search",ActiveLabel="COMET:Search",Id="native-pmc",ProfileId="pmc",Name="PMC";internal ECombatDecision Expected=ECombatDecision.Search;
   internal PlanProgress Progress=new(new());
  }
- internal class Diagnostics {internal List<string> Lines=new();internal void Write(string text)=>Lines.Add(text);
+ internal class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);internal List<string> Lines=new();internal void Write(string text)=>Lines.Add(text);
   internal static readonly Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
  internal class Log {internal List<string> Warnings=new();internal void LogWarning(string s)=>Warnings.Add(s);}
  internal static class Api {internal static class DoorMotionNetwork {internal static void Publish(Door d){}internal static void Completed(Door d){}}internal static class Decisions {internal static void Publish(string json,Action<Exception> error){}}}

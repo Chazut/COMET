@@ -94,9 +94,9 @@ public sealed partial class Plugin
         if(b!=null)t.Action=b.Decision.CurrentSelfDecision==ESelfActionType.Reload?"Reload":b.Decision.CurrentCombatDecision.ToString();
         string key=t.State+":"+t.Choice+":"+t.Reason+":"+t.MainLoaded+":"+t.PistolLoaded+":"+t.InHands+":"+t.Ready;
         if(!force&&key==r.LogKey&&Time.time-r.LogAt<.25f)return;r.LogKey=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="W02",stage="evaluated",decision="PistolSwap",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="W02",stage="evaluated",decision="PistolSwap",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            pistolSwap=t,pistolSwapConfig=config?.PistolSwap},Diagnostics.Json);
+            pistolSwap=t,pistolSwapConfig=config?.PistolSwap});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

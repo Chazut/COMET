@@ -77,7 +77,7 @@ namespace Comet.Client {
  internal class BotState(BotComponent b,Comet.Core.CometConfig c,string session){internal BlastRuntime Blast=new();internal string ProfileId=b.ProfileId,Name="Test PMC",Id="instance";internal Fear Fear=new();internal Sight Sight=new();internal string ActiveLabel="";}
  public class Sink{public List<string> Lines=new();public void Write(string s)=>Lines.Add(s);public void Publish(string s,Action<Exception> ex){}}
  public static class Api{public static Sink Decisions=new();}public class Log{public void LogWarning(string s){}}
- public static class Diagnostics{public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
+ public static class Diagnostics{ internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
  public sealed partial class Plugin {
   internal static Plugin? Instance;internal object? world=new();internal Comet.Core.CometConfig? config=new();internal bool Authority=true;internal Dictionary<BotComponent,BotState> states=new();internal string session="g10-harness";internal long sequence;internal bool subscriberWarned;internal Sink? diagnostics=new();internal Log Logger=new();internal HashSet<string> ghosts=new();internal string Owner="native";internal int StoppedGunfire;
   internal Plugin(){Instance=this;PatchExplosionAwareness(new());}

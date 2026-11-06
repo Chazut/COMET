@@ -268,9 +268,9 @@ public sealed partial class Plugin
         var r=s.SuppressionDiscipline;var t=r.Policy.Trace;if(t==null)return;
         string key=t.Episode+":"+t.State+":"+t.Reason+":"+t.Accepted+":"+t.ActualShots;
         if(!force&&key==r.LogKey&&(!r.Policy.Active||Time.time-r.LogAt<.2f))return;r.LogKey=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="W07",stage="evaluated",decision="SuppressionDiscipline",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="W07",stage="evaluated",decision="SuppressionDiscipline",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            suppressionDiscipline=t,suppressionDisciplineConfig=config?.SuppressionDiscipline},Diagnostics.Json);
+            suppressionDiscipline=t,suppressionDisciplineConfig=config?.SuppressionDiscipline});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

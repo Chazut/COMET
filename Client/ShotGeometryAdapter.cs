@@ -209,9 +209,9 @@ public sealed partial class Plugin
         var r=s.ShotGeometry;var t=r.Trace;if(t==null)return;
         string key=t.State+":"+t.Reason+":"+t.Consumer+":"+t.Target+":"+t.Action;
         if(key==r.LogKey&&(t.State=="released"||Time.time-r.LogAt<.1f))return;r.LogKey=key;r.LogAt=Time.time;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="W08",stage="evaluated",decision="ShotGeometry",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="W08",stage="evaluated",decision="ShotGeometry",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            shotGeometry=t,shotGeometryConfig=config?.ShotGeometry},Diagnostics.Json);
+            shotGeometry=t,shotGeometryConfig=config?.ShotGeometry});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

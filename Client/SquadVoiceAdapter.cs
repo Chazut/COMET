@@ -245,9 +245,9 @@ public sealed partial class Plugin
     }
     private void RecordSquadVoice(BotState s, SquadVoiceTrace t)
     {
-        var json = JsonConvert.SerializeObject(new { schema = 1, session, sequence = ++sequence, feature = "S09", stage = "evaluated", decision = "SquadVoice", reason = t.Reason,
+        var json = Diagnostics.Serialize(new { schema = 1, session, sequence = ++sequence, feature = "S09", stage = "evaluated", decision = "SquadVoice", reason = t.Reason,
             realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"), configRevision = config?.Revision ?? 0, profileId = s.ProfileId, name = s.Name, botInstance = s.Id,
-            squadVoice = t, squadVoiceConfig = config?.SquadVoice }, Diagnostics.Json);
+            squadVoice = t, squadVoiceConfig = config?.SquadVoice });
         diagnostics?.Write(json); Api.Decisions.Publish(json, ex => { if (!subscriberWarned) { subscriberWarned = true; Logger.LogWarning(ex.Message); } });
     }
 }

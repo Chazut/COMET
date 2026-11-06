@@ -102,9 +102,9 @@ public sealed partial class Plugin
         string key=t.Target+":"+t.State+":"+t.Reason;
         if(!force&&key==s.AbandonLogKey&&Time.time-s.AbandonLogAt<1)return;
         s.AbandonLogAt=Time.time;s.AbandonLogKey=key;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="P09",stage="evaluated",decision="SearchAbandonment",
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="P09",stage="evaluated",decision="SearchAbandonment",
             reason=t.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,
-            searchAbandonmentConfig=config?.SearchAbandonment,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,searchAbandonment=t},Diagnostics.Json);
+            searchAbandonmentConfig=config?.SearchAbandonment,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,searchAbandonment=t});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

@@ -220,9 +220,9 @@ public sealed partial class Plugin
         Api.Decisions.SetCrossfire(s.ProfileId,t.Applied?"COMET:Crossfire"+label:"");
         string key=t.Episode+":"+t.State+":"+t.Reason+":"+t.Execution+":"+t.Applied+":"+t.Entrance?.State+":"+t.Entrance?.SupportStatus+":"+t.Entrance?.EntryReason+":"+t.Maneuver?.State+":"+t.Maneuver?.SupportReady+":"+t.Maneuver?.FireState+":"+t.CoverMate?.Status+":"+t.CoverMate?.Busy+":"+t.CoverMate?.WeaponReady+":"+t.CoverMate?.Confirmed+":"+t.Trade?.Choice+":"+t.Trade?.Status+":"+t.Trade?.Confirmed+":"+t.Storm?.State+":"+t.Storm?.Status+":"+t.Storm?.Ready+":"+t.Storm?.Reason;
         if(!force&&key==r.Key&&(!t.Applied||Time.time<r.LogAt))return;r.Key=key;r.LogAt=Time.time+.5f;
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature=t.Storm!=null?"S06":t.Trade!=null?"S05":t.CoverMate!=null?"S04":t.Maneuver!=null?"S03":t.Entrance==null?"S01":"S02",stage="evaluated",decision="Crossfire",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature=t.Storm!=null?"S06":t.Trade!=null?"S05":t.CoverMate!=null?"S04":t.Maneuver!=null?"S03":t.Entrance==null?"S01":"S02",stage="evaluated",decision="Crossfire",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            crossfire=t,squadStormConfig=t.Storm!=null?config?.SquadStorm:null,squadTradeConfig=t.Trade!=null?config?.SquadTrade:null,coverMateConfig=t.CoverMate!=null?config?.CoverMate:null,squadManeuverConfig=t.Maneuver!=null?config?.SquadManeuver:null,crossfireConfig=config?.Crossfire,secondaryEntranceConfig=t.Entrance!=null?config?.SecondaryEntrance:null},Diagnostics.Json);
+            crossfire=t,squadStormConfig=t.Storm!=null?config?.SquadStorm:null,squadTradeConfig=t.Trade!=null?config?.SquadTrade:null,coverMateConfig=t.CoverMate!=null?config?.CoverMate:null,squadManeuverConfig=t.Maneuver!=null?config?.SquadManeuver:null,crossfireConfig=config?.Crossfire,secondaryEntranceConfig=t.Entrance!=null?config?.SecondaryEntrance:null});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

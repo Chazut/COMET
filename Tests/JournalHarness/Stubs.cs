@@ -46,7 +46,7 @@ namespace SAIN.Components {
 }
 namespace Comet.Api {public static class Decisions {public static List<string> Events=new();public static void Publish(string j,Action<Exception> cb)=>Events.Add(j);}}
 namespace Comet.Client {
- internal class Diagnostics {public List<string> Events=new();public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};public void Write(string j)=>Events.Add(j);}
+ internal class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public List<string> Events=new();public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};public void Write(string j)=>Events.Add(j);}
  internal static class NativeAdapter {internal static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
  internal class BotState {internal readonly BotComponent Owner;internal string ProfileId=>Owner.ProfileId;internal string Name="PMC",Id=Guid.NewGuid().ToString("N"),ActiveLabel="",Feature="A01",Decision="Hold",Expected="Hold";internal Choice? Choice;internal readonly CombatJournalRuntime Journal=new();internal SwitchIntent WeaponReturn=new();internal Recovery HandsRecovery=new();internal BotState(BotComponent b,CometConfig c,string s){Owner=b;} }
  internal class SwitchIntent{public string Intent="";}

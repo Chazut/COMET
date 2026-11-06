@@ -34,7 +34,7 @@ internal sealed class PerformanceWriter
                 long bytes=0,limited=0;
                 void Line(object value,bool mandatory=false)
                 {
-                    string line=JsonConvert.SerializeObject(value,Diagnostics.Json);int size=Encoding.UTF8.GetByteCount(line)+2;
+                    string line=Diagnostics.Serialize(value);int size=Encoding.UTF8.GetByteCount(line)+2;
                     if(!mandatory&&bytes+size>maxBytes){limited++;return;}
                     output.WriteLine(line);bytes+=size;
                 }

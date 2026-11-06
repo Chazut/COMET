@@ -89,9 +89,9 @@ public sealed partial class Plugin
             Contact=e.EnemyProfileId,Source=NativeAdapter.Capture(b,e,true,false).ContactSource,ContactAge=e.TimeSinceLastKnownUpdated,
             X=known.x,Y=known.y,Z=known.z,Support=plan.Support,SupportName=plan.Member(plan.Support)!.Name,
             Maneuver=plan.Trace(b.ProfileId,Time.time,config!.SquadManeuver),Alternatives=new[]{"Hold the current angle","Continue native SAIN combat"}};
-        string json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="S03",stage="evaluated",decision="Crossfire",reason=t.Reason,
+        string json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="S03",stage="evaluated",decision="Crossfire",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config.Revision,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            crossfire=t,squadManeuverConfig=config.SquadManeuver},Diagnostics.Json);
+            crossfire=t,squadManeuverConfig=config.SquadManeuver});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
     private bool ValidateManeuver(BotComponent b,BotState s)

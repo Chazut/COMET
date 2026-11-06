@@ -63,9 +63,9 @@ public sealed partial class Plugin
         string key=t.State+":"+t.Reason+":"+t.Completed+":"+t.NativeCancelled;
         if(!force&&key==r.InterruptionKey&&Time.time<r.InterruptionLogAt)return;
         r.InterruptionKey=key;r.InterruptionLogAt=Time.time+(t.Applied?.5f:4);
-        var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="H02",stage="evaluated",decision="SurgeryInterruption",reason=t.Reason,
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="H02",stage="evaluated",decision="SurgeryInterruption",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            surgeryInterruption=t,surgeryInterruptionConfig=config?.SurgeryInterruption},Diagnostics.Json);
+            surgeryInterruption=t,surgeryInterruptionConfig=config?.SurgeryInterruption});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }
