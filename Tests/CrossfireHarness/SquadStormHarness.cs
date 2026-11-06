@@ -19,6 +19,8 @@ internal static class SquadStormHarness
    var bots=Enumerable.Range(0,count).Select(i=>new BotComponent{Position=new((i-(count-1)*.5f)*6,0,0)}).ToArray();var members=bots.ToDictionary(b=>b.ProfileId);
    foreach(var b in bots){b.Squad.Members=members;b.EnemyController.KnownEnemies.Add(b.GoalEnemy!);SAINEnableClass.Bots[b.ProfileId]=b;
     p.StormEvidenceByBot[b.ProfileId]=new(){Source=b.ProfileId,At=10,Until=15,Score=.7,Details=new[]{"seen torso: no protection","seen hands: pistol"}};}
+   foreach(var b in bots){b.Decision.CurrentCombatDecision=SAIN.Preset.Shared.Enums.ECombatDecision.Search;
+     b.Mover.ActivePath=new BotPathDataManual{TimeStarted=Time.time,OnStop=()=>b.Mover.ActivePath=null};}
    return(p,bots,bots.Select(b=>new CrossfireAction(b.BotOwner)).ToArray());
   }
   void Drive(Plugin p,BotComponent[] bots,CrossfireAction[] actions,int frames=65)

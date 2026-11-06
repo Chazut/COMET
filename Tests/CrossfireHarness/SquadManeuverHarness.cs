@@ -22,7 +22,9 @@ internal static class SquadManeuverHarness
   CrossfireAction Action(Plugin p,BotComponent b){var l=new CrossfireLayer(b.BotOwner,21);C(l.IsActive(),"native layer active");var a=new CrossfireAction(b.BotOwner);a.Start();a.OnSteeringTicked();return a;}
   (Plugin p,BotComponent[] bots,CrossfireAction[] actions) Start(int count=4)
   {
-   var(p,bots)=Setup(count);foreach(var b in bots)p.Observe(b);
+   var(p,bots)=Setup(count);
+   foreach(var b in bots){b.Decision.CurrentCombatDecision=SAIN.Preset.Shared.Enums.ECombatDecision.Search;
+    b.Mover.ActivePath=new BotPathDataManual{TimeStarted=Time.time,Destination=new(0,0,20),OnStop=()=>b.Mover.ActivePath=null};p.Observe(b);}
    C(p.states[bots[0]].Crossfire.Maneuver!=null,"shared plan created");var actions=new CrossfireAction[count];actions[0]=Action(p,bots[0]);
    for(int i=1;i<count;i++){var r=p.states[bots[i]].Crossfire;r.Candidates.Clear();r.Candidates.Add(i==1?new(-20,0,20):i==2?new(20,0,20):new(12,0,30));r.Candidate=0;r.Route=null;r.Samples.Clear();}
    for(int n=0;n<180;n++)
@@ -87,6 +89,13 @@ internal static class SquadManeuverHarness
    C(p.states.Values.All(s=>s.Crossfire.Policy.Active==(mode!="declined-preserves-s01")),"S03 initial limits and S01 fallback: "+mode);
    if(mode!="declined-preserves-s01")C(p.states.Values.All(s=>s.Crossfire.Maneuver!=null),"custom limit belongs to S03: "+mode);
    events.AddRange(p.diagnostics!.Lines);p.EndAll();
+  }
+
+  {
+   var(p,bots,actions)=Start();bots[3].IsDead=true;bots[0].Squad.Members.Remove(bots[3].ProfileId);
+   Step();actions[0].Update(new());actions[0].OnSteeringTicked();actions[1].Update(new());
+   C(p.states[bots[1]].Crossfire.Policy.Active,"death of another flanker preserves support and surviving flank");
+   C(p.states[bots[1]].Crossfire.Maneuver!.Member(bots[3].ProfileId)!.Status=="ended","departed role explicitly retired");p.EndAll();
   }
   var dest=Path.GetFullPath("artifacts/s03-adapter-events.jsonl");Directory.CreateDirectory(Path.GetDirectoryName(dest)!);File.WriteAllLines(dest,events);Console.WriteLine($"{checks} S03 production-adapter checks passed; {events.Count} events exported");
  }

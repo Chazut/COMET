@@ -32,6 +32,7 @@ public sealed partial class Plugin
         var loss=a.Memory.Take(Time.time,c);if(loss==null)return false;
         a.GroupStamp=loss.Group;
         if(!r.Policy.Begin(Time.time,TradeMotionConfig(),0))return false;
+        RememberCrossfireHandoff(b,r);
         r.Maneuver=null;r.ManeuverRole=null;r.Entrance.Drop();a.DeathAt=(float)loss.At;a.Started=a.LastCallback=Time.time;a.FaceAt=-1;a.Confirmed=false;
         r.Origin=b.Position;r.Support=loss.Mate;r.Reference=b.Position;r.Group=b.Squad.Members!=null?ManeuverGroup(b):"";r.Contact="";r.Known=b.Position;r.ContactAt=Time.time;
         r.Route=null;r.Candidate=r.Sample=0;r.Rejects.Clear();r.Samples.Clear();r.Candidates.Clear();

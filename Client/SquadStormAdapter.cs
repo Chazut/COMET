@@ -49,7 +49,7 @@ public sealed partial class Plugin
                 // Keep the squad's existing coordinated action. No competing S03/S04/S05 plan.
                 if(ms.Crossfire.Policy.Active){blocked=true;break;}
                 if(ms.Crossfire.Fault||Time.time<ms.Crossfire.Policy.RetryAt||mate.GoalEnemy?.EnemyProfileId!=e.EnemyProfileId
-                    ||StormBlock(mate,ms).Length>0||mate.Mover.ActivePath!=null||QueuedCombatMovement(mate)
+                    ||StormBlock(mate,ms).Length>0||mate.Mover.ActivePath!=null&&!CrossfireCanHandoff(mate)||QueuedCombatMovement(mate)
                     ||mate.GoalEnemy.KnownPlaces.LastKnownPosition is not Vector3 mk||Vector3.Distance(mk,known)>3)continue;
                 var observed=ReadStormEvidence(mate,ms);
                 if(observed.Danger){blocked=true;break;}
@@ -65,6 +65,7 @@ public sealed partial class Plugin
         if(role.Status is "declined" or "ended")return false;
         if(Time.time-plan.Started>=c.PrepareTimeout){plan.Drop(b.ProfileId,"storm-missed-departure");return false;}
         if(!r.Policy.Begin(Time.time,StormMotionConfig(),0))return false;
+        RememberCrossfireHandoff(b,r);
         r.Storm.Plan=plan;r.Storm.Member=role;r.Maneuver=null;r.ManeuverRole=null;r.Entrance.Drop();
         r.Origin=b.Position;r.Known=known;r.Contact=e.EnemyProfileId;r.ContactInstance=RuntimeHelpers.GetHashCode(e);r.ContactAt=Time.time-e.TimeSinceLastKnownUpdated;
         r.Group=group;r.Support=plan.Observer;r.Reference=b.Position;r.Route=null;r.Candidate=r.Sample=0;r.Rejects.Clear();r.Candidates.Clear();r.Samples.Clear();

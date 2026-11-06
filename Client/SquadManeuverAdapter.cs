@@ -43,11 +43,11 @@ public sealed partial class Plugin
             {
                 if(mate==null||!CrossfireScope(mate)||mate.GoalEnemy?.EnemyProfileId!=enemy.EnemyProfileId)continue;
                 // A visible contact belongs to S01/native combat, not this hidden-contact maneuver.
-                if(mate.GoalEnemy.IsVisible)return false;
+                if(mate.GoalEnemy.IsVisible){RecordCrossfireGate(s,"maneuver-visible-contact-use-S01");return false;}
                 if(Vector3.Distance(b.Position,mate.Position)>c.SquadDistance)continue;
                 if(!states.TryGetValue(mate,out var ms)){if(states.Count>=512)continue;ms=new BotState(mate,config,session);states.Add(mate,ms);}
                 if(ms.Crossfire.Policy.Active||ms.Crossfire.Fault||Time.time<ms.Crossfire.Policy.RetryAt||CrossfireBlock(mate,ms,true).Length>0
-                    ||mate.Mover.ActivePath!=null||QueuedCombatMovement(mate))continue;
+                    ||mate.Mover.ActivePath!=null&&!CrossfireCanHandoff(mate)||QueuedCombatMovement(mate))continue;
                 var mk=mate.GoalEnemy.KnownPlaces.LastKnownPosition;
                 if(mk==null||Vector3.Distance(mk.Value,known)>4||mate.GoalEnemy.TimeSinceLastKnownUpdated>c.ContactAge)continue;
                 double md=Vector3.Distance(mate.Position,mk.Value);if(md<c.MinDistance||md>c.MaxDistance)continue;
@@ -58,6 +58,7 @@ public sealed partial class Plugin
             }
             var previous=maneuverBoard.LastAttempt;
             plan=maneuverBoard.TryStart(group,enemy.EnemyProfileId,Time.time,Time.time-enemy.TimeSinceLastKnownUpdated,jumpRandom.NextDouble(),candidates,c,config.Crossfire.Participation);
+            if(plan==null)RecordCrossfireGate(s,"maneuver-not-started: "+(maneuverBoard.LastAttempt?.Reason??"insufficient-eligible-members"));
             if(plan==null&&maneuverBoard.LastAttempt is SquadManeuverPlan declined&&!ReferenceEquals(previous,declined)&&declined.Member(b.ProfileId)!=null)RecordManeuverDeclined(b,s,declined);
         }
         if(plan==null||!plan.Active||plan.Enemy!=enemy.EnemyProfileId||plan.Member(b.ProfileId) is not ManeuverMember role||role.Status=="ended")return false;
@@ -69,6 +70,7 @@ public sealed partial class Plugin
         if(!r.Policy.Active){plan.Drop(b.ProfileId,"crossfire-unavailable");r.Maneuver=null;r.ManeuverRole=null;return false;}
         r.ContactInstance=System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(enemy);r.Known=known;r.Contact=enemy.EnemyProfileId;r.ContactAt=Time.time-enemy.TimeSinceLastKnownUpdated;
         r.Support=plan.Support;r.Reference=support.Position;r.Origin=b.Position;r.Candidate=r.Sample=0;r.Route=null;r.Rejects.Clear();r.Group=group;r.Indoor=b.Player.Environment==EnvironmentType.Indoor;
+        RememberCrossfireHandoff(b,r);
         var t=r.Policy.Trace!;t.Contact=r.Contact;t.Source=NativeAdapter.Capture(b,enemy,true,false).ContactSource;t.Support=plan.Support;t.SupportName=support.Player.Profile.Nickname;
         t.X=known.x;t.Y=known.y;t.Z=known.z;t.ContactAge=enemy.TimeSinceLastKnownUpdated;t.Roll=role.Roll*100;t.Chance=config.Crossfire.Participation;
         if(role.Role=="flank") {role.Status="planning";if(!BeginEntrance(b,s))BuildCrossfireCandidates(b,r);}
@@ -100,7 +102,12 @@ public sealed partial class Plugin
         var c=config!.SquadManeuver;
         p.Evidence=Math.Max(p.Evidence,r.ContactAt);
         if(!p.Tick(Time.time,c)||m.Status=="ended"){EndCrossfire(b,s,"maneuver-ended: "+(m.Reason.Length>0?m.Reason:p.Reason));return false;}
-        if(ManeuverGroup(b)!=p.Group){EndCrossfire(b,s,"maneuver-squad-changed");return false;}
+        // Losing an unrelated member must not cancel the remaining support/flank pair.
+        // Required support is validated below; departed participating flankers are dropped.
+        foreach(var member in p.Members)
+            if(member.Status!="ended"&&(!b.Squad.Members.TryGetValue(member.Id,out var bot)
+                ||bot==null||bot.IsDead||!bot.BotActive))p.Drop(member.Id,"maneuver-member-unavailable");
+        if(!p.Active||m.Status=="ended"){EndCrossfire(b,s,"maneuver-required-role-lost");return false;}
         if(m.Role=="flank"&&r.Policy.Trace!.State=="moving")
         {double distance=Vector3.Distance(b.Position,r.Goal);if(distance<m.BestDistance-.4){m.BestDistance=distance;m.ProgressAt=Time.time;}
          if(Time.time-m.ProgressAt>=c.StallTimeout){EndCrossfire(b,s,"maneuver-route-stalled");return false;}}

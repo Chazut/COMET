@@ -98,18 +98,23 @@ public static class Cases
    Check(p.Events.Any(x=>x.StartsWith(keep?"cover-kept-pending-exposure":"cover-pending-refused")),"continuation disposition is observable");
   }
   // All current squad values plus an unknown future value. Safety retreats remain SAIN-owned.
+  foreach(bool customLayer in new[]{false,true})
   foreach(ESquadDecision squad in Enum.GetValues(typeof(ESquadDecision)))
   {
    var(p,b,s)=Setup();s.ActiveLabel="";b.Decision.CurrentSquadDecision=squad;
+   p.CustomLayerChoice=customLayer;s.Crossfire.Policy.Active=true;s.Crossfire.Policy.Trace=new(){State="ready"};s.RequestedFrame=-1;
    var solo=ECombatDecision.None;var committed=squad;p.Arbitrate(b.Decision,ref solo,ref committed,ESelfActionType.None,b.GoalEnemy);
    bool ordinary=TacticalPriority.OrdinarySquad(squad.ToString());
    Check((p.ChooseCalls==1)==ordinary,"squad whitelist "+squad);
    Check(ordinary?solo==ECombatDecision.Freeze&&committed==ESquadDecision.None:committed==squad&&solo==ECombatDecision.None,"native vs COMET commit "+squad);
    Check(!s.ArbitratingSquad,"no leaked arbitration flag");
+   if(customLayer)Check(s.RequestedFrame==-1,"custom layer does not impersonate a generic tactical request");
   }
+  foreach(bool customLayer in new[]{false,true})
   foreach(string guard in new[]{"own-squad","self","grenade-decision","dogfight-decision","melee-decision","zombies","enemy-null","enemy-zombie","no-contact","stale","negative-age","disabled","scav","ghost","replica","inactive","ending","no-world","medicine","meds-controller","reload","switch","throwing","hands","door","danger","dogfight","melee","cooldown","reentrant","no-choice","throws"})
   {
    var(p,b,s)=Setup();var solo=ECombatDecision.None;var squad=ESquadDecision.GroupSearch;var self=ESelfActionType.None;Enemy e=b.GoalEnemy;
+   p.CustomLayerChoice=customLayer;s.Crossfire.Policy.Active=true;s.Crossfire.Policy.Trace=new(){State="ready"};
    switch(guard){case "own-squad":ContactSafety.Allowed=false;break;case "self":self=ESelfActionType.Reload;break;case "grenade-decision":solo=ECombatDecision.AvoidGrenade;break;
     case "dogfight-decision":solo=ECombatDecision.DogFight;break;case "melee-decision":solo=ECombatDecision.MeleeAttack;break;case "zombies":solo=ECombatDecision.FightZombies;break;
     case "enemy-null":e=null;break;case "enemy-zombie":e.IsZombie=true;break;case "no-contact":e.KnownPlaces.LastKnownPosition=null;break;
@@ -126,6 +131,12 @@ public static class Cases
    var original=solo;try{p.Arbitrate(b.Decision,ref solo,ref squad,self,e);}catch(Exception){Check(guard=="throws","unexpected arbitration exception");}
    Check(solo==original&&squad==ESquadDecision.GroupSearch,"preserve native emergency/fallback "+guard);
    Check(guard=="reentrant"||!s.ArbitratingSquad,"flag released even on errors");
+  }
+  {
+   var(p,b,s)=Setup();p.CustomLayerChoice=true;s.Crossfire.Policy.Active=true;s.Crossfire.Policy.Trace=new(){State="planning"};s.RequestedFrame=Time.frameCount;
+   var solo=ECombatDecision.None;var squad=ESquadDecision.GroupSearch;
+   p.Arbitrate(b.Decision,ref solo,ref squad,ESelfActionType.None,b.GoalEnemy);
+   Check(solo==ECombatDecision.None&&squad==ESquadDecision.GroupSearch,"planning custom layer cannot replace native squad even with stale same-frame generic token");
   }
   {
    var(p,b,s)=Setup();b.Decision.CurrentSelfDecision=ESelfActionType.Reload;Check(!p.Priority(b,s),"previous self decision cannot veto a new enemy decision after native self selection declined");
@@ -201,7 +212,7 @@ class Engine{public int Failures;public void Fail(Tactic tactic,float now,string
 class VisibleEngine{public bool KeepPending=true;public int PendingChecks,Refreshed;public bool TryContinuePending(VisibleSituation v){PendingChecks++;return KeepPending;}public void ProbeRefreshed()=>Refreshed++;public int Refusals;public void NotifyNativeRefusal()=>Refusals++;}
 class BotState
 {
- public string ProfileId="pmc";public PlanServiceRuntime PlanService=new();public ServiceRuntime Medical=new(),ReloadTiming=new();public Handoff Handoff=new();
+ public string ProfileId="pmc";public PlanServiceRuntime PlanService=new();public ServiceRuntime Medical=new(),ReloadTiming=new(),Crossfire=new();public Handoff Handoff=new();
  public BotState(BotComponent b,Config c,string session){}public bool ArbitratingSquad,Retired;public string Feature="",Decision="",ActiveLabel="",ArbitrationKey="",ArbitrationReason="",ArbitrationNative="";
  public float LastSelection,ExecutionSampleAt,ArbitrationAt=-100;public int RequestedFrame=-1;public ECombatDecision Expected;public Situation Situation=new();public VisibleSituation VisibleSituation=new();
  public DecisionExecution Execution=new();public Engine Engine=new();public VisibleEngine VisibleEngine=new();public Runtime CoverFeint=new(),Relocation=new(),Emergency=new();public Progress Progress=new();public CoverPoint SelectedCover;
@@ -219,7 +230,7 @@ partial class Plugin
  public string ServiceOwned(BotComponent b,BotState s,bool committed)=>OwnedPlanService(b,s,committed);
  void Release(BotState s,string why,bool clearIntent=true,bool suspendPlan=false){if(!suspendPlan||clearIntent)throw new Exception("must preserve engine plans");Suspends++;s.ActiveLabel=s.Decision="";s.Execution.Clear();}
  void ContinuityEvent(BotState s,string phase,string reason,string feature=null,string action=null)=>Events.Add(phase+":"+reason);
- public static Plugin Instance;public Config config=new();public object world=new();public bool Authority=true,IsGhost,AllowChoose=true,ThrowChoose;public string session="raid";
+ public static Plugin Instance;public Config config=new();public object world=new();public bool Authority=true,IsGhost,AllowChoose=true,ThrowChoose,CustomLayerChoice;public string session="raid";
  public Dictionary<BotComponent,BotState> states=new();public List<string> Events=new();public int ChooseCalls,Yields;Log Logger=new();
  bool Ghost(string profile)=>IsGhost;
  public void Continue(BotDecisionManager d,ref bool result)=>ContinueCover(d,ref result);
@@ -230,9 +241,12 @@ partial class Plugin
  {
   var p=Instance;p.ChooseCalls++;var s=p.states.Values.Single();if(p.ThrowChoose)throw new Exception("test");
   if(NativeChoiceHasPriority(p.states.Keys.Single(),s)||!p.AllowChoose)return true;
-  s.RequestedFrame=Time.frameCount;s.Expected=result=ECombatDecision.Freeze;chosen=true;return false;
+  if(p.CustomLayerChoice)return !p.ContinueCrossfireDecision(p.states.Keys.Single(),s,ref result,ref chosen);
+  s.RequestedFrame=Time.frameCount;
+  s.Expected=result=ECombatDecision.Freeze;chosen=true;return false;
  }
  void RefreshProgress(BotComponent b,BotState s){}void RefreshFear(BotComponent b,BotState s){}Loadout ReadLoadout(BotComponent b,BotState s)=>new();object ReadOpponent(BotComponent b,Enemy e,BotState s,Situation f)=>null;
+ bool RefreshCrossfire(BotComponent b,BotState s,bool mayStart)=>s.Crossfire.Policy.Active;
  void Emit(BotState s,string stage,string reason,string feature=null)=>Events.Add(reason);
  void YieldToSain(BotState s,string reason,string kind="unavailable"){Yields++;s.ActiveLabel="";s.Decision="";s.RequestedFrame=-1;s.Execution.Clear();}
 }
@@ -240,6 +254,6 @@ partial class Plugin
 internal static class ContactSafety {internal static bool Allowed=true;internal static bool Allows(object b,object e)=>Allowed;}
 class ServiceRuntime{public bool Fault;public ServicePolicy Policy=new();}
 class ServicePolicy{public bool Active;public ServiceTrace Trace;}
-class ServiceTrace{public string Choice="",Weapon="";public bool Started,Accepted;}
+class ServiceTrace{public string Choice="",Weapon="",State="";public bool Started,Accepted;}
 class Handoff{public void Clear(){}}
 static class Api{public static class Decisions{public static string Label="";public static void Set(string profile,string label)=>Label=label;}}

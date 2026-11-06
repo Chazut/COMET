@@ -31,9 +31,9 @@ foreach(string scope in new[]{"scav","human","dead","inactive","ghost","remote",
  switch(scope){case"scav":b.Pmc=false;break;case"human":b.Player.IsAI=false;break;case"dead":b.IsDead=true;break;case"inactive":b.BotActive=false;break;case"ghost":p.Ghosts.Add(b.ProfileId);break;case"remote":p.Authority=false;break;case"world":p.world=null;break;case"enabled":p.config!.Enabled=false;break;case"feature":p.config!.Crossfire.Enabled=false;break;case"ending":b.GameEnding=true;break;}
  p.Sample(b);C(!p.states[b].Crossfire.Policy.Active&&p.Claims==0&&path.Stops==1,"scope releases owned route "+scope);Save(p);
 }
-foreach(string priority in new[]{"visible","under-fire","suppression","grenade","flash","self","squad","medicine","reload","throw","hands","ammo","airborne","sprint","injury","door","medical-guard","recovery","relocation","feint","door-plan","native-combat","contact-changed","position-changed","no-contact","unknown","stale","support-dead","support-ghost","support-moved"}){
+foreach(string priority in new[]{"visible","under-fire","suppression","grenade","flash","self","squad","medicine","reload","throw","hands","ammo","airborne","injury","door","medical-guard","recovery","relocation","feint","door-plan","native-combat","contact-changed","position-changed","no-contact","unknown","stale","support-dead","support-ghost","support-moved"}){
  var(p,b,m)=Setup();Plan(p,b);Start(p,b);var r=p.states[b].Crossfire;var path=(BotPathDataManual)b.Mover.ActivePath!;
- switch(priority){case"visible":b.GoalEnemy!.IsVisible=true;break;case"under-fire":b.BotOwner.Memory.IsUnderFire=true;break;case"suppression":b.Suppression.IsSuppressed=true;break;case"grenade":b.Grenade.GrenadeDangerPoint=new();break;case"flash":b.Flashed.IsFlashed=true;break;case"self":b.Decision.CurrentSelfDecision=ESelfActionType.Heal;break;case"squad":b.Decision.CurrentSquadDecision=ESquadDecision.Regroup;break;case"medicine":b.BotOwner.Medecine.Using=true;break;case"reload":b.BotOwner.WeaponManager.Reload.Reloading=true;break;case"throw":b.BotOwner.WeaponManager.Grenades.ThrowindNow=true;break;case"hands":((Player.FirearmController)b.Player.HandsController).Ready=false;break;case"ammo":b.BotOwner.WeaponManager.HaveBullets=false;break;case"airborne":b.Player.MovementContext.IsGrounded=false;break;case"sprint":b.Player.IsSprintEnabled=true;break;case"injury":b.Memory.Health.HealthStatus=ETagStatus.BadlyInjured;break;case"door":b.BotOwner.DoorOpener.Interacting=true;break;case"medical-guard":p.Guard=true;break;case"recovery":p.states[b].PostCombat.Policy.Active=true;break;case"relocation":p.states[b].Relocation.Policy.Active=true;break;case"feint":p.states[b].CoverFeint.Policy.Active=true;break;case"door-plan":p.states[b].Feature="D01";p.states[b].Decision="Hold";break;case"native-combat":b.Decision.CurrentCombatDecision=ECombatDecision.RushEnemy;break;case"contact-changed":b.GoalEnemy!.EnemyProfileId="new";break;case"position-changed":b.GoalEnemy!.KnownPlaces.LastKnownPosition=new(40,0,40);break;case"no-contact":b.GoalEnemy=null;break;case"unknown":b.GoalEnemy!.EnemyKnown=false;break;case"stale":b.GoalEnemy!.TimeSinceLastKnownUpdated=9;break;case"support-dead":m.IsDead=true;break;case"support-ghost":p.Ghosts.Add(m.ProfileId);break;case"support-moved":m.Position=new(5,0,0);break;}
+ switch(priority){case"visible":b.GoalEnemy!.IsVisible=true;break;case"under-fire":b.BotOwner.Memory.IsUnderFire=true;break;case"suppression":b.Suppression.IsSuppressed=true;break;case"grenade":b.Grenade.GrenadeDangerPoint=new();break;case"flash":b.Flashed.IsFlashed=true;break;case"self":b.Decision.CurrentSelfDecision=ESelfActionType.Heal;break;case"squad":b.Decision.CurrentSquadDecision=ESquadDecision.Retreat;break;case"medicine":b.BotOwner.Medecine.Using=true;break;case"reload":b.BotOwner.WeaponManager.Reload.Reloading=true;break;case"throw":b.BotOwner.WeaponManager.Grenades.ThrowindNow=true;break;case"hands":((Player.FirearmController)b.Player.HandsController).Ready=false;break;case"ammo":b.BotOwner.WeaponManager.HaveBullets=false;break;case"airborne":b.Player.MovementContext.IsGrounded=false;break;case"sprint":b.Player.IsSprintEnabled=true;break;case"injury":b.Memory.Health.HealthStatus=ETagStatus.BadlyInjured;break;case"door":b.BotOwner.DoorOpener.Interacting=true;break;case"medical-guard":p.Guard=true;break;case"recovery":p.states[b].PostCombat.Policy.Active=true;break;case"relocation":p.states[b].Relocation.Policy.Active=true;break;case"feint":p.states[b].CoverFeint.Policy.Active=true;break;case"door-plan":p.states[b].Feature="D01";p.states[b].Decision="Hold";break;case"native-combat":b.Decision.CurrentCombatDecision=ECombatDecision.RushEnemy;break;case"contact-changed":b.GoalEnemy!.EnemyProfileId="new";break;case"position-changed":b.GoalEnemy!.KnownPlaces.LastKnownPosition=new(40,0,40);break;case"no-contact":b.GoalEnemy=null;break;case"unknown":b.GoalEnemy!.EnemyKnown=false;break;case"stale":b.GoalEnemy!.TimeSinceLastKnownUpdated=9;break;case"support-dead":m.IsDead=true;break;case"support-ghost":p.Ghosts.Add(m.ProfileId);break;case"support-moved":m.Position=new(5,0,0);break;}
  p.Sample(b);C(!r.Policy.Active&&p.Claims==0,"priority abort "+priority);C(path.Stops==(priority=="airborne"?0:1),"do not cancel airborne native movement "+priority);Save(p);
 }
 {
@@ -55,6 +55,37 @@ foreach(string mode in new[]{"refuse","unobserved","native-busy","exception"}){
 }
 {
  var(p,b,m)=Setup();p.doorBudget.Available=false;p.Observe(b);int queries=b.Mover.Queries;for(int i=0;i<10;i++)p.Observe(b);C(b.Mover.Queries==queries&&p.Claims==0,"shared budget blocks expensive search");p.doorBudget.Available=true;Step();p.Observe(b);queries=b.Mover.Queries;for(int i=0;i<10;i++)p.Observe(b);C(b.Mover.Queries==queries,"at most one planning probe per bot/frame");p.End(b);int count=p.diagnostics!.Lines.Count;for(int i=0;i<10;i++)p.End(b);C(p.diagnostics.Lines.Count==count,"inactive sweeps do not repeat terminal logs");Save(p);
+}
+foreach(var native in new[]{ECombatDecision.Search,ECombatDecision.SeekCover,ECombatDecision.ShiftCover,ECombatDecision.MoveToEngage,ECombatDecision.CreepOnEnemy}){
+ var(p,b,m)=Setup(); b.Decision.CurrentCombatDecision=native;
+ var previous=new BotPathDataManual{TimeStarted=Time.time,Destination=new(1,0,4),OnStop=()=>b.Mover.ActivePath=null}; b.Mover.ActivePath=previous;
+ b.Decision.CurrentSquadDecision=ESquadDecision.Regroup;
+ Plan(p,b); C(previous.Stops==0,"planning never interrupts the current native route");
+ b.Player.IsSprintEnabled=true;
+ b.Decision.CurrentCombatDecision=ECombatDecision.Freeze; var a=Start(p,b);
+ C(previous.Stops==1,"layer acquisition replaces exactly the observed search route");
+ b.Player.IsSprintEnabled=true; a.Update(new());
+ C(p.states[b].Crossfire.Policy.Active,"own sprint and ordinary squad regroup do not cancel a flank");
+ Save(p);
+}
+foreach(var native in new[]{ECombatDecision.Retreat,ECombatDecision.RunAway,ECombatDecision.DogFight,ECombatDecision.ThrowGrenade,ECombatDecision.AvoidGrenade,ECombatDecision.MeleeAttack,ECombatDecision.FightZombies}){
+ var(p,b,m)=Setup();b.Decision.CurrentCombatDecision=native;
+ var path=new BotPathDataManual{TimeStarted=Time.time};b.Mover.ActivePath=path;p.Observe(b);
+ C(!p.states[b].Crossfire.Policy.Active&&path.Stops==0,"squad cannot steal protected native decision "+native);
+}
+{
+ var(p,b,m)=Setup(); b.Decision.CurrentCombatDecision=ECombatDecision.Search;
+ var previous=new BotPathDataManual{TimeStarted=Time.time,Destination=new(1,0,4)}; b.Mover.ActivePath=previous;
+ Plan(p,b); var foreign=new BotPathDataManual{TimeStarted=Time.time+1}; b.Mover.ActivePath=foreign;
+ b.Decision.CurrentCombatDecision=ECombatDecision.Freeze;b.Player.IsSprintEnabled=true;
+ var a=new CrossfireAction(b.BotOwner); a.Start();
+ C(!p.states[b].Crossfire.Policy.Active&&previous.Stops==0&&foreign.Stops==0,"handoff never cancels a replaced route");
+}
+{
+ var(p,b,m)=Setup();b.Decision.CurrentCombatDecision=ECombatDecision.Search;
+ var previous=new BotPathDataManual{TimeStarted=Time.time};b.Mover.ActivePath=previous;Plan(p,b);
+ b.Mover.ActivePath=null;b.Decision.CurrentCombatDecision=ECombatDecision.Freeze;b.Player.IsSprintEnabled=true;
+ Start(p,b);C(previous.Stops==0,"already released native path permits residual sprint without another stop");
 }
 SecondaryEntranceHarness.Run();
 SquadManeuverHarness.Run();

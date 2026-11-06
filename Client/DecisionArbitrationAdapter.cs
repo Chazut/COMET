@@ -52,7 +52,11 @@ public sealed partial class Plugin
         try
         {
             bool runNative = Choose(b.Decision.EnemyDecisions, ref proposed, enemy, b.EnemyController.KnownEnemies, ref chosen);
-            if (!runNative && chosen && old.RequestedFrame == Time.frameCount)
+            // These outputs belong to this invocation, not to the previous decision.
+            // Custom layers (S01-S06), relocation and feints have their own request
+            // lifecycle. Requiring the generic A01/A02 frame token silently rejected
+            // their valid choices whenever SAIN selected an ordinary squad action.
+            if (!runNative && chosen)
             {
                 p.ArbitrationEvent(old, "tactical-priority-over-" + squad, solo + "/" + self + "/" + squad);
                 solo = proposed; squad = ESquadDecision.None;

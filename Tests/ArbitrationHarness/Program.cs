@@ -11,7 +11,8 @@ MethodDeclarationSyntax Method(string file,string name)=>CSharpSyntaxTree.ParseT
 string[] methods={"TacticalScope","TacticalHandsBusy","NativeChoiceHasPriority","ArbitrateSquad","ArbitrationEvent","ExecutionAction","SampleDecisionExecution"};
 string source="using System; using Comet.Core; namespace Comet.Client; partial class Plugin {\n"
  +string.Join("\n",methods.Select(n=>Method("DecisionArbitrationAdapter",n).ToString()))
- +Method("Plugin","ContinueCover")+"\n"+Method("OutcomeAdapter","OutcomeAction")+"\n}";
+ +Method("Plugin","ContinueCover")+"\n"+Method("OutcomeAdapter","OutcomeAction")
+ +"\n"+Method("CrossfireAdapter","ContinueCrossfireDecision")+"\n}";
 source += "\npartial class Plugin {"+Method("PlanContinuityAdapter","OwnedPlanService")
  +"\n"+Method("PlanContinuityAdapter","ObservePlanService")+"\n"+Method("MedicalChoiceAdapter","MedicalAction")+"}";
 source += CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Client/PlanContinuityAdapter.cs"))).GetRoot()

@@ -24,6 +24,8 @@ internal static class SquadTradeHarness
   {b.GoalEnemy!.IsVisible=seen;p.Death(m,b,killer);b.GoalEnemy.IsVisible=false;}
   CrossfireAction Start(Plugin p,BotComponent b)
   {
+   b.Decision.CurrentCombatDecision=SAIN.Preset.Shared.Enums.ECombatDecision.Search;
+   b.Mover.ActivePath=new BotPathDataManual{TimeStarted=Time.time,OnStop=()=>b.Mover.ActivePath=null};
    Step(.81f);p.Observe(b);for(int i=0;i<85&&p.states[b].Crossfire.Policy.Trace?.State=="planning";i++){Step(.025f);p.Sample(b);}
    C(p.states[b].Crossfire.Policy.Trace?.State=="ready","ready: "+p.states[b].Crossfire.Policy.Trace?.Reason+" memory="+p.states[b].Crossfire.Trade.Memory.Count+" warnings="+string.Join(" / ",Logger.Warnings));
    C(new CrossfireLayer(b.BotOwner,21).IsActive(),"native layer");var a=new CrossfireAction(b.BotOwner);a.Start();a.OnSteeringTicked();Step();a.Update(new());return a;

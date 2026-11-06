@@ -51,6 +51,13 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(self.m('M01')['started'],1);self.assertEqual(self.m('M01')['completed'],1)
     def test_applied_does_not_prove_motion(self):
         self.add(event(1,feature='M01',combatStep={'episode':1,'state':'moving','applied':True}));self.finish();analyze(self.c,'r');self.assertEqual(self.m('M01')['started'],0)
+    def test_squad_eligibility_diagnostics_are_not_tactical_execution(self):
+        self.add(event(1,'eligibility','S03',reason='crossfire-native-priority'),
+                 event(2,'eligibility','S03',reason='squad-tactical-route-handoff'))
+        self.finish();analyze(self.c,'r');m=self.m('S03')
+        self.assertEqual(m['events'],2)
+        for key in ('opportunities','selected','requested','started','completed','unconfirmed'):
+            self.assertEqual(m[key],0,key)
     def test_attached_context_does_not_inherit_parent_start(self):
         self.add(self.choice(1,'started',opportunity={'signal':1}));self.finish();analyze(self.c,'r')
         self.assertEqual(self.m('A01')['started'],1);self.assertEqual(self.m('A10')['started'],0)

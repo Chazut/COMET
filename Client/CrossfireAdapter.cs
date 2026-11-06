@@ -33,6 +33,9 @@ internal sealed class CrossfireRuntime
     internal NavMeshPath? Route;
     internal IBotPathData? Path;
     internal float PathStarted,Angle,Length;
+    internal IBotPathData? HandoffPath;
+    internal float HandoffStarted, NextEligibility, GateLogAt;
+    internal string GateKey="";
 }
 public sealed partial class Plugin
 {
@@ -61,14 +64,17 @@ public sealed partial class Plugin
     private string CrossfireCommonBlock(BotComponent b,BotState s,bool trade=false)
     {
         if(b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed||b.Grenade.GrenadeDangerPoint!=null||b.Flashed.IsFlashed)return "crossfire-urgent-threat";
-        if(b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None)return "crossfire-native-priority";
+        if(b.Decision.CurrentSelfDecision!=ESelfActionType.None
+            ||b.Decision.CurrentSquadDecision!=ESquadDecision.None&&!TacticalPriority.OrdinarySquad(b.Decision.CurrentSquadDecision.ToString()))return "crossfire-native-priority";
         if(b.BotOwner.DoorOpener.Interacting&&!EntranceOwnOpening(b,s)||b.BotOwner.Medecine.Using||MedicalPostureGuard(b)
             ||b.BotOwner.WeaponManager.Reload.Reloading||b.BotOwner.WeaponManager.Grenades.ThrowindNow
             ||!WeaponHandsReady(b,b.Player.HandsController as Player.FirearmController)&&!EntranceOwnOpening(b,s)||!b.BotOwner.WeaponManager.HaveBullets)return "crossfire-hands-or-supplies";
-        if(!b.Player.MovementContext.IsGrounded||b.Player.IsSprintEnabled)return "crossfire-native-movement";
+        if(!b.Player.MovementContext.IsGrounded
+            ||b.Player.IsSprintEnabled&&!OwnCrossfirePath(b,s.Crossfire)&&!CrossfireCanHandoff(b)
+                &&!PendingCrossfireHandoff(b,s.Crossfire))return "crossfire-native-movement";
         if(b.Memory.Health.HealthStatus is ETagStatus.BadlyInjured or ETagStatus.Dying)return "crossfire-injured";
         if(s.PostCombat.Policy.Active||s.Relocation.Policy.Active||s.CoverFeint.Policy.Active||s.Feature.StartsWith("D")&&s.Decision.Length>0)return "crossfire-other-tactic";
-        if(b.Decision.CurrentCombatDecision is not (ECombatDecision.None or ECombatDecision.Search or ECombatDecision.Freeze))return "crossfire-native-combat-priority";
+        if(!CrossfireTacticalDecision(b))return "crossfire-native-combat-priority";
         if((!trade&&!b.Squad.BotInGroup)||b.Squad.Members==null||b.Squad.Members.Count<(trade?1:2)||b.Squad.Members.Count>16)return "crossfire-no-bounded-squad";
         int count=0;foreach(var other in b.EnemyController.KnownEnemies)
         {if(++count>16)return "crossfire-threat-list-over-budget";if(other?.IsVisible==true)return "crossfire-visible-threat";}
@@ -93,6 +99,11 @@ public sealed partial class Plugin
         try
         {
             if(!p.states.TryGetValue(b,out var s)){if(p.states.Count>=512)return;s=new BotState(b,p.config!,p.session);p.states.Add(b,s);}
+            if(!s.Crossfire.Policy.Active)
+            {
+                if(Time.time<s.Crossfire.NextEligibility)return;
+                s.Crossfire.NextEligibility=Time.time+(float)p.config!.Crossfire.Interval;
+            }
             p.ObserveStormEquipment(b,s);
             p.RefreshCrossfire(b,s,true);
         }catch(Exception ex){if(p.states.TryGetValue(b,out var s))p.CrossfireError(b,s,ex);}
@@ -102,6 +113,13 @@ public sealed partial class Plugin
     private bool RefreshCrossfire(BotComponent b,BotState s,bool mayStart)
     {
         var r=s.Crossfire;if(r.Fault)return false;
+        if(!r.Policy.Active&&mayStart)
+        {
+            // All variants share these safety gates. Do not rebuild several squad
+            // candidates on every tick when a native emergency already excludes them.
+            string common=CrossfireCommonBlock(b,s,true);
+            if(common.Length>0){RecordCrossfireGate(s,common);return false;}
+        }
         if(r.Policy.Active&&r.Policy.Trace?.Storm!=null)return RefreshStorm(b,s);
         if(r.Policy.Active&&r.Policy.Trace?.Trade!=null)return RefreshSquadTrade(b,s);
         if(!r.Policy.Active&&mayStart&&config!.SquadStorm.Enabled&&b.Squad.Members!=null&&stormBoard.Get(ManeuverGroup(b))?.Active==true)
@@ -116,7 +134,7 @@ public sealed partial class Plugin
             &&float.IsFinite(observed.TimeSinceLastKnownUpdated)&&observed.TimeSinceLastKnownUpdated>=0)
             r.ContactAt=Math.Max(r.ContactAt,Time.time-observed.TimeSinceLastKnownUpdated);
         string block=CrossfireBlock(b,s,!r.Policy.Active&&mayStart&&config!.SquadManeuver.Enabled);
-        if(block.Length>0){if(r.Policy.Active)EndCrossfire(b,s,block);return false;}
+        if(block.Length>0){if(r.Policy.Active)EndCrossfire(b,s,block);else if(mayStart)RecordCrossfireGate(s,block);return false;}
         var c=config!.Crossfire;
         if(!r.Policy.Active&&mayStart&&config.SquadManeuver.Enabled)TryBeginManeuver(b,s);
         // A declined S03 plan must not relax the separate S01 eligibility limits.
@@ -142,6 +160,7 @@ public sealed partial class Plugin
             var e=b.GoalEnemy!;var situation=NativeAdapter.Capture(b,e,true,false);
             r.ContactInstance=System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e);r.Known=e.KnownPlaces.LastKnownPosition!.Value;r.Contact=e.EnemyProfileId;r.ContactAt=Time.time-e.TimeSinceLastKnownUpdated;
             r.Support=support.ProfileId;r.Reference=support.Position;r.Origin=b.Position;r.Candidate=r.Sample=0;r.Route=null;r.Rejects.Clear();
+            RememberCrossfireHandoff(b,r);
             // Detached squad identity: reservations must not expose other groups' hidden positions.
             var memberIds=new List<string>(b.Squad.Members!.Keys);memberIds.Sort(StringComparer.Ordinal);r.Group=string.Join("|",memberIds);
             r.Indoor=b.Player.Environment==EnvironmentType.Indoor;
@@ -178,7 +197,11 @@ public sealed partial class Plugin
             var r=s.Crossfire;if(!active){if(r.Layer)p.EndCrossfire(b,s,"crossfire-layer-released");return;}
             if(!p.RefreshCrossfire(b,s,false))return;
             if(r.ManeuverRole?.Role=="flank"&&!r.Maneuver!.SupportReady(Time.time))return;
-            if(!r.Layer){r.Layer=true;r.StartWait=Time.time;owner.PatrollingData.Pause();p.Release(s,"crossfire-layer-active",false,true);}
+            if(!r.Layer)
+            {
+                if(!p.TakeCrossfireHandoff(b,s)){p.EndCrossfire(b,s,"crossfire-handoff-route-changed");return;}
+                r.Layer=true;r.StartWait=Time.time;owner.PatrollingData.Pause();p.Release(s,"crossfire-layer-active",false,true);
+            }
             if(r.Policy.Trace!.Storm!=null){p.ExecuteStorm(b,s);if(r.Policy.Active)p.RefreshStorm(b,s);return;}
             if(r.Policy.Trace!.Trade!=null){p.ExecuteSquadTrade(b,s);if(r.Policy.Active)p.RefreshSquadTrade(b,s);return;}
             if(r.Policy.Trace!.CoverMate!=null){p.ExecuteCoverMate(b,s);if(r.Policy.Active)p.RefreshCoverMate(b,s);return;}
@@ -206,7 +229,7 @@ public sealed partial class Plugin
         if(r.Policy.Trace.Entrance!=null){r.Entrance.Policy.End(Time.time,r.ContactAt);ReleaseEntrance(s);}
         r.Policy.End(Time.time,config?.Crossfire??new(),reason);r.Layer=false;crossfireClaims.Release(s.Id);
         try{StopCrossfireRoute(b,r);}catch(Exception ex){Logger.LogWarning("S01 route release: "+ex.GetBaseException().Message);}
-        finally{r.Route=null;r.Samples.Clear();r.Candidates.Clear();RecordCrossfire(s,true);r.Entrance.Drop();r.Maneuver=null;r.ManeuverRole=null;r.Storm.Plan=null;r.Storm.Member=null;}
+        finally{r.Route=null;r.HandoffPath=null;r.Samples.Clear();r.Candidates.Clear();RecordCrossfire(s,true);r.Entrance.Drop();r.Maneuver=null;r.ManeuverRole=null;r.Storm.Plan=null;r.Storm.Member=null;}
     }
     private void CrossfireError(BotComponent b,BotState s,Exception ex)
     {if(s.Crossfire.Fault)return;s.Crossfire.Fault=true;EndCrossfire(b,s,"crossfire-adapter-error");Logger.LogWarning("S01 yielded: "+ex.GetBaseException().Message);}

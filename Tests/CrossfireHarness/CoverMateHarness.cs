@@ -24,6 +24,8 @@ internal static class CoverMateHarness
   }
   CrossfireAction Start(Plugin p,BotComponent guard)
   {
+   guard.Decision.CurrentCombatDecision=SAIN.Preset.Shared.Enums.ECombatDecision.Search;
+   guard.Mover.ActivePath=new BotPathDataManual{TimeStarted=Time.time,OnStop=()=>guard.Mover.ActivePath=null};
    p.Observe(guard);
    for(int n=0;n<50&&p.states[guard].Crossfire.Policy.Trace?.State=="planning";n++){Step();p.Sample(guard);}
    C(p.states[guard].Crossfire.Policy.Trace?.State=="ready","selected native destination: "+p.states[guard].Crossfire.Policy.Trace?.Reason);

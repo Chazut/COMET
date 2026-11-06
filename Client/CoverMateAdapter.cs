@@ -41,7 +41,7 @@ public sealed partial class Plugin
         var r=s.Crossfire;var c=config!.CoverMate;var a=r.Care;
         if(!c.Enabled||r.Policy.Active||Time.time<a.Next||Time.time<a.RetryAt||CoverMateBlock(b,s).Length>0)return false;
         a.Next=Time.time+.5f;
-        if(b.Mover.ActivePath!=null||QueuedCombatMovement(b))return false;
+        if(b.Mover.ActivePath!=null&&!CrossfireCanHandoff(b)||QueuedCombatMovement(b))return false;
         BotComponent? selected=null;CoverOperation? operation=null;float nearest=float.MaxValue;
         foreach(var mate in b.Squad.Members.Values)
         {
@@ -67,6 +67,7 @@ public sealed partial class Plugin
         var direction=known-selected.Position;
         if(!coverMateBoard.Reserve(s.Id,selected.ProfileId,operation.Id,threat.EnemyProfileId,direction.x,direction.z,Time.time,c))return false;
         if(!r.Policy.Begin(Time.time,CoverMateMotionConfig(),0)){coverMateBoard.Release(s.Id);return false;}
+        RememberCrossfireHandoff(b,r);
         a.Mate=selected.ProfileId;a.Operation=operation.Id;a.Sector=threat.EnemyProfileId;a.Started=Time.time;a.MateOrigin=selected.Position;a.Confirmed=false;a.LastCallback=Time.time;a.FaceAt=a.MoveAt=-1;
         a.Source=NativeAdapter.Capture(b,threat,true,false).ContactSource;
         r.Maneuver=null;r.ManeuverRole=null;r.Entrance.Drop();r.Known=known;r.Contact=threat.EnemyProfileId;r.ContactAt=Time.time-threat.TimeSinceLastKnownUpdated;

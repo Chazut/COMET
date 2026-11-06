@@ -68,7 +68,7 @@ public sealed partial class Plugin
     }
 
     private static bool ThreatNativeUrgency(BotComponent bot) => bot.Decision.CurrentSelfDecision != ESelfActionType.None
-        || bot.Decision.CurrentSquadDecision != ESquadDecision.None || bot.Decision.CurrentCombatDecision == ECombatDecision.AvoidGrenade
+        || bot.Decision.CurrentSquadDecision != ESquadDecision.None && !TacticalPriority.OrdinarySquad(bot.Decision.CurrentSquadDecision.ToString()) || bot.Decision.CurrentCombatDecision == ECombatDecision.AvoidGrenade
         || !VisibleAdapter.WeaponReady(bot) || bot.BotOwner.WeaponManager.IsMelee;
 
     private bool ThreatUsable(BotComponent bot, Enemy? e)
