@@ -225,6 +225,14 @@ public sealed partial class Plugin : BaseUnityPlugin
             RunIntegration("PatchDoorEntry",()=>PatchDoorEntry(harmony!));
             RunIntegration("installed-hook-manifest",VerifyInstalledIntegration);
             FinishIntegration();
+            try
+            {
+                var warm = DiagnosticWarmup.Prepare(typeof(Plugin).Assembly, Diagnostics.Json.ContractResolver!);
+                var readers=Diagnostics.Json.ContractResolver as PreparedDiagnosticResolver;
+                Logger.LogInfo($"Diagnostics prepared before raids: {warm.Contracts} contracts, {warm.Methods} methods, {warm.Failed} unavailable, {readers?.ReadersPrepared ?? 0} readers, {readers?.ReadersFallback ?? 0} reader fallbacks, {warm.Milliseconds:F1} ms.");
+                if(warm.Failed>0) Logger.LogWarning("Diagnostic preparation details: " + string.Join("; ", warm.Unavailable));
+            }
+            catch (Exception ex) { Logger.LogWarning("Diagnostic warmup unavailable: " + ex.Message); }
         }
         catch (Exception ex) { FailIntegration(ex); }
     }
@@ -448,13 +456,18 @@ public sealed partial class Plugin : BaseUnityPlugin
                 string responseKey = visible.CoverResponse?.State + ":" + visible.CoverResponse?.Reason + ":" + visible.CoverId;
                 if (plugin.config.CoverResponse.Enabled && responseKey != state.CoverResponseLogKey && Time.time - state.CoverResponseLogAt >= 1)
                 { state.CoverResponseLogAt = Time.time; state.CoverResponseLogKey = responseKey; plugin.Emit(state, "evaluated", visible.CoverResponse?.Reason ?? "cover-response-unavailable"); }
-                if (choice.Changed)
+                if (choice.Changed || choice.Reconsidered)
                 {
                     state.FearAtSelection = state.Fear.Current;
                     state.LoadoutAtSelection = situation.Loadout?.Copy();
+                }
+                if (choice.Changed)
+                {
                     plugin.Emit(state, choice.Decision == null ? "released" : "selected", choice.Reason);
                     state.ActiveLabel = ""; Api.Decisions.Set(state.ProfileId, "");
                 }
+                else if (choice.Reconsidered)
+                    plugin.Emit(state, "evaluated", "cover-plan-retained:" + choice.Reason);
                 if (!choice.Decision.HasValue)
                 {
                     if (!choice.Changed && (state.LastRefusal != choice.Reason || Time.time - state.LastRefusalAt > 5))

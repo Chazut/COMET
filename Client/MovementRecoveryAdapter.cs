@@ -44,12 +44,17 @@ public sealed partial class Plugin
         var p=b.Position;var f=new MovementRecoveryFrame{Now=Time.timeAsDouble,X=p.x,Y=p.y,Z=p.z,Scoped=MovementRecoveryScope(b),
             Owner=b.SAINLayersActive?"SAIN":"external-mover",Action=b.Decision.CurrentCombatDecision.ToString(),Contact=b.GoalEnemy?.EnemyProfileId??""};
         next=p;var path=b.Mover.ActivePath;
-        if(b.SAINLayersActive&&path!=null)
+        if(b.SAINLayersActive)
         {
-            f.Intent=path.Moving&&!(path is BotPathDataManual manual&&manual.CancelRequested)&&path.Status!=EBotMoveStatus.Complete;
-            f.Route=ProgressAdapter.Destination(path.Destination);
-            if(path.PathCorners!=null&&path.CurrentIndex>=0&&path.CurrentIndex<path.PathCorners.Count)next=path.PathCorners[path.CurrentIndex].Position;
-            if(path.Status==EBotMoveStatus.Paused||path is BotPathDataManual paused&&paused.PausedRequested)f.Pause="recovery-path-paused";
+            if(path!=null)
+            {
+                f.Intent=path.Moving&&!(path is BotPathDataManual manual&&manual.CancelRequested)&&path.Status!=EBotMoveStatus.Complete;
+                f.Route=ProgressAdapter.Destination(path.Destination);
+                if(path.PathCorners!=null&&path.CurrentIndex>=0&&path.CurrentIndex<path.PathCorners.Count)next=path.PathCorners[path.CurrentIndex].Position;
+                if(path.Status==EBotMoveStatus.Paused||path is BotPathDataManual paused&&paused.PausedRequested)f.Pause="recovery-path-paused";
+            }
+            // An inactive vanilla mover may retain an old path while SAIN owns movement.
+            // Its state is not evidence that a missing SAIN cover route is executing.
         }
         else
         {
@@ -58,6 +63,18 @@ public sealed partial class Plugin
             if(native!=null&&native.Length>0&&native.CurIndex>=0&&native.CurIndex<native.Length)
             {next=native.GetPoint(native.CurIndex);f.Route=ProgressAdapter.Destination(native.GetPoint(native.Length-1));}
             else f.Intent=false;
+        }
+        // SAIN can retain CoverPoint_MovingTo after GoToCoverPoint returned false.
+        // That is an unfinished movement request even when the mover has no active path.
+        // Never infer a route from a hidden enemy's current position.
+        bool seekingCover = f.Action is "SeekCover" or "ShiftCover" or "Retreat";
+        var cover = b.Cover.CoverPoint_MovingTo;
+        bool holdingCover = b.Cover.CoverInUse != null && !b.Cover.CoverInUse.CoverData.IsBad
+            && (b.Cover.CoverInUse.Position-p).sqrMagnitude <= 4;
+        if(b.SAINLayersActive && seekingCover && !holdingCover && !f.Intent && cover!=null
+            && (cover.Position-p).sqrMagnitude>4 && f.Pause.Length==0)
+        {
+            f.Intent=true;f.MissingCoverRoute=true;f.Route=ProgressAdapter.CoverKey(cover);next=cover.Position;
         }
         if(s.ActiveLabel.Length>0)f.Owner="COMET";
         var wm=b.BotOwner.WeaponManager;
@@ -68,7 +85,8 @@ public sealed partial class Plugin
             ||doorSwings.Exists(x=>x.Bot==b))f.Pause="recovery-door-in-progress";
         else if(s.Fake.Policy.Active||s.Entry.Policy.Active||s.RoomClear.Policy.Active&&s.RoomClear.Policy.Trace?.State!="entering")f.Pause="recovery-tactical-door-action";
         else if(b.BotOwner.ShootData.Shooting||b.ManualShoot.Shooting)f.Pause="recovery-shooting";
-        else if(b.SAINLayersActive&&b.Search.CurrentState.ToString()=="Wait")f.Pause="recovery-search-wait";
+        else if(b.SAINLayersActive && f.Action=="Search" && b.Search.CurrentState.ToString()=="Wait")f.Pause="recovery-search-wait";
+        else if(b.SAINLayersActive && seekingCover && holdingCover)f.Pause="recovery-holding-cover";
         else if(s.ActiveLabel.Length>0&&(s.Decision=="Hold"||s.Decision=="KeepAngle"))f.Pause="recovery-intentional-hold";
         return f;
     }
@@ -89,13 +107,23 @@ public sealed partial class Plugin
         bool accepted=false;string reason="recovery-request-refused";
         switch(command)
         {
-            case "repath":b.Mover.RecalcPath();b.BotOwner.Mover.RecalcWay();accepted=true;reason="recovery-repath-requested";break;
+            case "repath":
+                if(fresh.MissingCoverRoute)
+                {
+                    var failed=b.Cover.CoverPoint_MovingTo;
+                    if(failed!=null)failed.CoverData.IsBad=true;
+                    b.Cover.StopSeekingCover();
+                    reason="recovery-stale-cover-released";
+                }
+                else reason="recovery-repath-requested";
+                b.Mover.RecalcPath();b.BotOwner.Mover.RecalcWay();accepted=true;break;
             case "early-vault":case "vault-or-jump":
                 accepted=TryRecoveryJump(b,next,out reason);break;
             case "teleport":accepted=TryRecoveryTeleport(b,next,out reason);break;
             case "stop":
                 s.Progress.Fail(f.Route,Time.time,"recovery-movement-exhausted");
                 b.Mover.Stop();b.BotOwner.Mover.Stop();
+                if(fresh.Action is "SeekCover" or "ShiftCover" or "Retreat")b.Cover.StopSeekingCover();
                 if(s.ActiveLabel.Length>0)Release(s,"recovery-movement-exhausted");
                 accepted=true;reason="recovery-stopped-for-owner-replan";break;
         }
@@ -198,9 +226,15 @@ public sealed partial class Plugin
     {
         var r=s.MovementRecovery;var t=r.Policy.Trace;
         // Idle walking needs no heartbeat. Active incidents refresh the map context with a short TTL.
-        if(!force&&t.StalledSeconds<1&&t.State!="recovered")return;
-        string key=t.State+"|"+t.Reason+"|"+t.Incident+"|"+t.Step;
-        if(!force&&key==r.Key&&(t.ValidFor==0||Time.timeAsDouble-r.LogAt<config!.MovementRecovery.SampleInterval))return;
+        // Include blocked native cover intentions, including the reason recovery is
+        // deliberately paused. Otherwise a stationary SAIN action is invisible here.
+        bool coverContext=t.Action is "SeekCover" or "ShiftCover" or "Retreat";
+        bool blockedCover=coverContext&&(t.State=="paused"||t.MissingCoverRoute);
+        if(!force&&t.StalledSeconds<1&&t.State!="recovered"&&!blockedCover)return;
+        string key=t.State+"|"+t.Reason+"|"+t.Incident+"|"+t.Step+"|"+t.Owner+"|"+t.Action+"|"+t.MissingCoverRoute;
+        if(!force&&key==r.Key&&(t.ValidFor==0
+            ? !coverContext || Time.timeAsDouble-r.LogAt<10
+            : Time.timeAsDouble-r.LogAt<config!.MovementRecovery.SampleInterval))return;
         r.Key=key;r.LogAt=Time.timeAsDouble;
         var json=JsonConvert.SerializeObject(new{schema=1,session,sequence=++sequence,feature="C06",stage="evaluated",decision="MovementRecovery",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,

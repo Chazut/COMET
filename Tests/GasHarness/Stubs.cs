@@ -57,7 +57,8 @@ namespace Manimal.CSGas.Gas{
  public class CsGasCloud:Component{
   internal enum GasProtection{None,Respirator,Full}
   public bool _exploded=true;public VolumetricGasEmitter? _emitter;public EFT.SmokeGrenade _smoke=new();private void Start(){}
-  private static GasProtection GetProtection(EFT.Player p)=>Enum.Parse<GasProtection>(p.Protection);
+  public static int ProtectionCalls;
+  private static GasProtection GetProtection(EFT.Player p){ProtectionCalls++;return Enum.Parse<GasProtection>(p.Protection);}
  }
  public class VolumetricGasEmitter:Component{public Vector3 _origin;public bool _finished;public float _emitUntil=30,_particleLifetime=15;public Func<Vector3,bool> Test=p=>p.sqrMagnitude<25;public bool IsInside(Vector3 p,float radius)=>!(_finished&&Time.time>=_emitUntil+_particleLifetime)&&Test(p);public static VolumetricGasEmitter Create()=>new();}
 }

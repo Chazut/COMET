@@ -72,16 +72,22 @@ internal static class NativeAdapter
         if (config.SilentSearch.Enabled && (enemy.KnownPlaces.LastKnownPlace?.HasArrivedPersonal == true || enemy.KnownPlaces.LastKnownPlace?.HasArrivedSquad == true))
             s.Unavailable[Tactic.Search] = "silent-search-already-searched";
         bool cover = false;
-        if(config.Progress.Enabled && !state.ProgressUnavailable) state.SelectedCover=VisibleAdapter.SelectCover(bot,state.Progress);
+        bool guidedCover=config.Progress.Enabled && !state.ProgressUnavailable;
+        if(guidedCover) state.SelectedCover=VisibleAdapter.SelectCover(bot,state.Progress);
         // Reuse SAIN's cover cache. No global scene searches or new NavMesh scans.
         int scannedCover=0;
-        foreach (var point in bot.Cover.CoverPoints)
+        if(!guidedCover) foreach (var point in bot.Cover.CoverPoints)
         {
             if(++scannedCover>24)break;
             if (point == null || point.CoverData.IsBad || point.PathToPoint == null || point.PathToPoint.status != NavMeshPathStatus.PathComplete || (point.PathData.TimeSinceLastUpdated > 3 && !Plugin.RetainedCover(bot, point))) continue;
             if(!state.ProgressUnavailable && state.Progress.Blocked(ProgressAdapter.CoverKey(point),s.Now))continue;
             cover = true;
+            break;
         }
+        // The legacy existence scan is less strict than SelectCover (spotted points,
+        // origin/destination validation). Never advertise a guided retreat without
+        // the actual point we will request, or fall back to a stale native cover.
+        if(guidedCover)cover=state.SelectedCover!=null;
         if (!cover) s.Unavailable[Tactic.FallBack] = "no-reachable-cover";
         string flankReason=FlankAdapter.Capability(bot,state);
         if(flankReason.Length>0)s.Unavailable[Tactic.Flank]=flankReason;

@@ -71,7 +71,8 @@ static class CoverResponseTests
         var after=new VisibleEnemyDecision(config).Evaluate(v).Decision;
         Check(before==VisibleTactic.Cover&&after==VisibleTactic.Shoot,"A11 avoids exposed run in production chooser");
         engine=new VisibleEnemyDecision(config);v=V();engine.Evaluate(v);v.Contact.Now+=.1;Check(!engine.Evaluate(v).Changed,"identical assessment does not reroll");
-        v.CoverTravel=V(.6).CoverTravel;v.Contact.Now+=.2;Check(engine.Evaluate(v).Changed,"new nearby protection reassessed during commitment");
+        v.CoverTravel=V(.6).CoverTravel;v.Contact.Now+=.2;choice=engine.Evaluate(v);
+        Check(choice.Reconsidered&&!choice.Changed&&choice.Decision==VisibleTactic.Cover,"new nearby protection rescored without restarting unchanged cover destination");
         v.Contact.Now+=.05;Check(!engine.Evaluate(v).Changed,"new protection remains stable");
         engine.Release("ghost");v.Contact.Ghost=true;Check(engine.Evaluate(v).Decision==null,"ghost handoff");
         // Deterministic range sweep: score caps, eligibility, and shorter exposure are monotonic without stacking adjustments.

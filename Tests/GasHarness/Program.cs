@@ -13,6 +13,19 @@ Chainloader.PluginInfos.Clear();var absent=new Plugin();C(!absent.Ready,"absent 
 Chainloader.PluginInfos[ManimalGasBridge.Guid]=new(){Metadata=new(){Version=new(2,1,0)}};C(!new Plugin().Ready,"unknown future version inactive");
 Chainloader.PluginInfos[ManimalGasBridge.Guid]=new(){Instance=null!};C(!new Plugin().Ready,"provider failed to load stays inactive");
 var broken=new ManimalGasBridge();C(!broken.Bind(typeof(string).Assembly,new(2,0,0)),"wrong contract inactive");
+{
+ var(idle,bot,decision,cloud)=Setup();int probes=0;var volume=new VolumetricGasEmitter{Test=_=>{probes++;return false;}};
+ cloud._emitter=volume;Plugin.GasEmitterCreated(volume);CsGasCloud.ProtectionCalls=0;
+ for(int i=0;i<600;i++)Step(idle,bot,decision,10+i/60f);
+ C(probes<=41,"idle gas checks retain configured .25s interval over 600 frames");
+ C(CsGasCloud.ProtectionCalls==0,"unexposed bots do not scan inventory");
+ C(idle.diagnostics!.Lines.Count==0,"idle gas does not spam diagnostics");
+ float next=idle.State(bot).Next;volume.Test=_=>true;bot.Player.Protection="Full";Step(idle,bot,decision,next+.001f);
+ C(idle.State(bot).Inside&&idle.State(bot).Protection=="Full"&&CsGasCloud.ProtectionCalls==1,"new exposure reads current equipment at next sample");
+ bot.Player.Protection="None";Step(idle,bot,decision,next+.251f);
+ C(idle.State(bot).Intensity>0&&idle.State(bot).Owned,"protection change and gas escape remain functional");
+ idle.End();C(bot.BotOwner.Settings.Current.Active.Count==0,"cleanup still removes gas modifiers");
+}
 var(p,b,m,c)=Setup();C(p.Ready,"compatible");Step(p,b,m,10);C(p.State(b).Inside&&p.State(b).Owned&&m.Decisions==1,"native avoidance without enemy");C(p.State(b).Path!=null&&p.State(b).Trace?.State=="escaping","reachable escape");
 int calls=b.Mover.Requests;Step(p,b,m,10.25f);C(b.Mover.Requests==calls,"stable route");C(p.State(b).Intensity>0&&b.BotOwner.Settings.Current.Active.Count==1,"reversible modifiers");C(b.Talk.Count==1,"cough");
 Step(p,b,m,10.5f);C(b.Talk.Count==1,"cough interval");streams.AddRange(p.diagnostics!.Lines);

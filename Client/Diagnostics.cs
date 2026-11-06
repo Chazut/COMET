@@ -1,4 +1,7 @@
 using System;
+using System.Linq.Expressions;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -62,6 +65,45 @@ namespace Comet.Api
 
 namespace Comet.Client
 {
+// Newtonsoft normally compiles its member readers on first GetValue, even after
+// ResolveContract. Build those readers during pre-raid contract preparation,
+// without constructing a payload or executing any property getter.
+internal sealed class PreparedDiagnosticResolver : CamelCasePropertyNamesContractResolver
+{
+    internal int ReadersPrepared { get; private set; }
+    internal int ReadersFallback { get; private set; }
+    protected override IValueProvider CreateMemberValueProvider(MemberInfo member)
+    {
+        var fallback=base.CreateMemberValueProvider(member);
+        try
+        {
+            if(member.DeclaringType==null || member.DeclaringType.ContainsGenericParameters)return fallback;
+            var instance=Expression.Parameter(typeof(object),"instance");
+            Expression? read=null;
+            if(member is PropertyInfo property && property.GetIndexParameters().Length==0 && property.GetGetMethod(true) is MethodInfo getter)
+                read=Expression.Call(getter.IsStatic?null:Expression.Convert(instance,member.DeclaringType),getter);
+            else if(member is FieldInfo field)
+                read=Expression.Field(field.IsStatic?null:Expression.Convert(instance,member.DeclaringType),field);
+            if(read==null || read.Type.IsByRef || read.Type.IsPointer)return fallback;
+            var reader=Expression.Lambda<Func<object,object>>(Expression.Convert(read,typeof(object)),instance).Compile();
+            // Compile prepares the dynamic body. Preparing the delegate also asks
+            // the runtime to prepare its thunk; neither operation calls the getter.
+            RuntimeHelpers.PrepareDelegate(reader);
+            ReadersPrepared++;
+            return new Reader(reader,fallback);
+        }
+        catch { ReadersFallback++;return fallback; }
+    }
+    private sealed class Reader : IValueProvider
+    {
+        private readonly Func<object,object> get;
+        private readonly IValueProvider fallback;
+        internal Reader(Func<object,object> get,IValueProvider fallback){this.get=get;this.fallback=fallback;}
+        public object GetValue(object target)=>get(target);
+        public void SetValue(object target,object? value)=>fallback.SetValue(target,value);
+    }
+}
+
     // The revision on every decision resolves to one full snapshot per raid/revision.
     // Keep snapshots in both the local journal and RR's ordinary decision stream.
     internal sealed class DecisionConfiguration
@@ -78,7 +120,7 @@ namespace Comet.Client
     }
     internal sealed class Diagnostics : IDisposable
     {
-        internal static readonly JsonSerializerSettings Json = new JsonSerializerSettings { ContractResolver = new CamelCasePropertyNamesContractResolver() };
+        internal static readonly JsonSerializerSettings Json = new JsonSerializerSettings { ContractResolver = new PreparedDiagnosticResolver() };
         private readonly BlockingCollection<string> queue = new BlockingCollection<string>(4096);
         private readonly Action<string> warn;
         private readonly Task writer;

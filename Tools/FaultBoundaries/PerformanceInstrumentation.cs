@@ -18,6 +18,7 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
         if(File.StartsWith("Performance")||File=="FaultIsolationAdapter"||File is "TacticCounters" or "CombatReport"||
             File.StartsWith("Lifecycle") && name is not ("SampleLifecycles" or "RetireLife") ||
             File.StartsWith("RaidCleanup") && name=="GuardRaid" ||
+            File=="ControlIntegration" && name is "Sleeping" or "WatchControl" ||
             m.Modifiers.Any(SyntaxKind.AsyncKeyword)||m.ReturnType is RefTypeSyntax||name.StartsWith("Patch")||name is "Awake" or "ValidateContracts"||
             m.Body==null&&m.ExpressionBody==null||m.DescendantNodes().OfType<YieldStatementSyntax>().Any())return m;
         string body=m.ToString();

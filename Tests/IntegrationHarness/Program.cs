@@ -27,6 +27,27 @@ static class Audit
         var dir=Path.Combine(root,"artifacts/i01");Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir,"registrations.json"),JsonSerializer.Serialize(probe.Hooks,new JsonSerializerOptions{WriteIndented=true}));
         Console.WriteLine($"I01 real-DLL registration audit: {probe.Hooks.Count} hooks, {probe.Hooks.Select(h=>h.Target).Distinct().Count()} target methods; {probe.Transpilers} real-IL transpiler applications. No detours installed.");
+        // Metadata preparation runs against the actual built client, without JITing Unity
+        // callbacks on the .NET test host or executing any game action.
+        var client = typeof(Comet.Client.Plugin).Assembly;
+        var warmup = client.GetType("Comet.Client.DiagnosticWarmup", true)!;
+        var prepare = warmup.GetMethod("Prepare", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var resolver = (Newtonsoft.Json.Serialization.IContractResolver)Activator.CreateInstance(client.GetType("Comet.Client.PreparedDiagnosticResolver",true)!,true)!;
+        var report = prepare.Invoke(null, new object[] { client, resolver, false })!;
+        object Read(string name) => report.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(report)!;
+        int contracts = (int)Read("Contracts"), failed = (int)Read("Failed");
+        var unavailable = ((IEnumerable<string>)Read("Unavailable")).ToArray();
+        // EFT's unsealed delegate classes are accepted by Unity Mono, but rejected by
+        // CoreCLR. Only these unrelated event-wiring bodies are allowed to be skipped.
+        bool KnownHostLimitation(string s) => s.Contains("delegate classes must be sealed")
+            && (s.StartsWith("Comet.Client.Plugin.EnsureClearEvents:") || s.StartsWith("Comet.Client.Plugin.ClearRoomEvents:")
+                || s.StartsWith("Comet.Client.Plugin+<>c__DisplayClass") && s.Contains(".<EndRaid>b__"));
+        if (contracts < 400 || failed != unavailable.Length || unavailable.Any(s => !KnownHostLimitation(s)))
+            throw new Exception($"Client warmup incomplete: {contracts} contracts, {failed} failures: " + string.Join("; ", unavailable));
+        Console.WriteLine($"Actual client diagnostic metadata: {contracts} contracts, {failed} known CoreCLR/native-delegate limitations; {Read("Milliseconds"):F1} ms before raids. Mono JIT preparation requires the game.");
+        int Readers(string name)=>(int)resolver.GetType().GetProperty(name,BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(resolver)!;
+        if(Readers("ReadersPrepared")<100 || Readers("ReadersFallback")!=0)throw new Exception("Client payload readers not prepared");
+        Console.WriteLine($"Actual client diagnostic readers: {Readers("ReadersPrepared")} compiled, {Readers("ReadersFallback")} fallback; no payload getter executed.");
     }
 }
 

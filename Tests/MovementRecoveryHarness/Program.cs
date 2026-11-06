@@ -42,7 +42,43 @@ foreach(var unsafeCase in new Action<Plugin,BotComponent>[] {(p,b)=>Physics.Swee
 {var(p,b,s)=Setup();p.config!.MovementRecovery.Teleport=true;Singleton<GameWorld>.Instance.AllAlivePlayersList.Add(new(){IsAI=false,Position=new(100,0,0)});Run(p,b,s,8);Check(b.Player.Teleports==1&&b.Position.x<=2,"optional hidden relocation within cap");p.Tick(b,s,8.5);Check(s.MovementRecovery.Policy.Trace.State!="recovered","relocation not success");b.Player.Position+=new Vector3(.7f,0,0);p.Tick(b,s,9);Check(s.MovementRecovery.Policy.Trace.State=="recovered","success only after real movement");}
 {var(p,b,s)=Setup();p.config!.MovementRecovery.Teleport=true;p.fikaPresent=true;int calls=0;MovementRecoveryNetwork.Teleport=(player,v)=>{calls++;player.Teleport(v);return true;};Run(p,b,s,8);Check(calls==1,"Fika host uses transport exactly once");}
 {var(p,b,s)=Setup();s.ActiveLabel="COMET";Run(p,b,s,14);Check(p.Releases==1,"COMET owner yields after exhaustion");}
+// Raid388: Search.Wait must not mask an unrelated stalled cover movement.
+foreach (string action in new[] { "SeekCover", "ShiftCover", "Retreat" })
+{
+ var(p,b,s)=Setup();b.Decision.CurrentCombatDecision=action;b.Search.CurrentState="Wait";
+ Run(p,b,s,15);Check(b.Mover.Repaths==1&&b.Mover.Stops==1,"stale Search.Wait does not suspend "+action);
+ Check(b.Cover.Releases==1,"exhausted cover request cleared for "+action);
+}
+// A retained cover request without any active movement path still needs recovery.
+{
+ var(p,b,s)=Setup();b.Decision.CurrentCombatDecision="SeekCover";b.Search.CurrentState="Wait";
+ b.Mover.ActivePath=null!;var failed=new CoverPoint();b.Cover.CoverPoint_MovingTo=failed;
+ Run(p,b,s,3);Check(b.Mover.Repaths==1&&b.Cover.Releases==1&&failed.CoverData.IsBad,"missing route releases stale cover at repath stage");
+ Check(b.Mover.Jumps+b.Mover.Vaults+b.Player.Teleports==0,"missing route never triggers a blind jump or teleport");
+ Check(s.MovementRecovery.Policy.Trace.Reason=="recovery-stale-cover-released","recovery cause observable");
+ for(double t=3.5;t<=20;t+=.5)p.Tick(b,s,t);
+ Check(b.Cover.Releases==1&&b.Mover.Repaths==1,"cleared request does not loop recovery");
+ b.Mover.ActivePath=new BotPathDataManual();b.Player.Position=new(1,0,0);p.Tick(b,s,20.5);
+ Check(s.MovementRecovery.Policy.Trace.State=="recovered","fresh movement confirms recovery");
+}
+foreach (var intentional in new[] { "holding", "heal", "shoot", "door", "hands", "ghost", "client" })
+{
+ var(p,b,s)=Setup();b.Decision.CurrentCombatDecision="SeekCover";b.Mover.ActivePath=null!;
+ b.Cover.CoverPoint_MovingTo=new();
+ switch(intentional){case "holding":b.Cover.CoverInUse=new(){Position=new(1,0,0)};break;case "heal":b.BotOwner.Medecine.Using=true;break;case "shoot":b.BotOwner.ShootData.Shooting=true;break;case "door":b.BotOwner.DoorOpener.Interacting=true;break;case "hands":b.Player.HandsController.Busy=true;break;case "ghost":p.Ghosted=true;break;case "client":p.Authority=false;break;}
+ Run(p,b,s,20);Check(b.Cover.Releases+b.Mover.Repaths+b.Mover.Stops+b.Mover.Jumps==0,"missing route retains protection: "+intentional);
+}
+{
+ var(p,b,s)=Setup();b.Decision.CurrentCombatDecision="SeekCover";b.Cover.CoverInUse=new(){Position=new(1,0,0)};
+ Run(p,b,s,20);Check(b.Mover.Repaths+b.Mover.Stops==0,"nearby valid held cover is intentional even with stale moving path");
+ Check(s.MovementRecovery.Policy.Trace.Reason=="recovery-holding-cover","held cover reason visible");
+}
 // Fixture comes from the production adapter, not a handcrafted representation of its payload.
+{
+ var(p,b,s)=Setup();b.Decision.CurrentCombatDecision="SeekCover";int before=Comet.Api.Decisions.Events.Count;
+ for(double t=0;t<15;t+=.5){b.Player.Position=new((float)t*2,0,0);p.Tick(b,s,t);}
+ Check(Comet.Api.Decisions.Events.Count==before,"ordinary cover movement adds no diagnostic spam");
+}
 var events=Comet.Api.Decisions.Events.Select(x=>Newtonsoft.Json.Linq.JObject.Parse(x)).ToList();
 Check(events.Any(e=>(string?)e["movementRecovery"]?["step"]=="repath"),"structured per-stage logs");
 var fixture=events.First(e=>(string?)e["movementRecovery"]?["state"]=="attempted"&&(string?)e["movementRecovery"]?["step"]=="repath");

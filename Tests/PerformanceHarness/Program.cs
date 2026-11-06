@@ -9,7 +9,8 @@ string dir=Path.Combine(Path.GetTempPath(),"comet-perf-runtime-"+Guid.NewGuid().
 var warnings=new List<string>();
 try
 {
-    Check(PerformanceCatalog.MethodCount==2,"generator excludes async and iterator lifetimes");
+    Check(PerformanceCatalog.MethodCount==2,"generator excludes async/iterator lifetimes and hot control guards");
+    Check(ControlIntegration.Sleeping(true)&&!ControlIntegration.Sleeping(false)&&ControlIntegration.WatchControl(true)&&!ControlIntegration.WatchControl(false)&&ControlIntegration.Checks==4,"uninstrumented control guards still execute every check");
     PerformanceCapture.Start(new PerformanceConfig(),dir,"off",1,"test",true,warnings.Add);
     using(PerformanceCapture.Enter(0)){}
     long EmptyScopes(){long start=GC.GetAllocatedBytesForCurrentThread();for(int i=0;i<10000;i++){using var scope=PerformanceCapture.Enter(0);}return GC.GetAllocatedBytesForCurrentThread()-start;}

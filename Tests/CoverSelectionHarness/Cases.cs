@@ -15,6 +15,33 @@ public static class Cases
  public static void Run()
  {
   {
+   var(p,b,s,c)=Setup("A01");
+   Check(NativeAdapter.RetreatAvailable(b,s,p.config),"guided retreat requires and retains its actual valid cover");
+   c.Valid=false;
+   Check(!NativeAdapter.RetreatAvailable(b,s,p.config)&&s.SelectedCover==null,"loose native existence cannot advertise rejected guided cover");
+   p.config.Progress.Enabled=false;
+   Check(NativeAdapter.RetreatAvailable(b,s,p.config),"explicit progress OFF preserves native cover fallback");
+   p.config.Progress.Enabled=true;s.ProgressUnavailable=true;
+   Check(NativeAdapter.RetreatAvailable(b,s,p.config),"unavailable progress also preserves native fallback");
+   c.PathToPoint.status=NavMeshPathStatus.PathPartial;
+   Check(!NativeAdapter.RetreatAvailable(b,s,p.config),"native fallback still requires complete route");
+  }
+  foreach(string feature in new[]{"A01","A02"})foreach(bool inUse in new[]{true,false})
+  {
+   var(p,b,s,c)=Setup(feature);var alternative=new CoverPoint("next-cover",12);b.Cover.CoverPoints.Add(alternative);
+   b.Cover.CoverInUse=inUse?c:null;b.Cover.CoverPoint_MovingTo=inUse?null:c;
+   Check(!ProgressAdapter.RetireFailedCover(b,s.Progress,10),"useful native cover is untouched");
+   s.Progress.Fail(c.Key,10,"progress-arrived-idle");
+   s.SelectedCover=VisibleAdapter.SelectCover(b,s.Progress);
+   s.Probe.Cover=s.SelectedCover;
+   Check(ReferenceEquals(s.SelectedCover,alternative),"new feasible destination selected after old cover failed");
+   Check(ProgressAdapter.RetireFailedCover(b,s.Progress,10.047),"MD_WAHAHA stale native destination is retired");
+   Check(b.Cover.CoverInUse==null&&b.Cover.CoverPoint_MovingTo==null,"native holding branch cannot keep failed cover");
+   Check(!ProgressAdapter.RetireFailedCover(b,s.Progress,10.08),"retirement happens once");
+   CoverPoint chosen=null;Check(!p.Find(b.Cover,ref chosen)&&ReferenceEquals(chosen,alternative),"native cover chooser receives replacement");
+   Check(c.Valid,"failed destination not permanently blacklisted");
+  }
+  {
    var(p,b,s,c)=Setup();var replacement=new CoverPoint("replacement",4);b.Cover.CoverPoints.Add(replacement);
    Check(ReferenceEquals(VisibleAdapter.SelectCover(b,s.Progress),c),"valid owned cover retains priority");
    c.Valid=false;Check(ReferenceEquals(VisibleAdapter.SelectCover(b,s.Progress),replacement),"invalid owned cover cannot mask valid alternative");
@@ -57,23 +84,29 @@ static class Time{public static float time;}
 enum ESelfActionType{None,Reload}enum ESquadDecision{None,Help}enum ECombatDecision{SeekCover,Retreat}enum ESprintUrgency{High}
 class BotComponent{public string ProfileId="pmc";public bool BotActive=true,Pmc=true;public Decision Decision=new();public SAINCoverClass Cover=new();public Mover Mover=new();}
 class Decision{public ESelfActionType CurrentSelfDecision;public ESquadDecision CurrentSquadDecision;public ECombatDecision CurrentCombatDecision;}
-class SAINCoverClass{public BotComponent Bot;public CoverPoint CoverInUse,CoverPoint_MovingTo;public List<CoverPoint> CoverPoints=new();}
+class SAINCoverClass{public BotComponent Bot;public CoverPoint CoverInUse,CoverPoint_MovingTo;public List<CoverPoint> CoverPoints=new();public void StopSeekingCover(){CoverInUse=CoverPoint_MovingTo=null;}}
 class Mover{public bool Accept=true;public int Calls;public bool GoToCoverPoint(CoverPoint p,bool slow,ESprintUrgency urgency){Calls++;return Accept;}}
-class CoverPoint{public string Key;public bool Valid=true;public PathData PathData=new();public CoverPoint(string key,float length){Key=key;PathData.PathLength=length;}}
-class PathData{public float PathLength;}
-class PlanProgress{public List<string> Failures=new();public object Current=new();public bool Blocked(string key,float now)=>Failures.Contains(key);public void Fail(string key,float now,string reason)=>Failures.Add(key);}
+enum NavMeshPathStatus{PathComplete,PathPartial}
+class MeshPath{public NavMeshPathStatus status;}
+class CoverData{public bool IsBad;}
+class CoverPoint{public string Key;public bool Valid=true;public PathData PathData=new();public MeshPath PathToPoint=new();public CoverData CoverData=new();public CoverPoint(string key,float length){Key=key;PathData.PathLength=length;}}
+class PathData{public float PathLength,TimeSinceLastUpdated;}
+enum Tactic{FallBack}
+class Snapshot{public double Now=10;public Dictionary<Tactic,string> Unavailable=new();}
+class PlanProgress{public List<string> Failures=new();public object Current=new();public bool Blocked(string key,double now)=>Failures.Contains(key);public void Fail(string key,float now,string reason)=>Failures.Add(key);}
 class Settings{public bool Enabled=true;}class Config{public Settings Progress=new();}class Probe{public CoverPoint Cover;public float At;}
 class Engine{public int Refusals;public void NotifyNativeRefusal()=>Refusals++;}
 class BotState{public string Feature,ActiveLabel;public bool ProgressUnavailable;public CoverPoint SelectedCover;public PlanProgress Progress=new();public object ProgressAtSelection;public Probe Probe;public Engine VisibleEngine=new();}
 static class ContactSafety{public static bool Allowed=true;public static bool AllowsGoal(BotComponent b)=>Allowed;}
-static class NativeAdapter{public static bool IsPmcAi(BotComponent b)=>b.Pmc;}
-static class ProgressAdapter{public static string CoverKey(CoverPoint p)=>p?.Key??"";}
+static partial class NativeAdapter{public static bool IsPmcAi(BotComponent b)=>b.Pmc;}
+static partial class ProgressAdapter{public static string CoverKey(CoverPoint p)=>p?.Key??"";}
 static partial class VisibleAdapter{public static bool ValidCover(BotComponent b,CoverPoint p)=>p?.Valid==true;}
 class Log{public void LogWarning(string text)=>throw new Exception(text);}
 partial class Plugin
 {
  public static Plugin Instance;public Config config=new();public Dictionary<BotComponent,BotState> states=new();public bool Authority=true;public int Yields;public List<string> Events=new();Log Logger=new();
  bool Ghost(string id)=>false;bool FindRelocationCover(SAINCoverClass c,BotState s,ref CoverPoint point)=>false;
+ internal static bool RetainedCover(BotComponent b,CoverPoint c)=>ReferenceEquals(b.Cover.CoverInUse,c);
  void Emit(BotState s,string stage,string reason)=>Events.Add(reason);
  void YieldToSain(BotState s,string reason,string stage="ended"){Yields++;s.ActiveLabel="";}
  public bool Find(SAINCoverClass c,ref CoverPoint point)=>FindCover(c,ref point);

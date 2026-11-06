@@ -85,7 +85,9 @@ internal static class VisibleDecisionTests
             v.RecentHit = true; v.RecentHitAt = v.Contact.Now; v.Contact.Now += .1;
             Check(e.Evaluate(v).Decision == VisibleTactic.Cover, "hit forces rescore");
             v.RecentHitAt += .2; v.Contact.Now += .2;
-            Check(e.Evaluate(v).Changed, "second hit inside recent-hit window is recorded too");
+            var rechecked = e.Evaluate(v);
+            Check(rechecked.Reconsidered && !rechecked.Changed && rechecked.Decision == VisibleTactic.Cover,
+                "second hit rescored without restarting the same cover");
         }
         {
             var c = new CometConfig(); c.VisibleCombat.SwitchMargin = 50;
@@ -106,6 +108,39 @@ internal static class VisibleDecisionTests
             intent.Clear(); Check(!intent.Allows("one", 31), "cleanup revokes cover intent");
         }
         var random = new Random(4202); var engine = new VisibleEnemyDecision(new()); var twin = new VisibleEnemyDecision(new());
+        {
+            var v = Frame(); v.CoverDestination = "120:10/0/20";
+            var e = new VisibleEnemyDecision(Only(VisibleTactic.Cover));
+            int starts = 0, rescored = 0;
+            foreach (double at in new[] { 266.655, 266.762, 266.885, 267.018, 267.185, 267.297 })
+            {
+                v.Contact.Now = at; v.RecentHit = true; v.RecentHitAt = at;
+                var choice = e.Evaluate(v); if (choice.Changed) starts++; if (choice.Reconsidered) rescored++;
+            }
+            Check(starts == 1 && rescored == 6, "raid388 burst keeps one cover execution but evaluates every hit");
+        }
+        foreach (string change in new[] { "target", "cover", "destination", "native-refusal", "resume" })
+        {
+            var v = Frame(); v.CoverDestination = "120:10/0/20";
+            var e = new VisibleEnemyDecision(Only(VisibleTactic.Cover)); e.Evaluate(v); v.Contact.Now += .1;
+            switch (change)
+            {
+                case "target": v.Contact.Target = "other"; break;
+                case "cover": v.CoverId = "other"; break;
+                case "destination": v.CoverDestination = "120:20/0/20"; break;
+                case "native-refusal": e.NotifyNativeRefusal(); break;
+                case "resume": e.SuspendForSight(); break;
+            }
+            var choice = e.Evaluate(v);
+            Check(choice.Changed && choice.Decision == VisibleTactic.Cover, "cover restarts when required: " + change);
+        }
+        {
+            var v = Frame(); v.Contact.Hurt = true; v.CurrentExposure = .8;
+            var e = new VisibleEnemyDecision(new()); Check(e.Evaluate(v).Decision == VisibleTactic.Cover, "cover before invalidation");
+            v.Contact.Now += .1; v.CoverReachable = false;
+            var choice = e.Evaluate(v);
+            Check(choice.Changed && choice.Decision != VisibleTactic.Cover, "same-cover continuity cannot preserve an invalid route");
+        }
         for (int i = 0; i < 20000; i++)
         {
             var v = Frame(); v.Contact.Now = i * .1; v.Contact.Target = "enemy-" + i / 97;

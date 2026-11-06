@@ -85,7 +85,9 @@ public sealed partial class Plugin
   var r=s.Gas;var c=config!.GasExposure;if(Time.time<r.Next)return;
   float dt=r.Last>0?Time.time-r.Last:0;r.Last=Time.time;r.Next=Time.time+(float)c.Refresh;
   bool inside=gasBridge.Inside(b.Transform.EyePosition,out var cloud,out var center,out int active);
-  r.Protection=gasBridge.Protection(b.Player);r.Inside=inside;r.Center=center;
+  // Inventory inspection is only relevant to exposure/recovery. Most frames have
+  // no gas at this bot, including when the optional provider is installed.
+  r.Protection=inside||r.Intensity>0?gasBridge.Protection(b.Player):"None";r.Inside=inside;r.Center=center;
   r.Intensity=GasExposureRules.Exposure(r.Intensity,inside,r.Protection,dt,c);
   // Manimal 2.0.0 affects MainPlayer only. Apply only reversible AI modifiers, no extra damage/buffs/flash state.
   int step=(int)Math.Ceiling(r.Intensity*10);
@@ -99,7 +101,7 @@ public sealed partial class Plugin
   if(cough){r.NextCough=Time.time+(float)c.CoughInterval;b.Talk.Say(EPhraseTrigger.OnBreath,ETagStatus.Dying,false,false);}
   bool escape=GasExposureRules.Escape(inside,r.Protection);
   if(!escape){StopGasPath(b,r);r.Owned=false;r.Candidate=0;r.AttemptUntil=0;r.RetryAt=0;}
-  if(!inside&&r.Intensity<=0){DropGas(b,s,"gas-recovered");return;}
+  if(!inside&&r.Intensity<=0){DropGas(b,s,"gas-recovered",false);return;}
   r.Trace=new(){State=escape?"exposed":r.Intensity>0?"recovering":"protected",Reason=escape?"gas-exposure":inside?"gas-mask-protection":"gas-left-cloud",Cloud=cloud,Clouds=active,
    Protection=r.Protection,Inside=inside,Intensity=r.Intensity,X=center.x,Y=center.y,Z=center.z,Cough=cough};
   RecordGas(s);
@@ -169,8 +171,8 @@ public sealed partial class Plugin
  }
  private static void ClearGasModifier(BotComponent b,GasRuntime r){if(r.Modifier!=null){b.BotOwner.Settings.Current.Dismiss(r.Modifier.Modifiers);r.Modifier=null;}r.ModifierStep=-1;}
  private void StopGasPath(BotComponent? b,GasRuntime r){if(b!=null&&r.Path!=null&&ReferenceEquals(b.Mover.ActivePath,r.Path)&&ReferenceEquals(r.Path.NavMeshPath,r.Mesh))combatStopPath.Invoke(r.Path,new object[]{false,"COMET G08 escape ended"});r.Path=null;r.Mesh=null;}
- private void DropGas(BotComponent? b,BotState s,string reason)
- {var r=s.Gas;StopGasPath(b,r);if(b!=null)ClearGasModifier(b,r);r.Intensity=0;r.Inside=r.Owned=false;r.AttemptUntil=r.RetryAt=r.Next=r.Last=0;r.Candidate=0;if(r.Trace!=null&&r.Trace.State!="ended")GasState(s,"ended",reason);}
+ private void DropGas(BotComponent? b,BotState s,string reason,bool resetSampling=true)
+ {var r=s.Gas;StopGasPath(b,r);if(b!=null)ClearGasModifier(b,r);r.Intensity=0;r.Inside=r.Owned=false;r.AttemptUntil=r.RetryAt=0;if(resetSampling)r.Next=r.Last=0;r.Candidate=0;if(r.Trace!=null&&r.Trace.State!="ended")GasState(s,"ended",reason);}
  private void GasError(BotComponent b,Exception ex){if(!states.TryGetValue(b,out var s))return;if(!s.Gas.Fault)Logger.LogWarning("G08 yielded: "+ex.GetBaseException().Message);s.Gas.Fault=true;DropGas(b,s,"gas-adapter-error");}
  private void GasState(BotState s,string state,string reason){if(s.Gas.Trace==null)return;s.Gas.Trace.State=state;s.Gas.Trace.Reason=reason;RecordGas(s);}
  private void RecordGas(BotState s)

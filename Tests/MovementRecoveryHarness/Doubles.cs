@@ -46,7 +46,10 @@ namespace SAIN.SAINComponent.Classes.Mover {
  public class Mover {public IBotPathData ActivePath=new BotPathDataManual();public int Repaths,Vaults,Jumps,Stops;public bool Vault,Jump=true;public void RecalcPath(){Repaths++;}public bool TryVault(){Vaults++;return Vault;}public bool TryJump(){Jumps++;return Jump;}public void Stop(){Stops++;((BotPathDataManual)ActivePath).Moving=false;}}
 }
 namespace SAIN.Components {
- public class BotComponent {public Player Player=new();public Vector3 Position=>Player.Position;public string ProfileId="pmc";public bool Pmc=true,BotActive=true,IsDead,GameEnding,SAINLayersActive=true;public BotOwner BotOwner=new();public Mover Mover=new();public Decisions Decision=new();public Enemy? GoalEnemy=new();public DoorOpener DoorOpener=new();public Shoot ManualShoot=new();public SearchState Search=new();public void ManualUpdate(){}}
+ public class BotComponent {public Player Player=new();public Vector3 Position=>Player.Position;public string ProfileId="pmc";public bool Pmc=true,BotActive=true,IsDead,GameEnding,SAINLayersActive=true;public BotOwner BotOwner=new();public Mover Mover=new();public Decisions Decision=new();public Enemy? GoalEnemy=new();public DoorOpener DoorOpener=new();public Shoot ManualShoot=new();public CoverState Cover=new();public SearchState Search=new();public void ManualUpdate(){}}
+ public class CoverData {public bool IsBad;}
+ public class CoverPoint {public Vector3 Position=new(8,0,0);public CoverData CoverData=new();}
+ public class CoverState {public CoverPoint? CoverInUse,CoverPoint_MovingTo;public int Releases;public void StopSeekingCover(){Releases++;CoverInUse=CoverPoint_MovingTo=null;}}
  public class Decisions {public string CurrentCombatDecision="Search";public SAIN.Preset.Shared.Enums.ESelfActionType CurrentSelfDecision;}
  public class Enemy{public string EnemyProfileId="known-enemy";}public class SearchState{public string CurrentState="Move";}
 }
@@ -54,7 +57,7 @@ namespace HarmonyLib {public class Harmony{public void Patch(System.Reflection.M
 namespace Comet.Api {public static class Decisions{public static List<string> Events=new();public static void Publish(string s,Action<Exception> error)=>Events.Add(s);}}
 namespace Comet.Client {
  internal static class NativeAdapter{internal static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
- internal static class ProgressAdapter{internal static string Destination(Vector3 p)=>$"{p.x}/{p.y}/{p.z}";}
+ internal static class ProgressAdapter{internal static string CoverKey(CoverPoint p)=>Destination(p.Position);internal static string Destination(Vector3 p)=>$"{p.x}/{p.y}/{p.z}";}
  internal class Diagnostics{internal static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};internal void Write(string s){}}
  internal class DummyPolicy{public bool Active;public DummyTrace? Trace;}internal class DummyTrace{public string State="";}internal class DummyRuntime{public DummyPolicy Policy=new();}
  internal sealed class BotState {

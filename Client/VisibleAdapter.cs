@@ -108,6 +108,7 @@ internal static class VisibleAdapter
         v.ThreatSignature = string.Join("|", threats.Select(t => t.Id + (t.Visible ? ":visible" : ":known")).OrderBy(t => t)) + "/" + v.ThreatCount;
         var cover = SelectCover(bot,state.ProgressUnavailable?null:state.Progress);
         v.CoverId = cover?.HardData.Id.ToString() ?? "";
+        v.CoverDestination = ProgressAdapter.CoverKey(cover);
         bool push = ValidPath(enemy.Path.PathToEnemy, bot.Position, enemy.KnownPlaces.LastKnownPosition ?? bot.Position);
         v.PushPathLength = Math.Max(0, enemy.Path.PathLength);
         int coverSignature = PathSignature(cover?.PathToPoint), pushSignature = PathSignature(enemy.Path.PathToEnemy);

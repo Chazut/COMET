@@ -14,7 +14,7 @@ public sealed class VisibleSituation
     // Adapter evidence for the already executing action, never a substitute probe for new choices.
     public bool ContinuationSafe;
     public string ContinuationReason = "not-evaluated", ProbePendingReason = "";
-    public string CoverId = "", ThreatSignature = "", CoverReason = "no-reachable-cover", PushReason = "no-current-complete-path";
+    public string CoverId = "", CoverDestination = "", ThreatSignature = "", CoverReason = "no-reachable-cover", PushReason = "no-current-complete-path";
     public int ThreatCount;
     public double RecentHitAt;
     public double CurrentExposure, CoverExposure, CoverRouteRisk, PushRouteRisk, PushPathLength;
@@ -27,6 +27,7 @@ public sealed class VisibleChoice
     public MixTrace? Mixing;
     public VisibleTactic? Decision;
     public bool Changed;
+    public bool Reconsidered;
     public string Reason = "";
     public List<Candidate> Candidates = new List<Candidate>();
 }
@@ -36,7 +37,7 @@ public sealed class VisibleEnemyDecision
 {
     private readonly CometConfig config;
     private VisibleTactic? current;
-    private string target = "", threats = "", cover = "";
+    private string target = "", threats = "", cover = "", coverDestination = "";
     private double since;
     private bool hit;
     private double lastHit;
@@ -122,7 +123,9 @@ public sealed class VisibleEnemyDecision
         var best = candidates.Where(x => x.Eligible).OrderByDescending(x => x.Score).FirstOrDefault();
         var previous = candidates.FirstOrDefault(x => x.Eligible && x.Decision == current?.ToString());
         string nextDanger = Danger(s, config);
-        bool invalidate = s.Target != target || v.ThreatSignature != threats || (current == VisibleTactic.Cover && cover != v.CoverId)
+        bool retryingNative = nativeRetry;
+        bool invalidate = s.Target != target || v.ThreatSignature != threats
+            || (current == VisibleTactic.Cover && (cover != v.CoverId || coverDestination != v.CoverDestination))
             || (v.RecentHit && (!hit || v.RecentHitAt > lastHit + .01)) || nextDanger != danger || responseChanged;
         string reason = best?.Reason ?? "no-feasible-option";
         bool kept = false;
@@ -146,12 +149,19 @@ public sealed class VisibleEnemyDecision
             reason = best?.Reason ?? "no-feasible-option";
         }
         var next = best == null ? (VisibleTactic?)null : (VisibleTactic)Enum.Parse(typeof(VisibleTactic), best.Decision);
-        bool changed = current != next || invalidate || resuming || (!kept && next.HasValue);
+        // A hit or a changed threat rescoring the SAME cover is not a new movement
+        // command. Keep its execution/progress clock while still reconsidering safety.
+        bool sameCover = current == VisibleTactic.Cover && next == current && target == s.Target
+            && cover.Length > 0 && cover == v.CoverId && coverDestination == v.CoverDestination && !resuming && !retryingNative;
+        bool reconsidered = !kept && next.HasValue;
+        bool changed = !sameCover && (current != next || invalidate || resuming || reconsidered);
         if (changed && !kept) since = s.Now;
-        current = next; target = s.Target; threats = v.ThreatSignature; cover = v.CoverId; hit = v.RecentHit; lastHit = v.RecentHitAt; danger = nextDanger;
+        current = next; target = s.Target; threats = v.ThreatSignature; cover = v.CoverId; coverDestination = v.CoverDestination;
+        hit = v.RecentHit; lastHit = v.RecentHitAt; danger = nextDanger;
         resuming = false;
         lastCandidates = candidates;
-        return new VisibleChoice { Decision = next, Changed = changed, Reason = reason, Candidates = candidates, Mixing = mixer.Last };
+        return new VisibleChoice { Decision = next, Changed = changed, Reconsidered = reconsidered,
+            Reason = reason, Candidates = candidates, Mixing = mixer.Last };
     }
     // Shared by the chooser and SAIN's early ContinueMoveToCover branch. One deadline
     // survives both call paths; repeated acceptance cannot extend an unmeasured plan.
@@ -173,7 +183,7 @@ public sealed class VisibleEnemyDecision
     private static string Danger(Situation s, CometConfig c) => s.Hurt + "/" + s.LowAmmo + "/" + s.Suppressed
         + "/" + (c.Fear.Enabled && s.Fear?.Panic == true) + "/" + (c.Loadout.Enabled ? s.Loadout?.PlanKey : "");
     public VisibleChoice Release(string reason)
-    { pendingProbe.Clear(); lastCandidates = new(); bool changed = current.HasValue; current = null; target = threats = cover = responsePlan = ""; responseChangedAt = double.NegativeInfinity;
+    { pendingProbe.Clear(); lastCandidates = new(); bool changed = current.HasValue; current = null; target = threats = cover = coverDestination = responsePlan = ""; responseChangedAt = double.NegativeInfinity;
         hit = resuming = false; return new VisibleChoice { Changed = changed, Reason = reason }; }
     private static bool Finite(double x) => !double.IsNaN(x) && !double.IsInfinity(x);
 }
