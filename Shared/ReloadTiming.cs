@@ -32,7 +32,7 @@ public sealed class ReloadTimingFrame
 public sealed class ReloadTimingTrace
 {
     public string State="choice",Choice="Native",Reason="",Weapon="",Target="",Source="",WeaponClass="",Resource="none",Action="";
-    public int Episode,Loaded,Capacity,Chamber,Magazine,Reserve,Threats,ReserveForFight,After;
+    public int Episode,Loaded,Capacity,Chamber,Magazine,Reserve,Threats,ReserveForFight,After,RepeatedFailures;
     public double Ratio,ReloadScore,HoldScore,ContactAge,Distance,Elapsed,ValidFor=.5;
     public bool Critical,Protected,Visible,Incoming,BusyObserved,Requested,Accepted,Started,Finished,Improved;
     public string[] Alternatives=Array.Empty<string>();
@@ -44,6 +44,7 @@ public sealed class ReloadTimingPolicy
     private double choiceAt,requestAt,retryAt,lastNow;
     private string previousKey="",refusedKey="";
     private int episode;
+    private int failures;
     public bool Active=>Trace?.State is "requested" or "reloading";
     public static int FightReserve(string weaponClass)=>weaponClass switch {"shotgun"=>2,"sniperRifle"=>2,"machinegun"=>10,"smg"=>8,_=>5};
     private static string Key(ReloadTimingFrame f)=>f.Weapon+":"+f.Loaded+":"+f.ResourceKey;
@@ -51,7 +52,7 @@ public sealed class ReloadTimingPolicy
     public string Evaluate(ReloadTimingFrame f,ReloadTimingConfig c)
     {
         if(Active)return "Pending";
-        if(f.Now<lastNow){retryAt=choiceAt=0;previousKey=refusedKey="";}lastNow=f.Now;
+        if(f.Now<lastNow){retryAt=choiceAt=0;failures=0;previousKey=refusedKey="";}lastNow=f.Now;
         var old=Trace;
         var t=new ReloadTimingTrace{Episode=++episode,Weapon=f.Weapon,Target=f.Target,Source=f.Source,WeaponClass=f.WeaponClass,
             Loaded=f.Loaded,After=f.Loaded,Capacity=f.Capacity,Chamber=f.Chamber,Magazine=f.Magazine,Reserve=f.Reserve,Resource=f.Resource,
@@ -94,7 +95,17 @@ public sealed class ReloadTimingPolicy
     {if(Trace?.Choice!="Reload")return;Trace.Requested=true;Trace.State="requested";Trace.Reason="reload-native-request";requestAt=f.Now;}
     public void Result(bool accepted,ReloadTimingFrame f,ReloadTimingConfig c)
     {if(Trace?.Requested!=true)return;Trace.Accepted=accepted;if(!accepted){End("reload-native-refused");Refuse(f,c);}}
-    public void Refuse(ReloadTimingFrame f,ReloadTimingConfig c){refusedKey=Key(f);retryAt=f.Now+c.RetryDelay;}
+    public void Refuse(ReloadTimingFrame f,ReloadTimingConfig c)
+    {
+        var key=Key(f);failures=key==refusedKey?Math.Min(5,failures+1):1;
+        refusedKey=key;retryAt=f.Now+Math.Min(30,c.RetryDelay*Math.Pow(2,failures-1));
+        if(Trace!=null)Trace.RepeatedFailures=failures;
+    }
+    public void CompleteObservation(ReloadTimingFrame f,ReloadTimingConfig c)
+    {
+        if(Trace?.Improved==true){failures=0;retryAt=0;refusedKey="";}
+        else if(Trace?.Reason is "reload-start-unconfirmed" or "reload-ended-without-ammo-gain" or "reload-observation-limit")Refuse(f,c);
+    }
     public void Observe(double now,bool operation,bool nativeFlag,int loaded,bool sameWeapon)
     {
         if(!Active)return;var t=Trace!;t.Elapsed=Math.Max(0,now-requestAt);t.After=loaded;
@@ -105,5 +116,5 @@ public sealed class ReloadTimingPolicy
         else if(t.Elapsed>=60)End("reload-observation-limit"); // Stop observing, never cancel the native operation.
     }
     public void End(string reason){if(Trace==null)return;Trace.State="ended";Trace.Reason=reason;Trace.ValidFor=0;}
-    public void Clear(string reason){End(reason);retryAt=choiceAt=0;previousKey=refusedKey="";}
+    public void Clear(string reason){End(reason);retryAt=choiceAt=0;failures=0;previousKey=refusedKey="";}
 }

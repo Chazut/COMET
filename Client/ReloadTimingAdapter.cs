@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection.Emit;
 using Comet.Core;
 using EFT;
 using EFT.InventoryLogic;
@@ -28,12 +30,33 @@ internal sealed class ReloadTimingRuntime
 public sealed partial class Plugin
 {
     private static System.Reflection.FieldInfo reloadLastTime=null!;
+    private static Weapon? barrelReloadRequest;
     private static void PatchReloadTiming(Harmony h)
     {
         reloadLastTime=AccessTools.Field(typeof(SelfActionDecisionClass),"_lastReloadTime")??throw new MissingFieldException("W01 SAIN reload clock");
         h.Patch(AccessTools.Method(typeof(SelfActionDecisionClass),"CheckDoReload",new[]{typeof(Enemy),typeof(BotComponent)}),
             prefix:new HarmonyMethod(typeof(Plugin),nameof(ChooseReloadTiming)));
+        h.Patch(AccessTools.Method(typeof(BotReloadOnlyBarrel),nameof(BotReloadOnlyBarrel.ReloadAmmo)),
+            transpiler:new HarmonyMethod(typeof(Plugin),nameof(PartialBarrelReload)));
     }
+    private static IEnumerable<CodeInstruction> PartialBarrelReload(IEnumerable<CodeInstruction> instructions)
+    {
+        var code=instructions.ToList();
+        var getter=AccessTools.PropertyGetter(typeof(Weapon),nameof(Weapon.ChamberAmmoCount));
+        var hits=code.Select((x,i)=>(x,i)).Where(x=>x.x.Calls(getter)).ToArray();
+        if(hits.Length!=1||hits[0].i+4>=code.Count
+            ||code[hits[0].i+1].opcode!=OpCodes.Brfalse_S||code[hits[0].i+2].opcode!=OpCodes.Ldc_I4_0
+            ||code[hits[0].i+3].opcode!=OpCodes.Br_S||code[hits[0].i+4].opcode!=OpCodes.Ldc_I4_1)
+            throw new InvalidOperationException("W01 partial barrel reload contract changed: "+string.Join("; ",hits.SelectMany(hit=>code.Skip(hit.i).Take(5))));
+        // Only the empty-chamber predicate changes during our request. Native ammo
+        // selection, animation, inventory transactions and completion callback stay intact.
+        code[hits[0].i].opcode=OpCodes.Call;
+        code[hits[0].i].operand=AccessTools.Method(typeof(Plugin),nameof(BarrelReloadChamberPredicate));
+        return code;
+    }
+    private static int BarrelReloadChamberPredicate(Weapon weapon)=>ReferenceEquals(weapon,barrelReloadRequest)
+        &&weapon.ReloadMode==Weapon.EReloadMode.OnlyBarrel&&weapon.ChamberAmmoCount<weapon.Chambers.Length
+            ?0:weapon.ChamberAmmoCount;
     private bool ReloadScope(BotComponent b)=>config?.Enabled==true&&(config.ReloadTiming.Enabled||config.PistolSwap.Enabled)&&NativeAdapter.IsPmcAi(b)
         &&b.BotActive&&!b.IsDead&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId)&&b.SAINLayersActive;
     private static int ReloadLoaded(Weapon w)=>w.ChamberAmmoCount+(w.ReloadMode==Weapon.EReloadMode.OnlyBarrel?0:w.GetCurrentMagazine()?.Count??0);
@@ -87,7 +110,11 @@ public sealed partial class Plugin
             }
             // W04 selects normal/quick inside the native magazine route; no synthetic ammo, speed changes or cancellation.
             invoked=true;bot.BotOwner.ShootData.EndShoot();reload.Reloading=true;reloadLastTime.SetValue(__instance,Time.time);
-            if(mag!=null)reload.ReloadMagazine(mag);else reload.ReloadAmmo(ammo);
+            if(mag!=null)reload.ReloadMagazine(mag);
+            else {
+                var previous=barrelReloadRequest;barrelReloadRequest=weapon;
+                try{reload.ReloadAmmo(ammo);}finally{barrelReloadRequest=previous;}
+            }
             r.Policy.Result(true,f,p.config.ReloadTiming);__result=true;
             r.Policy.Observe(Time.time,firearm.IsInReloadOperation(),reload.Reloading,ReloadLoaded(weapon),true);
             p.RecordReloadTiming(bot,s,true);return false;
@@ -163,7 +190,7 @@ public sealed partial class Plugin
         if(r.LastFrame!=null&&r.Policy.Trace!=null)r.Policy.Trace.ContactAge=r.LastFrame.ContactAge+Math.Max(0,Time.time-r.LastFrame.Now);
         r.Policy.Observe(Time.time,same&&f!.IsInReloadOperation(),b.BotOwner.WeaponManager?.Reload?.Reloading==true,
             same?ReloadLoaded(f!.Item):0,same);
-        if(!r.Policy.Active){if(r.LastFrame!=null){r.LastFrame.Now=Time.time;r.Policy.Refuse(r.LastFrame,config!.ReloadTiming);}r.Drop();}
+        if(!r.Policy.Active){if(r.LastFrame!=null){r.LastFrame.Now=Time.time;r.Policy.CompleteObservation(r.LastFrame,config!.ReloadTiming);}r.Drop();}
         RecordReloadTiming(b,s);
     }
     private void EndReloadTiming(BotState s,string why)

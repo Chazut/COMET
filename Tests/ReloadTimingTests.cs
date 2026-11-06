@@ -31,6 +31,14 @@ static class ReloadTimingTests
         p.Observe(11,true,true,20,true);Check(p.Active&&!p.Trace.Finished,"incremental internal load does not finish operation");
         p.Observe(12,false,false,31,true);Save();Check(!p.Active&&p.Trace.Finished&&p.Trace.Improved&&p.Trace.ValidFor==0,"observed native end plus gain");
         p=new();f=F();p.Evaluate(f,c);p.Request(f);p.Result(false,f,c);Save();
+        var retry=new ReloadTimingPolicy();var retryFrame=F();retry.Evaluate(retryFrame,c);retry.Request(retryFrame);retry.Result(true,retryFrame,c);
+        retry.Observe(13,false,true,8,true);retryFrame.Now=13;retry.CompleteObservation(retryFrame,c);
+        Check(retry.RetryBlocked(F(14.9))&&!retry.RetryBlocked(F(15)),"first unconfirmed reload delay");
+        retryFrame=F(15);retry.Evaluate(retryFrame,c);retry.Request(retryFrame);retry.Result(true,retryFrame,c);retry.Observe(18,false,true,8,true);retryFrame.Now=18;retry.CompleteObservation(retryFrame,c);
+        Check(retry.Trace!.RepeatedFailures==2&&retry.RetryBlocked(F(21.9))&&!retry.RetryBlocked(F(22)),"same failed request backs off");
+        var fired=F(19);fired.Loaded=7;fired.Magazine=6;Check(!retry.RetryBlocked(fired),"changed ammunition invalidates failed request backoff");
+        retryFrame=F(22);retry.Evaluate(retryFrame,c);retry.Request(retryFrame);retry.Result(true,retryFrame,c);retry.Observe(22.1,true,true,8,true);retry.Observe(24,false,false,31,true);retryFrame.Now=24;retry.CompleteObservation(retryFrame,c);
+        Check(!retry.RetryBlocked(F(24)),"successful reload clears failed request cooldown");
         Check(!p.Active&&p.Evaluate(F(10.5),c)=="Native"&&p.Trace!.Reason=="reload-retry-delay","refusal throttles duplicate attempts");
         Check(p.Evaluate(F(12),c)=="Reload","retry after two seconds");
         p.Refuse(F(12),c);f=F(12.1);f.ResourceKey="new-mag:30";Check(p.Evaluate(f,c)=="Reload","new inventory resource reopens attempt");
