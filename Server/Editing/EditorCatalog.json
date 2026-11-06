@@ -218,9 +218,9 @@
     },
     "HandsRecovery": {
       "Title": "Recover stuck hands - W10",
-      "Description": "Recover a stale reload flag or a grenade left in hand after cancellation. Real reloads, medicine, weapon changes and intentional grenade actions are allowed to finish. The reload delay measures continuous inactivity, not animation length. Recovery requests use an existing weapon and never create ammunition or force an animation to finish. RR distinguishes a request from an observed recovery.",
+      "Description": "Recover stale reload or weapon-switch flags, or a grenade left in hand after cancellation. Real reloads, medicine, weapon changes and intentional grenade actions are allowed to finish. A stale switch is cleared only when the held weapon and inventory agree. A missing reload completion notification can be retried after at least 16 seconds with the magazine inserted and the animation already idle. Recovery never creates ammunition or fast-forwards animations. RR distinguishes a request from an observed recovery.",
       "Category": "Weapons & lights",
-      "Summary": "Recover a stale reload flag or a grenade left in hand after cancellation."
+      "Summary": "Recover confirmed stuck hands without interrupting real weapon operations."
     },
     "RecoilRecovery": {
       "Title": "Recover from DMR and sniper recoil faster - W09",
@@ -3353,8 +3353,8 @@
       "Simple": false
     },
     "HandsRecovery.ReloadStaleSeconds": {
-      "Label": "Confirm stale reload for",
-      "Help": "",
+      "Label": "Confirm stale weapon state for",
+      "Help": "Continuous inactivity before repairing a stale reload or switch flag. A missing reload idle notification always requires at least 16 seconds, an inserted magazine and an idle animation.",
       "Min": 2.0,
       "Max": 20.0,
       "Scale": 1,

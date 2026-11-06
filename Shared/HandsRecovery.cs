@@ -24,16 +24,19 @@ public sealed class HandsRecoveryFrame
     public double Now;
     public string Kind="",Held="",TargetWeapon="",TargetSlot="",Block="",Operation="",Action="",Contact="";
     public int Generation;
-    public bool ReloadFlag,NativeReload,GunReady;
+    public bool ReloadFlag,NativeReload,GunReady,ReloadIdle,SelectorChanging,SwitchCompleted;
+    public string NativePhase="";
 }
 public sealed class HandsRecoveryTrace
 {
     public string State="observing",Reason="hands-incoherent",Kind="",Held="",TargetWeapon="",TargetSlot="",Operation="",Action="",Contact="";
     public int Attempts,Limit;
     public double ConfirmedSeconds,RequiredSeconds,RetryRemaining,RequestAge,ValidFor;
-    public bool ReloadFlag,NativeReload,Accepted,InHands,Ready;
+    public bool ReloadFlag,NativeReload,Accepted,InHands,Ready,ReloadIdle,SelectorChanging,SwitchCompleted;
+    public string NativePhase="";
     public string[] Alternatives={"Wait for legitimate reloads, medicine, weapon changes and grenade actions",
         "Request the existing weapon through the native selector; never create items or finish animations",
+        "Clear a stale switch only after the held weapon and inventory agree; replay a missing reload idle notification only after the magazine is inserted and animation is idle",
         "Stop after the attempt limit until the actual hands state changes"};
 }
 
@@ -56,8 +59,10 @@ public sealed class HandsRecoveryPolicy
         {
             Update(t,f,c);
             // Acceptance is only an acknowledgement. These observations prove the outcome.
-            if(t.Kind=="reload"&&!f.ReloadFlag)
-            {Finish("recovered",t.Attempts>0?"hands-reload-flag-cleared":"hands-native-reload-recovered");return "";}
+            if((t.Kind=="reload"||t.Kind=="reload-idle")&&!f.ReloadFlag&&!f.NativeReload)
+            {Finish("recovered",t.Attempts==0?"hands-native-reload-recovered":t.Kind=="reload-idle"?"hands-reload-idle-completed":"hands-reload-flag-cleared");return "";}
+            if(t.Kind=="switch"&&!f.SelectorChanging&&f.GunReady)
+            {Finish("recovered","hands-selector-ready-observed");return "";}
             if(t.Kind=="grenade"&&f.GunReady&&f.Held==t.TargetWeapon&&t.TargetWeapon.Length>0)
             {t.InHands=t.Ready=true;Finish("recovered","hands-weapon-ready-observed");return "";}
             if(Pending)
@@ -79,7 +84,7 @@ public sealed class HandsRecoveryPolicy
         }
         Update(t,f,c);
         if(gap||generation!=f.Generation){since=-1;generation=f.Generation;}
-        if(f.Block.Length>0||f.NativeReload)
+        if(f.Block.Length>0||f.NativeReload&&!f.ReloadIdle||f.Kind=="switch"&&!f.SwitchCompleted)
         {since=-1;t.ConfirmedSeconds=0;t.State="waiting";t.Reason=f.Block.Length>0?f.Block:"hands-native-reload-active";return "";}
         if(t.Attempts>=c.MaxAttempts)
         {t.State="exhausted";t.Reason="hands-attempt-limit";return "";}
@@ -89,13 +94,14 @@ public sealed class HandsRecoveryPolicy
         if(t.ConfirmedSeconds+1e-8<t.RequiredSeconds)return "";
         if(f.Kind=="grenade"&&(f.TargetWeapon.Length==0||f.TargetSlot.Length==0))
         {t.State="waiting";t.Reason="hands-no-existing-weapon";return "";}
-        return f.Kind=="reload"?"clear-reload":"restore-weapon";
+        return f.Kind switch {"reload"=>"clear-reload","reload-idle"=>"finish-reload-idle","switch"=>"clear-switch",_=>"restore-weapon"};
     }
     private void Update(HandsRecoveryTrace t,HandsRecoveryFrame f,HandsRecoveryConfig c)
     {
         t.Operation=f.Operation;t.Action=f.Action;t.Contact=f.Contact;t.ReloadFlag=f.ReloadFlag;t.NativeReload=f.NativeReload;
-        t.Limit=c.MaxAttempts;t.RequiredSeconds=t.Kind=="reload"?c.ReloadStaleSeconds:c.GrenadeStaleSeconds;
-        t.ValidFor=Math.Min(6,Math.Max(1,c.CheckSeconds*3));t.RetryRemaining=Math.Max(0,retryAt-f.Now);
+        t.NativePhase=f.NativePhase;t.ReloadIdle=f.ReloadIdle;t.SelectorChanging=f.SelectorChanging;t.SwitchCompleted=f.SwitchCompleted;
+        t.Limit=c.MaxAttempts;t.RequiredSeconds=t.Kind=="reload-idle"?Math.Max(16,c.ReloadStaleSeconds):t.Kind=="grenade"?c.GrenadeStaleSeconds:c.ReloadStaleSeconds;
+        t.ValidFor=6;t.RetryRemaining=Math.Max(0,retryAt-f.Now);
         if(!Pending){t.TargetWeapon=f.TargetWeapon;t.TargetSlot=f.TargetSlot;}
     }
     // Reserve before invoking native code, including callbacks that can reenter the selector.

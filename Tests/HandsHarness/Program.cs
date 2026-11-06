@@ -17,7 +17,7 @@ foreach(var protect in new Action<Plugin,BotComponent>[] {
  (p,b)=>((Player.FirearmController)b.Player.HandsController!).Reload=true,
  (p,b)=>((Player.FirearmController)b.Player.HandsController!).Interaction=true,
  (p,b)=>((Player.FirearmController)b.Player.HandsController!).CanReload=false,
- (p,b)=>b.BotOwner.Medecine.Using=true,(p,b)=>b.BotOwner.WeaponManager.Selector.IsChanging=true,
+ (p,b)=>b.BotOwner.Medecine.Using=true,(p,b)=>{b.BotOwner.WeaponManager.Selector.IsChanging=true;b.Player.InventoryController.IsChangingWeapon=true;},
  (p,b)=>b.BotOwner.WeaponManager.Grenades.ThrowindNow=true,(p,b)=>b.Decision.CurrentCombatDecision="ThrowGrenade",
  (p,b)=>p.State(b).Fake.Policy.Active=true,(p,b)=>p.State(b).Fake.CallbackPending=true,(p,b)=>p.FeintGuard=true,
  (p,b)=>p.State(b).RoomClear.Policy.Active=true,(p,b)=>p.State(b).WeaponReturn.Policy.Active=true,
@@ -62,6 +62,32 @@ foreach(var protect in new Action<Plugin,BotComponent>[] {
  b.BotOwner.WeaponManager.Reload.TryFillMagazines();Check(b.BotOwner.WeaponManager.Reload.FillCalls==1,"refill guard restored after throw");
 }
 {
- var(p,b)=Setup();p.Tick(b,0);p.LogThrows=true;p.Tick(b,.5);Check(p.State(b).HandsRecovery.Fault&&b.BotOwner.WeaponManager.Reload.Reloading,"logging failure yields without mutation");
+ var(p,b)=Setup();p.Tick(b,0);p.LogThrows=true;p.Tick(b,5);Check(p.State(b).HandsRecovery.Fault&&b.BotOwner.WeaponManager.Reload.Reloading,"logging failure yields without mutation");
 }
 Console.WriteLine($"W10 production adapter: {count} checks passed");
+foreach(var protection in new[]{"none","animating","not-inserted","simplified","inventory-changing"})
+{
+ var(p,b)=Setup();var gun=(Player.FirearmController)b.Player.HandsController!;gun.Reload=true;
+ var op=new Player.FirearmController.ReloadExternalMagOperation{_magAppeared=true,_magInsertedToWeapon=true};gun.CurrentOperation=op;
+ op.Complete=()=>{gun.Reload=false;gun.CurrentOperation=new Player.FirearmController.Idling();b.BotOwner.WeaponManager.Reload.Reloading=false;};
+ b.BotOwner.WeaponManager.AnimatorIdle=true;
+ if(protection=="animating")b.BotOwner.WeaponManager.AnimatorIdle=false;
+ if(protection=="not-inserted")op._magInsertedToWeapon=false;
+ if(protection=="simplified")b.Player.UsedSimplifiedSkeleton=true;
+ if(protection=="inventory-changing")b.Player.InventoryController.IsChangingWeapon=true;
+ Run(p,b,0,15.5);Check(op.IdleCalls==0,"never complete an early reload");Run(p,b,16,25);
+ Check(op.IdleCalls==(protection=="none"?1:0),"only confirmed idle inserted magazine may replay missing idle callback: "+protection);
+ if(protection=="none")Check(p.State(b).HandsRecovery.Policy.Trace!.State=="recovered"&&!gun.Reload,"recovery observed after actual native completion");
+}
+foreach(bool inventoryPending in new[]{false,true})
+{
+ var(p,b)=Setup();b.BotOwner.WeaponManager.Reload.Reloading=false;b.BotOwner.WeaponManager.Selector.IsChanging=true;b.Player.InventoryController.IsChangingWeapon=inventoryPending;
+ Run(p,b,0,5.5);Check(b.BotOwner.WeaponManager.Selector.IsChanging,"switch flag not cleared early");Run(p,b,6,8);
+ Check(b.BotOwner.WeaponManager.Selector.IsChanging==inventoryPending,"idle ready selector recovered only after inventory change really completed");
+ Check(b.BotOwner.WeaponManager.Selector.Calls==0,"no redundant draw for stuck selector flag");
+}
+{
+ var(p,b)=Setup();((Player.FirearmController)b.Player.HandsController!).Reload=true;Run(p,b,0,120);
+ Check(p.Events.Count<30,"unchanged active native operation sampled normally but diagnostic heartbeat throttled");
+}
+Console.WriteLine($"W10 including raid392 recovery: {count} checks passed");

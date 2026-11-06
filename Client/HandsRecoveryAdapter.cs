@@ -18,6 +18,7 @@ internal sealed class HandsRecoveryRuntime
     internal int Generation,Loaded=-1;
     internal bool Issuing,Fault;
     internal string LogKey="";
+    internal string NativePhase="";
     internal void Drop(){Hands=Operation=Reload=null;Loaded=-1;Issuing=false;}
 }
 public sealed partial class Plugin
@@ -59,22 +60,34 @@ public sealed partial class Plugin
         var gun=hands as Player.FirearmController;var grenade=hands as Player.GrenadeHandsController;
         object? operation=gun!=null?gun.CurrentOperation:grenade?.CurrentOperation;
         int loaded=gun?.Item==null?-1:ReloadLoaded(gun.Item);
-        if(!ReferenceEquals(r.Hands,hands)||!ReferenceEquals(r.Operation,operation)||!ReferenceEquals(r.Reload,wm.Reload)||loaded!=r.Loaded)r.Generation++;
+        var external=operation as Player.FirearmController.ReloadExternalMagOperation;
+        string phase=external==null?"":$"{external.State}:{external._magPulledOutFromWeapon}:{external._magAppeared}:{external._magInsertedToWeapon}:{external._addAmmoInChamber}";
+        if(!ReferenceEquals(r.Hands,hands)||!ReferenceEquals(r.Operation,operation)||!ReferenceEquals(r.Reload,wm.Reload)||loaded!=r.Loaded||phase!=r.NativePhase)r.Generation++;
+        r.NativePhase=phase;
         r.Hands=hands;r.Operation=operation;r.Reload=wm.Reload;r.Loaded=loaded;
         var f=new HandsRecoveryFrame{Now=Time.timeAsDouble,Held=hands?.Item?.Id.ToString()??"",Generation=r.Generation,
             ReloadFlag=wm.Reload?.Reloading==true,NativeReload=gun?.IsInReloadOperation()==true,
             Operation=operation?.GetType().Name??hands?.GetType().Name??"no-hands",GunReady=WeaponHandsReady(b,gun),
-            Action=b.Decision.CurrentCombatDecision.ToString(),Contact=s.Situation?.Target??""};
-        f.Kind=f.ReloadFlag?"reload":grenade!=null?"grenade":"";
+            Action=b.Decision.CurrentCombatDecision.ToString(),Contact=s.Situation?.Target??"",NativePhase=phase,SelectorChanging=wm.Selector?.IsChanging==true};
+        // Replay only a missed idle notification after the real animator and magazine
+        // insertion agree. Never fast-forward an unfinished reload or synthesize its inventory result.
+        f.ReloadIdle=f.NativeReload&&external?._magAppeared==true&&external._magInsertedToWeapon
+            &&!b.Player.UsedSimplifiedSkeleton&&wm.InIdleState();
+        f.SwitchCompleted=f.SelectorChanging&&gun?.CurrentOperation is Player.FirearmController.Idling
+            &&wm.Selector!.IsWeaponReady&&!b.Player.InventoryController.IsChangingWeapon
+            &&ReferenceEquals(wm.ShootController,gun)&&ReferenceEquals(wm.CurrentWeapon,gun.Item)
+            &&ReferenceEquals(SlotGun(b,wm.Selector.EquipmentSlot),gun.Item);
+        f.Kind=f.NativeReload?"reload-idle":f.ReloadFlag?"reload":f.SelectorChanging?"switch":grenade!=null?"grenade":"";
         bool idleGrenade=grenade?.CurrentOperation is Player.GrenadeHandsController.Idling&&!grenade.WaitingForHighThrow&&!grenade.WaitingForLowThrow;
         if(wm.Reload==null||wm.Selector==null)f.Block="hands-native-data-unavailable";
         else if(b.BotOwner.Medecine?.Using==true)f.Block="hands-medical-active";
         else if(s.Fake.Policy.Active||s.Fake.CallbackPending||FakeGuarded(b))f.Block="hands-feint-owned";
         else if(s.RoomClear.Policy.Active||wm.Grenades?.ThrowindNow==true||f.Action=="ThrowGrenade")f.Block="hands-grenade-action-active";
         else if(s.WeaponReturn.Policy.Active||s.PistolSwap.Policy.Active||s.QuickReload.Policy.Active)f.Block="hands-other-weapon-request";
-        else if(wm.Selector.IsChanging)f.Block="hands-weapon-changing";
-        else if(f.NativeReload)f.Block="hands-native-reload-active";
-        else if(gun!=null&&(gun.IsInInteraction()||!gun.CanStartReload()))f.Block="hands-firearm-operation-active";
+        else if(b.Player.InventoryController.IsChangingWeapon)f.Block="hands-inventory-changing";
+        else if(wm.Selector.IsChanging&&!f.SwitchCompleted)f.Block="hands-weapon-changing";
+        else if(f.NativeReload&&!f.ReloadIdle)f.Block="hands-native-reload-active";
+        else if(!f.ReloadIdle&&gun!=null&&(gun.IsInInteraction()||!gun.CanStartReload()))f.Block="hands-firearm-operation-active";
         else if(gun==null&&!idleGrenade)f.Block="hands-unknown-or-committed-operation";
         if(grenade!=null&&wm.Selector!=null)
         {
@@ -105,6 +118,12 @@ public sealed partial class Plugin
         try {
             if(command=="clear-reload")
             {b.BotOwner.WeaponManager.Reload.Reloading=false;accepted=!b.BotOwner.WeaponManager.Reload.Reloading;}
+            else if(command=="clear-switch"&&fresh.SwitchCompleted)
+            {b.BotOwner.WeaponManager.Selector.IsChanging=false;accepted=!b.BotOwner.WeaponManager.Selector.IsChanging;}
+            else if(command=="finish-reload-idle"&&fresh.ReloadIdle
+                &&b.Player.HandsController is Player.FirearmController firearm
+                &&firearm.CurrentOperation is Player.FirearmController.ReloadExternalMagOperation operation)
+            {operation.OnIdleStartEvent();accepted=!firearm.IsInReloadOperation();}
             else if(Enum.TryParse(f.TargetSlot,out EquipmentSlot slot)&&SlotGun(b,slot)?.Id.ToString()==f.TargetWeapon)
             {r.Issuing=true;accepted=b.BotOwner.WeaponManager.Selector.TryChangeToSlot(slot,true);}
         } finally {r.Issuing=false;}
@@ -124,8 +143,8 @@ public sealed partial class Plugin
     private void RecordHandsRecovery(BotState s,bool force=false)
     {
         var r=s.HandsRecovery;var t=r.Policy.Trace;if(t==null)return;
-        double now=Time.timeAsDouble;string key=t.State+"|"+t.Reason+"|"+t.Attempts;
-        if(!force&&key==r.LogKey&&(t.ValidFor==0||now-r.LogAt<Math.Max(.5,config?.HandsRecovery.CheckSeconds??.5)))return;
+        double now=Time.timeAsDouble;string key=t.State+"|"+t.Reason+"|"+t.Attempts+"|"+t.NativePhase+"|"+t.ReloadIdle+"|"+t.SwitchCompleted;
+        if(!force&&key==r.LogKey&&(t.ValidFor==0||now-r.LogAt<(r.Policy.Pending?1:5)))return;
         r.LogKey=key;r.LogAt=now;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="W10",stage="evaluated",decision="HandsRecovery",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,

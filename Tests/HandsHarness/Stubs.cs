@@ -15,9 +15,11 @@ namespace EFT {
  public class Item {public string Id="grenade";}
  public class Player {
   public string ProfileId="p";public AbstractHandsController? HandsController=new FirearmController();public Dictionary<EquipmentSlot,Weapon> Equipment=new(){{EquipmentSlot.FirstPrimaryWeapon,new()}};
+  public bool UsedSimplifiedSkeleton;public Inventory InventoryController=new();public class Inventory{public bool IsChangingWeapon;}
   public class AbstractHandsController {public Item? Item=new();}
   public class FirearmController:AbstractHandsController {public new Weapon? Item=new();public object CurrentOperation=new Idling();public bool Reload,Interaction,CanReload=true;
-   public bool IsInReloadOperation()=>Reload;public bool IsInInteraction()=>Interaction;public bool CanStartReload()=>CanReload;public class Idling{}}
+   public bool IsInReloadOperation()=>Reload;public bool IsInInteraction()=>Interaction;public bool CanStartReload()=>CanReload;public class Idling{}
+   public class ReloadExternalMagOperation{public int State;public bool _magPulledOutFromWeapon,_magAppeared,_magInsertedToWeapon,_addAmmoInChamber;public int IdleCalls;public Action? Complete;public void OnIdleStartEvent(){IdleCalls++;Complete?.Invoke();}}}
   public class GrenadeHandsController:AbstractHandsController {public object CurrentOperation=new Idling();public bool WaitingForHighThrow,WaitingForLowThrow;public class Idling{}public class HighThrow{} }
  }
 }
@@ -25,6 +27,7 @@ public class BotReload {public Player? _player;public bool Reloading;public int 
 public class BotWeaponSelector {
  public SAIN.Components.Owner? _owner;public EquipmentSlot _lastEquipmentSlot=EquipmentSlot.FirstPrimaryWeapon,_mainWeapon=EquipmentSlot.FirstPrimaryWeapon;
  public bool IsChanging,Accept=true,Throw;public int Calls;public Action? DuringRequest;
+ public bool IsWeaponReady=true;public EquipmentSlot EquipmentSlot=>_lastEquipmentSlot;
  public bool TryChangeToSlot(EquipmentSlot slot,bool main){bool result=false;if(!Comet.Client.Plugin.SwitchAllowed(this,ref result))return result;Calls++;_owner!.WeaponManager.Reload.TryFillMagazines();DuringRequest?.Invoke();if(Throw)throw new Exception("native failure");return Accept;}
 }
 namespace SAIN {
@@ -33,11 +36,12 @@ namespace SAIN {
 namespace SAIN.Components {
  public class Grenades {public bool ThrowindNow;}
  public class Medicine {public bool Using;}
- public class Weapons {public BotReload Reload=new();public BotWeaponSelector Selector=new();public Grenades Grenades=new();public bool Ready=true;}
+ public class Weapons {public BotReload Reload=new();public BotWeaponSelector Selector=new();public Grenades Grenades=new();public bool Ready=true,AnimatorIdle;public object? ShootController,CurrentWeapon;public bool InIdleState()=>AnimatorIdle;}
  public class Owner {public string ProfileId="p";public Weapons WeaponManager=new();public Medicine Medecine=new();}
  public class Decisions {public string CurrentCombatDecision="StandAndShoot";}
  public class BotComponent {public bool Pmc=true,BotActive=true,IsDead,GameEnding;public string ProfileId="p";public Player Player=new();public Owner BotOwner=new();public Decisions Decision=new();
-  public void ManualUpdate(){}public BotComponent(){BotOwner.WeaponManager.Reload._player=Player;BotOwner.WeaponManager.Selector._owner=BotOwner;SAIN.SAINEnableClass.Bot=this;}}
+  public void ManualUpdate(){}public BotComponent(){BotOwner.WeaponManager.Reload._player=Player;BotOwner.WeaponManager.Selector._owner=BotOwner;SAIN.SAINEnableClass.Bot=this;
+   var gun=(Player.FirearmController)Player.HandsController!;BotOwner.WeaponManager.ShootController=gun;BotOwner.WeaponManager.CurrentWeapon=gun.Item;Player.Equipment[EquipmentSlot.FirstPrimaryWeapon]=gun.Item!;}}
 }
 namespace Comet.Core {public class CometConfig {public bool Enabled=true;public int Revision=1;public HandsRecoveryConfig HandsRecovery=new();
  public static void Range(double v,double lo,double hi,string n){if(!double.IsFinite(v)||v<lo||v>hi)throw new ArgumentException(n);}}}
