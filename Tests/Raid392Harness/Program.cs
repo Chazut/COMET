@@ -1,6 +1,13 @@
 using Comet.Client;
 using EFT.InventoryLogic;
+using Comet.Core;
 int checks=0;void Check(bool ok,string why){checks++;if(!ok)throw new Exception(why);}
+foreach(var mode in new[]{"always-animate","cull-update-transforms","cull-completely","unknown"}){
+ var p=new Plugin();p.Frame.BodyAnimationCulling=mode;p.Frame.Combat.Now=10.1;
+ p.State.CombatLean.Policy.Observe(p.Frame,new CombatLeanConfig(),0,0);
+ Check(p.State.CombatLean.Policy.Trace!.BodyAnimationCulling==mode,"body culling mode is preserved as diagnostic context");
+ Check(!p.State.CombatLean.Policy.Trace.HeadMotionObserved,"animation culling mode alone is not proof of head movement");
+}
 foreach(int loaded in new[]{0,1,2}){
  var gun=new Weapon{ChamberAmmoCount=loaded};
  Check(Plugin.Predicate(gun,gun)==(loaded<2?0:2),"owned partial/empty barrel request reaches native ammo selection");

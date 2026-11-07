@@ -42,7 +42,7 @@ public sealed class CombatLeanFrame
     public bool GeometryFresh,LeftSafe,RightSafe;
     // Own head bone relative to the bot's root, not the enemy's head or aim.
     public double HeadLateral,SmoothedTilt,NativeTilt,NativeSmoothedTilt,BoneHeadLateral;
-    public string HeadSource="bone";
+    public string HeadSource="bone",BodyAnimationCulling="unknown";
     public bool HeadImitated,HeadAccumulated,SimplifiedSkeleton;
 }
 public sealed class CombatLeanTrace
@@ -51,7 +51,7 @@ public sealed class CombatLeanTrace
     public int Episode,Side,Requests,BurstChanges,BurstLimit;
     public double Chance,Roll,BurstChance,BurstRoll,Remaining,PhaseRemaining,ValidFor,ContactAge,KnownX,KnownY,KnownZ;
     public double SmoothedTilt,HeadLateral,HeadTravel,NativeTilt,NativeSmoothedTilt,BoneHeadLateral;
-    public string HeadSource="bone";
+    public string HeadSource="bone",BodyAnimationCulling="unknown";
     public bool HeadImitated,HeadAccumulated,SimplifiedSkeleton,AnimatorApplied;
     public bool Selected,Requested,TiltObserved,HeadMotionObserved,BurstAttempted,FirePause,LeftSafe,RightSafe;
     public string[] Alternatives=Array.Empty<string>();
@@ -155,6 +155,7 @@ public sealed class CombatLean
         t.SmoothedTilt=f.SmoothedTilt;t.HeadLateral=f.HeadLateral;t.FirePause=f.FirePause;t.LeftSafe=f.LeftSafe;t.RightSafe=f.RightSafe;
         t.NativeTilt=f.NativeTilt;t.NativeSmoothedTilt=f.NativeSmoothedTilt;t.BoneHeadLateral=f.BoneHeadLateral;
         t.HeadSource=f.HeadSource;t.HeadImitated=f.HeadImitated;t.HeadAccumulated=f.HeadAccumulated;
+        t.BodyAnimationCulling=f.BodyAnimationCulling;
         t.SimplifiedSkeleton=f.SimplifiedSkeleton;
     }
     public void End(string why,double now)

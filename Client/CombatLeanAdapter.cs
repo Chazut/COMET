@@ -108,7 +108,16 @@ public sealed partial class Plugin
             HeadLateral=Vector3.Dot(position-b.Position,right),HeadSource=source,
             BoneHeadLateral=Vector3.Dot(head.position-b.Position,right),HeadImitated=head.UseImitation,HeadAccumulated=head.AccumulatePositionAndRotation,
             NativeTilt=b.Player.MovementContext.Tilt,NativeSmoothedTilt=b.Player.MovementContext.SmoothedTilt,
-            SimplifiedSkeleton=b.Player.UsedSimplifiedSkeleton};
+            SimplifiedSkeleton=b.Player.UsedSimplifiedSkeleton,
+            // Native EFT may stop updating transforms for distant/off-screen bots.
+            // Record the mode, without forcing expensive animation or claiming motion.
+            BodyAnimationCulling=b.Player.GetBodyAnimatorCommon()?.cullingMode switch
+            {
+                AnimatorCullingMode.AlwaysAnimate=>"always-animate",
+                AnimatorCullingMode.CullUpdateTransforms=>"cull-update-transforms",
+                AnimatorCullingMode.CullCompletely=>"cull-completely",
+                _=>"unknown"
+            }};
     }
     private void LeanSafety(BotComponent b,BotState s,CombatLeanFrame f)
     {
