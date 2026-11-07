@@ -58,6 +58,7 @@ internal static class PerformanceCapture
         private readonly Action<string> warning;
         private bool failed,finished;
         private int sampledFrame=-1;
+        private bool sampledRenderTime;
         internal Session(PerformanceConfig c,string path,string session,long revision,string map,bool authority,Action<string> warning)
         {
             this.warning=warning;allocations=c.MeasureAllocations&&PerformanceAllocation.Read!=null;
@@ -76,10 +77,13 @@ internal static class PerformanceCapture
         internal long Allocated()=>allocations?PerformanceAllocation.Read!():0;
         internal void Tick()
         {
-            int frame=Time.frameCount;if(frame==sampledFrame)return;sampledFrame=frame;
+            int frame=Time.frameCount;if(frame==sampledFrame&&sampledRenderTime)return;
+            bool physics=Time.inFixedTimeStep;
+            if(frame==sampledFrame&&physics)return;
+            sampledFrame=frame;sampledRenderTime=!physics;
             // In FixedUpdate Unity returns the physics step, not the rendered frame duration.
-            var duration=Time.inFixedTimeStep?double.NaN:Time.unscaledDeltaTime*1000.0;
-            var report=Recorder.Advance(frame,Time.realtimeSinceStartupAsDouble,duration,GC.CollectionCount(0),GC.CollectionCount(1),GC.CollectionCount(2));
+            var duration=physics?double.NaN:Time.unscaledDeltaTime*1000.0;
+            var report=Recorder.Advance(frame,Time.realtimeSinceStartupAsDouble,duration,GC.CollectionCount(0),GC.CollectionCount(1),GC.CollectionCount(2),physics);
             if(report!=null)Writer.Enqueue(report);
         }
         internal void Leave(long token)

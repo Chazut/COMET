@@ -109,12 +109,13 @@ public sealed class TacticalOutcomes
         Health=f.Health,Exposure=f.Exposure,ExposureKnown=f.ExposureKnown,Protected=f.Protected,ContactLifetime=f.ContactLifetime};
     public void Clear(string reason="outcome-ended")
     {
+        if(history.Count==0&&active==null&&latch==null&&Trace.State=="ended"&&Trace.Reason==reason)return;
         history.Clear();active=null;latch=null;last=detachedSince=lastResultAt=-1;
         Trace=Trace.Copy();Trace.State="ended";Trace.Reason=reason;Trace.Result="neutral";Trace.Effects=Array.Empty<OutcomeEffect>();Trace.ValidFor=Trace.Remaining=0;
     }
     public void Retain(ISet<string> known)
     {
-        history.RemoveAll(x=>!known.Contains(x.Context.Target));
+        for(int i=history.Count-1;i>=0;i--)if(!known.Contains(history[i].Context.Target))history.RemoveAt(i);
         if(active!=null&&!known.Contains(active.Start.Target))Clear("outcome-native-forgetting");
     }
     public void Hit(double now,string recognizedTarget,int instance,double damage)
@@ -131,7 +132,8 @@ public sealed class TacticalOutcomes
             ||!f.Origin.Finite||!f.Known.Finite||(f.HasDestination&&!f.Destination.Finite)||!f.HasContact||f.Target.Length==0
             ||f.ContactAge<0||f.ContactAge>=f.ContactLifetime||f.ContactLifetime<=0)
         {Clear("outcome-contact-ended-or-invalid");return Trace;}
-        history.RemoveAll(x=>f.Now-x.At>=c.Retention||(x.Context.Target==f.Target&&x.Context.Instance!=f.Instance));
+        for(int i=history.Count-1;i>=0;i--)
+            if(f.Now-history[i].At>=c.Retention||(history[i].Context.Target==f.Target&&history[i].Context.Instance!=f.Instance))history.RemoveAt(i);
         bool gap=last>=0&&(f.Now<last||f.Now-last>.35);last=f.Now;
         if(active!=null&&(gap||!SameEnemy(active.Start,f)))Resolve(f,c,"neutral",gap?"outcome-sampling-gap":"outcome-target-changed");
         if(gap){latch=Copy(f);detachedSince=-1;}
@@ -191,15 +193,18 @@ public sealed class TacticalOutcomes
             Remaining=Math.Min(c.Retention,Math.Max(0,f.ContactLifetime-f.ContactAge)),X=f.Origin.X,Y=f.Origin.Y,Z=f.Origin.Z};
         if(!c.Enabled||!f.Scoped||!f.HasContact||!Finite(f.Now)||!Finite(f.ContactAge)||f.ContactAge<0||!Finite(f.ContactLifetime)||f.ContactAge>=f.ContactLifetime
             ||!f.Origin.Finite||!f.Known.Finite||f.Target.Length==0){t.ValidFor=t.Remaining=0;return t;}
-        var effects=new List<OutcomeEffect>();
-        foreach(var option in options.Take(7))
+        var effects=new List<OutcomeEffect>(7);var q=Copy(f);int count=0;
+        foreach(var option in options)
         {
-            var q=Copy(f);q.Action=option.Action;q.HasDestination=option.Destination.HasValue;q.Destination=option.Destination??default;
-            var matches=history.Where(x=>f.Now>=x.At&&f.Now-x.At<c.Retention&&x.Context.Action==q.Action&&Context(x.Context,q)).ToArray();
-            int good=matches.Count(x=>x.Sign>0),bad=matches.Length-good;
-            double delta=matches.Length>=c.MinimumResults?(good*c.BonusCap-bad*c.PenaltyCap)/matches.Length:0;
-            effects.Add(new OutcomeEffect{Action=q.Action,Results=matches.Length,Favorable=good,Unfavorable=bad,Delta=delta,
-                Refusal=matches.Length<c.MinimumResults?"outcome-insufficient-comparable-results":""});
+            if(count++==7)break;
+            q.Action=option.Action;q.HasDestination=option.Destination.HasValue;q.Destination=option.Destination??default;
+            int good=0,bad=0;
+            foreach(var x in history)if(f.Now>=x.At&&f.Now-x.At<c.Retention&&x.Context.Action==q.Action&&Context(x.Context,q))
+                {if(x.Sign>0)good++;else bad++;}
+            int matches=good+bad;
+            double delta=matches>=c.MinimumResults?(good*c.BonusCap-bad*c.PenaltyCap)/matches:0;
+            effects.Add(new OutcomeEffect{Action=q.Action,Results=matches,Favorable=good,Unfavorable=bad,Delta=delta,
+                Refusal=matches<c.MinimumResults?"outcome-insufficient-comparable-results":""});
         }
         t.Effects=effects.ToArray();return t;
     }

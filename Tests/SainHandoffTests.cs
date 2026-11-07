@@ -73,8 +73,16 @@ static class SainHandoffTests
         var draft=store.Read();draft.Handoff.Retry=1.5;store.Save(draft,draft.Revision);Check(store.Read().Handoff.Retry==1.5,"UI-backed store persists config");
         draft=store.Read();draft.Handoff.Grace=-1;bool rejected=false;try{store.Save(draft,draft.Revision);}catch(ArgumentException){rejected=true;}
         Check(rejected&&store.Read().Handoff.Grace==.5,"invalid config never partly saved");
+        var probe=new SainHandoff(c);probe.Accepted(20,"A01","Push",Cue());
+        Check(!probe.TryGrace(20.1,Cue(),true,false,"active-route-not-moving")&&probe.Current.PathCheck=="active-route-not-moving","native refusal explained");
+        Check(probe.ReportPathCheck(20.1)&&!probe.ReportPathCheck(20.2),"path refusals bounded to one per second");
+        Check(!probe.TryGrace(20.3,Cue(x:3),true,true)&&probe.Current.PathCheck=="known-contact-changed","moving known target distinguished from missing route");
+        Check(!probe.ReportPathCheck(20.3)&&probe.ReportPathCheck(21.1),"changing reasons cannot flood diagnostics");
+        probe.Healthy(21.2);Check(probe.Current.PathCheck==""&&!probe.ReportPathCheck(21.2),"healthy path clears stale refusal");
+        Check(probe.TryGrace(21.3,Cue(),true,true),"diagnostics do not prevent valid continuation");
+        probe.Clear();Check(!probe.ReportPathCheck(22),"raid cleanup resets path evidence");
         var json=Newtonsoft.Json.JsonConvert.SerializeObject(new{handoff=h.Current},Comet.Client.Diagnostics.Json);
-        Check(json.Contains("fromAction")&&json.Contains("graceRemaining")&&json.Contains("nativeObserved"),"runtime telemetry casing");
+        Check(json.Contains("fromAction")&&json.Contains("graceRemaining")&&json.Contains("nativeObserved")&&json.Contains("pathCheck"),"runtime telemetry casing");
         Console.WriteLine($"A13 passed: {n} assertions (handoff, priorities, grace, retry, native observation, memory, configuration).");return n;
     }
 }

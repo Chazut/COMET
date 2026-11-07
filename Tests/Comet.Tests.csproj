@@ -11,6 +11,7 @@
   <ItemGroup><Compile Include="../Client/DiagnosticWarmup.cs" Link="DiagnosticWarmup.cs" /></ItemGroup>
   <ItemGroup><None Include="fixtures/u01-original-defaults.json" Link="u01-original-defaults.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
   <ItemGroup><Compile Remove="WeaponReturnHarness/**/*.cs" /></ItemGroup>
+  <ItemGroup><Compile Remove="WeaponRangeHarness/**/*.cs" /></ItemGroup>
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
   <ItemGroup><Compile Remove="JournalHarness/**/*.cs" /><Compile Remove="ControlHarness/**/*.cs" /><Compile Remove="IntegrationHarness/**/*.cs" /><Compile Remove="ObserverHarness/**/*.cs" /><Compile Remove="RaidCleanupHarness/**/*.cs" /><Compile Remove="ValidityHarness/**/*.cs" /><Compile Remove="FaultHarness/**/*.cs" /><Compile Remove="LifecycleHarness/**/*.cs" /><Compile Remove="CoverScanHarness/**/*.cs" />
     <Compile Remove="MovementRecoveryHarness/**/*.cs" />

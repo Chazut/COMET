@@ -101,7 +101,9 @@ public sealed partial class Plugin
     private void FallbackEntrance(BotComponent b,BotState s,string why)
     {
         var r=s.Crossfire;var a=r.Entrance;a.Policy.Trace!.EntryReason=why;a.Policy.End(Time.time,r.ContactAt);RecordCrossfire(s,true);
-        a.Drop();r.Policy.Trace!.Entrance=null;r.Policy.Trace.Candidates=0;r.Route=null;r.Candidate=r.Sample=0;r.Samples.Clear();
+        r.Policy.Trace!.EntranceFallback=why;
+        RecordCrossfireGate(s,"secondary-entrance-fallback-to-S01: "+why,true,"S02");
+        a.Drop();r.Policy.Trace.Entrance=null;r.Policy.Trace.Candidates=0;r.Route=null;r.Candidate=r.Sample=0;r.Samples.Clear();
         if(!r.Rejects.Contains(why)&&r.Rejects.Count<8)r.Rejects.Add(why);r.Policy.Trace.Alternatives=r.Rejects.ToArray();BuildCrossfireCandidates(b,r);
     }
     private void ProbeEntrance(BotComponent b,BotState s)

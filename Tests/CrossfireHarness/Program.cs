@@ -56,7 +56,7 @@ foreach(string mode in new[]{"refuse","unobserved","native-busy","exception"}){
 {
  var(p,b,m)=Setup();p.doorBudget.Available=false;p.Observe(b);int queries=b.Mover.Queries;for(int i=0;i<10;i++)p.Observe(b);C(b.Mover.Queries==queries&&p.Claims==0,"shared budget blocks expensive search");p.doorBudget.Available=true;Step();p.Observe(b);queries=b.Mover.Queries;for(int i=0;i<10;i++)p.Observe(b);C(b.Mover.Queries==queries,"at most one planning probe per bot/frame");p.End(b);int count=p.diagnostics!.Lines.Count;for(int i=0;i<10;i++)p.End(b);C(p.diagnostics.Lines.Count==count,"inactive sweeps do not repeat terminal logs");Save(p);
 }
-foreach(var native in new[]{ECombatDecision.Search,ECombatDecision.SeekCover,ECombatDecision.ShiftCover,ECombatDecision.MoveToEngage,ECombatDecision.CreepOnEnemy}){
+foreach(var native in new[]{ECombatDecision.Search,ECombatDecision.SeekCover,ECombatDecision.ShiftCover,ECombatDecision.MoveToEngage,ECombatDecision.CreepOnEnemy,ECombatDecision.Freeze,ECombatDecision.StandAndShoot,ECombatDecision.ShootDistantEnemy,ECombatDecision.None}){
  var(p,b,m)=Setup(); b.Decision.CurrentCombatDecision=native;
  var previous=new BotPathDataManual{TimeStarted=Time.time,Destination=new(1,0,4),OnStop=()=>b.Mover.ActivePath=null}; b.Mover.ActivePath=previous;
  b.Decision.CurrentSquadDecision=ESquadDecision.Regroup;
@@ -64,6 +64,9 @@ foreach(var native in new[]{ECombatDecision.Search,ECombatDecision.SeekCover,ECo
  b.Player.IsSprintEnabled=true;
  b.Decision.CurrentCombatDecision=ECombatDecision.Freeze; var a=Start(p,b);
  C(previous.Stops==1,"layer acquisition replaces exactly the observed search route");
+ var handoff=p.states[b].Crossfire.Policy.Trace!.Handoff!;
+ C(handoff.PlannedDecision==native.ToString()&&handoff.Decision=="Freeze"&&handoff.ExpectedPath!=0&&handoff.CurrentPath==handoff.ExpectedPath,"handoff records native decision and exact observed path");
+ C(handoff.Reason=="released-observed-tactical-path"&&handoff.CurrentStarted==handoff.ExpectedStarted,"confirmed release evidence");
  b.Player.IsSprintEnabled=true; a.Update(new());
  C(p.states[b].Crossfire.Policy.Active,"own sprint and ordinary squad regroup do not cancel a flank");
  Save(p);

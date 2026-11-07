@@ -106,17 +106,24 @@ sealed class Boundaries(string file,Dictionary<string,string> callbacks,List<obj
   {
    {{outs}}
    {{saves}}
-   var __faultScope = global::Comet.Client.Plugin.EnterFault("{{module}}", "{{name}}", null, {{cleanup.ToString().ToLower()}}, {{telemetry.ToString().ToLower()}});
+   global::Comet.Client.Plugin.FaultScope __faultScope = default;
+   bool __faultEntered = false;
    try {
     {{preflight}}
+    __faultScope = global::Comet.Client.Plugin.EnterFault("{{module}}", "{{name}}", null, {{cleanup.ToString().ToLower()}}, {{telemetry.ToString().ToLower()}});
+    __faultEntered = true;
     global::Comet.Client.Plugin.BindFault(ref __faultScope, {{identity}});
     {{(state!=null?$"global::Comet.Client.Plugin.BindFaultState(ref __faultScope, {state.Identifier});":"")}}
     if (!global::Comet.Client.Plugin.AllowFault(__faultScope)) { {{restore}} {{outs}} {{fallback}} }
     {{body}}
    } catch (global::System.Exception __boundaryError) {
+    if (!__faultEntered) {
+     __faultScope = global::Comet.Client.Plugin.EnterFault("{{module}}", "{{name}}", null, {{cleanup.ToString().ToLower()}}, {{telemetry.ToString().ToLower()}});
+     __faultEntered = true;
+    }
     if (!global::Comet.Client.Plugin.HandleFault(__faultScope, __boundaryError)) throw;
     {{restore}} {{outs}} {{fallback}}
-   } finally { global::Comet.Client.Plugin.LeaveFault(__faultScope); }
+   } finally { if (__faultEntered) global::Comet.Client.Plugin.LeaveFault(__faultScope); }
   }
   """;
   manifest.Add(new{file,owner,name,module,identity,cleanup,telemetry,callback,kind,fallback});

@@ -2,6 +2,18 @@ using System;
 using System.Collections.Generic;
 namespace Comet.Core;
 
+public sealed class CrossfireHandoffTrace
+{
+    public string PlannedDecision { get; set; }="";
+    public string Decision { get; set; }="";
+    public string PathType { get; set; }="";
+    public string Reason { get; set; }="";
+    public int ExpectedPath { get; set; }
+    public int CurrentPath { get; set; }
+    public double ExpectedStarted { get; set; }
+    public double CurrentStarted { get; set; }
+}
+
 public sealed class CrossfireConfig
 {
     public bool Enabled { get; set; }=true;
@@ -32,6 +44,8 @@ public sealed class CrossfireConfig
 }
 public sealed class CrossfireTrace
 {
+    public CrossfireHandoffTrace? Handoff { get; set; }
+    public string EntranceFallback { get; set; }="";
     public SquadStormTrace? Storm {get;set;}
     public SquadTradeTrace? Trade {get;set;}
     public CoverMateTrace? CoverMate {get;set;}

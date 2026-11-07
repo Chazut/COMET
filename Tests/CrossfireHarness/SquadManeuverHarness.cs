@@ -39,6 +39,7 @@ internal static class SquadManeuverHarness
   {
    var(p,bots,actions)=Start();C(p.Claims==4,"three distinct routes and one support reservation");C(p.states[bots[0]].Crossfire.Maneuver!.Members.Count(x=>x.Confirmed)==4,"all roles confirmed by native callbacks");
    C(bots[0].ManualShoot.Requests>0,"personal eligible support requests native W07 fire");C(p.states[bots[0]].Crossfire.Policy.Trace!.Maneuver!.Shots==0,"request is not an actual shot");
+   C(p.states[bots[0]].Crossfire.Policy.Trace!.Reason=="maneuver-support-established","support is not reported as flanker arrival");
    var r=p.states[bots[1]].Crossfire;bots[1].Position=r.Goal;Step();actions[1].Update(new());actions[0].Update(new());C(!r.Maneuver!.MaySuppress,"arrival stops suppression");
    p.EndAll();C(p.Claims==0&&Api.Decisions.Labels.Count==0,"cleanup");events.AddRange(p.diagnostics!.Lines);
   }

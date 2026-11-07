@@ -23,6 +23,7 @@ public sealed class HandoffTrace
     public double RetryRemaining { get; set; }
     public double GraceRemaining { get; set; }
     public bool NativeObserved { get; set; }
+    public string PathCheck { get; set; } = "";
 }
 
 // Per-bot lifecycle only: never calls native movement, hands or animation resets.
@@ -33,6 +34,8 @@ public sealed class SainHandoff
     private HandoffCue cue = new HandoffCue();
     private string feature = "", action = "", reason = "", kind = "", combat = "", self = "", squad = "";
     private bool observed, graceUsed, retryAdmitted;
+    private string pathCheck="";
+    private double pathCheckLoggedAt=double.NegativeInfinity;
     public bool Yielded { get; private set; }
     public HandoffTrace Current { get; private set; } = new HandoffTrace();
     public string LastAction => action;
@@ -49,11 +52,12 @@ public sealed class SainHandoff
     private static bool Valid(HandoffCue c) => c.Target.Length>0 && Finite(c.At) && c.At>=0 && Finite(c.X) && Finite(c.Y) && Finite(c.Z);
     private HandoffTrace Trace(double now, string state) => new HandoffTrace { State=state, Reason=reason, Kind=kind, At=now,
         FromFeature=feature, FromAction=action, NativeCombat=combat, NativeSelf=self, NativeSquad=squad, NativeObserved=observed,
-        RetryRemaining=Math.Max(0,until-now), GraceRemaining=Finite(graceStart)?Math.Max(0,config.Grace-(now-graceStart)):0 };
+        RetryRemaining=Math.Max(0,until-now), GraceRemaining=Finite(graceStart)?Math.Max(0,config.Grace-(now-graceStart)):0, PathCheck=pathCheck };
     public void Clear()
     {
         Yielded=observed=graceUsed=retryAdmitted=false; until=0; graceStart=last=double.NaN; cue=new HandoffCue();
         feature=action=reason=kind=combat=self=squad=""; Current=new HandoffTrace();
+        pathCheck="";pathCheckLoggedAt=double.NegativeInfinity;
     }
     public void Accepted(double now,string fromFeature,string fromAction,HandoffCue contact)
     {
@@ -70,15 +74,25 @@ public sealed class SainHandoff
     {
         if(!Clock(now))return;
         graceStart=double.NaN; graceUsed=false;
+        pathCheck="";Current.PathCheck="";
     }
-    public bool TryGrace(double now,HandoffCue contact,bool temporary,bool safe)
+    public bool ReportPathCheck(double now)
+    {
+        if(pathCheck.Length==0||!Finite(now)||now-pathCheckLoggedAt<1)return false;
+        // One aggregate reason per second at most; no per-frame refusal spam.
+        pathCheckLoggedAt=now;return true;
+    }
+    public bool TryGrace(double now,HandoffCue contact,bool temporary,bool safe,string unsafeReason="unsafe-native-path")
     {
         if(!Clock(now))return false;
         bool same=Valid(cue)&&Valid(contact)&&cue.Target==contact.Target&&cue.Visible==contact.Visible
             && Math.Abs(contact.X-cue.X)<.5 && Math.Abs(contact.Y-cue.Y)<.5 && Math.Abs(contact.Z-cue.Z)<.5;
-        if(Yielded || action.Length==0 || !temporary || !safe || !same || config.Grace==0) return false;
-        if(!Finite(graceStart)) { if(graceUsed)return false; graceUsed=true; graceStart=now; }
-        if(now-graceStart>=config.Grace)return false;
+        pathCheck=Yielded?"already-yielded":action.Length==0?"no-owned-action":!temporary?"not-a-temporary-path-loss":
+            !safe?unsafeReason:!same?"known-contact-changed":config.Grace==0?"path-grace-disabled":
+            !Finite(graceStart)&&graceUsed?"path-grace-used":Finite(graceStart)&&now-graceStart>=config.Grace?"path-grace-expired":"";
+        Current.PathCheck=pathCheck;
+        if(pathCheck.Length>0)return false;
+        if(!Finite(graceStart)) { graceUsed=true; graceStart=now; }
         reason="handoff-safe-path-grace";kind="temporary";Current=Trace(now,"grace");return true;
     }
     public bool Begin(double now,string why,string category,HandoffCue contact)

@@ -82,6 +82,20 @@ try
     var physics=File.ReadAllLines(Directory.GetFiles(dir).Single(x=>x.Contains("physics"))).Select(JObject.Parse).Single(x=>(string?)x["stage"]=="performance-summary");
     Check((long?)physics["unknownDurationFrames"]==2&&(double?)physics["maxFrameMs"]==0,"physics time step never treated as rendered frame duration");
 
+    Clock.Frame++;Clock.Now+=1;Clock.Delta=.016f;
+    PerformanceCapture.Start(new PerformanceConfig{Enabled=true,ReportIntervalSeconds=1},dir,"fixed-first",8,"map",true,warnings.Add);
+    int completedFrame=Clock.Frame;Fixture.EmitRoot(false);
+    Clock.Frame++;Clock.Now+=1.054;Clock.inFixedTimeStep=true;Clock.Delta=.02f;
+    PerformanceCapture.Tick();Fixture.EmitRoot(false);
+    Clock.inFixedTimeStep=false;Clock.Delta=1.054f;PerformanceCapture.Tick();PerformanceCapture.Tick();
+    PerformanceCapture.Stop(null).GetAwaiter().GetResult();
+    var fixedFirst=File.ReadAllLines(Directory.GetFiles(dir).Single(x=>x.Contains("fixed-first"))).Select(JObject.Parse).ToArray();
+    var fixedSummary=fixedFirst.Single(x=>(string?)x["stage"]=="performance-summary");
+    var fixedWindow=fixedFirst.Single(x=>(string?)x["stage"]=="performance-window");
+    Check((long?)fixedSummary["frames"]==2&&(long?)fixedSummary["unknownDurationFrames"]==1,"Update completes duration missing at first FixedUpdate without double counting frames");
+    Check((double?)fixedWindow["hitches"]?[0]?["frameMs"]>1053&&(int?)fixedWindow["hitches"]?[0]?["frame"]==completedFrame,"window retains the real render hitch on its previous frame");
+    Check((long?)fixedSummary["modules"]?[0]?["calls"]==2,"physics callbacks stay attributed to their own frame");
+
     Clock.Frame++;PerformanceCapture.Start(new PerformanceConfig{Enabled=true},dir,"broken",9,"map",true,warnings.Add);
     var one=PerformanceCapture.Enter(0);var two=PerformanceCapture.Enter(1);one.Dispose();two.Dispose();
     Check(warnings.Count==1,"malformed scopes disable only profiler and warn once");

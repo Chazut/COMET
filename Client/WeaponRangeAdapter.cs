@@ -30,11 +30,12 @@ public sealed partial class Plugin
     };
     private static readonly string[] RangeOpticTypes={"55818add4bdc2d5b648b456f","55818ae44bdc2dde698b456c","55818aeb4bdc2ddc698b456a"};
     private static readonly string[] RangeDotTypes={"55818ad54bdc2ddc698b4569","55818acf4bdc2dde698b456b"};
+    private static readonly string[] RangeIronTypes={"55818ac54bdc2d5b648b456e"};
     private static bool RangeAttachmentType(Mod mod,string[] ids)
     {
         foreach(string id in ids)
             if(JsonTypes.TypeTable.TryGetValue(id,out var a)&&a.IsInstanceOfType(mod)
-                ||JsonTypes.TemplateTypeTable.TryGetValue(id,out var b)&&b.IsInstanceOfType(mod))return true;
+                ||JsonTypes.TemplateTypeTable.TryGetValue(id,out var b)&&b.IsInstanceOfType(mod.Template))return true;
         return false;
     }
     private static WeaponRangeGun ReadRangeGun(Weapon w,WeaponReturnGun ammo)
@@ -47,13 +48,17 @@ public sealed partial class Plugin
         // SAIN's CurrentWeaponInfo and uninitialized secondary WeaponInfo are not reliable for this comparison.
         foreach(var mod in w.Mods)
         {
-            if(++count>64){unknown=true;break;}
+            if(++count>64){unknown=true;g.OpticEvidence="attachment-budget";break;}
             ids.Add(mod.Id.ToString());
             bool isOptic=RangeAttachmentType(mod,RangeOpticTypes),isDot=RangeAttachmentType(mod,RangeDotTypes);
             optic|=isOptic;dot|=isDot;
-            if(!isOptic&&!isDot&&mod.GetItemComponent<SightComponent>()!=null)unknown=true;
+            // Iron sights also carry SightComponent. They remain usable with or
+            // without a scope, including secondary weapons that were never drawn.
+            if(!isOptic&&!isDot&&!RangeAttachmentType(mod,RangeIronTypes)&&mod.GetItemComponent<SightComponent>()!=null)
+            {unknown=true;if(g.OpticEvidence.Length==0)g.OpticEvidence="unrecognized-sight: "+mod.TemplateId+" ("+mod.GetType().Name+")";}
         }
         g.Optic=unknown?"unknown":optic?(dot?"scope-and-dot":"scope"):dot?"dot":"iron";
+        if(g.OpticEvidence.Length==0)g.OpticEvidence="attachment-families: "+g.Optic;
         g.Fingerprint=g.Class+":"+g.Optic+":"+g.Automatic+":"+g.Bolt+":"+string.Join(",",ids);
         WeaponRangeModel.Classify(g);return g;
     }

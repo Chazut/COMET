@@ -50,6 +50,16 @@ internal static class OutcomeTests
   cfg2.Outcomes.Enabled=false;candidates=Candidates();OutcomeScoring.Adjust(candidates,S(),cfg2);Check(candidates[0].Score==50,"disabled");
   evidence.Effects[0].Delta=999;cfg2.Outcomes.Enabled=true;candidates=Candidates();OutcomeScoring.Adjust(candidates,S(),cfg2);Check(candidates[0].Score==55,"bonus hard cap");
   var copy=evidence.Copy();copy.Effects[0].Delta=0;Check(evidence.Effects[0].Delta==999,"immutable diagnostic snapshots");
+  // Repeated out-of-scope samples must not clone the full trace every tick.
+  var perfIdle=new TacticalOutcomes();perfIdle.Clear("outcome-out-of-scope");
+  long allocated=GC.GetAllocatedBytesForCurrentThread();for(int i=0;i<1000;i++)perfIdle.Clear("outcome-out-of-scope");
+  Check(GC.GetAllocatedBytesForCurrentThread()-allocated==0,"repeated idle cleanup is allocation free");
+  var options=new[]{"Hold","Search","Push","FallBack","Flank","Cover","Grenade"}.Select(x=>(x,(DoorPoint?)new DoorPoint(2,0,0))).ToArray();
+  var reviewFrame=F(20);for(int i=0;i<100;i++)perfIdle.Review(reviewFrame,options,c);
+  allocated=GC.GetAllocatedBytesForCurrentThread();for(int i=0;i<1000;i++)perfIdle.Review(reviewFrame,options,c);
+  long perReview=(GC.GetAllocatedBytesForCurrentThread()-allocated)/1000;
+  Check(perReview<=2048,"seven-choice review allocation bound: "+perReview);
+  Console.WriteLine($"E04 seven-choice review: {perReview} bytes/call (desktop harness).");
   Console.WriteLine($"E04: {n} tactical outcome checks passed");return n;
  }
 }

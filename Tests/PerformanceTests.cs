@@ -81,6 +81,21 @@ internal static class PerformanceTests
         r=new PerformanceRecorder(new[]{"Combat"},1000,false,50,10);a=r.Enter(0,0,0);b=r.Enter(0,1,0);
         bool invalid=false;try{r.Leave(a,2,0);}catch(InvalidOperationException){invalid=true;}Check(invalid,"misordered scopes detected, no silent wrong attribution");
 
+        r=new PerformanceRecorder(new[]{"Combat"},1000,true,50,60);r.Advance(100,0,16,0,0,0);
+        a=r.Enter(0,0,0);r.Leave(a,80,123);
+        r.Advance(101,1,double.NaN,1,0,0,true); // FixedUpdate arrives first.
+        a=r.Enter(0,100,123);r.Leave(a,102,130);
+        r.Advance(101,1.01,1054,1,0,0);r.Advance(101,1.02,1054,1,0,0);
+        r.Advance(102,1.03,16,1,0,0);end=r.Finish(1,0,0);
+        Check(end.Frames==3&&end.UnknownDurationFrames==1&&end.SlowFrames==1,"deferred frame closed once, final frame only unknown");
+        var hitch=end.Hitches.Single();Check(hitch.Frame==100&&hitch.FrameMs==1054&&hitch.CometMs==80&&hitch.CometBytes==123,"render delay and COMET cost retain original frame");
+        Check(hitch.Collections.SequenceEqual(new[]{1,0,0})&&end.Modules[0].Calls==2&&end.Modules[0].SelfMs==82,"GC boundary and physical callback costs retained");
+        r=new PerformanceRecorder(new[]{"Combat"},1000,false,50,60);r.Advance(1,0,16,0,0,0);
+        r.Advance(2,.1,double.NaN,0,0,0,true);r.Advance(3,.2,double.NaN,0,0,0,true);r.Advance(3,.21,60,0,0,0);
+        r.Advance(5,.3,1000,0,0,0);end=r.Finish(0,0,0);
+        Check(end.Frames==4&&end.UnknownDurationFrames==3&&end.UnobservedFrames==1&&end.SlowFrames==1,"missing Update or skipped frame never borrows another render duration");
+        Check(end.Hitches.Single().Frame==2&&end.MaxFrameMs==60,"only matching pending frame receives render duration");
+
         string dir=Path.Combine(Path.GetTempPath(),"comet-performance-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(dir);
         try
         {

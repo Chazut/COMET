@@ -32,17 +32,24 @@ public sealed partial class Plugin
         if(!temporary){state.Handoff.Healthy(Time.time);return false;}
         var path=bot.Mover.ActivePath;
         var progress=state.Progress.Current;
-        bool safe=state.Feature=="A01" && state.ActiveLabel=="COMET:"+action && state.Decision==action
-            && bot.Decision.CurrentCombatDecision==state.Expected && bot.SAINLayersActive && bot.CurrentAction!=null
-            && !s.Visible && !s.Hurt && !s.LowAmmo && !s.Suppressed && s.Fear?.Panic!=true && bot.Medical.TimeSinceShot>=1.5f
-            && VisibleAdapter.WeaponReady(bot) && !bot.BotOwner.DoorOpener.Interacting
-            && path!=null && path.PathStatus==NavMeshPathStatus.PathComplete && path.Status==EBotMoveStatus.Moving
-            && !state.ProgressUnavailable && config!.Progress.Enabled && progress.Reason=="progress-moving" && !progress.Reconsider
-            && Time.time-progress.At>=0 && Time.time-progress.At<=.5 && progress.StalledSeconds<1
-            && !state.Progress.Blocked(ProgressAdapter.Destination(path.Destination),Time.time)
-            && !state.Progress.Blocked(ProgressAdapter.GoalKey(bot),Time.time);
+        // Same continuation gates, but retain why an existing movement could not
+        // be kept while SAIN refreshes its route to the known contact.
+        string unsafeReason=state.Feature!="A01" || state.ActiveLabel!="COMET:"+action || state.Decision!=action?"no-owned-hidden-plan":
+            bot.Decision.CurrentCombatDecision!=state.Expected || !bot.SAINLayersActive || bot.CurrentAction==null?"native-action-changed":
+            s.Visible?"contact-visible":s.Hurt?"injured":s.LowAmmo?"low-ammo":s.Suppressed?"suppressed":s.Fear?.Panic==true?"panic":
+            !(bot.Medical.TimeSinceShot>=1.5f)?"recent-hit":!VisibleAdapter.WeaponReady(bot)?"weapon-not-ready":
+            bot.BotOwner.DoorOpener.Interacting?"door-interaction":path==null?"no-active-route":
+            path.PathStatus!=NavMeshPathStatus.PathComplete?"active-route-incomplete":path.Status!=EBotMoveStatus.Moving?"active-route-not-moving":
+            state.ProgressUnavailable || !config!.Progress.Enabled?"progress-unavailable":progress.Reason!="progress-moving"?"movement-not-confirmed":
+            progress.Reconsider?"progress-reconsider":!(Time.time-progress.At>=0 && Time.time-progress.At<=.5)?"progress-stale":
+            !(progress.StalledSeconds<1)?"movement-stalled":
+            state.Progress.Blocked(ProgressAdapter.Destination(path.Destination),Time.time) || state.Progress.Blocked(ProgressAdapter.GoalKey(bot),Time.time)?"route-blocked":"";
         bool wasGrace=state.Handoff.Current.State=="grace";
-        if(!state.Handoff.TryGrace(Time.time,HandoffContact(s),temporary,safe))return false;
+        if(!state.Handoff.TryGrace(Time.time,HandoffContact(s),temporary,unsafeReason.Length==0,unsafeReason))
+        {
+            if(state.Handoff.ReportPathCheck(Time.time))Emit(state,"evaluated","handoff-path-not-retained","A13");
+            return false;
+        }
         state.RequestedFrame=Time.frameCount; result=state.Expected; succeeded=true;
         if(!wasGrace)Emit(state,"evaluated","handoff-safe-path-grace","A13");
         return true;

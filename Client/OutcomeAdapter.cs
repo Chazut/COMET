@@ -18,8 +18,11 @@ namespace Comet.Client;
 internal sealed class OutcomeRuntime
 {
     internal readonly TacticalOutcomes Memory=new();
+    internal readonly HashSet<string> Known=new();
+    internal readonly (string Action,DoorPoint? Destination)[] Options=new (string,DoorPoint?)[7];
     internal float At=-100,LogAt=-100;
-    internal string LogKey="";
+    internal int LogEpisode=-1;
+    internal string LogState="",LogReason="",LogResult="";
     internal bool Fault;
 }
 public sealed partial class Plugin
@@ -79,7 +82,7 @@ public sealed partial class Plugin
             if(r.Fault)return;
             if(!OutcomeScoped(b)){EndOutcome(s,"outcome-out-of-scope");return;}
             if(Time.time-r.At<.1f)return;r.At=Time.time;
-            var known=new HashSet<string>();int count=0;
+            var known=r.Known;known.Clear();int count=0;
             foreach(var e in b.EnemyController.KnownEnemies)
             {if(++count>32){EndOutcome(s,"outcome-contact-budget");return;}if(e!=null&&ThreatUsable(b,e)&&e.TimeSinceLastKnownUpdated<config!.ContactLifetime)known.Add(e.EnemyProfileId);}
             r.Memory.Retain(known);
@@ -118,11 +121,13 @@ public sealed partial class Plugin
         try
         {
             var f=CaptureOutcome(b,s);
-            return s.Outcomes.Memory.Review(f,new[]{"Hold","Shoot","Push","Search","Flank","Cover","FallBack"}
-                .Select(a=>(a,OutcomeDestination(b,s,a))),config!.Outcomes);
+            var options=s.Outcomes.Options;
+            for(int i=0;i<OutcomeActions.Length;i++)options[i]=(OutcomeActions[i],OutcomeDestination(b,s,OutcomeActions[i]));
+            return s.Outcomes.Memory.Review(f,options,config!.Outcomes);
         }
         catch(Exception ex){OutcomeError(s,ex);return null;}
     }
+    private static readonly string[] OutcomeActions={"Hold","Shoot","Push","Search","Flank","Cover","FallBack"};
     private static void RecordOutcomeChoice(BotState s,Situation situation)
     {
         var t=situation.Outcome;if(t==null)return;t.Choice=s.Decision;
@@ -132,7 +137,7 @@ public sealed partial class Plugin
     private void EndOutcome(BotState s,string reason)
     {
         var r=s.Outcomes;bool had=r.Memory.HasAttempt||r.Memory.HistoryCount>0;
-        r.Memory.Clear(reason);if(had)RecordOutcome(s,r.Memory.Trace,true);
+        r.Memory.Clear(reason);r.Known.Clear();if(had)RecordOutcome(s,r.Memory.Trace,true);
         if(s.Situation!=null)s.Situation.Outcome=null;
     }
     private void OutcomeError(BotState s,Exception ex)
@@ -141,9 +146,8 @@ public sealed partial class Plugin
     {
         var r=s.Outcomes;
         if(!force&&(t.Episode==0||t.State=="ended"))return;
-        string key=t.Episode+":"+t.State+":"+t.Reason+":"+t.Result;
-        if(!force&&key==r.LogKey&&Time.time-r.LogAt<.25f)return;
-        r.LogKey=key;r.LogAt=Time.time;
+        if(!force&&t.Episode==r.LogEpisode&&t.State==r.LogState&&t.Reason==r.LogReason&&t.Result==r.LogResult&&Time.time-r.LogAt<.25f)return;
+        r.LogEpisode=t.Episode;r.LogState=t.State;r.LogReason=t.Reason;r.LogResult=t.Result;r.LogAt=Time.time;
         if((t.Remaining<=0||t.ValidFor<=0)&&!force)return;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="E04",stage="evaluated",decision="TacticalOutcome",
             reason=t.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,

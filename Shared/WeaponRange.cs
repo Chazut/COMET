@@ -27,6 +27,7 @@ public sealed class WeaponRangeConfig
 public sealed class WeaponRangeGun
 {
     public string Id="",Slot="",Name="",Class="",Optic="unknown",Fingerprint="";
+    public string OpticEvidence="";
     public int Loaded,Reserve;
     public bool Known,Usable,Automatic,Bolt;
     public double CloseScore,LongScore;

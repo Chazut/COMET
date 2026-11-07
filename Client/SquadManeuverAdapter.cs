@@ -130,6 +130,8 @@ public sealed partial class Plugin
         if(b.Mover.ActivePath!=null||QueuedCombatMovement(b)||Vector3.Distance(b.Position,r.Goal)>1)
         {EndCrossfire(b,s,"maneuver-support-moved-or-route-busy");return true;}
         if(r.Policy.Trace!.State=="ready"){r.Policy.Moving(Time.time,0);r.Policy.Progress(Time.time,0,config!.Crossfire);}
+        r.Policy.Trace.Reason=m.Confirmed?"maneuver-support-established":"maneuver-support-awaiting-steering";
+        r.Policy.Trace.Execution=m.Confirmed?"support angle observed; no flank movement claimed":"awaiting support steering callback";
         // Steering is executed by the native layer callback. Only then is this support confirmed.
         if(r.ManeuverFire&&!r.Maneuver!.MaySuppress){EndDiscipline(s,"suppression-plan-no-longer-needs-fire");r.ManeuverFire=false;}
         if(m.Confirmed&&m.Role=="support"&&r.Maneuver!.MaySuppress&&config!.SuppressionDiscipline.Enabled&&!s.SuppressionDiscipline.Fault)
