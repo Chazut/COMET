@@ -14,6 +14,8 @@ foreach(var (file,method,runtime,key) in new[]{
     var type=syntax.DescendantNodes().OfType<ClassDeclarationSyntax>().Single(x=>x.Identifier.Text==runtime);
     fragments.Add("partial class "+runtime+" {"+type.Members.OfType<FieldDeclarationSyntax>().Single(x=>x.Declaration.Variables.Any(v=>v.Identifier.Text==key))+"}");
 }
+var silent=CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Client/SilentSearchAdapter.cs"))).GetRoot();
+fragments.Add("partial class Probe {"+silent.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(x=>x.Identifier.Text=="RecordSilent")+"}");
 var abandonment=CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Client/SearchAbandonmentAdapter.cs"))).GetRoot();
 fragments.Add("partial class Probe {"+abandonment.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(x=>x.Identifier.Text=="NeedsAbandonment")+"}");
 var source="using System; using Comet.Core;\n"+string.Join("\n",fragments);

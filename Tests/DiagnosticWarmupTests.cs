@@ -65,6 +65,16 @@ internal static class DiagnosticWarmupTests
         var allocating=Measure(()=>JsonConvert.SerializeObject(sample,Diagnostics.Json));var pooled=Measure(()=>Diagnostics.Serialize(sample));
         Check(pooled.bytes<allocating.bytes,"pooling reduces allocations without removing diagnostic fields");
         Console.WriteLine($"Diagnostic serialization benchmark (CoreCLR, 1000 events): before={allocating.bytes}B/{allocating.ms:F1}ms after={pooled.bytes}B/{pooled.ms:F1}ms; raid timing remains unverified.");
+        var oldSerializer=JsonSerializer.CreateDefault(Diagnostics.Json);var oldBuffer=new System.Text.StringBuilder(4096);
+        string PreviousSnapshot(){oldBuffer.Clear();using var output=new StringWriter(oldBuffer,System.Globalization.CultureInfo.InvariantCulture);using var writer=new JsonTextWriter(output);oldSerializer.Serialize(writer,sample);writer.Flush();return oldBuffer.ToString();}
+        Check(PreviousSnapshot()==Diagnostics.Serialize(sample),"previous pooled writer and typed snapshot are byte-identical");
+        // Compare to the preceding build's pooled implementation, not only JsonConvert.
+        // Multiple rounds reduce first-tier JIT noise; these are desktop measurements.
+        var baselineRounds=new List<(long bytes,double ms)>();var typedRounds=new List<(long bytes,double ms)>();
+        for(int round=0;round<5;round++){baselineRounds.Add(Measure(PreviousSnapshot));typedRounds.Add(Measure(()=>Diagnostics.Serialize(sample)));}
+        var baseline=baselineRounds.OrderBy(x=>x.ms).ElementAt(2);var typed=typedRounds.OrderBy(x=>x.ms).ElementAt(2);
+        Check(typed.bytes<baseline.bytes,"typed DTO properties reduce allocations beyond existing pooling");
+        Console.WriteLine($"Typed vs previous pooled snapshot (CoreCLR, median 5x1000): before={baseline.bytes}B/{baseline.ms:F1}ms after={typed.bytes}B/{typed.ms:F1}ms.");
         var originalConfig=new Comet.Core.CometConfig();
         string expectedConfig=JsonConvert.SerializeObject(originalConfig,new JsonSerializerSettings{ContractResolver=new CamelCasePropertyNamesContractResolver()});
         Check(expectedConfig==JsonConvert.SerializeObject(originalConfig,preparedSettings),"full configuration payload unchanged");
@@ -73,6 +83,33 @@ internal static class DiagnosticWarmupTests
         // Compare both readers after the same round trip, not against the original.
         var expectedRoundTrip=JsonConvert.SerializeObject(JsonConvert.DeserializeObject<Comet.Core.CometConfig>(expectedConfig,plainSettings),plainSettings);
         Check(JsonConvert.SerializeObject(JsonConvert.DeserializeObject<Comet.Core.CometConfig>(expectedConfig,preparedSettings),preparedSettings)==expectedRoundTrip,"reader retains native setters and collection population behavior");
+        Check(expectedConfig==Diagnostics.Serialize(originalConfig),"typed writer preserves complete configuration");
+        var fast=new SnapshotDiagnosticResolver();int gettersBefore=getterCalls;
+        DiagnosticWarmup.Prepare(typeof(DiagnosticWarmupTests).Assembly,fast,false);
+        Check(fast.WritersPrepared>100&&getterCalls==gettersBefore,"typed writers compiled without running getters");
+        int dtoCount=0;
+        foreach(var type in typeof(Comet.Core.CometConfig).Assembly.GetTypes().Where(t=>t.Namespace=="Comet.Core"&&!t.IsAbstract&&!t.ContainsGenericParameters&&t.GetConstructor(Type.EmptyTypes)!=null))
+        {
+            object value=Activator.CreateInstance(type)!;
+            Check(JsonConvert.SerializeObject(value,plainSettings)==Diagnostics.Serialize(value),"typed DTO unchanged: "+type.Name);dtoCount++;
+        }
+        Check(dtoCount>100,"broad production DTO coverage");
+        var special=new{missing=(string?)null,number=(int?)7,absent=(int?)null,flag=(bool?)true,enumValue=DayOfWeek.Friday,
+            text="quote \" slash \\ newline\n한국어",nan=double.NaN,infinity=float.PositiveInfinity,
+            guid=Guid.Parse("b993df34-34e9-49f0-864b-0ef963be48b7"),time=new DateTime(2026,11,7,1,2,3,DateTimeKind.Utc),
+            bytes=new byte[]{0,1,255},dict=new Dictionary<string,object?>{{"Score",2.5},{"Null",null}},token=Newtonsoft.Json.Linq.JObject.Parse("{\"unchangedName\":true}")};
+        Check(JsonConvert.SerializeObject(special,plainSettings)==Diagnostics.Serialize(special),"null, nullable, enum, unicode, special numbers and containers unchanged");
+        var mutable=new Comet.Core.CrossfireTrace{GroundPaused=true,GroundPauses=1};
+        string frozen=Diagnostics.Serialize(new{trace=mutable});mutable.GroundPaused=false;mutable.GroundPauses=2;
+        Check(frozen.Contains("\"groundPaused\":true")&&frozen.Contains("\"groundPauses\":1"),"event-time DTO snapshot detached before background writing");
+        try
+        {
+            JsonConvert.DefaultSettings=()=>new JsonSerializerSettings{Converters={new Newtonsoft.Json.Converters.StringEnumConverter()},DefaultValueHandling=DefaultValueHandling.Ignore};
+            Check(JsonConvert.SerializeObject(special,Diagnostics.Json)==Diagnostics.Serialize(special),"global converters and default filtering keep ordinary serializer contracts");
+        }
+        finally{JsonConvert.DefaultSettings=originalDefaults;}
+        Check(JsonConvert.SerializeObject(special,plainSettings)==Diagnostics.Serialize(special),"switch back to typed contracts after customized defaults");
+        Console.WriteLine($"Typed snapshots: {dtoCount} production DTOs, {fast.WritersPrepared} prepared writers.");
         var repeated = DiagnosticWarmup.Prepare(typeof(DiagnosticWarmupTests).Assembly, resolver, false);
         Check(before == resolver.Created.Count && repeated.Contracts == report.Contracts, "repeated preparation reuses cached metadata");
         Console.WriteLine($"Diagnostic metadata: {report.Contracts} contracts, {report.Failed} unavailable, {report.Milliseconds:F1} ms at startup");

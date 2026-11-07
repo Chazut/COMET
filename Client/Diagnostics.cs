@@ -86,7 +86,7 @@ namespace Comet.Client
 // Newtonsoft normally compiles its member readers on first GetValue, even after
 // ResolveContract. Build those readers during pre-raid contract preparation,
 // without constructing a payload or executing any property getter.
-internal sealed class PreparedDiagnosticResolver : CamelCasePropertyNamesContractResolver
+internal class PreparedDiagnosticResolver : CamelCasePropertyNamesContractResolver
 {
     internal int ReadersPrepared { get; private set; }
     internal int ReadersFallback { get; private set; }
@@ -120,6 +120,69 @@ internal sealed class PreparedDiagnosticResolver : CamelCasePropertyNamesContrac
         public object GetValue(object target)=>get(target);
         public void SetValue(object target,object? value)=>fallback.SetValue(target,value);
     }
+
+}
+
+// Separate resolver type isolates Newtonsoft's shared contract cache. The ordinary
+// resolver remains untouched for callers using application-wide custom settings.
+internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
+{
+    internal int WritersPrepared { get; private set; }
+    protected override JsonObjectContract CreateObjectContract(Type type)
+    {
+        var contract=base.CreateObjectContract(type);
+        if(type.Namespace!="Comet.Core" && !(type.IsDefined(typeof(CompilerGeneratedAttribute),false)
+            && type.Name.Contains("AnonymousType")))return contract;
+        if(contract.Converter!=null || contract.IsReference==true || contract.OnSerializingCallbacks.Count!=0
+            || contract.OnSerializedCallbacks.Count!=0 || contract.ExtensionDataGetter!=null)return contract;
+        try
+        {
+            var writer=Expression.Parameter(typeof(JsonWriter),"writer");
+            var value=Expression.Parameter(typeof(object),"value");
+            var serializer=Expression.Parameter(typeof(JsonSerializer),"serializer");
+            var target=Expression.Variable(type,"target");
+            var body=new List<Expression>{Expression.Assign(target,Expression.Convert(value,type)),
+                Expression.Call(writer,nameof(JsonWriter.WriteStartObject),Type.EmptyTypes)};
+            foreach(var property in contract.Properties)
+            {
+                if(property.Ignored || !property.Readable)continue;
+                // Custom contracts retain Newtonsoft's complete policy handling.
+                if(property.Converter!=null || property.ShouldSerialize!=null || property.GetIsSpecified!=null
+                    || property.NullValueHandling.HasValue || property.DefaultValueHandling.HasValue
+                    || property.TypeNameHandling.HasValue || property.IsReference.HasValue
+                    || property.ReferenceLoopHandling.HasValue || property.ItemConverter!=null
+                    || property.ItemIsReference.HasValue || property.ItemReferenceLoopHandling.HasValue
+                    || property.ItemTypeNameHandling.HasValue)return contract;
+                var member=Expression.PropertyOrField(target,property.UnderlyingName!);
+                body.Add(Expression.Call(writer,nameof(JsonWriter.WritePropertyName),Type.EmptyTypes,Expression.Constant(property.PropertyName)));
+                var write=typeof(JsonWriter).GetMethod(nameof(JsonWriter.WriteValue),new[]{member.Type});
+                // Typed primitive writes avoid boxing and repeated serializer property
+                // dispatch. Nested objects/collections still use Newtonsoft's contracts.
+                body.Add(write!=null && member.Type!=typeof(object) && write.GetParameters()[0].ParameterType==member.Type
+                    ? Expression.Call(writer,write,member)
+                    : Expression.Call(serializer,nameof(JsonSerializer.Serialize),Type.EmptyTypes,writer,Expression.Convert(member,typeof(object))));
+            }
+            body.Add(Expression.Call(writer,nameof(JsonWriter.WriteEndObject),Type.EmptyTypes));
+            var writeObject=Expression.Lambda<Action<JsonWriter,object,JsonSerializer>>(
+                Expression.Block(new[]{target},body),writer,value,serializer).Compile();
+            RuntimeHelpers.PrepareDelegate(writeObject);
+            contract.Converter=new PreparedObjectWriter(writeObject);WritersPrepared++;
+        }
+        catch { /* Unsupported shapes keep the ordinary serializer. */ }
+        return contract;
+    }
+    private sealed class PreparedObjectWriter : JsonConverter
+    {
+        private readonly Action<JsonWriter,object,JsonSerializer> write;
+        internal PreparedObjectWriter(Action<JsonWriter,object,JsonSerializer> write)=>this.write=write;
+        public override bool CanWrite=>true;
+        public override bool CanRead=>false;
+        public override bool CanConvert(Type type)=>true;
+        public override void WriteJson(JsonWriter writer,object? value,JsonSerializer serializer)
+        {if(value==null)writer.WriteNull();else write(writer,value,serializer);}
+        public override object ReadJson(JsonReader reader,Type type,object? existing,JsonSerializer serializer)
+            =>throw new NotSupportedException();
+    }
 }
 
     // The revision on every decision resolves to one full snapshot per raid/revision.
@@ -143,6 +206,7 @@ internal sealed class PreparedDiagnosticResolver : CamelCasePropertyNamesContrac
         [ThreadStatic] private static Func<JsonSerializerSettings>? serializerDefaults;
         [ThreadStatic] private static System.Text.StringBuilder? buffer;
         [ThreadStatic] private static bool serializing;
+        internal static readonly JsonSerializerSettings SnapshotJson = new JsonSerializerSettings { ContractResolver = new SnapshotDiagnosticResolver() };
         // Snapshot live values now, exactly as before. Only immutable JSON goes
         // to workers/subscribers. Reuse metadata/writer storage, never payloads.
         internal static string Serialize(object value)
@@ -154,7 +218,9 @@ internal sealed class PreparedDiagnosticResolver : CamelCasePropertyNamesContrac
             {
                 var defaults=JsonConvert.DefaultSettings;
                 if(serializer==null || !ReferenceEquals(serializerDefaults,defaults))
-                { serializer=JsonSerializer.CreateDefault(Json);serializerDefaults=defaults; }
+                { serializer=JsonSerializer.CreateDefault(defaults==null?SnapshotJson:Json);serializerDefaults=defaults; }
+                // Global serializer customizations are outside the fixed diagnostic
+                // contract. Preserve their behavior with the original writer.
                 using var output=new StringWriter(text,System.Globalization.CultureInfo.InvariantCulture);
                 using var writer=new JsonTextWriter(output);
                 serializer.Serialize(writer,value);writer.Flush();return text.ToString();

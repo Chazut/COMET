@@ -228,9 +228,9 @@ public sealed partial class Plugin : BaseUnityPlugin
             FinishIntegration();
             try
             {
-                var warm = DiagnosticWarmup.Prepare(typeof(Plugin).Assembly, Diagnostics.Json.ContractResolver!);
-                var readers=Diagnostics.Json.ContractResolver as PreparedDiagnosticResolver;
-                Logger.LogInfo($"Diagnostics prepared before raids: {warm.Contracts} contracts, {warm.Methods} methods, {warm.Failed} unavailable, {readers?.ReadersPrepared ?? 0} readers, {readers?.ReadersFallback ?? 0} reader fallbacks, {warm.Milliseconds:F1} ms.");
+                var warm = DiagnosticWarmup.Prepare(typeof(Plugin).Assembly, Diagnostics.SnapshotJson.ContractResolver!);
+                var readers=Diagnostics.SnapshotJson.ContractResolver as PreparedDiagnosticResolver;
+                Logger.LogInfo($"Diagnostics prepared before raids: {warm.Contracts} contracts, {warm.Methods} methods, {warm.Failed} unavailable, {readers?.ReadersPrepared ?? 0} readers, {readers?.ReadersFallback ?? 0} reader fallbacks, {(Diagnostics.SnapshotJson.ContractResolver as SnapshotDiagnosticResolver)?.WritersPrepared ?? 0} typed writers, {warm.Milliseconds:F1} ms.");
                 if(warm.Failed>0) Logger.LogWarning("Diagnostic preparation details: " + string.Join("; ", warm.Unavailable));
             }
             catch (Exception ex) { Logger.LogWarning("Diagnostic warmup unavailable: " + ex.Message); }
@@ -935,7 +935,6 @@ internal sealed class BotState
     internal string AbandonLogKey="";
     internal SilentSearchTrace? SilentTrace;
     internal float SilentLogAt = -1000;
-    internal string SilentLogKey = "";
     internal bool SilentAccepted, SilentObserved, SilentMoved, SilentWarned, SilentFault;
     internal Vector3 SilentStart;
     internal readonly ImpactRuntime Impact;

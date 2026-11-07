@@ -14,6 +14,7 @@ partial class PistolSwapRuntime { public Policy<PistolSwapTrace> Policy=new(); p
 partial class WeaponRangeRuntime { public Policy<WeaponRangeTrace> Policy=new(); public float LogAt; }
 partial class DoorTransitRuntime { public Policy<DoorTransitTrace> Policy=new(); public float LogAt; }
 class BotState {
+    public SilentSearchTrace SilentTrace=new();public float SilentLogAt=-100;
     public PistolSwapRuntime PistolSwap=new(); public WeaponRangeRuntime WeaponRange=new(); public DoorTransitRuntime Transit=new();
     public string ProfileId="pmc",Name="bot",Id="instance";
     public SearchAbandonment Abandonment=new(); public SearchAbandonmentFrame? AbandonPending; public float AbandonProbeAt;
@@ -54,6 +55,13 @@ partial class Probe {
         s.WeaponRange.Policy.Trace.State="a";s.WeaponRange.Policy.Trace.Reason="b:c";p.RecordWeaponRange(b,s);
         Check(p.sequence==collision+1,"distinct values cannot collide on string delimiters");
         Check(Api.Decisions.Lines.Count==p.diagnostics.Lines.Count,"RR and file receive the same event count");
+        p.RecordSilent(s);var silentCount=p.sequence;
+        for(int i=0;i<1000;i++)p.RecordSilent(s);
+        long silentBefore=GC.GetAllocatedBytesForCurrentThread();for(int i=0;i<100000;i++)p.RecordSilent(s);
+        Check(GC.GetAllocatedBytesForCurrentThread()==silentBefore,"suppressed P08 heartbeat does not format an unused string key");
+        Check(p.sequence==silentCount,"P08 heartbeat cadence unchanged");
+        p.RecordSilent(s,true);Check(p.sequence==silentCount+1,"P08 forced transitions retained immediately");
+        Time.time+=1;p.RecordSilent(s);Check(p.sequence==silentCount+2,"P08 periodic evidence retained");
         var e=new Enemy{Bot=b};b.GoalEnemy=e;p.states[b]=s;s.AbandonProbeAt=Time.time+.25f;var checker=new EnemyKnownChecker{Enemy=e};
         Check(!NeedsAbandonment(checker,false),"dormant search skips expensive duplicate safety reads");
         Check(!NeedsAbandonment(checker,true),"no pending forget callback");

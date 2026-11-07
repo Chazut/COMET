@@ -125,10 +125,9 @@ public sealed partial class Plugin
     private void RecordSilent(BotState s,bool force=false)
     {
         var t=s.SilentTrace;if(t==null)return;
-        string key=t.State+":"+t.Reason+":"+t.Choice+":"+t.SearchRefusal;
         if(!force&&Time.time-s.SilentLogAt<1)return;
         // Waiting details have a short heartbeat for replay. No per-frame diagnostic serialization.
-        s.SilentLogAt=Time.time;s.SilentLogKey=key;
+        s.SilentLogAt=Time.time;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="P08",stage="evaluated",decision="SilentSearch",
             reason=t.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,
             silentSearchConfig=config?.SilentSearch,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,silentSearch=t});

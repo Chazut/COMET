@@ -32,7 +32,7 @@ static class Audit
         var client = typeof(Comet.Client.Plugin).Assembly;
         var warmup = client.GetType("Comet.Client.DiagnosticWarmup", true)!;
         var prepare = warmup.GetMethod("Prepare", BindingFlags.Static | BindingFlags.NonPublic)!;
-        var resolver = (Newtonsoft.Json.Serialization.IContractResolver)Activator.CreateInstance(client.GetType("Comet.Client.PreparedDiagnosticResolver",true)!,true)!;
+        var resolver = (Newtonsoft.Json.Serialization.IContractResolver)Activator.CreateInstance(client.GetType("Comet.Client.SnapshotDiagnosticResolver",true)!,true)!;
         var report = prepare.Invoke(null, new object[] { client, resolver, false })!;
         object Read(string name) => report.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(report)!;
         int contracts = (int)Read("Contracts"), failed = (int)Read("Failed");

@@ -13,7 +13,10 @@ static class DiagnosticConfigurationTests
         Action<string> healthy=x=>delivered.Add(x),broken=_=>throw new InvalidOperationException("subscriber test");
         Comet.Api.Decisions.RaidClosed=false;Comet.Api.Decisions.Clear();
         Comet.Api.Decisions.Published+=once;Comet.Api.Decisions.Published+=broken;Comet.Api.Decisions.Published+=healthy;
-        Comet.Api.Decisions.Publish("first",errors.Add);Comet.Api.Decisions.Publish("second",errors.Add);
+        // Delivery is frame-budgeted. Drain each publication before testing the
+        // next subscription snapshot, regardless of JIT/exception timing.
+        Comet.Api.Decisions.Publish("first",errors.Add);Comet.Api.Decisions.FlushPending();
+        Comet.Api.Decisions.Publish("second",errors.Add);Comet.Api.Decisions.FlushPending();
         Check(delivered.SequenceEqual(new[]{"once:first","first","second"}),"subscription mutation preserves in-flight immutable snapshot and next dispatch");
         Check(errors.Count==1,"failed subscriber isolated without dropping healthy subscriber");
         Comet.Api.Decisions.Published-=broken;Comet.Api.Decisions.Published-=healthy;
