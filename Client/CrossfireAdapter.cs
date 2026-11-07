@@ -34,6 +34,9 @@ internal sealed class CrossfireRuntime
     internal IBotPathData? Path;
     internal float PathStarted,Angle,Length;
     internal IBotPathData? HandoffPath;
+    internal IBotPathData? HandoffQueued;
+    internal Vector3 HandoffDestination, HandoffQueuedDestination;
+    internal float HandoffQueuedStarted, HandoffObservedAt, HandoffWait=-1;
     internal float HandoffStarted, NextEligibility, GateLogAt, AirborneSince=-1, NextTraceAt;
     internal readonly Dictionary<string,float> EligibilityLogAt=new();
     internal readonly Dictionary<string,int> EligibilitySkipped=new();
@@ -212,7 +215,11 @@ public sealed partial class Plugin
             if(!b.Player.MovementContext.IsGrounded)return;
             if(!r.Layer)
             {
-                if(!p.TakeCrossfireHandoff(b,s)){p.EndCrossfire(b,s,"crossfire-handoff-route-changed");return;}
+                if(!p.TakeCrossfireHandoff(b,s))
+                {
+                    if(r.Policy.Trace?.Handoff?.Reason=="waiting-native-queue")return;
+                    p.EndCrossfire(b,s,"crossfire-handoff-"+(r.Policy.Trace?.Handoff?.Reason??"unavailable"));return;
+                }
                 r.Layer=true;r.StartWait=Time.time;owner.PatrollingData.Pause();p.Release(s,"crossfire-layer-active",false,true);
             }
             // Reserve the tactical handoff during preparation, before the outgoing
@@ -246,7 +253,7 @@ public sealed partial class Plugin
         if(r.Policy.Trace.Entrance!=null){r.Entrance.Policy.End(Time.time,r.ContactAt);ReleaseEntrance(s);}
         r.Policy.End(Time.time,config?.Crossfire??new(),reason);r.Layer=false;crossfireClaims.Release(s.Id);
         try{StopCrossfireRoute(b,r);}catch(Exception ex){Logger.LogWarning("S01 route release: "+ex.GetBaseException().Message);}
-        finally{r.Route=null;r.HandoffPath=null;r.Samples.Clear();r.Candidates.Clear();RecordCrossfire(s,true);r.Entrance.Drop();r.Maneuver=null;r.ManeuverRole=null;r.Storm.Plan=null;r.Storm.Member=null;}
+        finally{r.Route=null;r.HandoffPath=null;r.HandoffQueued=null;r.HandoffWait=-1;r.Samples.Clear();r.Candidates.Clear();RecordCrossfire(s,true);r.Entrance.Drop();r.Maneuver=null;r.ManeuverRole=null;r.Storm.Plan=null;r.Storm.Member=null;}
     }
     private void CrossfireError(BotComponent b,BotState s,Exception ex)
     {if(s.Crossfire.Fault)return;s.Crossfire.Fault=true;EndCrossfire(b,s,"crossfire-adapter-error");Logger.LogWarning("S01 yielded: "+ex.GetBaseException().Message);}

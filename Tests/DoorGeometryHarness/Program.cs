@@ -60,6 +60,17 @@ Check(plugin.Check(bot,data,new(2,12,2))=="","upstairs candidate uses physical l
 Check(plugin.Check(bot,data,new(2,0,2))=="geometry-wrong-floor","ground candidate still rejected for upstairs custom link");
 data.Link.name="native";data.Link.BottomY=12;
 Check(plugin.Check(bot,data,new(2,12,2))=="","native explicit floor preserved");
+foreach(float floor in new[]{5.18f,-5.18f,12f})
+{
+ data.Link.BottomY=0;data.Link.Close1=new(-.5f,floor,0);data.Link.Close2_Normal=new(.5f,floor,0);
+ data.Link.Open1=new(-.5f,floor,0);data.Link.Open2=new(-.5f,floor,1);
+ door.Collider.Low=floor;door.Collider.High=floor+2;Time.time+=1;
+ Check(plugin.Geometry(data,out var native)&&Math.Abs(native.Center.Y-floor)<.01&&native.Source=="native-physical-floor","raid399 native missing floor repaired from leaf");
+ Check(plugin.Check(bot,data,new(2,floor,2))=="","same-floor native candidate accepted");
+ Check(plugin.Check(bot,data,new(2,0,2))=="geometry-wrong-floor","other-floor native candidate still rejected");
+ door.Collider.enabled=false;Check(!plugin.Geometry(data,out _),"native bad frame without physical evidence rejected");door.Collider.enabled=true;
+ door.Collider.Low=0;Check(!plugin.Geometry(data,out _),"unrelated floor collider cannot certify native frame");door.Collider.Low=floor;
+}
 plugin.Release(bot);
 Check(plugin.Lines.Last().Contains("\"validFor\":0"),"release clears map observation");
 int ended=plugin.Lines.Count;plugin.Release(bot);Check(plugin.Lines.Count==ended,"release idempotent");

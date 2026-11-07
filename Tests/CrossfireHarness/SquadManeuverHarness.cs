@@ -20,11 +20,14 @@ internal static class SquadManeuverHarness
    return(p,bots);
   }
   CrossfireAction Action(Plugin p,BotComponent b){var l=new CrossfireLayer(b.BotOwner,21);C(l.IsActive(),"native layer active");var a=new CrossfireAction(b.BotOwner);a.Start();a.OnSteeringTicked();return a;}
-  (Plugin p,BotComponent[] bots,CrossfireAction[] actions) Start(int count=4)
+  (Plugin p,BotComponent[] bots,CrossfireAction[] actions) Start(int count=4,bool queued=false)
   {
    var(p,bots)=Setup(count);
    foreach(var b in bots){b.Decision.CurrentCombatDecision=SAIN.Preset.Shared.Enums.ECombatDecision.Search;
-    b.Mover.ActivePath=new BotPathDataManual{TimeStarted=Time.time,Destination=new(0,0,20),OnStop=()=>b.Mover.ActivePath=null};p.Observe(b);}
+    b.Mover.ActivePath=new BotPathDataManual{TimeStarted=Time.time,Destination=new(0,0,20),OnStop=()=>b.Mover.ActivePath=null};
+    if(queued){var prepared=new BotPathDataManual{TimeStarted=-1,Destination=new(1,0,20),OnStop=()=>b.Mover.ActivePath=null};
+     b.Mover.QueuedPath=prepared;((BotPathDataManual)b.Mover.ActivePath).OnStop=()=>{b.Mover.ActivePath=prepared;b.Mover.QueuedPath=null;prepared.TimeStarted=Time.time;};}
+    p.Observe(b);}
    C(p.states[bots[0]].Crossfire.Maneuver!=null,"shared plan created");var actions=new CrossfireAction[count];actions[0]=Action(p,bots[0]);
    for(int i=1;i<count;i++){var r=p.states[bots[i]].Crossfire;r.Candidates.Clear();r.Candidates.Add(i==1?new(-20,0,20):i==2?new(20,0,20):new(12,0,30));r.Candidate=0;r.Route=null;r.Samples.Clear();}
    for(int n=0;n<180;n++)
@@ -42,6 +45,13 @@ internal static class SquadManeuverHarness
    C(p.states[bots[0]].Crossfire.Policy.Trace!.Reason=="maneuver-support-established","support is not reported as flanker arrival");
    var r=p.states[bots[1]].Crossfire;bots[1].Position=r.Goal;Step();actions[1].Update(new());actions[0].Update(new());C(!r.Maneuver!.MaySuppress,"arrival stops suppression");
    p.EndAll();C(p.Claims==0&&Api.Decisions.Labels.Count==0,"cleanup");events.AddRange(p.diagnostics!.Lines);
+  }
+  {
+   var(p,bots,actions)=Start(2,true);
+   C(bots.All(b=>p.states[b].Crossfire.Policy.Trace!.Handoff!.ReleasedPaths==2),"raid399: both observed native paths released");
+   C(p.states[bots[0]].Crossfire.Maneuver!.Members.All(m=>m.Confirmed),"raid399: queued-path support and flanker really confirmed");
+   C(p.states[bots[1]].Crossfire.Policy.Trace!.State=="moving","raid399: flanker actually moves after support callback");
+   events.AddRange(p.diagnostics!.Lines);p.EndAll();
   }
   foreach(var fault in new[]{"reload","heal","ghost","remote","visible","contact","distance","foreign-route","callbacks"})
   {

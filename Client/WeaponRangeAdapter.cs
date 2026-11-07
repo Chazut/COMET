@@ -15,7 +15,7 @@ internal sealed class WeaponRangeRuntime
 {
     internal readonly WeaponRangePolicy Policy=new();
     internal float Next,LogAt=-1000;
-    internal string LogKey="";
+    internal (string,string,string,string,string,bool) LogKey;
     internal bool Fault;
 }
 public sealed partial class Plugin
@@ -146,9 +146,9 @@ public sealed partial class Plugin
     private void RecordWeaponRange(BotComponent? b,BotState s,bool force=false)
     {
         var r=s.WeaponRange;var t=r.Policy.Trace;if(t==null)return;
-        if(b!=null)t.Action=b.Decision.CurrentSelfDecision==ESelfActionType.Reload?"Reload":b.Decision.CurrentCombatDecision.ToString();
-        string key=t.State+":"+t.Reason+":"+t.From+":"+t.To+":"+t.Target+":"+t.Ready;
+        var key=(t.State,t.Reason,t.From,t.To,t.Target,t.Ready);
         if(!force&&key==r.LogKey&&Time.time-r.LogAt<.25f)return;r.LogKey=key;r.LogAt=Time.time;
+        if(b!=null)t.Action=b.Decision.CurrentSelfDecision==ESelfActionType.Reload?"Reload":b.Decision.CurrentCombatDecision.ToString();
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="W05",stage="evaluated",decision="WeaponRange",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
             weaponRange=t,weaponRangeConfig=config?.WeaponRange});

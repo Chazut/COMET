@@ -20,13 +20,24 @@ public sealed partial class Plugin
     // start time, ground state and current priority before cancelling anything.
     private static bool CrossfireCanHandoff(BotComponent b) => CrossfireTacticalDecision(b)
         && b.Mover.ActivePath is BotPathDataManual;
+    private static bool CrossfireCanAcquire(BotComponent b)
+    {
+        if(!CrossfireTacticalDecision(b)||b.Mover.ActivePath is not null and not BotPathDataManual)return false;
+        var queued=CrossfireQueuedPath(b);return queued is null or BotPathDataManual;
+    }
     private static void RememberCrossfireHandoff(BotComponent b,CrossfireRuntime r)
     {
         r.HandoffPath=CrossfireCanHandoff(b)?b.Mover.ActivePath:null;
         r.HandoffStarted=r.HandoffPath?.TimeStarted??0;
+        r.HandoffDestination=r.HandoffPath?.Destination??default;
+        r.HandoffQueued=CrossfireTacticalDecision(b)?CrossfireQueuedPath(b):null;
+        r.HandoffQueuedStarted=r.HandoffQueued?.TimeStarted??0;
+        r.HandoffQueuedDestination=r.HandoffQueued?.Destination??default;
+        r.HandoffWait=-1;
+        r.HandoffObservedAt=Time.time;
         r.Policy.Trace!.Handoff=new(){PlannedDecision=b.Decision.CurrentCombatDecision.ToString(),
             ExpectedPath=r.HandoffPath==null?0:System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(r.HandoffPath),
-            ExpectedStarted=r.HandoffStarted};
+            ExpectedStarted=r.HandoffStarted,ExpectedQueuedPath=r.HandoffQueued==null?0:System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(r.HandoffQueued)};
     }
     private bool PendingCrossfireHandoff(BotComponent b,CrossfireRuntime r)
     {
@@ -34,7 +45,7 @@ public sealed partial class Plugin
         // Sprint can still reflect the outgoing path during this handoff.
         var path=b.Mover.ActivePath;
         return r.Policy.Active&&r.HandoffPath!=null&&CrossfireTacticalDecision(b)
-            &&!QueuedCombatMovement(b)&&(path==null||path is BotPathDataManual
+            &&(path==null||path is BotPathDataManual
                 &&ReferenceEquals(path,r.HandoffPath)&&path.TimeStarted==r.HandoffStarted);
     }
     private bool TakeCrossfireHandoff(BotComponent b,BotState s)
@@ -45,20 +56,60 @@ public sealed partial class Plugin
         evidence.CurrentPath=path==null?0:System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(path);
         evidence.CurrentStarted=path?.TimeStarted??0;
         evidence.PathType=path?.GetType().Name??"none";
-        evidence.Reason=QueuedCombatMovement(b)?"queued-movement":!CrossfireTacticalDecision(b)?"protected-decision":
+        var queued=CrossfireQueuedPath(b);
+        // SAIN may prepare the next ordinary leg between planning and our layer's
+        // first callback. Acquire it only while the original active path is still
+        // unchanged and all current emergency/ownership guards have passed.
+        if(queued is BotPathDataManual&&path!=null&&ReferenceEquals(path,r.HandoffPath)
+            &&path.TimeStarted==r.HandoffStarted&&(path.Destination-r.HandoffDestination).sqrMagnitude<.0004f
+            &&CrossfireTacticalDecision(b)&&b.Player.MovementContext.IsGrounded)
+        {
+            evidence.QueueCapturedAtHandoff=!ReferenceEquals(queued,r.HandoffQueued)
+                ||queued.TimeStarted!=r.HandoffQueuedStarted||(queued.Destination-r.HandoffQueuedDestination).sqrMagnitude>=.0004f;
+            r.HandoffQueued=queued;r.HandoffQueuedStarted=queued.TimeStarted;r.HandoffQueuedDestination=queued.Destination;
+            evidence.ExpectedQueuedPath=System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(queued);
+        }
+        evidence.QueuedPath=queued==null?0:System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(queued);
+        bool observedQueue=queued==null||ReferenceEquals(queued,r.HandoffQueued)
+            &&queued.TimeStarted==r.HandoffQueuedStarted&&(queued.Destination-r.HandoffQueuedDestination).sqrMagnitude<.0004f;
+        bool promoted=path!=null&&ReferenceEquals(path,r.HandoffQueued)
+            &&(path.Destination-r.HandoffQueuedDestination).sqrMagnitude<.0004f
+            &&path.TimeStarted>=r.HandoffObservedAt&&path.TimeStarted<=Time.time;
+        evidence.Reason=!CrossfireTacticalDecision(b)?"protected-decision":
             !b.Player.MovementContext.IsGrounded?"airborne":path==null?"already-released":
-            path is not BotPathDataManual?"non-manual-path":r.HandoffPath==null?"unobserved-path":
-            !ReferenceEquals(path,r.HandoffPath)?"path-replaced":path.TimeStarted!=r.HandoffStarted?"path-restarted":"observed-tactical-path";
-        if(evidence.Reason=="already-released"){r.HandoffPath=null;return true;}
+            path is not BotPathDataManual?"non-manual-path":promoted?"observed-tactical-path":r.HandoffPath==null?"unobserved-path":
+            !ReferenceEquals(path,r.HandoffPath)?"path-replaced":path.TimeStarted!=r.HandoffStarted?"path-restarted":
+            (path.Destination-r.HandoffDestination).sqrMagnitude>=.0004f?"path-retargeted":"observed-tactical-path";
+        if(evidence.Reason!="observed-tactical-path"&&evidence.Reason!="already-released")return false;
+        if(!observedQueue||queued is not null and not BotPathDataManual||path==null&&queued!=null)
+        {
+            // A new queued path may finish its ordinary native transition. Never
+            // cancel an unobserved/reused route or keep a squad waiting indefinitely.
+            if(r.HandoffWait<0)r.HandoffWait=Time.time;
+            evidence.WaitSeconds=Time.time-r.HandoffWait;
+            evidence.Reason=evidence.WaitSeconds<.75?"waiting-native-queue":"unobserved-queue-timeout";
+            RecordCrossfire(s,evidence.WaitSeconds==0);return false;
+        }
+        if(evidence.Reason=="already-released"&&queued==null){r.HandoffPath=null;r.HandoffQueued=null;return true;}
         if(evidence.Reason!="observed-tactical-path")return false;
         var manual=(BotPathDataManual)path!;
         // Only after BigBrain selected our action, and only the path observed when
         // planning. Never cancel a new route installed by an emergency or another mod.
         combatStopPath.Invoke(manual,new object[]{false,"COMET squad tactical handoff"});
+        evidence.ReleasedPaths++;
+        // SAIN PathComplete synchronously starts its prepared alternate route.
+        // Release it only if it is exactly the queue observed for this plan.
+        var next=b.Mover.ActivePath;
+        if(queued is BotPathDataManual prepared&&ReferenceEquals(next,queued)
+            &&CrossfireTacticalDecision(b)&&!QueuedCombatMovement(b)
+            &&(prepared.Destination-r.HandoffQueuedDestination).sqrMagnitude<.0004f
+            &&prepared.TimeStarted>=r.HandoffObservedAt&&prepared.TimeStarted<=Time.time)
+        {combatStopPath.Invoke(prepared,new object[]{false,"COMET observed squad queue handoff"});evidence.ReleasedPaths++;}
         r.HandoffPath=null;
-        RecordCrossfireGate(s,"squad-tactical-route-handoff",true);
         bool released=b.Mover.ActivePath==null&&!QueuedCombatMovement(b);
         evidence.Reason=released?"released-observed-tactical-path":"native-release-unconfirmed";
+        if(released)r.HandoffQueued=null;
+        RecordCrossfireGate(s,"squad-tactical-route-handoff",true);RecordCrossfire(s,true);
         return released;
     }
     private void RecordCrossfireGate(BotState s,string reason,bool force=false,string feature="S03")

@@ -17,19 +17,27 @@ public sealed partial class Plugin
     {
         g=new();if(d.Door==null||d.Link==null)return false;
         double bottom=d.Link.BottomY;
-        if(d.Link.name?.StartsWith("DoorLink_Custom_",StringComparison.Ordinal)==true)
+        bool custom=d.Link.name?.StartsWith("DoorLink_Custom_",StringComparison.Ordinal)==true;
+        double frameY=custom?(d.Link.Open1.y+d.Link.Open2.y)*.5:(d.Link.Close1.y+d.Link.Close2_Normal.y)*.5;
+        bool repaired=false;
+        if(custom||!DoorPolicy.Finite(bottom)||Math.Abs(frameY-bottom)>4)
         {
-            // Waypoints builds world-space endpoints but leaves BottomY at its zero
-            // default. Read the physical leaf's foot, independent of its rotation.
-            bottom=d.Link.Open1.y;
+            // Native links can also leave BottomY at zero (Labs upper floor).
+            // Repair from this door's physical leaf only, never the bot's floor.
+            // Custom Waypoints links retain their documented endpoint fallback.
+            double candidate=frameY;
             var panels=d.Door.CollisionColliders;
             bool found=false;
             if(panels!=null&&panels.Count<=16)foreach(var panel in panels)
                 if(panel!=null&&panel.enabled&&panel.gameObject.activeInHierarchy&&!panel.isTrigger)
-                { double y=panel.bounds.min.y;if(!double.IsNaN(y)&&!double.IsInfinity(y)){bottom=found?Math.Min(bottom,y):y;found=true;} }
+                { double y=panel.bounds.min.y;if(DoorPolicy.Finite(y)&&Math.Abs(frameY-y)<=4){candidate=found?Math.Min(candidate,y):y;found=true;} }
+            if(!custom&&!found)return false;
+            bottom=candidate;repaired=!custom;
         }
-        return DoorSpatial.Decode(d.Door.Id??d.Link.Id.ToString(),d.Door.DoorState.ToString(),d.Link.name??"",
+        bool valid=DoorSpatial.Decode(d.Door.Id??d.Link.Id.ToString(),d.Door.DoorState.ToString(),d.Link.name??"",
             DP(d.Link.Close1),DP(d.Link.Close2_Normal),DP(d.Link.Open1),DP(d.Link.Open2),bottom,out g);
+        if(valid&&repaired)g.Source="native-physical-floor";
+        return valid;
     }
     // Called inside the existing bounded door planning/revalidation budget. This guards
     // tactical stopping positions; it must not prevent native traversal of the threshold.

@@ -14,5 +14,5 @@ public sealed partial class Plugin
     }
     internal void EndSample(BotState state,string reason)
     { state.OwnCommand=false; if(ThrowCleanup)throw new InvalidOperationException("injected cleanup failure"); }
-    internal void RecordSample(BotState state) { _=Newtonsoft.Json.JsonConvert.SerializeObject(new {sample=true}); throw new InvalidOperationException("injected event serialization failure"); }
+    internal void RecordSample(BotState state) { _=Diagnostics.Serialize(new {sample=true}); throw new InvalidOperationException("injected event serialization failure"); }
 }

@@ -50,7 +50,7 @@ public sealed partial class Plugin
                 // Keep the squad's existing coordinated action. No competing S03/S04/S05 plan.
                 if(ms.Crossfire.Policy.Active){blocked=true;break;}
                 if(ms.Crossfire.Fault||Time.time<ms.Crossfire.Policy.RetryAt||mate.GoalEnemy?.EnemyProfileId!=e.EnemyProfileId
-                    ||StormBlock(mate,ms).Length>0||mate.Mover.ActivePath!=null&&!CrossfireCanHandoff(mate)||QueuedCombatMovement(mate)
+                    ||StormBlock(mate,ms).Length>0||!CrossfireCanAcquire(mate)
                     ||mate.GoalEnemy.KnownPlaces.LastKnownPosition is not Vector3 mk||Vector3.Distance(mk,known)>3)continue;
                 var observed=ReadStormEvidence(mate,ms);
                 if(observed.Danger){blocked=true;break;}

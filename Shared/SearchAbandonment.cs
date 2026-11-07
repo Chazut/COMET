@@ -56,6 +56,10 @@ public sealed class SearchAbandonment
     public SearchAbandonmentTrace? Current {get;private set;}
     public int RememberedCount=>failed.Count;
     public bool Remembers(string target)=>failed.ContainsKey(target);
+    // Between geometry probes, a dormant inspection has nothing to interrupt.
+    // Active inspections and failed-contact memory must still see urgent changes.
+    public bool NeedsSafetyCheck(string target)=>failed.ContainsKey(target)
+        || Current?.State is "reached" or "checking" or "requested";
     public void ForgetFailure(string target)=>failed.Remove(target);
     public void Clear() {failed.Clear();previous=null;inspected=0;interruptions=0;Current=null;}
     public void Interrupt(string reason)

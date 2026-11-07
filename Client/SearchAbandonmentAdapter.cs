@@ -25,8 +25,9 @@ public sealed partial class Plugin
         var p=Instance;if(p?.config==null)return false;
         var e=abandonmentEnemy(checker);
         if(!p.states.TryGetValue(e.Bot,out var s))return false;
-        return pending ? s.AbandonPending?.Target==e.EnemyProfileId
-            : ReferenceEquals(e.Bot.GoalEnemy,e)||s.Abandonment.Remembers(e.EnemyProfileId);
+        if(pending)return s.AbandonPending?.Target==e.EnemyProfileId;
+        if(!ReferenceEquals(e.Bot.GoalEnemy,e)&&!s.Abandonment.Remembers(e.EnemyProfileId))return false;
+        return Time.time>=s.AbandonProbeAt||s.AbandonPending!=null||s.Abandonment.NeedsSafetyCheck(e.EnemyProfileId);
     }
     private static void CheckSearchedPlace(EnemyKnownChecker __instance,float currentTime,ref bool __result)
     {

@@ -47,7 +47,7 @@ public sealed partial class Plugin
                 if(Vector3.Distance(b.Position,mate.Position)>c.SquadDistance)continue;
                 if(!states.TryGetValue(mate,out var ms)){if(states.Count>=512)continue;ms=new BotState(mate,config,session);states.Add(mate,ms);}
                 if(ms.Crossfire.Policy.Active||ms.Crossfire.Fault||Time.time<ms.Crossfire.Policy.RetryAt||CrossfireBlock(mate,ms,true).Length>0
-                    ||mate.Mover.ActivePath!=null&&!CrossfireCanHandoff(mate)||QueuedCombatMovement(mate))continue;
+                    ||!CrossfireCanAcquire(mate))continue;
                 var mk=mate.GoalEnemy.KnownPlaces.LastKnownPosition;
                 if(mk==null||Vector3.Distance(mk.Value,known)>4||mate.GoalEnemy.TimeSinceLastKnownUpdated>c.ContactAge)continue;
                 double md=Vector3.Distance(mate.Position,mk.Value);if(md<c.MinDistance||md>c.MaxDistance)continue;

@@ -90,6 +90,42 @@ foreach(var native in new[]{ECombatDecision.Retreat,ECombatDecision.RunAway,ECom
  b.Mover.ActivePath=null;b.Decision.CurrentCombatDecision=ECombatDecision.Freeze;b.Player.IsSprintEnabled=true;
  Start(p,b);C(previous.Stops==0,"already released native path permits residual sprint without another stop");
 }
+// Queued during planning: the unchanged native active leg still certifies acquisition.
+{
+ var(p,b,m)=Setup();b.Decision.CurrentCombatDecision=ECombatDecision.SeekCover;
+ var old=new BotPathDataManual{TimeStarted=Time.time,Destination=new(1,0,2)};b.Mover.ActivePath=old;Plan(p,b);
+ var queued=new BotPathDataManual{TimeStarted=-1,Destination=new(3,0,4),OnStop=()=>b.Mover.ActivePath=null};
+ b.Mover.QueuedPath=queued;old.OnStop=()=>{b.Mover.ActivePath=queued;b.Mover.QueuedPath=null;queued.TimeStarted=Time.time;};
+ Start(p,b);C(old.Stops==1&&queued.Stops==1&&p.states[b].Crossfire.Policy.Trace!.Handoff!.QueueCapturedAtHandoff,"late ordinary queued leg released with identity evidence");Save(p);
+}
+foreach(bool emergency in new[]{false,true})
+{
+ var(p,b,m)=Setup();b.Decision.CurrentCombatDecision=ECombatDecision.Search;
+ var old=new BotPathDataManual{TimeStarted=Time.time,Destination=new(1,0,2)};b.Mover.ActivePath=old;Plan(p,b);
+ var queued=new BotPathDataManual{TimeStarted=-1,Destination=new(3,0,4)};b.Mover.QueuedPath=queued;
+ if(emergency)b.Grenade.GrenadeDangerPoint=new();else old.TimeStarted+=1;
+ new CrossfireAction(b.BotOwner).Start();C(old.Stops==0&&queued.Stops==0&&!p.states[b].Crossfire.Policy.Active,"emergency/restarted path never cancelled with pending queue");
+}
+{
+ var(p,b,m)=Setup();b.Decision.CurrentCombatDecision=ECombatDecision.SeekCover;
+ var old=new BotPathDataManual{TimeStarted=Time.time,Destination=new(1,0,2)};
+ var queued=new BotPathDataManual{TimeStarted=-1,Destination=new(3,0,4),OnStop=()=>b.Mover.ActivePath=null};
+ b.Mover.ActivePath=old;b.Mover.QueuedPath=queued;Plan(p,b);
+ // SAIN completes its own transition before BigBrain starts COMET.
+ b.Mover.ActivePath=queued;b.Mover.QueuedPath=null;queued.TimeStarted=Time.time;
+ Start(p,b);C(old.Stops==0&&queued.Stops==1,"already promoted observed queue can hand over without cancelling old path");Save(p);
+}
+foreach(bool urgent in new[]{false,true})
+{
+ var(p,b,m)=Setup();b.Decision.CurrentCombatDecision=ECombatDecision.Search;
+ b.Mover.ActivePath=new BotPathDataManual{TimeStarted=Time.time};Plan(p,b);
+ var unknown=new BotPathDataManual{TimeStarted=-1,Destination=new(9,0,9)};b.Mover.ActivePath=null;b.Mover.QueuedPath=unknown;
+ var action=new CrossfireAction(b.BotOwner);action.Start();
+ C(p.states[b].Crossfire.Policy.Active&&unknown.Stops==0,"unobserved queued transition waits without cancellation");
+ if(urgent){b.Grenade.GrenadeDangerPoint=new();Step(.01f);}else Step(.8f);
+ action.Update(new());C(!p.states[b].Crossfire.Policy.Active&&unknown.Stops==0,"unknown queue wait is bounded and still yields immediately to grenade");
+ Save(p);
+}
 SecondaryEntranceHarness.Run();
 Raid397Harness.Run();
 SquadManeuverHarness.Run();

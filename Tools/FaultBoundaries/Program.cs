@@ -60,7 +60,8 @@ sealed class Boundaries(string file,Dictionary<string,string> callbacks,List<obj
   bool callback=callbacks.TryGetValue(name,out var kind)&&kind!="transpiler";
   if(file=="ContactSafety"||m.Body==null&&m.ExpressionBody==null||m.Modifiers.Any(SyntaxKind.PartialKeyword)||name.StartsWith("Patch")||kind=="transpiler"||name.EndsWith("Error")||name=="IsPmcAi")return m;
   // Skip diagnostics as their own independent sink boundary below; never quarantine combat for a consumer failure.
-  bool telemetry=(name.StartsWith("Record")||name=="Emit")&&m.ToString().Contains("JsonConvert.SerializeObject");
+  bool telemetry=(name.StartsWith("Record")||name=="Emit")
+   &&(m.ToString().Contains("JsonConvert.SerializeObject")||m.ToString().Contains("Diagnostics.Serialize("));
   var pars=m.ParameterList.Parameters;
   var bot=pars.FirstOrDefault(p=>p.Type?.ToString().TrimEnd('?')=="BotComponent"&&!p.Modifiers.Any(SyntaxKind.OutKeyword));
   var state=pars.FirstOrDefault(p=>p.Type?.ToString().TrimEnd('?')=="BotState"&&!p.Modifiers.Any(SyntaxKind.OutKeyword));

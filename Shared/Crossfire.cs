@@ -12,6 +12,11 @@ public sealed class CrossfireHandoffTrace
     public int CurrentPath { get; set; }
     public double ExpectedStarted { get; set; }
     public double CurrentStarted { get; set; }
+    public int QueuedPath { get; set; }
+    public int ExpectedQueuedPath { get; set; }
+    public double WaitSeconds { get; set; }
+    public int ReleasedPaths { get; set; }
+    public bool QueueCapturedAtHandoff { get; set; }
 }
 
 public sealed class CrossfireConfig

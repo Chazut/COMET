@@ -13,7 +13,7 @@ internal sealed class PistolSwapRuntime
 {
     internal readonly PistolSwapPolicy Policy=new();
     internal float SampleAt,LogAt=-1000;
-    internal string LogKey="";
+    internal (string,string,string,int,int,bool,bool) LogKey;
     internal bool Fault;
 }
 public sealed partial class Plugin
@@ -91,9 +91,9 @@ public sealed partial class Plugin
     private void RecordPistolSwap(BotComponent? b,BotState s,bool force=false)
     {
         var r=s.PistolSwap;var t=r.Policy.Trace;if(t==null)return;
-        if(b!=null)t.Action=b.Decision.CurrentSelfDecision==ESelfActionType.Reload?"Reload":b.Decision.CurrentCombatDecision.ToString();
-        string key=t.State+":"+t.Choice+":"+t.Reason+":"+t.MainLoaded+":"+t.PistolLoaded+":"+t.InHands+":"+t.Ready;
+        var key=(t.State,t.Choice,t.Reason,t.MainLoaded,t.PistolLoaded,t.InHands,t.Ready);
         if(!force&&key==r.LogKey&&Time.time-r.LogAt<.25f)return;r.LogKey=key;r.LogAt=Time.time;
+        if(b!=null)t.Action=b.Decision.CurrentSelfDecision==ESelfActionType.Reload?"Reload":b.Decision.CurrentCombatDecision.ToString();
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="W02",stage="evaluated",decision="PistolSwap",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
             pistolSwap=t,pistolSwapConfig=config?.PistolSwap});

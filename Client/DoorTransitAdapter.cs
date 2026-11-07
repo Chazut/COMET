@@ -28,7 +28,7 @@ internal sealed class DoorTransitRuntime
     internal float Started,Checked=-100,Next,Tick=-100,LogAt=-100;
     internal double Side;
     internal bool Writing,Fault,Validated,DirectBlocker,SprintOwned,DesiredSprint;
-    internal string Key="";
+    internal (string,string,string,bool) Key;
 }
 
 public sealed partial class Plugin
@@ -262,7 +262,7 @@ public sealed partial class Plugin
     private void RecordDoorTransit(BotState s,bool force=false)
     {
         var r=s.Transit;var t=r.Policy.Trace;if(t.Door.Length==0)return;
-        string key=t.Door+":"+t.State+":"+t.Reason+":"+t.Requested;
+        var key=(t.Door,t.State,t.Reason,t.Requested);
         if(!force&&key==r.Key&&(t.State=="ended"||Time.time-r.LogAt<.25f))return;
         r.Key=key;r.LogAt=Time.time;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="C01",stage="evaluated",decision="DoorTransit",reason=t.Reason,

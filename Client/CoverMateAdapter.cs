@@ -42,7 +42,7 @@ public sealed partial class Plugin
         if(!c.Enabled||r.Policy.Active||Time.time<a.Next||Time.time<a.RetryAt)return false;
         string block=CoverMateBlock(b,s);if(block.Length>0)return DeclineSquad(s,"S04",block);
         a.Next=Time.time+.5f;
-        if(b.Mover.ActivePath!=null&&!CrossfireCanHandoff(b)||QueuedCombatMovement(b))return false;
+        if(!CrossfireCanAcquire(b))return false;
         BotComponent? selected=null;CoverOperation? operation=null;float nearest=float.MaxValue;
         foreach(var mate in b.Squad.Members.Values)
         {

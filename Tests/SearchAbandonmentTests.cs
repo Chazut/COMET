@@ -29,11 +29,15 @@ internal static class SearchAbandonmentTests
         }finally{Directory.Delete(dir,true);}
         SearchAbandonmentFrame F(double now=120)=>new(){Now=now,Stamp=100,Target="contact",Instance=42,X=2,Y=0,Z=3,Distance=2};
         SearchAbandonment Ready(double start=120){var a=new SearchAbandonment();for(int i=0;i<=12;i++)a.Evaluate(F(start+i*.25),cfg);return a;}
-        var a=new SearchAbandonment();var first=a.Evaluate(F(),cfg);Check(first.State=="reached"&&!first.ForgetRequested,"arrival alone never sufficient");
+        var a=new SearchAbandonment();Check(!a.NeedsSafetyCheck("contact"),"dormant inspection needs no per-callback safety work");
+        var first=a.Evaluate(F(),cfg);Check(first.State=="reached"&&!first.ForgetRequested,"arrival alone never sufficient");
+        Check(a.NeedsSafetyCheck("contact"),"arrival keeps immediate interruption guards between geometry probes");
         for(int i=1;i<12;i++)Check(!a.Evaluate(F(120+i*.25),cfg).ForgetRequested,"inspection not early");
         var request=a.Evaluate(F(123),cfg);Check(request.ForgetRequested&&!request.ForgetObserved&&request.Inspected==3,"request not success");
         Check(!a.ObserveForgotten(F(123),cfg,false)&&a.RememberedCount==0,"failed native callback not recorded as abandonment");
         Check(a.ObserveForgotten(F(123),cfg,true)&&a.Current!.ForgetObserved&&a.Current.State=="abandoned"&&a.RememberedCount==1,"native confirmation");
+        Check(a.NeedsSafetyCheck("contact"),"failed memory still reacts immediately to visible contact");
+        Check(!a.NeedsSafetyCheck("another"),"unrelated dormant contact does not inherit failed memory checks");
         Check(a.Evaluate(F(124),cfg).ForgetRequested,"same old observation suppressed");
         a.ObserveForgotten(F(124),cfg,true);Check(a.Current!.MemoryRemaining==29,"retry cannot extend memory");
         Check(a.Evaluate(F(153),cfg).State=="reached"&&a.RememberedCount==0,"failed memory expires exactly");

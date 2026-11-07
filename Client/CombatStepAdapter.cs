@@ -39,13 +39,13 @@ internal sealed class CombatStepRuntime
 public sealed partial class Plugin
 {
     private static System.Reflection.FieldInfo combatNativeSpeed=null!;
-    private static System.Reflection.FieldInfo combatPathOne=null!,combatPathTwo=null!;
+    private static AccessTools.FieldRef<SAINMoverClass,BotPathDataManual> combatPathOne=null!,combatPathTwo=null!;
     private static System.Reflection.MethodInfo combatStopPath=null!;
     private static void PatchCombatStep(Harmony h)
     {
         combatStopPath=AccessTools.Method(typeof(BotPathDataManual),"Stop",new[]{typeof(bool),typeof(string)})??throw new MissingMethodException("M01 native path completion");
-        combatPathOne=AccessTools.Field(typeof(SAINMoverClass),"_preparedPath1")??throw new MissingFieldException("M01 first native route");
-        combatPathTwo=AccessTools.Field(typeof(SAINMoverClass),"_preparedPath2")??throw new MissingFieldException("M01 second native route");
+        combatPathOne=AccessTools.FieldRefAccess<SAINMoverClass,BotPathDataManual>("_preparedPath1");
+        combatPathTwo=AccessTools.FieldRefAccess<SAINMoverClass,BotPathDataManual>("_preparedPath2");
         foreach(var name in new[]{"StandAndShootAction","DogFightAction"})
         {
             var type=typeof(BotComponent).Assembly.GetType("SAIN.Layers.Combat.Solo."+name,true);
@@ -256,8 +256,15 @@ public sealed partial class Plugin
     private static bool QueuedCombatMovement(BotComponent b)
     {
         var active=b.Mover.ActivePath;
-        var one=(IBotPathData)combatPathOne.GetValue(b.Mover);var two=(IBotPathData)combatPathTwo.GetValue(b.Mover);
+        var one=combatPathOne(b.Mover);var two=combatPathTwo(b.Mover);
         return !ReferenceEquals(one,active)&&one.Status==EBotMoveStatus.ReadyToMove||!ReferenceEquals(two,active)&&two.Status==EBotMoveStatus.ReadyToMove;
+    }
+    private static IBotPathData? CrossfireQueuedPath(BotComponent b)
+    {
+        var active=b.Mover.ActivePath;
+        var one=combatPathOne(b.Mover);var two=combatPathTwo(b.Mover);
+        if(!ReferenceEquals(one,active)&&one.Status==EBotMoveStatus.ReadyToMove)return one;
+        return !ReferenceEquals(two,active)&&two.Status==EBotMoveStatus.ReadyToMove?two:null;
     }
     private void EndCombatStep(BotState s,string why)
     {if(!s.CombatStep.Policy.Active)return;s.CombatStep.Policy.End(why,Time.time);FinishCombatStep(s);}
