@@ -95,7 +95,13 @@ sealed class Boundaries(string file,Dictionary<string,string> callbacks,List<obj
    : file=="SearchAbandonmentAdapter" && name=="CheckSearchedPlace"
    ? "if (!NeedsAbandonment(__instance, false)) return;"
    : file=="SearchAbandonmentAdapter" && name=="SearchForgetObserved"
-   ? "if (!NeedsAbandonment(__instance, true)) return;" : "";
+   ? "if (!NeedsAbandonment(__instance, true)) return;"
+   : file=="WeaponSyncAdapter" && name=="EnsureWeaponSyncTracked"
+   ? "if (Instance?.config?.Enabled != true || !Instance.config.WeaponSync.Enabled || Instance.states.ContainsKey(__instance) || !NativeAdapter.IsPmcAi(__instance)) return;"
+   : file=="WeaponSyncAdapter" && name is "WeaponListChanged" or "WeaponHandsChanged"
+   ? "if (Instance?.config?.Enabled != true || !Instance.config.WeaponSync.Enabled || __instance?._owner?.GetPlayer?.IsAI != true || (__instance._owner.Profile.Info.Settings.Role != EFT.WildSpawnType.pmcUSEC && __instance._owner.Profile.Info.Settings.Role != EFT.WildSpawnType.pmcBEAR)) return;"
+   : file=="CrossfireAdapter" && name=="ObserveCrossfire"
+   ? "if (Instance?.config?.Enabled != true || !NativeAdapter.IsPmcAi(__instance.Bot)) return;" : "";
   string wrapped=$$"""
   {
    {{outs}}

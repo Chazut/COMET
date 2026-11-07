@@ -61,7 +61,8 @@ public sealed partial class Plugin
     // including bots initialized before the asynchronous server configuration arrived.
     private static void EnsureWeaponSyncTracked(BotComponent __instance)
     {
-        var p=Instance;if(p?.config?.Enabled!=true||!p.config.WeaponSync.Enabled||p.states.ContainsKey(__instance))return;
+        var p=Instance;if(p?.config?.Enabled!=true||!p.config.WeaponSync.Enabled||p.states.ContainsKey(__instance)
+            ||!NativeAdapter.IsPmcAi(__instance)||!__instance.BotActive||__instance.GameEnding||!p.Authority)return;
         p.MarkWeaponSync(__instance.Player,"initial-check");
     }
     private void MarkWeaponSync(Player? player,string reason)
