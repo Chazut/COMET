@@ -12,7 +12,7 @@ string[] methods={"TacticalScope","TacticalHandsBusy","NativeChoiceHasPriority",
 string source="using System; using Comet.Core; namespace Comet.Client; partial class Plugin {\n"
  +string.Join("\n",methods.Select(n=>Method("DecisionArbitrationAdapter",n).ToString()))
  +Method("Plugin","ContinueCover")+"\n"+Method("OutcomeAdapter","OutcomeAction")
- +"\n"+Method("CrossfireAdapter","ContinueCrossfireDecision")+"\n}";
+ +"\n"+Method("CrossfireAdapter","ContinueCrossfireDecision")+"\n"+Method("CrossfireAdapter","CrossfirePreparing")+"\n}";
 source += "\npartial class Plugin {"+Method("PlanContinuityAdapter","OwnedPlanService")
  +"\n"+Method("PlanContinuityAdapter","ObservePlanService")+"\n"+Method("MedicalChoiceAdapter","MedicalAction")+"}";
 source += CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Client/PlanContinuityAdapter.cs"))).GetRoot()

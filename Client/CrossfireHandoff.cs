@@ -46,14 +46,19 @@ public sealed partial class Plugin
         RecordCrossfireGate(s,"squad-tactical-route-handoff",true);
         return b.Mover.ActivePath==null&&!QueuedCombatMovement(b);
     }
-    private void RecordCrossfireGate(BotState s,string reason,bool force=false)
+    private void RecordCrossfireGate(BotState s,string reason,bool force=false,string feature="S03")
     {
         var r=s.Crossfire;
-        if(!force&&Time.time<r.GateLogAt)return;
+        if(!force&&r.EligibilityLogAt.TryGetValue(feature,out var next)&&Time.time<next)
+        {r.EligibilitySkipped.TryGetValue(feature,out int count);r.EligibilitySkipped[feature]=count+1;return;}
+        r.EligibilitySkipped.TryGetValue(feature,out int skipped);r.EligibilitySkipped[feature]=0;
+        r.EligibilityLogAt[feature]=Time.time+5;
         r.GateKey=reason;r.GateLogAt=Time.time+5;
         // Eligibility is diagnostic evidence, not a claimed action on the RR map.
         diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,
-            feature="S03",stage="eligibility",reason,realtime=Time.realtimeSinceStartup,
+            feature,stage="eligibility",reason,skipped,realtime=Time.realtimeSinceStartup,
             profileId=s.ProfileId,name=s.Name,botInstance=s.Id}));
     }
+    private bool DeclineSquad(BotState s,string feature,string reason)
+    {RecordCrossfireGate(s,reason,feature:feature);return false;}
 }

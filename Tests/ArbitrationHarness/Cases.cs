@@ -111,10 +111,11 @@ public static class Cases
    if(customLayer)Check(s.RequestedFrame==-1,"custom layer does not impersonate a generic tactical request");
   }
   foreach(bool customLayer in new[]{false,true})
+  foreach(string phase in customLayer?new[]{"ready","planning"}:new[]{"ready"})
   foreach(string guard in new[]{"own-squad","self","grenade-decision","dogfight-decision","melee-decision","zombies","enemy-null","enemy-zombie","no-contact","stale","negative-age","disabled","scav","ghost","replica","inactive","ending","no-world","medicine","meds-controller","reload","switch","throwing","hands","door","danger","dogfight","melee","cooldown","reentrant","no-choice","throws"})
   {
    var(p,b,s)=Setup();var solo=ECombatDecision.None;var squad=ESquadDecision.GroupSearch;var self=ESelfActionType.None;Enemy e=b.GoalEnemy;
-   p.CustomLayerChoice=customLayer;s.Crossfire.Policy.Active=true;s.Crossfire.Policy.Trace=new(){State="ready"};
+   p.CustomLayerChoice=customLayer;s.Crossfire.Policy.Active=true;s.Crossfire.Policy.Trace=new(){State=phase};
    switch(guard){case "own-squad":ContactSafety.Allowed=false;break;case "self":self=ESelfActionType.Reload;break;case "grenade-decision":solo=ECombatDecision.AvoidGrenade;break;
     case "dogfight-decision":solo=ECombatDecision.DogFight;break;case "melee-decision":solo=ECombatDecision.MeleeAttack;break;case "zombies":solo=ECombatDecision.FightZombies;break;
     case "enemy-null":e=null;break;case "enemy-zombie":e.IsZombie=true;break;case "no-contact":e.KnownPlaces.LastKnownPosition=null;break;
@@ -136,7 +137,7 @@ public static class Cases
    var(p,b,s)=Setup();p.CustomLayerChoice=true;s.Crossfire.Policy.Active=true;s.Crossfire.Policy.Trace=new(){State="planning"};s.RequestedFrame=Time.frameCount;
    var solo=ECombatDecision.None;var squad=ESquadDecision.GroupSearch;
    p.Arbitrate(b.Decision,ref solo,ref squad,ESelfActionType.None,b.GoalEnemy);
-   Check(solo==ECombatDecision.None&&squad==ESquadDecision.GroupSearch,"planning custom layer cannot replace native squad even with stale same-frame generic token");
+   Check(solo==ECombatDecision.Freeze&&squad==ESquadDecision.None,"selected preparation replaces ordinary squad movement to keep the search origin stable");
   }
   {
    var(p,b,s)=Setup();b.Decision.CurrentSelfDecision=ESelfActionType.Reload;Check(!p.Priority(b,s),"previous self decision cannot veto a new enemy decision after native self selection declined");

@@ -88,6 +88,7 @@ foreach(var native in new[]{ECombatDecision.Retreat,ECombatDecision.RunAway,ECom
  Start(p,b);C(previous.Stops==0,"already released native path permits residual sprint without another stop");
 }
 SecondaryEntranceHarness.Run();
+Raid397Harness.Run();
 SquadManeuverHarness.Run();
 CoverMateHarness.Run();
 SquadTradeHarness.Run();

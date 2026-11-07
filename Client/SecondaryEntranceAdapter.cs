@@ -36,7 +36,9 @@ public sealed partial class Plugin
     {
         var r=s.Crossfire;var a=r.Entrance;var c=config!.SecondaryEntrance;
         a.Drop();a.Policy.ClearCurrent();r.Policy.Trace!.Entrance=null;
-        if(!r.Indoor||!a.Policy.CanTry(r.Contact,Time.time,r.ContactAt,c)||!a.Policy.Begin(r.Contact,Time.time,r.ContactAt,jumpRandom.NextDouble(),c))return false;
+        if(!r.Indoor)return DeclineSquad(s,"S02","entrance-outdoors-use-crossfire");
+        if(!a.Policy.CanTry(r.Contact,Time.time,r.ContactAt,c))return DeclineSquad(s,"S02","entrance-disabled-stale-or-retry");
+        if(!a.Policy.Begin(r.Contact,Time.time,r.ContactAt,jumpRandom.NextDouble(),c))return DeclineSquad(s,"S02","entrance-participation-declined");
         r.Policy.Trace.Entrance=a.Policy.Trace;a.Started=Time.time;
         // Local door links only. Ordinary open passages are also checked from bounded NavMesh paths below.
         CollectEntranceDoors(b,a,r.Known);

@@ -35,7 +35,8 @@ public sealed partial class Plugin
     private bool TryBeginStorm(BotComponent b,BotState s)
     {
         var r=s.Crossfire;var c=config!.SquadStorm;
-        if(!c.Enabled||r.Policy.Active||Time.time<r.Policy.RetryAt||StormBlock(b,s).Length>0)return false;
+        if(!c.Enabled||r.Policy.Active||Time.time<r.Policy.RetryAt)return false;
+        string block=StormBlock(b,s);if(block.Length>0)return DeclineSquad(s,"S06",block);
         string group=ManeuverGroup(b);var e=b.GoalEnemy!;var known=e.KnownPlaces.LastKnownPosition!.Value;
         var plan=stormBoard.Get(group);
         if(plan?.Active!=true)
@@ -56,7 +57,8 @@ public sealed partial class Plugin
                 if(observed.At>=0&&(evidence==null||observed.Score>evidence.Score))evidence=observed;
                 candidates.Add(new(){Id=mate.ProfileId,Name=mate.Player.Profile.Nickname,Personality=mate.Info.Personality.ToString(),Ammo=ManeuverAmmo(mate),Roll=jumpRandom.NextDouble()});
             }
-            if(blocked||evidence==null)return false;
+            if(blocked)return DeclineSquad(s,"S06","storm-competing-tactic-or-perceived-danger");
+            if(evidence==null)return DeclineSquad(s,"S06","storm-no-observed-vulnerability");
             var previous=stormBoard.LastAttempt;plan=stormBoard.Start(group,e.EnemyProfileId,Time.time,evidence,candidates,c);
             if(plan==null&&!ReferenceEquals(previous,stormBoard.LastAttempt)&&stormBoard.LastAttempt is SquadStormPlan declined)
                 foreach(var member in declined.Members)if(b.Squad.Members.TryGetValue(member.Id,out var mate)&&states.TryGetValue(mate,out var ms))RecordStormDeclined(mate,ms,declined);
@@ -152,7 +154,7 @@ public sealed partial class Plugin
             {r.ProbeFrame=Time.frameCount;doorClock.Restart();try{ProbeStorm(b,s);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}}
         }
         if(!r.Policy.Active)return false;
-        t.Storm=p.Trace(b.ProfileId,Time.time,c);t.Remaining=t.Storm.Remaining;t.Applied=r.Layer&&m.Confirmed&&p.State=="active"&&t.State=="moving";
+        t.Remaining=Math.Max(0,Math.Min(p.Until,p.Evidence.Until)-Time.time);t.Applied=r.Layer&&m.Confirmed&&p.State=="active"&&t.State=="moving";
         t.ValidFor=t.Applied?Math.Min(1,t.Remaining):0;RecordCrossfire(s,false);return t.State!="planning";
     }
     private void ExecuteStorm(BotComponent b,BotState s)

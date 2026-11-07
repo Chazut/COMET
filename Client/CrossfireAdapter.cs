@@ -25,7 +25,7 @@ internal sealed class CrossfireRuntime
     internal readonly EntranceRuntime Entrance=new();
     internal float Next,LogAt,ContactAt,LastSafety,StartWait;
     internal int ProbeFrame=-1,Candidate,Sample,FinalizedEpisode,ContactInstance;
-    internal bool Layer,Fault,Indoor;
+    internal bool Layer,Fault,Indoor,TraceApplied;
     internal string Key="",Support="",Contact="",Group="";
     internal Vector3 Known,Origin,Reference,Goal;
     internal readonly List<Vector3> Candidates=new(),Samples=new();
@@ -34,8 +34,10 @@ internal sealed class CrossfireRuntime
     internal IBotPathData? Path;
     internal float PathStarted,Angle,Length;
     internal IBotPathData? HandoffPath;
-    internal float HandoffStarted, NextEligibility, GateLogAt;
-    internal string GateKey="";
+    internal float HandoffStarted, NextEligibility, GateLogAt, AirborneSince=-1, NextTraceAt;
+    internal readonly Dictionary<string,float> EligibilityLogAt=new();
+    internal readonly Dictionary<string,int> EligibilitySkipped=new();
+    internal string GateKey="",TraceState="";
 }
 public sealed partial class Plugin
 {
@@ -45,8 +47,8 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(BotDecisionManager),nameof(BotDecisionManager.ManualUpdate)),postfix:new HarmonyMethod(typeof(Plugin),nameof(ObserveCrossfire)));
         BrainManager.AddCustomLayer(typeof(CrossfireLayer),new(){"PMC","PmcUsec","PmcBear","Assault","ExUsec","Knight","BigPipe","BirdEye"},21);
     }
-    private bool CrossfireScope(BotComponent b)=>ContactSafety.AllowsGoal(b)&&config?.Enabled==true&&(config.Crossfire.Enabled||config.CoverMate.Enabled||config.SquadTrade.Enabled||config.SquadStorm.Enabled)&&world!=null&&Authority
-        &&b!=null&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
+    private bool CrossfireScope(BotComponent b)=>config?.Enabled==true&&(config.Crossfire.Enabled||config.CoverMate.Enabled||config.SquadTrade.Enabled||config.SquadStorm.Enabled)&&world!=null&&Authority
+        &&b!=null&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId)&&ContactSafety.AllowsGoal(b);
     private string CrossfireBlock(BotComponent b,BotState s,bool maneuverCandidate=false)
     {
         if(!CrossfireScope(b)||!config!.Crossfire.Enabled)return "crossfire-out-of-scope";
@@ -69,9 +71,18 @@ public sealed partial class Plugin
         if(b.BotOwner.DoorOpener.Interacting&&!EntranceOwnOpening(b,s)||b.BotOwner.Medecine.Using||MedicalPostureGuard(b)
             ||b.BotOwner.WeaponManager.Reload.Reloading||b.BotOwner.WeaponManager.Grenades.ThrowindNow
             ||!WeaponHandsReady(b,b.Player.HandsController as Player.FirearmController)&&!EntranceOwnOpening(b,s)||!b.BotOwner.WeaponManager.HaveBullets)return "crossfire-hands-or-supplies";
-        if(!b.Player.MovementContext.IsGrounded
-            ||b.Player.IsSprintEnabled&&!OwnCrossfirePath(b,s.Crossfire)&&!CrossfireCanHandoff(b)
-                &&!PendingCrossfireHandoff(b,s.Crossfire))return "crossfire-native-movement";
+        var r=s.Crossfire;
+        if(!b.Player.MovementContext.IsGrounded)
+        {
+            // Brief loss of grounding on a step must not discard an asynchronous
+            // search. Never start/stop a native route while the body is airborne.
+            if(r.AirborneSince<0)r.AirborneSince=Time.time;
+            if(!r.Policy.Active||r.Policy.Trace?.State!="planning"||Time.time-r.AirborneSince>=.6f)
+                return "crossfire-not-grounded";
+        }
+        else r.AirborneSince=-1;
+        if(b.Player.IsSprintEnabled&&!OwnCrossfirePath(b,r)&&!CrossfireCanHandoff(b)
+                &&!PendingCrossfireHandoff(b,r))return "crossfire-foreign-sprint";
         if(b.Memory.Health.HealthStatus is ETagStatus.BadlyInjured or ETagStatus.Dying)return "crossfire-injured";
         if(s.PostCombat.Policy.Active||s.Relocation.Policy.Active||s.CoverFeint.Policy.Active||s.Feature.StartsWith("D")&&s.Decision.Length>0)return "crossfire-other-tactic";
         if(!CrossfireTacticalDecision(b))return "crossfire-native-combat-priority";
@@ -153,7 +164,8 @@ public sealed partial class Plugin
         }
         else
         {
-            if(!mayStart||Time.time<r.Next||Time.time<r.Policy.RetryAt||support==null)return false;
+            if(!mayStart||Time.time<r.Next||Time.time<r.Policy.RetryAt)return false;
+            if(support==null){RecordCrossfireGate(s,"crossfire-no-visible-support",feature:"S01");return false;}
             r.Next=Time.time+(float)c.Interval;
             r.Maneuver=null;r.ManeuverRole=null;
             bool selected=r.Policy.Begin(Time.time,c,jumpRandom.NextDouble());
@@ -180,14 +192,15 @@ public sealed partial class Plugin
     }
     private bool ContinueCrossfireDecision(BotComponent b,BotState s,ref ECombatDecision result,ref bool succeeded)
     {
-        if(!s.Crossfire.Policy.Active||s.Crossfire.Policy.Trace?.State=="planning")return false;
-        if(!RefreshCrossfire(b,s,false))return false;
+        if(!s.Crossfire.Policy.Active)return false;
+        if(!RefreshCrossfire(b,s,false)&&!CrossfirePreparing(s))return false;
         Release(s,"crossfire-layer-request",false,true);result=ECombatDecision.Freeze;succeeded=true;return true;
     }
+    private static bool CrossfirePreparing(BotState s)=>s.Crossfire.Policy.Active&&s.Crossfire.Policy.Trace?.State=="planning";
     internal static bool CrossfireActive(BotOwner owner)
     {
         var p=Instance;if(p==null||!SAINEnableClass.GetSAIN(owner.ProfileId,out var b)||b==null||!p.states.TryGetValue(b,out var s))return false;
-        try{return p.RefreshCrossfire(b,s,false);}catch(Exception ex){p.CrossfireError(b,s,ex);return false;}
+        try{return p.RefreshCrossfire(b,s,false)||CrossfirePreparing(s);}catch(Exception ex){p.CrossfireError(b,s,ex);return false;}
     }
     internal static void RunCrossfire(BotOwner owner,bool active)
     {
@@ -195,13 +208,17 @@ public sealed partial class Plugin
         try
         {
             var r=s.Crossfire;if(!active){if(r.Layer)p.EndCrossfire(b,s,"crossfire-layer-released");return;}
-            if(!p.RefreshCrossfire(b,s,false))return;
-            if(r.ManeuverRole?.Role=="flank"&&!r.Maneuver!.SupportReady(Time.time))return;
+            if(!p.RefreshCrossfire(b,s,false)&&!CrossfirePreparing(s))return;
+            if(!b.Player.MovementContext.IsGrounded)return;
             if(!r.Layer)
             {
                 if(!p.TakeCrossfireHandoff(b,s)){p.EndCrossfire(b,s,"crossfire-handoff-route-changed");return;}
                 r.Layer=true;r.StartWait=Time.time;owner.PatrollingData.Pause();p.Release(s,"crossfire-layer-active",false,true);
             }
+            // Reserve the tactical handoff during preparation, before the outgoing
+            // SAIN path moves the origin out of the search. This is not yet movement.
+            if(CrossfirePreparing(s))return;
+            if(r.ManeuverRole?.Role=="flank"&&!r.Maneuver!.SupportReady(Time.time))return;
             if(r.Policy.Trace!.Storm!=null){p.ExecuteStorm(b,s);if(r.Policy.Active)p.RefreshStorm(b,s);return;}
             if(r.Policy.Trace!.Trade!=null){p.ExecuteSquadTrade(b,s);if(r.Policy.Active)p.RefreshSquadTrade(b,s);return;}
             if(r.Policy.Trace!.CoverMate!=null){p.ExecuteCoverMate(b,s);if(r.Policy.Active)p.RefreshCoverMate(b,s);return;}
@@ -237,6 +254,10 @@ public sealed partial class Plugin
     {
         var r=s.Crossfire;var t=r.Policy.Trace;if(t==null)return;
         if(t.State=="ended")r.FinalizedEpisode=t.Episode;
+        // Detailed member snapshots and labels are not needed on every steering
+        // callback. State transitions still publish immediately.
+        if(!force&&t.State==r.TraceState&&t.Applied==r.TraceApplied&&Time.time<r.NextTraceAt)return;
+        r.TraceState=t.State;r.TraceApplied=t.Applied;r.NextTraceAt=Time.time+.1f;
         if(r.Maneuver!=null&&r.ManeuverRole!=null)t.Maneuver=r.Maneuver.Trace(s.ProfileId,Time.time,config!.SquadManeuver);
         if(r.Storm.Plan!=null&&r.Storm.Member!=null)t.Storm=r.Storm.Plan.Trace(s.ProfileId,Time.time,config!.SquadStorm);
         string label=t.Storm!=null?"StormMoving":t.Trade!=null?"Trade"+(t.State=="moving"?(t.Trade.Choice=="push"?"Pushing":"Moving"):"Watching"):t.CoverMate!=null?"CoverMate"+(t.State=="moving"?"Moving":"Holding"):t.Maneuver!=null?"Maneuver"+(r.ManeuverRole?.Role=="rear"?"Rear":r.ManeuverRole?.Role=="support"?(Time.time-r.ManeuverRole.LastShot<.3?"Suppressing":"Supporting"):t.State=="moving"?"Moving":"Holding"):t.Entrance==null?char.ToUpperInvariant(t.State[0])+t.State.Substring(1):r.Entrance.Entering?"EntranceEntering":t.State=="moving"?"EntranceMoving":"EntranceWatching";

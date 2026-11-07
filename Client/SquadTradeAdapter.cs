@@ -29,7 +29,7 @@ public sealed partial class Plugin
     {
         var r=s.Crossfire;var a=r.Trade;var c=config!.SquadTrade;
         if(!c.Enabled||r.Policy.Active||Time.time<r.Policy.RetryAt)return false;
-        var loss=a.Memory.Take(Time.time,c);if(loss==null)return false;
+        var loss=a.Memory.Take(Time.time,c);if(loss==null)return DeclineSquad(s,"S05","trade-no-ready-observed-teammate-loss");
         a.GroupStamp=loss.Group;
         if(!r.Policy.Begin(Time.time,TradeMotionConfig(),0))return false;
         RememberCrossfireHandoff(b,r);

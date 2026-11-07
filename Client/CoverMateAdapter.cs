@@ -39,7 +39,8 @@ public sealed partial class Plugin
     private bool TryBeginCoverMate(BotComponent b,BotState s)
     {
         var r=s.Crossfire;var c=config!.CoverMate;var a=r.Care;
-        if(!c.Enabled||r.Policy.Active||Time.time<a.Next||Time.time<a.RetryAt||CoverMateBlock(b,s).Length>0)return false;
+        if(!c.Enabled||r.Policy.Active||Time.time<a.Next||Time.time<a.RetryAt)return false;
+        string block=CoverMateBlock(b,s);if(block.Length>0)return DeclineSquad(s,"S04",block);
         a.Next=Time.time+.5f;
         if(b.Mover.ActivePath!=null&&!CrossfireCanHandoff(b)||QueuedCombatMovement(b))return false;
         BotComponent? selected=null;CoverOperation? operation=null;float nearest=float.MaxValue;
@@ -49,7 +50,7 @@ public sealed partial class Plugin
             var op=ObserveCoverOperation(mate);if(op==null||op.Ended||!op.Busy)continue;
             float d=Vector3.Distance(b.Position,mate.Position);if(d<nearest){selected=mate;operation=op;nearest=d;}
         }
-        if(selected==null||operation==null)return false;
+        if(selected==null||operation==null)return DeclineSquad(s,"S04","cover-mate-no-observed-busy-teammate");
         // Information must already belong to this PMC's SAIN knowledge (including normal squad sharing).
         // An old snapshot describes a sector to watch; it never authorizes shots or tracks a hidden transform.
         var contacts=new List<Enemy>();if(b.GoalEnemy!=null)contacts.Add(b.GoalEnemy);
@@ -63,7 +64,8 @@ public sealed partial class Plugin
             if(!coverMateBoard.Available(s.Id,selected.ProfileId,operation.Id,e.EnemyProfileId,sector.x,sector.z,Time.time,c))continue;
             threat=e;known=k;break;
         }
-        if(threat==null||!coverMateBoard.Attempt(s.Id,selected.ProfileId,operation.Id,Time.time))return false;
+        if(threat==null)return DeclineSquad(s,"S04","cover-mate-no-available-known-sector");
+        if(!coverMateBoard.Attempt(s.Id,selected.ProfileId,operation.Id,Time.time))return DeclineSquad(s,"S04","cover-mate-operation-already-attempted");
         var direction=known-selected.Position;
         if(!coverMateBoard.Reserve(s.Id,selected.ProfileId,operation.Id,threat.EnemyProfileId,direction.x,direction.z,Time.time,c))return false;
         if(!r.Policy.Begin(Time.time,CoverMateMotionConfig(),0)){coverMateBoard.Release(s.Id);return false;}

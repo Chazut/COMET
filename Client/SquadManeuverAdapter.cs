@@ -58,7 +58,7 @@ public sealed partial class Plugin
             }
             var previous=maneuverBoard.LastAttempt;
             plan=maneuverBoard.TryStart(group,enemy.EnemyProfileId,Time.time,Time.time-enemy.TimeSinceLastKnownUpdated,jumpRandom.NextDouble(),candidates,c,config.Crossfire.Participation);
-            if(plan==null)RecordCrossfireGate(s,"maneuver-not-started: "+(maneuverBoard.LastAttempt?.Reason??"insufficient-eligible-members"));
+            if(plan==null)RecordCrossfireGate(s,"maneuver-not-started: "+maneuverBoard.LastReason);
             if(plan==null&&maneuverBoard.LastAttempt is SquadManeuverPlan declined&&!ReferenceEquals(previous,declined)&&declined.Member(b.ProfileId)!=null)RecordManeuverDeclined(b,s,declined);
         }
         if(plan==null||!plan.Active||plan.Enemy!=enemy.EnemyProfileId||plan.Member(b.ProfileId) is not ManeuverMember role||role.Status=="ended")return false;
@@ -120,7 +120,9 @@ public sealed partial class Plugin
         if(m.Role=="rear"&&ManeuverRearContact(b,r.Known,out r.Watch)!=m.RearContact){EndCrossfire(b,s,"maneuver-rear-contact-stale");return false;}
         if(m.Role=="flank"&&r.Policy.Trace!.State=="ready"&&m.ReadyAt<0){m.ReadyAt=Time.time;m.Status="ready";}
         if(m.Confirmed&&m.Role=="flank"&&!p.SupportReady(Time.time)){EndCrossfire(b,s,"maneuver-support-callback-lost");return false;}
-        r.Policy.Trace!.Maneuver=p.Trace(b.ProfileId,Time.time,c);return true;
+        // The live plan owns execution state. Detached member snapshots are built
+        // by RecordCrossfire at the diagnostic cadence, not every safety check.
+        return true;
     }
     private bool ExecuteManeuverSupport(BotComponent b,BotState s)
     {
@@ -144,7 +146,6 @@ public sealed partial class Plugin
         if(m.Role=="flank"&&r.Policy.Trace!.State is "moving" or "holding"||m.Role!="flank"&&steering&&Vector3.Angle(b.Player.LookDirection,(m.Role=="rear"?r.Watch:r.Known)-b.Position)<=30)
         {if(!m.Confirmed){m.ProgressAt=Time.time;m.BestDistance=Vector3.Distance(b.Position,r.Goal);}
          m.Confirmed=m.Applied=true;m.LastSeen=Time.time;m.Status=r.Policy.Trace!.State;}
-        r.Policy.Trace!.Maneuver=p.Trace(b.ProfileId,Time.time,config!.SquadManeuver);
     }
     private void EndManeuver(BotState s,string why)
     {
