@@ -106,7 +106,7 @@ public sealed partial class Plugin
         if(d.Remaining<=0||Time.time<a.Started){EndCrossfire(b,s,"cover-mate-timeout");return false;}
         if(t.State=="moving"&&a.MoveAt>=0&&Time.time-a.MoveAt>=12){EndCrossfire(b,s,"cover-mate-move-timeout");return false;}
         if(t.Reserved&&!crossfireClaims.Renew(s.Id,Time.time)){EndCrossfire(b,s,"cover-mate-position-expired");return false;}
-        if(t.State=="planning")
+        if(t.State=="planning"&&b.Player.MovementContext.IsGrounded)
         {
             if(Vector3.Distance(b.Position,r.Origin)>1){EndCrossfire(b,s,"cover-mate-origin-moved");return false;}
             if(r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount))

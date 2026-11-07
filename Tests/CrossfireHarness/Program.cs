@@ -34,6 +34,7 @@ foreach(string scope in new[]{"scav","human","dead","inactive","ghost","remote",
 foreach(string priority in new[]{"visible","under-fire","suppression","grenade","flash","self","squad","medicine","reload","throw","hands","ammo","airborne","injury","door","medical-guard","recovery","relocation","feint","door-plan","native-combat","contact-changed","position-changed","no-contact","unknown","stale","support-dead","support-ghost","support-moved"}){
  var(p,b,m)=Setup();Plan(p,b);Start(p,b);var r=p.states[b].Crossfire;var path=(BotPathDataManual)b.Mover.ActivePath!;
  switch(priority){case"visible":b.GoalEnemy!.IsVisible=true;break;case"under-fire":b.BotOwner.Memory.IsUnderFire=true;break;case"suppression":b.Suppression.IsSuppressed=true;break;case"grenade":b.Grenade.GrenadeDangerPoint=new();break;case"flash":b.Flashed.IsFlashed=true;break;case"self":b.Decision.CurrentSelfDecision=ESelfActionType.Heal;break;case"squad":b.Decision.CurrentSquadDecision=ESquadDecision.Retreat;break;case"medicine":b.BotOwner.Medecine.Using=true;break;case"reload":b.BotOwner.WeaponManager.Reload.Reloading=true;break;case"throw":b.BotOwner.WeaponManager.Grenades.ThrowindNow=true;break;case"hands":((Player.FirearmController)b.Player.HandsController).Ready=false;break;case"ammo":b.BotOwner.WeaponManager.HaveBullets=false;break;case"airborne":b.Player.MovementContext.IsGrounded=false;break;case"sprint":b.Player.IsSprintEnabled=true;break;case"injury":b.Memory.Health.HealthStatus=ETagStatus.BadlyInjured;break;case"door":b.BotOwner.DoorOpener.Interacting=true;break;case"medical-guard":p.Guard=true;break;case"recovery":p.states[b].PostCombat.Policy.Active=true;break;case"relocation":p.states[b].Relocation.Policy.Active=true;break;case"feint":p.states[b].CoverFeint.Policy.Active=true;break;case"door-plan":p.states[b].Feature="D01";p.states[b].Decision="Hold";break;case"native-combat":b.Decision.CurrentCombatDecision=ECombatDecision.RushEnemy;break;case"contact-changed":b.GoalEnemy!.EnemyProfileId="new";break;case"position-changed":b.GoalEnemy!.KnownPlaces.LastKnownPosition=new(40,0,40);break;case"no-contact":b.GoalEnemy=null;break;case"unknown":b.GoalEnemy!.EnemyKnown=false;break;case"stale":b.GoalEnemy!.TimeSinceLastKnownUpdated=9;break;case"support-dead":m.IsDead=true;break;case"support-ghost":p.Ghosts.Add(m.ProfileId);break;case"support-moved":m.Position=new(5,0,0);break;}
+ if(priority=="airborne"){p.Sample(b);C(r.Policy.Active,"short ground loss retains active plan");Step(.61f);}
  p.Sample(b);C(!r.Policy.Active&&p.Claims==0,"priority abort "+priority);C(path.Stops==(priority=="airborne"?0:1),"do not cancel airborne native movement "+priority);Save(p);
 }
 {
@@ -125,6 +126,26 @@ foreach(bool urgent in new[]{false,true})
  if(urgent){b.Grenade.GrenadeDangerPoint=new();Step(.01f);}else Step(.8f);
  action.Update(new());C(!p.states[b].Crossfire.Policy.Active&&unknown.Stops==0,"unknown queue wait is bounded and still yields immediately to grenade");
  Save(p);
+}
+// Ground Zero raid401: short body bounces must retain the same reserved angle.
+foreach(float bounce in new[]{.02f,.18f,.42f,.58f}) {
+ var(p,b,m)=Setup();Plan(p,b);var a=Start(p,b);var r=p.states[b].Crossfire;
+ var path=(BotPathDataManual)b.Mover.ActivePath!;int episode=r.Policy.Trace!.Episode;
+ b.Player.MovementContext.IsGrounded=false;p.Sample(b);int walks=b.Mover.Walks;
+ Step(bounce);a.Update(new());C(r.Policy.Active&&r.Policy.Trace.GroundPaused&&path.Stops==0&&b.Mover.Walks==walks,"airborne plan held without route mutation");
+ b.Player.MovementContext.IsGrounded=true;Step(.001f);a.Update(new());
+ C(r.Policy.Active&&r.Policy.Trace.Episode==episode&&ReferenceEquals(path,b.Mover.ActivePath)&&p.Claims==1,"same owned plan resumes after landing");
+ C(!r.Policy.Trace.GroundPaused&&r.Policy.Trace.GroundPauses==1&&r.Policy.Trace.GroundPauseSeconds>=bounce,"pause and resume evidence retained");
+ b.Position=r.Goal;Step();a.Update(new());C(r.Policy.Trace.State=="holding","recovered angle actually reached");Save(p);
+}
+foreach(string abort in new[]{"grenade","support","foreign","contact"}) {
+ var(p,b,m)=Setup();Plan(p,b);var a=Start(p,b);var r=p.states[b].Crossfire;
+ b.Player.MovementContext.IsGrounded=false;p.Sample(b);
+ if(abort=="grenade")b.Grenade.GrenadeDangerPoint=new();
+ if(abort=="support")m.IsDead=true;
+ if(abort=="foreign")b.Mover.ActivePath=new BotPathDataManual{Destination=new(50,0,50)};
+ if(abort=="contact")b.GoalEnemy!.EnemyProfileId="changed";
+ Step(.1f);a.Update(new());C(!r.Policy.Active&&p.Claims==0,"ground grace retains immediate abort "+abort);Save(p);
 }
 SecondaryEntranceHarness.Run();
 Raid397Harness.Run();

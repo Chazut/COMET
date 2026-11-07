@@ -39,6 +39,15 @@ internal static class SquadManeuverHarness
    for(int i=1;i<count;i++)C(p.states[bots[i]].Crossfire.Policy.Trace?.State=="moving","flanker actual route "+i+": "+p.states[bots[i]].Crossfire.Policy.Trace?.Reason+" / "+string.Join(",",p.states[bots[i]].Crossfire.Rejects));
    return(p,bots,actions);
   }
+  foreach(float pause in new[]{.15f,.45f})
+  {
+   var(p,bots,actions)=Start();var b=bots[1];var r=p.states[b].Crossfire;var plan=r.Maneuver;var path=b.Mover.ActivePath;var walks=b.Mover.Walks;
+   b.Player.MovementContext.IsGrounded=false;Step();actions[1].Update(new());Step(pause);actions[0].Update(new());actions[0].OnSteeringTicked();actions[1].Update(new());
+   C(r.Policy.Active&&ReferenceEquals(r.Maneuver,plan)&&p.Claims==4,"coordinated flank keeps shared plan and reservations during short ground loss");
+   b.Player.MovementContext.IsGrounded=true;Step();actions[1].Update(new());
+   C(r.Policy.Active&&ReferenceEquals(path,b.Mover.ActivePath)&&walks==b.Mover.Walks,"coordinated flank resumes the same native route");
+   b.Position=r.Goal;Step();actions[1].Update(new());C(r.Policy.Trace!.State=="holding","coordinated flank reaches its angle after the bounce");p.EndAll();
+  }
   {
    var(p,bots,actions)=Start();C(p.Claims==4,"three distinct routes and one support reservation");C(p.states[bots[0]].Crossfire.Maneuver!.Members.Count(x=>x.Confirmed)==4,"all roles confirmed by native callbacks");
    C(bots[0].ManualShoot.Requests>0,"personal eligible support requests native W07 fire");C(p.states[bots[0]].Crossfire.Policy.Trace!.Maneuver!.Shots==0,"request is not an actual shot");

@@ -49,6 +49,9 @@ public sealed class CrossfireConfig
 }
 public sealed class CrossfireTrace
 {
+    public bool GroundPaused { get; set; }
+    public int GroundPauses { get; set; }
+    public double GroundPauseSeconds { get; set; }
     public CrossfireHandoffTrace? Handoff { get; set; }
     public string EntranceFallback { get; set; }="";
     public SquadStormTrace? Storm {get;set;}

@@ -75,15 +75,26 @@ public sealed partial class Plugin
             ||b.BotOwner.WeaponManager.Reload.Reloading||b.BotOwner.WeaponManager.Grenades.ThrowindNow
             ||!WeaponHandsReady(b,b.Player.HandsController as Player.FirearmController)&&!EntranceOwnOpening(b,s)||!b.BotOwner.WeaponManager.HaveBullets)return "crossfire-hands-or-supplies";
         var r=s.Crossfire;
-        if(!b.Player.MovementContext.IsGrounded)
+        bool grounded=b.Player.MovementContext.IsGrounded;
+        if(!grounded)
         {
-            // Brief loss of grounding on a step must not discard an asynchronous
-            // search. Never start/stop a native route while the body is airborne.
+            // Keep an already validated plan across a short step/physics bounce.
+            // RunCrossfire never acquires or changes a native route while airborne.
             if(r.AirborneSince<0)r.AirborneSince=Time.time;
-            if(!r.Policy.Active||r.Policy.Trace?.State!="planning"||Time.time-r.AirborneSince>=.6f)
-                return "crossfire-not-grounded";
+            if(!r.Policy.Active||Time.time-r.AirborneSince>=.6f)return "crossfire-not-grounded";
+            if(r.Path!=null&&b.Mover.ActivePath!=null&&!OwnCrossfirePath(b,r))return "crossfire-route-replaced";
+            if(r.Policy.Trace!=null&&!r.Policy.Trace.GroundPaused)
+            {r.Policy.Trace.GroundPaused=true;r.Policy.Trace.GroundPauses++;RecordCrossfire(s,true);}
         }
-        else r.AirborneSince=-1;
+        else
+        {
+            if(r.Policy.Trace?.GroundPaused==true)
+            {
+                r.Policy.Trace.GroundPauseSeconds=Math.Max(0,Time.time-r.AirborneSince);
+                r.Policy.Trace.GroundPaused=false;r.LastSafety=Math.Min(r.LastSafety,Time.time-(float)config!.Crossfire.Interval);RecordCrossfire(s,true);
+            }
+            r.AirborneSince=-1;
+        }
         if(b.Player.IsSprintEnabled&&!OwnCrossfirePath(b,r)&&!CrossfireCanHandoff(b)
                 &&!PendingCrossfireHandoff(b,r))return "crossfire-foreign-sprint";
         if(b.Memory.Health.HealthStatus is ETagStatus.BadlyInjured or ETagStatus.Dying)return "crossfire-injured";
@@ -184,7 +195,7 @@ public sealed partial class Plugin
             if(!selected){RecordCrossfire(s,true);return false;}
             if(!BeginEntrance(b,s))BuildCrossfireCandidates(b,r);RecordCrossfire(s,true);
         }
-        if(r.Policy.Trace!.State=="planning")
+        if(r.Policy.Trace!.State=="planning"&&b.Player.MovementContext.IsGrounded)
         {
             if(Vector3.Distance(b.Position,r.Origin)>2){EndCrossfire(b,s,"crossfire-origin-moved");return false;}
             if(r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount))
@@ -253,7 +264,7 @@ public sealed partial class Plugin
         if(r.Policy.Trace.Entrance!=null){r.Entrance.Policy.End(Time.time,r.ContactAt);ReleaseEntrance(s);}
         r.Policy.End(Time.time,config?.Crossfire??new(),reason);r.Layer=false;crossfireClaims.Release(s.Id);
         try{StopCrossfireRoute(b,r);}catch(Exception ex){Logger.LogWarning("S01 route release: "+ex.GetBaseException().Message);}
-        finally{r.Route=null;r.HandoffPath=null;r.HandoffQueued=null;r.HandoffWait=-1;r.Samples.Clear();r.Candidates.Clear();RecordCrossfire(s,true);r.Entrance.Drop();r.Maneuver=null;r.ManeuverRole=null;r.Storm.Plan=null;r.Storm.Member=null;}
+        finally{r.Route=null;r.HandoffPath=null;r.HandoffQueued=null;r.HandoffWait=-1;r.AirborneSince=-1;r.Samples.Clear();r.Candidates.Clear();RecordCrossfire(s,true);r.Entrance.Drop();r.Maneuver=null;r.ManeuverRole=null;r.Storm.Plan=null;r.Storm.Member=null;}
     }
     private void CrossfireError(BotComponent b,BotState s,Exception ex)
     {if(s.Crossfire.Fault)return;s.Crossfire.Fault=true;EndCrossfire(b,s,"crossfire-adapter-error");Logger.LogWarning("S01 yielded: "+ex.GetBaseException().Message);}

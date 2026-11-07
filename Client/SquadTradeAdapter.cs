@@ -133,7 +133,7 @@ public sealed partial class Plugin
         if(t.State!="holding"&&t.ContactAge>c.ContactAge){EndCrossfire(b,s,"trade-contact-stale");return false;}
         if(a.Confirmed&&Time.time-a.LastCallback>=1){EndCrossfire(b,s,"trade-execution-expired");return false;}
         if(t.Reserved&&!crossfireClaims.Renew(s.Id,Time.time)){EndCrossfire(b,s,"trade-position-expired");return false;}
-        if(t.State=="planning")
+        if(t.State=="planning"&&b.Player.MovementContext.IsGrounded)
         {
             if(Vector3.Distance(b.Position,r.Origin)>1){EndCrossfire(b,s,"trade-origin-moved");return false;}
             if(r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount))

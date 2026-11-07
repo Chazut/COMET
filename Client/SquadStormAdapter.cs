@@ -147,7 +147,7 @@ public sealed partial class Plugin
         if(!p.Tick(Time.time,c)||m.Status=="ended"){EndCrossfire(b,s,m.Reason.Length>0?m.Reason:p.Reason);return false;}
         r.ContactAt=Time.time-b.GoalEnemy!.TimeSinceLastKnownUpdated;t.ContactAge=b.GoalEnemy.TimeSinceLastKnownUpdated;
         if(t.Reserved&&!crossfireClaims.Renew(s.Id,Time.time)){EndCrossfire(b,s,"storm-position-expired");return false;}
-        if(t.State=="planning")
+        if(t.State=="planning"&&b.Player.MovementContext.IsGrounded)
         {
             if(Vector3.Distance(b.Position,r.Origin)>1){EndCrossfire(b,s,"storm-origin-moved");return false;}
             if(r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount))
