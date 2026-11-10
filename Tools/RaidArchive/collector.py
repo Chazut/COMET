@@ -223,7 +223,7 @@ def collect(settings,force=False):
             expected=closing.get('segments',max(parts)+1)
             if not isinstance(expected,int) or not 1<=expected<=100000:expected=max(parts)+1
             metadata={'session':session,'rrId':rrid,'rrMapping':'exact' if rrid else 'ambiguous' if mapped else 'unavailable',
-                      'map':rrmeta.get('location',header.get('map','Unknown'))+(' ('+str(rrmeta['locationVariant'])+')' if rrmeta.get('locationVariant') else ''),'time':rrmeta.get('time',header.get('utc',paths[0].name[:15])),'rr':rrmeta,
+                      'map':(rrmeta.get('location') or header.get('map') or 'Unknown')+(' ('+str(rrmeta['locationVariant'])+')' if rrmeta.get('locationVariant') else ''),'time':rrmeta.get('time',header.get('utc',paths[0].name[:15])),'rr':rrmeta,
                       'missingSegments':sorted(set(range(expected))-set(parts)),'segments':len(paths)}
             old=c.execute('SELECT metadata FROM raids WHERE id=?',(rid,)).fetchone()
             oldmeta=json.loads(old[0]) if old else {}

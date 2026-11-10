@@ -191,4 +191,14 @@ class ArchiveTests(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError):urllib.request.urlopen(urllib.request.Request(url+'/api/status',headers={'Host':'evil.example'}))
         finally:server.shutdown();server.server_close();t.join()
 
+class NullMapRegression(unittest.TestCase):
+    def test_null_location_uses_header(self):
+        from pathlib import Path
+        import ast
+        tree=ast.parse(Path('collector.py').read_text(encoding='utf-8'))
+        expr=next(n for n in ast.walk(tree) if isinstance(n,ast.Dict) and any(isinstance(k,ast.Constant) and k.value=='missingSegments' for k in n.keys))
+        value=expr.values[next(i for i,k in enumerate(expr.keys) if isinstance(k,ast.Constant) and k.value=='map')]
+        for rr,header,expected in [({'location':None},{'map':'Sandbox'},'Sandbox'),({'location':None},{'map':None},'Unknown'),({'location':'woods'},{},'woods')]:
+            self.assertEqual(eval(compile(ast.Expression(value),'map','eval'),{'rrmeta':rr,'header':header}),expected)
+
 if __name__=='__main__':unittest.main(verbosity=2)

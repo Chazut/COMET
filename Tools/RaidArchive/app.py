@@ -21,9 +21,20 @@ class State:
         self.settings=settings;self.root=pathlib.Path(settings['archive']);self.stop=threading.Event()
         self.wake=threading.Event();self.lock=threading.Lock();self.status={'state':'starting'}
         self.thread=None
+    def preserve_logs(self):
+        game=pathlib.Path(self.settings['game'])
+        with contextlib.closing(connect(self.root)) as c:
+            for p in [game/'BepInEx/LogOutput.log', * (game/'BepInEx/ORBIT/debug/last-raid').glob('*.log')]:
+                if not p.is_file():continue
+                try:
+                    from collector import add_file,ensure
+                    ensure(c,'general-logs',{'map':'General logs','time':utc(),'recording':'context'})
+                    add_file(c,self.root,'general-logs','context',p,'launch-log');c.commit()
+                except (OSError,RuntimeError):c.rollback()
     def cycle(self,force=False):
         if not self.lock.acquire(blocking=False):return
         try:
+            self.preserve_logs()
             self.status={'state':'collecting','updated':utc()}
             self.status=collect(self.settings,force)
             atomic_json(self.root/'collector-status.json',self.status)
