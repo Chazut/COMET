@@ -20,12 +20,15 @@ internal sealed class ReloadTimingRuntime
     internal readonly ReloadTimingPolicy Policy=new();
     internal readonly List<Magazine> Magazines=new();
     internal readonly List<Ammo> Ammo=new();
+    internal readonly List<Magazine> BeltMagazines=new();
+    internal float BeltRefillAt;
+    internal bool InventoryFault;
     internal ReloadTimingFrame? LastFrame;
     internal Player.FirearmController? Firearm;
     internal float Next,SampleAt,LogAt=-1000;
     internal string Key="",LogKey="";
     internal bool Fault;
-    internal void Drop(){Firearm=null;Magazines.Clear();Ammo.Clear();LastFrame=null;}
+    internal void Drop(){Firearm=null;Magazines.Clear();Ammo.Clear();BeltMagazines.Clear();LastFrame=null;}
 }
 public sealed partial class Plugin
 {
@@ -163,12 +166,21 @@ public sealed partial class Plugin
         // Read only reachable compatible inventory. These lists are cleared in the caller's finally block.
         Magazine? best=null;var slot=w.GetMagazineSlot();
         if(w.ReloadMode is Weapon.EReloadMode.ExternalMagazine or Weapon.EReloadMode.ExternalMagazineWithInternalReloadSupport){
-            b.Player.InventoryController.GetReachableItemsOfTypeNonAlloc(r.Magazines);
-            if(r.Magazines.Count>128){f.Block="reload-inventory-limit";return f;}
-            foreach(var m in r.Magazines)if(!ReferenceEquals(m,mag)&&m.Count>f.Magazine&&(best==null||m.Count>best.Count)
-                &&slot!=null&&ItemManipulator.CheckMoveIgnoringTargetItem(m,slot,b.Player.InventoryController).Succeeded)best=m;
+            if(!ReloadInventory.ReadMagazines(b.Player.InventoryController,r.Magazines)){f.Block="reload-inventory-limit";return f;}
+            f.ResourcesChecked=true;
+            foreach(var m in r.Magazines){
+                if(ReferenceEquals(m,mag))continue;
+                f.MagazineCandidates++;
+                if(ReloadInventory.Location(m,b.Player.Inventory.Equipment)=="ArmBand")f.BeltMagazines++;
+                if(m.Count<=f.Magazine){f.NonImprovingMagazines++;continue;}
+                if(slot==null){f.ResourceRejection="no-magazine-slot";continue;}
+                var check=ItemManipulator.CheckMoveIgnoringTargetItem(m,slot,b.Player.InventoryController);
+                if(!check.Succeeded){f.RejectedMagazines++;if(f.ResourceRejection.Length==0){var why=check.Error?.ToString()??"inventory-move-refused";f.ResourceRejection=why.Substring(0,Math.Min(160,why.Length));}continue;}
+                if(best==null||m.Count>best.Count)best=m;
+            }
         }
-        if(best!=null){f.Resource="magazine";f.Reserve=best.Count;f.ResourceKey=best.Id+":"+best.Count;}
+        if(best!=null){f.Resource="magazine";f.Reserve=best.Count;f.ResourceKey=best.Id+":"+best.Count;
+            f.ResourceLocation=ReloadInventory.Location(best,b.Player.Inventory.Equipment);f.ResourceItem=best.ShortName.Localized();}
         else if(w is Revolver&&mag!=null){
             b.Player.InventoryController.GetReachableItemsOfTypeNonAlloc(r.Ammo,
                 (Ammo a)=>a.StackObjectsCount>0&&b.Player.InventoryController.Examined(a)&&a.CheckAction(null).Succeeded&&mag.CheckCompatibility(a));

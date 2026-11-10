@@ -28,6 +28,9 @@ public sealed class ReloadTimingFrame
     public string Weapon="",Target="",Source="personal-memory",WeaponClass="",Resource="none",ResourceKey="",Block="";
     public int Loaded,Capacity,Chamber,Magazine,Reserve,Threats;
     public bool Visible,Protected,ThreatsTruncated,Incoming,Looking,BusyObserved;
+    public bool ResourcesChecked;
+    public int MagazineCandidates,BeltMagazines,NonImprovingMagazines,RejectedMagazines;
+    public string ResourceLocation="",ResourceItem="",ResourceRejection="";
 }
 public sealed class ReloadTimingTrace
 {
@@ -36,6 +39,9 @@ public sealed class ReloadTimingTrace
     public double Ratio,ReloadScore,HoldScore,ContactAge,Distance,Elapsed,ValidFor=.5;
     public bool Critical,Protected,Visible,Incoming,BusyObserved,Requested,Accepted,Started,Finished,Improved;
     public string[] Alternatives=Array.Empty<string>();
+    public bool ResourcesChecked;
+    public int MagazineCandidates,BeltMagazines,NonImprovingMagazines,RejectedMagazines;
+    public string ResourceLocation="",ResourceItem="",ResourceRejection="";
 }
 // Per-bot scalar state only. Hold postpones reloading, it never owns movement, shooting or healing.
 public sealed class ReloadTimingPolicy
@@ -57,7 +63,10 @@ public sealed class ReloadTimingPolicy
         var t=new ReloadTimingTrace{Episode=++episode,Weapon=f.Weapon,Target=f.Target,Source=f.Source,WeaponClass=f.WeaponClass,
             Loaded=f.Loaded,After=f.Loaded,Capacity=f.Capacity,Chamber=f.Chamber,Magazine=f.Magazine,Reserve=f.Reserve,Resource=f.Resource,
             Threats=f.Threats,Protected=f.Protected,Visible=f.Visible,Incoming=f.Incoming,BusyObserved=f.BusyObserved,
-            ContactAge=f.ContactAge,Distance=f.Distance,ReserveForFight=FightReserve(f.WeaponClass)};
+            ContactAge=f.ContactAge,Distance=f.Distance,ReserveForFight=FightReserve(f.WeaponClass),
+            ResourcesChecked=f.ResourcesChecked,MagazineCandidates=f.MagazineCandidates,BeltMagazines=f.BeltMagazines,
+            NonImprovingMagazines=f.NonImprovingMagazines,RejectedMagazines=f.RejectedMagazines,
+            ResourceLocation=f.ResourceLocation,ResourceItem=f.ResourceItem,ResourceRejection=f.ResourceRejection};
         Trace=t;
         string Set(string choice,string reason){t.Choice=choice;t.Reason=reason;return choice;}
         if(f.Block.Length>0)return Set("Native",f.Block);

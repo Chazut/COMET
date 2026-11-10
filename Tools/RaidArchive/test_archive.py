@@ -40,6 +40,22 @@ class ArchiveTests(unittest.TestCase):
     def test_duplicate_snapshots_are_one_attempt(self):
         self.add(*[self.choice(i,'accepted') for i in range(1,9)],self.choice(9,'started'));self.finish();analyze(self.c,'r')
         self.assertEqual(self.m()['accepted'],1);self.assertEqual(self.m()['started'],1);self.assertEqual(self.m()['completed'],0)
+    def test_belt_reload_resources_are_preserved_but_not_execution(self):
+        trace=dict(episode=1,state='assess',resourcesChecked=True,magazineCandidates=3,beltMagazines=3,
+                   resource='magazine',reserve=20,resourceLocation='ArmBand',resourceItem='GEN1 20',
+                   rejectedMagazines=0,resourceRejection='')
+        self.add(event(1,feature='W01',reloadTiming=trace));self.finish();analyze(self.c,'r')
+        payload=unpack(self.c.execute("SELECT payload FROM events WHERE feature='W01'").fetchone()[0])
+        self.assertEqual(payload['reloadTiming'],trace)
+        self.assertEqual((self.m('W01')['started'],self.m('W01')['completed']),(0,0))
+        self.add(event(2,feature='W01',reloadTiming=dict(trace,state='reloading',requested=True,accepted=True,started=True)))
+        analyze(self.c,'r');self.assertEqual((self.m('W01')['started'],self.m('W01')['completed']),(1,0))
+        self.add(event(3,feature='W01',reloadTiming=dict(trace,state='ended',started=True,finished=True,improved=True,after=20)))
+        analyze(self.c,'r');self.assertEqual((self.m('W01')['started'],self.m('W01')['completed']),(1,1))
+    def test_reload_finish_without_ammo_gain_is_not_success(self):
+        self.add(event(1,feature='W01',reloadTiming=dict(episode=1,state='ended',started=True,finished=True,improved=False)))
+        self.finish();analyze(self.c,'r')
+        self.assertEqual((self.m('W01')['started'],self.m('W01')['completed']),(1,0))
     def test_reborn_bot_does_not_share_identity(self):
         a=self.choice(1,'started');b=self.choice(2,'started');b['botInstance']='new'
         self.add(a,b);self.finish();analyze(self.c,'r');self.assertEqual(self.m()['started'],2)

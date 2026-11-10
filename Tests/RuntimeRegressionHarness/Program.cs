@@ -4,6 +4,11 @@ var equipment=new InventoryEquipment();var bag=new Item();equipment.Slots[Equipm
 Check(Runtime.RootSlot(new Item(),equipment)==null,"depleted detached medical item does not call throwing Parent");
 var med=new Item{CurrentAddress=new(){Container=new(){ParentItem=bag}}};
 Check(Runtime.RootSlot(med,equipment)==EquipmentSlot.Backpack,"nested carried medical item remains available");
+var belt=new Item();equipment.Slots[EquipmentSlot.ArmBand]=new(){ContainedItem=belt};
+var magazine=new Item{CurrentAddress=new(){Container=new(){ParentItem=belt}}};
+Check(Runtime.RootSlot(magazine,equipment)==EquipmentSlot.ArmBand,"worn belt resource reports actual slot through production ancestry reader");
+magazine.CurrentAddress=null;
+Check(Runtime.RootSlot(magazine,equipment)==null,"detached belt resource is no longer carried");
 med.CurrentAddress!.Container!.ParentItem=med;
 Check(Runtime.RootSlot(med,equipment)==null,"self-referencing inventory cannot loop");
 var other=new Item{CurrentAddress=new(){Container=new(){ParentItem=med}}};med.CurrentAddress.Container.ParentItem=other;

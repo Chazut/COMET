@@ -72,7 +72,7 @@ public sealed partial class Plugin
 
 internal static class LoadoutAdapter
 {
-    internal static readonly EquipmentSlot[] Carried = { EquipmentSlot.Pockets, EquipmentSlot.TacticalVest, EquipmentSlot.Backpack, EquipmentSlot.SecuredContainer };
+    internal static readonly EquipmentSlot[] Carried = { EquipmentSlot.Pockets, EquipmentSlot.TacticalVest, EquipmentSlot.Backpack, EquipmentSlot.SecuredContainer, EquipmentSlot.ArmBand };
     internal static LoadoutTrace Read(BotComponent bot, Weapon weapon, LoadoutConfig c, string reason)
     {
         var info = bot.PlayerComponent?.Equipment?.CurrentWeaponInfo;
@@ -93,7 +93,7 @@ internal static class LoadoutAdapter
             if (++p.ItemsScanned > 256) { p.ResourceReason = "inventory-scan-limit"; break; }
             var slot = RootSlot(item, equipment);
             if (slot == null) continue;
-            bool fast = (slot == EquipmentSlot.TacticalVest || slot == EquipmentSlot.Pockets)
+            bool fast = (slot == EquipmentSlot.TacticalVest || slot == EquipmentSlot.Pockets || slot == EquipmentSlot.ArmBand)
                 && ReferenceEquals(item.CurrentAddress?.Container?.ParentItem, equipment.GetSlot(slot.Value)?.ContainedItem);
             if (item is Magazine mag && !ReferenceEquals(mag, weapon.GetCurrentMagazine()) && magSlot != null
                 && LoadoutModel.UsableSpareMagazine(fast, magSlot.CanAccept(mag), mag.Count, mag.IsAmmoCompatible(weapon.Chambers))) p.CompatibleMagazines++;

@@ -12,7 +12,9 @@ def method(file, signature):
 movement = '\n'.join(method('Client/CombatStepAdapter.cs', name) for name in [
     '    private static bool ReleaseShootingRoute(', '    private static bool ShootingHandoffAllowed(', '    private static IBotPathData? CrossfireQueuedPath(',
     '    private static bool QueuedCombatMovement('])
-inventory = method('Client/LoadoutAdapter.cs', '    internal static EquipmentSlot? RootSlot(')
+inventory = next(line for line in (root/'Client/LoadoutAdapter.cs').read_text(encoding='utf-8-sig').splitlines()
+                 if 'readonly EquipmentSlot[] Carried' in line)
+inventory += '\n' + method('Client/LoadoutAdapter.cs', '    internal static EquipmentSlot? RootSlot(')
 inventory += '\n' + method('Client/LoadoutAdapter.cs', '    private static bool UsableMed(')
 out = Path(__file__).parent/'obj/Production.Generated.cs'
 out.parent.mkdir(exist_ok=True)

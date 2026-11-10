@@ -180,6 +180,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             RunIntegration("PatchCoverFeint",()=>PatchCoverFeint(harmony));
 
             RunIntegration("PatchReloadTiming",()=>PatchReloadTiming(harmony));
+            RunIntegration("PatchReloadInventory",()=>PatchReloadInventory(harmony));
 
             RunIntegration("PatchCombatJournal",()=>PatchCombatJournal(harmony));
             RunIntegration("PatchWeaponReturn",()=>PatchWeaponReturn(harmony));

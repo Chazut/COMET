@@ -136,13 +136,13 @@ public sealed partial class Plugin
         try
         {
         // All three weapons share the same reachable inventory. Scan it once per snapshot.
-        b.Player.InventoryController.GetReachableItemsOfTypeNonAlloc(magazines);
+        bool inventoryComplete=ReloadInventory.ReadMagazines(b.Player.InventoryController,magazines);
         // Read-only APIs: never BotReload.CanReload, which can change the selected weapon.
         foreach(var slot in new[]{EquipmentSlot.FirstPrimaryWeapon,EquipmentSlot.SecondPrimaryWeapon,EquipmentSlot.Holster})
         {
             var w=SlotGun(b,slot);if(w==null)continue;var mag=w.GetCurrentMagazine();var magSlot=w.GetMagazineSlot();int reserve=0,spares=0;bool complete=true;
             ammo.Clear();
-            if(magazines.Count>128)complete=false;
+            if(!inventoryComplete||magazines.Count>128)complete=false;
             for(int i=0;i<Math.Min(128,magazines.Count);i++)
             {var m=magazines[i];if(!ReferenceEquals(m,mag)&&m.Count>0&&magSlot!=null
                 &&ItemManipulator.CheckMoveIgnoringTargetItem(m,magSlot,b.Player.InventoryController).Succeeded){spares++;reserve+=m.Count;}}

@@ -73,3 +73,4 @@ Check(!p.states[retiring].Journal.Fault,"death or Ghost suspension does not read
 Check(Events().Any(x=>(string?)x["profileId"]=="retiring"&&(bool?)(x["weaponJournal"] as JObject)?["cachedContext"]==true),"suspended weapon request retains last value-only context");
 Check(retiring.Player.InventoryController.Scans==1,"suspension never scans the retired inventory");
 p.End();Console.WriteLine($"T01/T03 including service continuity and retirement: {n} checks passed.");
+Plugin.TestBeltReload();

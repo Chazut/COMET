@@ -64,6 +64,10 @@ def phases(e,t,spec):
     if t.get('callbackCompleted') is True and t.get('callbackSucceeded') is False: result.add('refused')
     if any(t.get(k) is True for k in OBSERVED): result.add('started')
     if spec['id'] in ('W02','W03','W05') and t.get('inHands') is True:result.add('started')
+    if spec['id']=='W01':
+        if t.get('started') is True:result.add('started')
+        # W01 ends observation with state=ended, including unsuccessful reloads.
+        if t.get('finished') is True and t.get('improved') is True:result.add('completed')
     if state=='completed': result.add('completed')
     if state=='interrupted': result.add('interrupted')
     # Attached context is not the parent tactic: an A01 start does not mean

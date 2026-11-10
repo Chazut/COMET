@@ -127,8 +127,8 @@ public sealed partial class Plugin
                 &&(f.ContactAge>config.QuickReload.ContactMemory||f.Distance>config.QuickReload.ThreatDistance||distance<f.Distance))
             {f.Target=e.EnemyProfileId;f.Source=ReferenceEquals(place,heard)?"personal-hearing":"personal-vision";f.ContactAge=age;f.Distance=distance;f.Protected=false;}
         }
-        var slot=w.GetMagazineSlot();b.Player.InventoryController.GetReachableItemsOfTypeNonAlloc(r.Magazines);
-        if(r.Magazines.Count>128){f.Block="quick-inventory-budget";return f;}
+        var slot=w.GetMagazineSlot();
+        if(!ReloadInventory.ReadMagazines(b.Player.InventoryController,r.Magazines)){f.Block="quick-inventory-budget";return f;}
         foreach(var m in r.Magazines)
             if(!ReferenceEquals(m,old)&&m.Count>0&&m.IsAmmoCompatible(w.Chambers)&&slot!=null&&ItemManipulator.CheckMoveIgnoringTargetItem(m,slot,b.Player.InventoryController).Succeeded)
             {f.SpareMagazines++;if(ReferenceEquals(m,replacement))f.Reachable=true;}

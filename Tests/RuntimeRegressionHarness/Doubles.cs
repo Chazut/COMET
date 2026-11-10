@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Numerics;
-enum EquipmentSlot { Pockets, TacticalVest, Backpack, SecuredContainer, Weapon }
+enum EquipmentSlot { Pockets, TacticalVest, Backpack, SecuredContainer, Weapon, ArmBand }
 class Item { public Address? CurrentAddress; public MedKitComponent? Med; public T? GetItemComponent<T>() where T:class=>Med as T; public Address Parent => throw new Exception("EFT Parent throws for detached item"); }
 class MedKitComponent {public float HpResource=100;}
 class BotAbstractMedsToPart {public Item? CurUsingMeds;public int? _bodyPartToHeal=1;}
@@ -35,7 +35,6 @@ class WeaponManager {public Reload Reload=new();public Grenades Grenades=new();}
 class Owner {public Medicine Medecine=new();public WeaponManager WeaponManager=new();}
 class BotComponent {public Mover Mover=new();public Decision Decision=new();public Player Player=new();public Grenade Grenade=new();public Owner BotOwner=new();}
 partial class Runtime {
- static readonly EquipmentSlot[] Carried={EquipmentSlot.Pockets,EquipmentSlot.TacticalVest,EquipmentSlot.Backpack,EquipmentSlot.SecuredContainer};
  static BotPathDataManual combatPathOne(Mover m)=>m.One;
  static BotPathDataManual combatPathTwo(Mover m)=>m.Two;
  static readonly MethodInfo combatStopPath=typeof(BotPathDataManual).GetMethod("Stop")!;
