@@ -15,5 +15,8 @@ internal static class CrossfireTests
  {var board=new CrossfireClaims();C(board.Reserve("a",0,0,0,4,10,"squad-a")&&board.Reserve("b",0,0,0,4,10,"squad-b"),"unrelated squads do not reveal reservations");C(!board.Reserve("c",0,0,0,4,10,"squad-a"),"same squad still separates destinations");}
  C(CrossfireGeometry.InLane(0,0,5,0,0,0,0,0,10),"inside firing corridor");C(!CrossfireGeometry.InLane(2,0,5,0,0,0,0,0,10),"outside lane");C(!CrossfireGeometry.InLane(0,3,5,0,0,0,0,0,10),"different floor");C(!CrossfireGeometry.InLane(0,0,-1,0,0,0,0,0,10)&&!CrossfireGeometry.InLane(0,0,11,0,0,0,0,0,10),"finite segment only");
  Comet.Api.Decisions.SetCrossfire("test","COMET:CrossfireMoving");C(Comet.Api.Decisions.GetCrossfireDecision("test")=="COMET:CrossfireMoving","optional RR API");Comet.Api.Decisions.Clear();C(Comet.Api.Decisions.GetCrossfireDecision("test")=="","API raid cleanup");
+ C(CrossfireGeometry.RequiredAngle(35,0,80,24)<18&&CrossfireGeometry.RequiredAngle(35,0,80,24)>=10,"80m contact does not demand impossible 35 degree angle in a 24m radius");
+ C(CrossfireGeometry.RequiredAngle(35,0,20,24)==35,"near contact retains preferred angle");
+ C(CrossfireGeometry.RequiredAngle(35,40,80,24)>=50,"existing separation still requires useful improvement");
  Console.WriteLine($"{n} S01 policy/config/geometry checks passed");return n;}
 }

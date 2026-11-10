@@ -31,7 +31,7 @@ foreach(string scope in new[]{"scav","human","dead","inactive","ghost","remote",
  switch(scope){case"scav":b.Pmc=false;break;case"human":b.Player.IsAI=false;break;case"dead":b.IsDead=true;break;case"inactive":b.BotActive=false;break;case"ghost":p.Ghosts.Add(b.ProfileId);break;case"remote":p.Authority=false;break;case"world":p.world=null;break;case"enabled":p.config!.Enabled=false;break;case"feature":p.config!.Crossfire.Enabled=false;break;case"ending":b.GameEnding=true;break;}
  p.Sample(b);C(!p.states[b].Crossfire.Policy.Active&&p.Claims==0&&path.Stops==1,"scope releases owned route "+scope);Save(p);
 }
-foreach(string priority in new[]{"visible","under-fire","suppression","grenade","flash","self","squad","medicine","reload","throw","hands","ammo","airborne","injury","door","medical-guard","recovery","relocation","feint","door-plan","native-combat","contact-changed","position-changed","no-contact","unknown","stale","support-dead","support-ghost","support-moved"}){
+foreach(string priority in new[]{"visible","under-fire","suppression","grenade","flash","self","squad","medicine","reload","throw","hands","ammo","airborne","injury","door","medical-guard","recovery","relocation","feint","door-plan","native-combat","contact-changed","position-changed","no-contact","unknown","support-dead","support-ghost","support-moved"}){
  var(p,b,m)=Setup();Plan(p,b);Start(p,b);var r=p.states[b].Crossfire;var path=(BotPathDataManual)b.Mover.ActivePath!;
  switch(priority){case"visible":b.GoalEnemy!.IsVisible=true;break;case"under-fire":b.BotOwner.Memory.IsUnderFire=true;break;case"suppression":b.Suppression.IsSuppressed=true;break;case"grenade":b.Grenade.GrenadeDangerPoint=new();break;case"flash":b.Flashed.IsFlashed=true;break;case"self":b.Decision.CurrentSelfDecision=ESelfActionType.Heal;break;case"squad":b.Decision.CurrentSquadDecision=ESquadDecision.Retreat;break;case"medicine":b.BotOwner.Medecine.Using=true;break;case"reload":b.BotOwner.WeaponManager.Reload.Reloading=true;break;case"throw":b.BotOwner.WeaponManager.Grenades.ThrowindNow=true;break;case"hands":((Player.FirearmController)b.Player.HandsController).Ready=false;break;case"ammo":b.BotOwner.WeaponManager.HaveBullets=false;break;case"airborne":b.Player.MovementContext.IsGrounded=false;break;case"sprint":b.Player.IsSprintEnabled=true;break;case"injury":b.Memory.Health.HealthStatus=ETagStatus.BadlyInjured;break;case"door":b.BotOwner.DoorOpener.Interacting=true;break;case"medical-guard":p.Guard=true;break;case"recovery":p.states[b].PostCombat.Policy.Active=true;break;case"relocation":p.states[b].Relocation.Policy.Active=true;break;case"feint":p.states[b].CoverFeint.Policy.Active=true;break;case"door-plan":p.states[b].Feature="D01";p.states[b].Decision="Hold";break;case"native-combat":b.Decision.CurrentCombatDecision=ECombatDecision.RushEnemy;break;case"contact-changed":b.GoalEnemy!.EnemyProfileId="new";break;case"position-changed":b.GoalEnemy!.KnownPlaces.LastKnownPosition=new(40,0,40);break;case"no-contact":b.GoalEnemy=null;break;case"unknown":b.GoalEnemy!.EnemyKnown=false;break;case"stale":b.GoalEnemy!.TimeSinceLastKnownUpdated=9;break;case"support-dead":m.IsDead=true;break;case"support-ghost":p.Ghosts.Add(m.ProfileId);break;case"support-moved":m.Position=new(5,0,0);break;}
  if(priority=="airborne"){p.Sample(b);C(r.Policy.Active,"short ground loss retains active plan");Step(.61f);}
@@ -39,6 +39,23 @@ foreach(string priority in new[]{"visible","under-fire","suppression","grenade",
 }
 {
  var(p,b,m)=Setup();Plan(p,b);Start(p,b);m.GoalEnemy!.IsVisible=false;p.Sample(b);C(p.states[b].Crossfire.Policy.Active,"brief support loss allowed");Step(2);p.Sample(b);C(!p.states[b].Crossfire.Policy.Active&&p.Claims==0,"support grace expires");Save(p);
+}
+// Old information cannot start a plan, but it does not erase a progressing remembered route.
+{
+ var(p,b,m)=Setup();b.GoalEnemy!.TimeSinceLastKnownUpdated=9;p.Observe(b);
+ C(!p.states[b].Crossfire.Policy.Active,"stale information cannot initiate flank");
+}
+{
+ var(p,b,m)=Setup();Plan(p,b);var a=Start(p,b);var r=p.states[b].Crossfire;
+ b.GoalEnemy!.TimeSinceLastKnownUpdated=9;p.Sample(b);
+ C(r.Policy.Active&&r.Policy.Trace!.ContinuingRememberedRoute,"moving remembered route survives initial freshness limit");
+ b.Position=r.Goal;Step();a.Update(new());
+ C(r.Policy.Trace!.State=="holding","remembered route reaches its validated angle");
+ Step();p.Sample(b);C(!r.Policy.Active,"stale arrival does not hold indefinitely");
+}
+{
+ var(p,b,m)=Setup();Plan(p,b);Start(p,b);b.GoalEnemy!.TimeSinceLastKnownUpdated=9;
+ Step(3.1f);p.Sample(b);C(!p.states[b].Crossfire.Policy.Active,"stalled remembered route still expires");
 }
 foreach(string mode in new[]{"foreign-path","reused-path","stalled","early-end","budget-timeout","occupied-goal"}){
  var(p,b,m)=Setup();Plan(p,b);var a=Start(p,b);var path=(BotPathDataManual)b.Mover.ActivePath!;var r=p.states[b].Crossfire;

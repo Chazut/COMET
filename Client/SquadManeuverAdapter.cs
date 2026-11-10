@@ -42,17 +42,15 @@ public sealed partial class Plugin
             foreach(var mate in b.Squad.Members.Values)
             {
                 if(mate==null||!CrossfireScope(mate)||mate.GoalEnemy?.EnemyProfileId!=enemy.EnemyProfileId)continue;
-                // A visible contact belongs to S01/native combat, not this hidden-contact maneuver.
-                if(mate.GoalEnemy.IsVisible){RecordCrossfireGate(s,"maneuver-visible-contact-use-S01");return false;}
                 if(Vector3.Distance(b.Position,mate.Position)>c.SquadDistance)continue;
                 if(!states.TryGetValue(mate,out var ms)){if(states.Count>=512)continue;ms=new BotState(mate,config,session);states.Add(mate,ms);}
-                if(ms.Crossfire.Policy.Active||ms.Crossfire.Fault||Time.time<ms.Crossfire.Policy.RetryAt||CrossfireBlock(mate,ms,true).Length>0
+                if(ms.Crossfire.Policy.Active||ms.Crossfire.Fault||Time.time<ms.Crossfire.Policy.RetryAt||CrossfireBlock(mate,ms,true,supportCandidate:mate.GoalEnemy.IsVisible).Length>0
                     ||!CrossfireCanAcquire(mate))continue;
                 var mk=mate.GoalEnemy.KnownPlaces.LastKnownPosition;
                 if(mk==null||Vector3.Distance(mk.Value,known)>4||mate.GoalEnemy.TimeSinceLastKnownUpdated>c.ContactAge)continue;
                 double md=Vector3.Distance(mate.Position,mk.Value);if(md<c.MinDistance||md>c.MaxDistance)continue;
                 double ammo=ManeuverAmmo(mate);if(ammo<=0)continue;
-                candidates.Add(new(){Id=mate.ProfileId,Name=mate.Player.Profile.Nickname,Personality=mate.Info.Personality.ToString(),Ammo=ammo,
+                candidates.Add(new(){Id=mate.ProfileId,Name=mate.Player.Profile.Nickname,Personality=mate.Info.Personality.ToString(),Ammo=ammo,VisibleContact=mate.GoalEnemy.IsVisible,
                     Score=SquadManeuverBoard.Score(mate.Info.Personality.ToString(),mate.Memory.Health.HealthStatus==ETagStatus.Healthy,ammo,c),
                     Roll=jumpRandom.NextDouble(),RearContact=ManeuverRearContact(mate,known,out _)});
             }
@@ -113,7 +111,7 @@ public sealed partial class Plugin
          if(Time.time-m.ProgressAt>=c.StallTimeout){EndCrossfire(b,s,"maneuver-route-stalled");return false;}}
         if(!b.Squad.Members.TryGetValue(p.Support,out var support)||!states.TryGetValue(support,out var ss)||!CrossfireScope(support)
             ||support.GoalEnemy?.EnemyProfileId!=p.Enemy||support.GoalEnemy.KnownPlaces.LastKnownPosition is not Vector3 sk||Vector3.Distance(sk,r.Known)>4
-            ||support.GoalEnemy.TimeSinceLastKnownUpdated>c.ContactAge||CrossfireBlock(support,ss,true).Length>0
+            ||support.GoalEnemy.TimeSinceLastKnownUpdated>c.ContactAge&&!p.HasProgressingFlanker(Time.time,c)||CrossfireBlock(support,ss,true).Length>0
             ||Vector3.Distance(b.Position,support.Position)>c.SquadDistance||Vector3.Distance(support.Position,r.Reference)>2)
         {p.End("maneuver-support-unavailable");EndCrossfire(b,s,p.Reason);return false;}
         if(m.Role=="flank"&&ManeuverAmmo(b)<c.MinimumAmmo){EndCrossfire(b,s,"maneuver-flanker-low-ammo");return false;}
@@ -131,10 +129,10 @@ public sealed partial class Plugin
         {EndCrossfire(b,s,"maneuver-support-moved-or-route-busy");return true;}
         if(r.Policy.Trace!.State=="ready"){r.Policy.Moving(Time.time,0);r.Policy.Progress(Time.time,0,config!.Crossfire);}
         r.Policy.Trace.Reason=m.Confirmed?"maneuver-support-established":"maneuver-support-awaiting-steering";
-        r.Policy.Trace.Execution=m.Confirmed?"support angle observed; no flank movement claimed":"awaiting support steering callback";
+        r.Policy.Trace.Execution=m.Confirmed?(b.GoalEnemy?.IsVisible==true?"visible anchor; native SAIN aim and fire":"support angle observed; no flank movement claimed"):"awaiting support steering callback";
         // Steering is executed by the native layer callback. Only then is this support confirmed.
-        if(r.ManeuverFire&&!r.Maneuver!.MaySuppress){EndDiscipline(s,"suppression-plan-no-longer-needs-fire");r.ManeuverFire=false;}
-        if(m.Confirmed&&m.Role=="support"&&r.Maneuver!.MaySuppress&&config!.SuppressionDiscipline.Enabled&&!s.SuppressionDiscipline.Fault)
+        if(r.ManeuverFire&&(!r.Maneuver!.MaySuppress||b.GoalEnemy?.IsVisible==true)){EndDiscipline(s,"suppression-plan-no-longer-needs-fire");r.ManeuverFire=false;}
+        if(m.Confirmed&&m.Role=="support"&&b.GoalEnemy?.IsVisible!=true&&r.Maneuver!.MaySuppress&&config!.SuppressionDiscipline.Enabled&&!s.SuppressionDiscipline.Fault)
         {
             var f=DisciplineFrame(b,s,b.GoalEnemy);
             if(f.Block.Length==0&&!f.Visible&&f.KnownContact&&f.ObservedAt>=0&&Time.time-f.ObservedAt<=config.SuppressionDiscipline.ContactAge)
@@ -158,5 +156,5 @@ public sealed partial class Plugin
         if(r.ManeuverFire)EndDiscipline(s,"suppression-support-plan-ended");r.ManeuverFire=false;
     }
     private void ManeuverShot(BotState s)
-    {var r=s.Crossfire;var m=r.ManeuverRole;if(m==null||!r.ManeuverFire||m.Role!="support"||r.Maneuver?.Active!=true||!r.Layer)return;m.Shots++;m.LastShot=Time.time;RecordCrossfire(s,true);}
+    {var r=s.Crossfire;var m=r.ManeuverRole;if(m==null||!m.Confirmed||m.Role!="support"||r.Maneuver?.Active!=true||!r.Layer)return;m.Shots++;m.LastShot=Time.time;RecordCrossfire(s,m.Shots==1);}
 }

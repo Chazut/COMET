@@ -52,21 +52,26 @@ public sealed partial class Plugin
     }
     private bool CrossfireScope(BotComponent b)=>config?.Enabled==true&&(config.Crossfire.Enabled||config.CoverMate.Enabled||config.SquadTrade.Enabled||config.SquadStorm.Enabled)&&world!=null&&Authority
         &&b!=null&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId)&&ContactSafety.AllowsGoal(b);
-    private string CrossfireBlock(BotComponent b,BotState s,bool maneuverCandidate=false)
+    private string CrossfireBlock(BotComponent b,BotState s,bool maneuverCandidate=false,bool supportCandidate=false)
     {
         if(!CrossfireScope(b)||!config!.Crossfire.Enabled)return "crossfire-out-of-scope";
         var e=b.GoalEnemy;
         if(e==null||!e.EnemyKnown||e.KnownPlaces.LastKnownPosition is not Vector3 known||!ValidPoint(known))return "crossfire-no-known-contact";
-        if(e.IsVisible)return "crossfire-enemy-visible";
+        bool supporting=supportCandidate||s.Crossfire.ManeuverRole?.Role=="support"
+            ||maneuverCandidate&&b.Squad.Members!=null&&maneuverBoard.Get(ManeuverGroup(b)) is {Active:true} plan&&plan.Member(b.ProfileId)?.Role=="support";
+        if(e.IsVisible&&!supporting)return "crossfire-enemy-visible";
         bool maneuver= maneuverCandidate||s.Crossfire.Maneuver?.Active==true;
         double contactAge=maneuver?config!.SquadManeuver.ContactAge:s.Crossfire.Policy.Active&&s.Crossfire.Policy.Trace?.Entrance!=null?config!.SecondaryEntrance.ContactAge:config!.Crossfire.ContactAge;
-        if(!float.IsFinite(e.TimeSinceLastKnownUpdated)||e.TimeSinceLastKnownUpdated<0||e.TimeSinceLastKnownUpdated>contactAge)return "crossfire-contact-stale";
+        bool continuing=s.Crossfire.Policy.CanContinueRememberedRoute(Time.time,config.Crossfire)
+            ||supporting&&s.Crossfire.Maneuver?.HasProgressingFlanker(Time.time,config.SquadManeuver)==true;
+        if(s.Crossfire.Policy.Trace!=null)s.Crossfire.Policy.Trace.ContinuingRememberedRoute=continuing&&e.TimeSinceLastKnownUpdated>contactAge;
+        if(!float.IsFinite(e.TimeSinceLastKnownUpdated)||e.TimeSinceLastKnownUpdated<0||e.TimeSinceLastKnownUpdated>contactAge&&!continuing)return "crossfire-contact-stale";
         if(Vector3.Distance(b.Position,known)>(maneuver?config.SquadManeuver.MaxDistance:config.Crossfire.EnemyDistance))return "crossfire-enemy-too-far";
-        if(s.Crossfire.Policy.Active&&Time.time-s.Crossfire.ContactAt>contactAge)return "crossfire-snapshot-stale";
+        if(s.Crossfire.Policy.Active&&Time.time-s.Crossfire.ContactAt>contactAge&&!continuing)return "crossfire-snapshot-stale";
         if(s.Crossfire.Policy.Active&&(System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e)!=s.Crossfire.ContactInstance||e.EnemyProfileId!=s.Crossfire.Contact||Vector3.Distance(known,s.Crossfire.Known)>4))return "crossfire-contact-changed";
-        return CrossfireCommonBlock(b,s);
+        return CrossfireCommonBlock(b,s,allowGoalVisible:supporting);
     }
-    private string CrossfireCommonBlock(BotComponent b,BotState s,bool trade=false)
+    private string CrossfireCommonBlock(BotComponent b,BotState s,bool trade=false,bool allowGoalVisible=false)
     {
         if(b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed||b.Grenade.GrenadeDangerPoint!=null||b.Flashed.IsFlashed)return "crossfire-urgent-threat";
         if(b.Decision.CurrentSelfDecision!=ESelfActionType.None
@@ -102,7 +107,7 @@ public sealed partial class Plugin
         if(!CrossfireTacticalDecision(b))return "crossfire-native-combat-priority";
         if((!trade&&!b.Squad.BotInGroup)||b.Squad.Members==null||b.Squad.Members.Count<(trade?1:2)||b.Squad.Members.Count>16)return "crossfire-no-bounded-squad";
         int count=0;foreach(var other in b.EnemyController.KnownEnemies)
-        {if(++count>16)return "crossfire-threat-list-over-budget";if(other?.IsVisible==true)return "crossfire-visible-threat";}
+        {if(++count>16)return "crossfire-threat-list-over-budget";if(other?.IsVisible==true&&(!allowGoalVisible||!ReferenceEquals(other,b.GoalEnemy)))return "crossfire-visible-threat";}
         return "";
     }
     private BotComponent? CrossfireSupport(BotComponent b,string id="")
@@ -142,7 +147,7 @@ public sealed partial class Plugin
         {
             // All variants share these safety gates. Do not rebuild several squad
             // candidates on every tick when a native emergency already excludes them.
-            string common=CrossfireCommonBlock(b,s,true);
+            string common=CrossfireCommonBlock(b,s,true,allowGoalVisible:true);
             if(common.Length>0){RecordCrossfireGate(s,common);return false;}
         }
         if(r.Policy.Active&&r.Policy.Trace?.Storm!=null)return RefreshStorm(b,s);
@@ -251,6 +256,12 @@ public sealed partial class Plugin
         try
         {
             if((s.Crossfire.Policy.Trace?.Storm!=null?p.StormBlock(b,s):s.Crossfire.Policy.Trace?.Trade!=null?p.SquadTradeBlock(b,s):s.Crossfire.Policy.Trace?.CoverMate!=null?p.CoverMateBlock(b,s):p.CrossfireBlock(b,s)).Length>0)return false;
+            if(s.Crossfire.ManeuverRole?.Role=="support"&&b.GoalEnemy?.IsVisible==true)
+            {
+                // BotAction's ordinary steering callback performs SAIN's visible
+                // aim/fire checks. Do not substitute blind suppression for a visible target.
+                p.ConfirmManeuver(b,s,true);return false;
+            }
             if(s.Crossfire.Policy.Trace?.State=="moving")b.Steering.LookToMovingDirection();else b.Steering.LookToPoint((s.Crossfire.Policy.Trace?.Entrance!=null?s.Crossfire.Entrance.Center:s.Crossfire.ManeuverRole?.Role=="rear"?s.Crossfire.Watch:s.Crossfire.Known)+Vector3.up*1.3f);
             p.ConfirmManeuver(b,s,true);p.ConfirmCoverMate(b,s);p.ConfirmSquadTrade(b,s);
             return true;

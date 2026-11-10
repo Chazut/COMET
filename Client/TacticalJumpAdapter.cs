@@ -65,13 +65,14 @@ public sealed partial class Plugin
             MinStamina=minStamina,Grounded=b.Player.MovementContext.IsGrounded,CanJump=ChaseCanJump(b),Clearance=clearance,GeometryAge=age,
             Position=DP(b.Position),Landing=DP(landing)};
     }
-    private bool ControlledJump(BotComponent b,BotState s,string source,string kind,Vector3 direction,Vector3 landing,double minSpeed,double minStamina,bool clearance,double age=0)
+    private bool ControlledJump(BotComponent b,BotState s,string source,string kind,Vector3 direction,Vector3 landing,double minSpeed,double minStamina,bool clearance,double age=0,string clearanceDetail="")
     {
         if(config==null||!JumpScope(b,s)||MedicalPostureGuard(b))return false;
         if(!config.TacticalJump.Enabled||s.TacticalJump.Fault)return b.Mover.TryJump();
         try {
             SampleTacticalJump(b,s);
             var r=s.TacticalJump;var f=JumpFrame(b,s,source,kind,direction,landing,minSpeed,minStamina,clearance,age);
+            f.ClearanceDetail=clearanceDetail;
             if(!r.Policy.Request(f,config.TacticalJump,jumpRandom.NextDouble)){RecordTacticalJump(s);return false;}
             RecordTacticalJump(s,true);
             bool accepted=b.Mover.TryJump();r.Policy.Result(accepted,Time.time);
@@ -95,12 +96,12 @@ public sealed partial class Plugin
             if(r.Policy.Active||TacticalJumpPolicy.Gate(f,p.config.TacticalJump).Length>0) {
                 r.Policy.Request(f,p.config.TacticalJump,p.jumpRandom.NextDouble);p.RecordTacticalJump(s);return false;
             }
-            bool clear=false;
+            string clearanceDetail="geometry-budget-deferred";
             if(p.doorBudget.TryBegin(Time.frameCount)) {
                 var watch=System.Diagnostics.Stopwatch.StartNew();
-                try{clear=p.WeaveLane(b,direction,length,true);}finally{watch.Stop();p.doorBudget.Charge(watch.Elapsed.TotalMilliseconds);}
+                try{clearanceDetail=p.WeaveLaneBlock(b,direction,length,true);}finally{watch.Stop();p.doorBudget.Charge(watch.Elapsed.TotalMilliseconds);}
             }
-            return p.ControlledJump(b,s,"SAIN","rush",direction,landing,p.config.TacticalJump.RushMinSpeed,0,clear);
+            return p.ControlledJump(b,s,"SAIN","rush",direction,landing,p.config.TacticalJump.RushMinSpeed,0,clearanceDetail.Length==0,0,clearanceDetail);
         }catch(Exception ex){p.TacticalJumpError(s,ex);return false;}
     }
     private void SampleTacticalJump(BotComponent b,BotState s)
@@ -138,7 +139,7 @@ public sealed partial class Plugin
     private void RecordTacticalJump(BotState s,bool force=false)
     {
         var r=s.TacticalJump;var t=r.Policy.Trace;if(t==null||t.Target.Length==0)return;
-        string key=t.State+":"+t.Reason+":"+t.SourceFeature+":"+t.Kind+":"+t.Target+":"+t.AirShots+":"+t.GroundShots;
+        string key=t.State+":"+t.Reason+":"+t.SourceFeature+":"+t.Kind+":"+t.Target+":"+t.AirShots+":"+t.GroundShots+":"+t.ClearanceDetail;
         if(!force&&key==r.LogKey&&(!r.Policy.Active||Time.time-r.LogAt<.1f))return;r.LogKey=key;r.LogAt=Time.time;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="M12",stage="evaluated",decision="TacticalJump",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,

@@ -37,6 +37,11 @@ public sealed class MovementRecoveryFrame
 }
 public sealed class MovementRecoveryTrace
 {
+    public double StationaryPauseSeconds {get;set;}
+    public string SelfAction {get;set;}="";
+    public bool Healing {get;set;}
+    public bool Reloading {get;set;}
+    public bool HandsBusy {get;set;}
     public string State {get;set;}="idle";
     public string Reason {get;set;}="recovery-no-movement-intent";
     public string Step {get;set;}="";

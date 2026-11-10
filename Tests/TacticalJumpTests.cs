@@ -20,6 +20,12 @@ internal static class TacticalJumpTests
         void Takeoff(TacticalJumpPolicy p,double now=10.1)=>p.Observe(false,now,new(now,.2,0),4.8,55,c);
         void Land(TacticalJumpPolicy p,double now=10.8)=>p.Observe(true,now,new(now+3,0,0),4.7,55,c);
         Check(c.Enabled&&c.NativeRush&&c.AirShotChance==25&&c.RushMinSpeed==2&&c.MinimumStamina==0&&c.TakeoffTimeout==.5,"approved defaults");
+        foreach(var detail in new[]{"geometry-budget-deferred","lane-no-navmesh","lane-height-change","lane-no-ground","lane-steep-ground","blocked-volume"}) {
+            var f=F();f.Clearance=false;f.ClearanceDetail=detail;f.GeometryAge=.03;
+            var diagnostic=new TacticalJumpPolicy();int previousRolls=rolls;
+            Check(!diagnostic.Request(f,c,Low)&&diagnostic.Trace!.Reason=="jump-clearance-unavailable","clearance diagnostics never permit unsafe jumps");
+            Check(diagnostic.Trace!.ClearanceDetail==detail&&diagnostic.Trace.GeometryAge==.03&&rolls==previousRolls,"clearance refusal retains measured cause without drawing style");
+        }
         var p=new TacticalJumpPolicy();Check(p.Request(F(),c,Low),"authorize moving jump");
         Check(p.Trace!.Requested&&!p.Trace.Accepted&&!p.Trace.TakeoffObserved&&!p.HoldFire,"request alone proves neither flight nor fire block");
         p.Result(true,10);Check(p.Trace.Accepted&&!p.Trace.TakeoffObserved&&!p.HoldFire,"native acceptance is not takeoff");

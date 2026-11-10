@@ -68,7 +68,10 @@ public sealed partial class Plugin
             if(!NavMesh.SamplePosition(candidate,out var nav,.75f,NavMesh.AllAreas)||Math.Abs(nav.position.y-r.Origin.y)>2.5)
             {RejectCrossfire(r,"no same-floor navigation");return;}
             r.Goal=nav.position;r.Angle=CrossfireAngle(r.Reference,r.Goal,r.Known);
-            if(r.Angle<(r.Indoor?c.IndoorAngle:c.OutdoorAngle)||r.Angle<CrossfireAngle(r.Reference,r.Origin,r.Known)+10)
+            var initialAngle=CrossfireAngle(r.Reference,r.Origin,r.Known);
+            r.Policy.Trace!.RequiredAngle=CrossfireGeometry.RequiredAngle(r.Indoor?c.IndoorAngle:c.OutdoorAngle,
+                initialAngle,Vector3.Distance(r.Origin,r.Known),Math.Min(24,c.MaxPath*.7));
+            if(r.Angle<r.Policy.Trace.RequiredAngle)
             {RejectCrossfire(r,"angle gain too small");return;}
             string deny=CrossfireSpace(b,s,r.Goal,true);if(deny.Length>0){RejectCrossfire(r,deny);return;}
             if(!CrossfireSight(r.Goal,r.Known)){RejectCrossfire(r,"no firing angle to known position");return;}

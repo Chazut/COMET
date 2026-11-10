@@ -65,7 +65,7 @@ internal static class PerformanceCapture
             Recorder=new PerformanceRecorder(PerformanceCatalog.Modules,Stopwatch.Frequency,allocations,c.SlowFrameMs,c.ReportIntervalSeconds);
             Writer=new PerformanceWriter(path,new{schema=1,stage="performance-start",session,configRevision=revision,map,authority,
                 version=typeof(Plugin).Assembly.GetName().Version?.ToString(),utc=DateTime.UtcNow.ToString("O"),realtime=Time.realtimeSinceStartupAsDouble,
-                frame=Time.frameCount,settings=c,allocationsAvailable=allocations,modules=PerformanceCatalog.Modules,
+                frame=Time.frameCount,settings=c,serialization=Diagnostics.SerializerMetrics(),allocationsAvailable=allocations,modules=PerformanceCatalog.Modules,
                 instrumentedMethods=PerformanceCatalog.MethodCount,
                 scopePolicy="Nested calls in the same module share one timer. Lifecycle and control guard cost is charged to its caller; lifecycle sweeps and control sampling retain their own timer. Calls count measured entries, not every helper invocation.",
                 timing="Main-thread elapsed time, including native callees and synchronous subscribers. Not GPU time or whole-game CPU time.",
@@ -84,7 +84,7 @@ internal static class PerformanceCapture
             // In FixedUpdate Unity returns the physics step, not the rendered frame duration.
             var duration=physics?double.NaN:Time.unscaledDeltaTime*1000.0;
             var report=Recorder.Advance(frame,Time.realtimeSinceStartupAsDouble,duration,GC.CollectionCount(0),GC.CollectionCount(1),GC.CollectionCount(2),physics);
-            if(report!=null)Writer.Enqueue(report);
+            if(report!=null){report.Serialization=Diagnostics.SerializerMetrics();Writer.Enqueue(report);}
         }
         internal void Leave(long token)
         {
@@ -95,7 +95,7 @@ internal static class PerformanceCapture
         internal void Finish()
         {
             if(finished)return;
-            try{var report=Recorder.Finish(GC.CollectionCount(0),GC.CollectionCount(1),GC.CollectionCount(2));Writer.Finish(report,DiagnosticsDone);finished=true;}
+            try{var report=Recorder.Finish(GC.CollectionCount(0),GC.CollectionCount(1),GC.CollectionCount(2));report.Serialization=Diagnostics.SerializerMetrics();Writer.Finish(report,DiagnosticsDone);finished=true;}
             catch(Exception ex){Fail(ex);}
         }
         internal void Fail(Exception ex)

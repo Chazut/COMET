@@ -88,6 +88,15 @@ namespace Comet.Client
 // without constructing a payload or executing any property getter.
 internal class PreparedDiagnosticResolver : CamelCasePropertyNamesContractResolver
 {
+    private long contractsBuilt, contractBuildTicks;
+    internal long ContractsBuilt => Interlocked.Read(ref contractsBuilt);
+    internal double ContractBuildMilliseconds => Interlocked.Read(ref contractBuildTicks)*1000d/System.Diagnostics.Stopwatch.Frequency;
+    protected override JsonContract CreateContract(Type type)
+    {
+        var started=System.Diagnostics.Stopwatch.GetTimestamp();
+        try { return base.CreateContract(type); }
+        finally { Interlocked.Increment(ref contractsBuilt);Interlocked.Add(ref contractBuildTicks,System.Diagnostics.Stopwatch.GetTimestamp()-started); }
+    }
     internal int ReadersPrepared { get; private set; }
     internal int ReadersFallback { get; private set; }
     protected override IValueProvider CreateMemberValueProvider(MemberInfo member)
@@ -207,6 +216,12 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
         [ThreadStatic] private static System.Text.StringBuilder? buffer;
         [ThreadStatic] private static bool serializing;
         internal static readonly JsonSerializerSettings SnapshotJson = new JsonSerializerSettings { ContractResolver = new SnapshotDiagnosticResolver() };
+        internal static object SerializerMetrics()=>new {
+            globalDefaults=JsonConvert.DefaultSettings!=null,
+            snapshotContracts=((PreparedDiagnosticResolver)SnapshotJson.ContractResolver!).ContractsBuilt,
+            snapshotPreparationMs=((PreparedDiagnosticResolver)SnapshotJson.ContractResolver!).ContractBuildMilliseconds,
+            compatibilityContracts=((PreparedDiagnosticResolver)Json.ContractResolver!).ContractsBuilt,
+            compatibilityPreparationMs=((PreparedDiagnosticResolver)Json.ContractResolver!).ContractBuildMilliseconds };
         // Snapshot live values now, exactly as before. Only immutable JSON goes
         // to workers/subscribers. Reuse metadata/writer storage, never payloads.
         internal static string Serialize(object value)

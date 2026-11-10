@@ -49,6 +49,8 @@ public sealed class CrossfireConfig
 }
 public sealed class CrossfireTrace
 {
+    public bool ContinuingRememberedRoute { get; set; }
+    public double RequiredAngle { get; set; }
     public bool GroundPaused { get; set; }
     public int GroundPauses { get; set; }
     public double GroundPauseSeconds { get; set; }
@@ -120,6 +122,11 @@ public sealed class Crossfire
     }
     public void Moving(double now,double distance)
     {var t=Trace!;t.State="moving";t.Execution="native route observed";movingAt=progressAt=now;bestDistance=distance;}
+    // Freshness admits a NEW plan. A moving bot can finish its already validated,
+    // unchanged route to remembered information, within the existing movement and stall limits.
+    public bool CanContinueRememberedRoute(double now, CrossfireConfig c) => Active
+        && Trace!.State=="moving" && Trace.Reserved && MedicalChoice.Finite(now)
+        && now>=movingAt && now>=progressAt && now-movingAt<c.MoveTimeout && now-progressAt<c.StallTimeout;
     public bool Progress(double now,double distance,CrossfireConfig c)
     {
         if(Trace?.State!="moving")return Active;
@@ -172,6 +179,15 @@ public sealed class CrossfireClaims
 
 public static class CrossfireGeometry
 {
+    public static double RequiredAngle(double preferred,double initial,double distance,double radius)
+    {
+        // A 35 degree separation cannot be reached by a 24 m local search 80 m
+        // away. Keep the preferred angle where reachable, and still require a
+        // genuine ten degree gain when the bounded search cannot produce it.
+        if(!MedicalChoice.Finite(distance)||!MedicalChoice.Finite(radius)||distance<=0||radius<=0)return preferred;
+        var reachable=Math.Asin(Math.Min(1,radius/distance))*180/Math.PI;
+        return Math.Max(initial+10,Math.Min(preferred,initial+reachable*.8));
+    }
     // Segment corridor, excluding space behind the shooter and beyond the remembered target.
     public static bool InLane(double x,double y,double z,double ax,double ay,double az,double bx,double by,double bz)
     {

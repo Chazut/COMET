@@ -62,7 +62,35 @@ internal static class SquadManeuverHarness
    C(p.states[bots[1]].Crossfire.Policy.Trace!.State=="moving","raid399: flanker actually moves after support callback");
    events.AddRange(p.diagnostics!.Lines);p.EndAll();
   }
-  foreach(var fault in new[]{"reload","heal","ghost","remote","visible","contact","distance","foreign-route","callbacks"})
+  {
+   var(p,bots,actions)=Start(2);var support=bots[0];var mover=bots[1];
+   support.GoalEnemy!.IsVisible=true;actions[0].Update(new());actions[0].OnSteeringTicked();
+   actions[1].Update(new());
+   C(p.states[mover].Crossfire.Policy.Active&&actions[0].NativeSteering>0,"visible anchor preserves native aim/fire and does not cancel flanker");
+   C(!p.states[support].Crossfire.ManeuverFire,"visible support does not restart blind suppression");
+   var shot=typeof(Plugin).GetMethod("ManeuverShot",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!;
+   int eventCount=p.diagnostics!.Lines.Count;
+   for(int i=0;i<30;i++)shot.Invoke(p,new object[]{p.states[support]});
+   C(p.states[support].Crossfire.ManeuverRole!.Shots==30,"all native visible support shots counted");
+   C(p.diagnostics.Lines.Count-eventCount<=1,"shot burst coalesces expensive member snapshots without losing counters");
+   support.GoalEnemy.IsVisible=false;support.GoalEnemy.TimeSinceLastKnownUpdated=9;
+   mover.GoalEnemy!.TimeSinceLastKnownUpdated=9;
+   Step();actions[0].Update(new());actions[0].OnSteeringTicked();actions[1].Update(new());
+   C(p.states[mover].Crossfire.Policy.Active,"support retains a confirmed progressing flank despite old contact");
+   mover.Position=p.states[mover].Crossfire.Goal;Step();actions[1].Update(new());
+   C(p.states[mover].Crossfire.Policy.Trace!.State=="holding","coordinated remembered route reaches goal");
+   Step(.11f);actions[0].Update(new());
+   C(p.states[support].Crossfire.Policy.Trace!.Maneuver!.Shots==30,"next support snapshot retains entire shot count");
+   events.AddRange(p.diagnostics!.Lines);p.EndAll();
+  }
+  {
+   var(p,bots)=Setup(2);bots[0].GoalEnemy!.IsVisible=true;
+   foreach(var b in bots)p.Observe(b);
+   C(p.states[bots[1]].Crossfire.Maneuver?.Support==bots[0].ProfileId,"visible teammate selected as anchor when hidden teammate starts plan");
+   Step(.6f);p.Observe(bots[0]);var a=Action(p,bots[0]);
+   C(a.NativeSteering>0,"new visible anchor uses original SAIN fire hook");p.EndAll();
+  }
+  foreach(var fault in new[]{"reload","heal","ghost","remote","distance","foreign-route","callbacks"})
   {
    var(p,bots,actions)=Start(2);var support=bots[0];var mover=bots[1];var path=(BotPathDataManual)mover.Mover.ActivePath!;
    switch(fault){case "reload":support.BotOwner.WeaponManager.Reload.Reloading=true;break;case "heal":support.BotOwner.Medecine.Using=true;break;case "ghost":p.Ghosts.Add(support.ProfileId);break;case "remote":p.Authority=false;break;case "visible":support.GoalEnemy!.IsVisible=true;break;case "contact":support.GoalEnemy!.TimeSinceLastKnownUpdated=9;break;case "distance":support.Position=new(90,0,0);break;case "foreign-route":support.Mover.ActivePath=new BotPathDataManual();actions[0].Update(new());break;case "callbacks":Step(1);break;}

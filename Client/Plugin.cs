@@ -229,9 +229,12 @@ public sealed partial class Plugin : BaseUnityPlugin
             try
             {
                 var warm = DiagnosticWarmup.Prepare(typeof(Plugin).Assembly, Diagnostics.SnapshotJson.ContractResolver!);
+                var compatible = DiagnosticWarmup.Prepare(typeof(Plugin).Assembly, Diagnostics.Json.ContractResolver!,false);
                 var readers=Diagnostics.SnapshotJson.ContractResolver as PreparedDiagnosticResolver;
                 Logger.LogInfo($"Diagnostics prepared before raids: {warm.Contracts} contracts, {warm.Methods} methods, {warm.Failed} unavailable, {readers?.ReadersPrepared ?? 0} readers, {readers?.ReadersFallback ?? 0} reader fallbacks, {(Diagnostics.SnapshotJson.ContractResolver as SnapshotDiagnosticResolver)?.WritersPrepared ?? 0} typed writers, {warm.Milliseconds:F1} ms.");
                 if(warm.Failed>0) Logger.LogWarning("Diagnostic preparation details: " + string.Join("; ", warm.Unavailable));
+                Logger.LogInfo($"Diagnostics compatibility writer prepared: {compatible.Contracts} contracts, {compatible.Failed} unavailable, {compatible.Milliseconds:F1} ms; globalDefaults={JsonConvert.DefaultSettings!=null}.");
+                if(compatible.Failed>0) Logger.LogWarning("Diagnostic compatibility preparation: " + string.Join("; ",compatible.Unavailable));
             }
             catch (Exception ex) { Logger.LogWarning("Diagnostic warmup unavailable: " + ex.Message); }
         }

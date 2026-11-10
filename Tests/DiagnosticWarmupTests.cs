@@ -105,6 +105,12 @@ internal static class DiagnosticWarmupTests
         try
         {
             JsonConvert.DefaultSettings=()=>new JsonSerializerSettings{Converters={new Newtonsoft.Json.Converters.StringEnumConverter()},DefaultValueHandling=DefaultValueHandling.Ignore};
+            var compatibility=(PreparedDiagnosticResolver)Diagnostics.Json.ContractResolver!;
+            var compatibilityWarmup=DiagnosticWarmup.Prepare(typeof(DiagnosticWarmupTests).Assembly,compatibility,false);
+            Diagnostics.Serialize(new Comet.Core.CrossfireTrace());
+            var built=compatibility.ContractsBuilt;
+            for(int i=0;i<100;i++)Diagnostics.Serialize(new Comet.Core.CrossfireTrace());
+            Check(compatibility.ContractsBuilt==built&&compatibilityWarmup.Contracts>100,"global Json defaults use prewarmed compatibility contracts without rebuilding them per event");
             Check(JsonConvert.SerializeObject(special,Diagnostics.Json)==Diagnostics.Serialize(special),"global converters and default filtering keep ordinary serializer contracts");
         }
         finally{JsonConvert.DefaultSettings=originalDefaults;}

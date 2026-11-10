@@ -189,15 +189,19 @@ public sealed partial class Plugin
     }
     private void PlanAmbush(BotComponent b,BotState s,Vector3 known)
     {
-        var r=s.Ambush;var path=b.GoalEnemy.Path.PathToEnemy;var voxel=b.BotOwner.VoxelesPersonalData.CurVoxel;
-        if(path?.status!=NavMeshPathStatus.PathComplete||path.corners.Length>128||voxel?.DoorLinks==null)return;
+        var r=s.Ambush;var path=b.GoalEnemy.Path.PathToEnemy;var voxel=b.BotOwner.VoxelesPersonalData.CurVoxel;var t=r.Policy.Trace!;
+        if(path?.status!=NavMeshPathStatus.PathComplete){t.PlanningInput="no complete path to remembered contact";return;}
+        if(path.corners.Length>128){t.PlanningInput="contact route exceeds corner budget";return;}
+        if(voxel?.DoorLinks==null){t.PlanningInput="no local door links";return;}
         var route=path.corners.Select(DP).ToArray();var options=new List<DoorWork>();int visited=0;
         foreach(var link in voxel.DoorLinks)
         {
-            if(++visited>48)break;if(link?.Door==null)continue;
-            var w=new DoorWork{Data=new(link)};if(!TryDoorGeometry(w.Data,out var g))continue;w.Geometry=g;
-            if(DoorPolicy.Geometry(g,DP(b.Position),DP(known),route,AmbushApproach()).Length==0)options.Add(w);
+            if(++visited>48)break;t.DoorsScanned++;if(link?.Door==null)continue;
+            var w=new DoorWork{Data=new(link)};if(!TryDoorGeometry(w.Data,out var g)){t.Candidates.Add(new(){Reason="door geometry unavailable"});continue;}w.Geometry=g;
+            string gate=DoorPolicy.Geometry(g,DP(b.Position),DP(known),route,AmbushApproach());
+            if(gate.Length==0)options.Add(w);else t.Candidates.Add(new(){Door=g.Id,Reason=gate});
         }
+        t.DoorsEligible=options.Count;t.PlanningInput=options.Count>0?"eligible local doors":visited>48?"no eligible door within scan budget":"no eligible local door on contact route";
         var relevant=options.OrderBy(w=>(w.Geometry.Center-DP(b.Position)).Length).ThenBy(w=>w.Geometry.Id,StringComparer.Ordinal).Take(3).ToArray();
         // Check the actual position first, once per relevant door. Do not request a fake zero-length move.
         foreach(var w in relevant)r.Work.Add(new(){Data=w.Data,Geometry=w.Geometry,Side=0,Variant=-1});

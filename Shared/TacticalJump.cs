@@ -25,13 +25,14 @@ public sealed class TacticalJumpConfig
 public sealed class TacticalJumpFrame
 {
     public double Now,Speed,ForwardSpeed,MinSpeed,Stamina,MinStamina,GeometryAge;
-    public string Feature="",Kind="",Target="",Action="",Block="";
+    public string Feature="",Kind="",Target="",Action="",Block="",ClearanceDetail="";
     public bool Grounded,CanJump,Clearance;
     public DoorPoint Position,Landing;
 }
 public sealed class TacticalJumpTrace
 {
-    public string State="refused",Reason="",SourceFeature="",Kind="",Target="",Action="",LastRefusal="";
+    public string State="refused",Reason="",SourceFeature="",Kind="",Target="",Action="",LastRefusal="",ClearanceDetail="";
+    public double GeometryAge;
     public double ValidFor,Speed,ForwardSpeed,MinimumSpeed,Stamina,MinimumStamina,Chance,Roll=-1,Elapsed;
     public double X,Y,Z,LandingX,LandingY,LandingZ;
     public int Attempt,ConcurrentRefusals,AirShots,GroundShots;
@@ -79,6 +80,7 @@ public sealed class TacticalJumpPolicy
         if(reason.Length==0&&hasTakeoff&&FlatDistance(f.Position,lastTakeoff)<.5)reason="jump-no-progress-since-last-takeoff";
         Trace=new(){Attempt=++attempt,Reason=reason,SourceFeature=f.Feature,Kind=f.Kind,Target=f.Target,Action=f.Action,
             Grounded=f.Grounded,Speed=Safe(f.Speed),ForwardSpeed=Safe(f.ForwardSpeed),MinimumSpeed=Safe(f.MinSpeed),
+            ClearanceDetail=f.ClearanceDetail,GeometryAge=Safe(f.GeometryAge),
             Stamina=Safe(f.Stamina),MinimumStamina=Math.Max(c.MinimumStamina,Safe(f.MinStamina)),Chance=c.AirShotChance,
             X=Safe(f.Position.X),Y=Safe(f.Position.Y),Z=Safe(f.Position.Z),LandingX=Safe(f.Landing.X),LandingY=Safe(f.Landing.Y),LandingZ=Safe(f.Landing.Z),Alternatives=Choices};
         if(reason.Length>0)return false;

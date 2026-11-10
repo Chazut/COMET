@@ -2252,7 +2252,7 @@
     },
     "Crossfire.ContactAge": {
       "Label": "Maximum information age",
-      "Help": "",
+      "Help": "Maximum age to start an angle change. A validated route may finish while it keeps making progress, within its original movement timeout. Reaching the point does not refresh enemy information.",
       "Min": 1.0,
       "Max": 20.0,
       "Scale": 1,
@@ -2261,8 +2261,8 @@
       "Unit": "s"
     },
     "Crossfire.OutdoorAngle": {
-      "Label": "Minimum outdoor angle",
-      "Help": "",
+      "Label": "Preferred outdoor angle",
+      "Help": "Target separation from the supporting teammate's angle. For distant enemies, COMET scales this to the local movement radius while still requiring at least 10 degrees of improvement.",
       "Min": 15.0,
       "Max": 90.0,
       "Scale": 1,
@@ -2271,8 +2271,8 @@
       "Unit": "degrees"
     },
     "Crossfire.IndoorAngle": {
-      "Label": "Minimum indoor angle",
-      "Help": "",
+      "Label": "Preferred indoor angle",
+      "Help": "Target separation indoors. Scales to the reachable local angle for distant enemies, with at least 10 degrees of improvement. Door, cover and teammate safety checks still apply.",
       "Min": 5.0,
       "Max": 90.0,
       "Scale": 1,

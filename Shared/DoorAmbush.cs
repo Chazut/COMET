@@ -40,6 +40,9 @@ public sealed class DoorAmbushConfig
 }
 public sealed class DoorAmbushTrace
 {
+    public string PlanningInput { get; set; } = "";
+    public int DoorsScanned { get; set; }
+    public int DoorsEligible { get; set; }
     public string State { get; set; }="planning";
     public string Reason { get; set; }="ambush-find-useful-angle";
     public string Target { get; set; }="";

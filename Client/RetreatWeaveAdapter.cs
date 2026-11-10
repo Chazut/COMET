@@ -155,16 +155,19 @@ public sealed partial class Plugin
         }finally{clock.Stop();doorBudget.Charge(clock.Elapsed.TotalMilliseconds);}
     }
     private bool WeaveLane(BotComponent b,Vector3 direction,float length,bool jump)
+        =>WeaveLaneBlock(b,direction,length,jump).Length==0;
+    private string WeaveLaneBlock(BotComponent b,Vector3 direction,float length,bool jump)
     {
         var from=b.Position;var end=from+direction*length;
         // Sample the surface along the whole local lane; a clear chest ray alone can miss a drop or stairs.
         for(int i=1;i<=3;i++) {
             var q=Vector3.Lerp(from,end,i/3f);
-            if(!NavMesh.SamplePosition(q,out var nav,.25f,NavMesh.AllAreas)||Math.Abs(nav.position.y-from.y)>(jump?.4f:.3f)
-                ||!Physics.Raycast(q+Vector3.up*.4f,Vector3.down,out var ground,.8f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore)
-                ||ground.normal.y<.9f)return false;
+            if(!NavMesh.SamplePosition(q,out var nav,.25f,NavMesh.AllAreas))return "lane-no-navmesh";
+            if(Math.Abs(nav.position.y-from.y)>(jump?.4f:.3f))return "lane-height-change";
+            if(!Physics.Raycast(q+Vector3.up*.4f,Vector3.down,out var ground,.8f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))return "lane-no-ground";
+            if(ground.normal.y<.9f)return "lane-steep-ground";
         }
-        return RunVolume(b,from,end,jump).Length==0;
+        return RunVolume(b,from,end,jump);
     }
     private bool WeaveGaze(BotComponent b,BotState s,out Vector3 direction)
     {

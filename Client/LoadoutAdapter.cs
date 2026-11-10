@@ -94,10 +94,10 @@ internal static class LoadoutAdapter
             var slot = RootSlot(item, equipment);
             if (slot == null) continue;
             bool fast = (slot == EquipmentSlot.TacticalVest || slot == EquipmentSlot.Pockets)
-                && ReferenceEquals(item.Parent?.Container?.ParentItem, equipment.GetSlot(slot.Value)?.ContainedItem);
+                && ReferenceEquals(item.CurrentAddress?.Container?.ParentItem, equipment.GetSlot(slot.Value)?.ContainedItem);
             if (item is Magazine mag && !ReferenceEquals(mag, weapon.GetCurrentMagazine()) && magSlot != null
                 && LoadoutModel.UsableSpareMagazine(fast, magSlot.CanAccept(mag), mag.Count, mag.IsAmmoCompatible(weapon.Chambers))) p.CompatibleMagazines++;
-            else if (item is Ammo round && !(item.Parent?.Container?.ParentItem is Magazine) && !(item.Parent?.Container?.ParentItem is Weapon)
+            else if (item is Ammo round && !(item.CurrentAddress?.Container?.ParentItem is Magazine) && !(item.CurrentAddress?.Container?.ParentItem is Weapon)
                 && chamber != null && round.StackObjectsCount > 0 && chamber.CanAccept(round)) p.LooseRounds += round.StackObjectsCount;
             else if (item is ThrowWeap) p.Grenades++;
             var med = item.GetItemComponent<MedKitComponent>();
@@ -126,8 +126,9 @@ internal static class LoadoutAdapter
     {
         var item = treatment.CurUsingMeds;
         if (item == null || !treatment._bodyPartToHeal.HasValue) return false;
-        return LoadoutModel.UsableMedicalSupply(item.GetItemComponent<MedKitComponent>()?.HpResource ?? 0,
-            RootSlot(item, player.Inventory.Equipment) != null, true,
+        var resource = item.GetItemComponent<MedKitComponent>()?.HpResource ?? 0;
+        if (resource <= 0 || RootSlot(item, player.Inventory.Equipment) == null) return false;
+        return LoadoutModel.UsableMedicalSupply(resource, true, true,
             player.HealthController.CanApplyItem(item, treatment._bodyPartToHeal.Value));
     }
     internal static EquipmentSlot? RootSlot(Item item, InventoryEquipment equipment)
@@ -136,7 +137,9 @@ internal static class LoadoutAdapter
         for (int depth = 0; depth < 16; depth++)
         {
             foreach (var slot in Carried) if (ReferenceEquals(current, equipment.GetSlot(slot)?.ContainedItem)) return slot;
-            var parent = current.Parent?.Container?.ParentItem;
+            // EFT's Parent getter throws for a detached/depleted treatment item.
+            // CurrentAddress is the nullable ownership evidence during inventory transitions.
+            var parent = current.CurrentAddress?.Container?.ParentItem;
             if (parent == null || ReferenceEquals(parent, current) || ReferenceEquals(parent, equipment)) return null;
             current = parent;
         }

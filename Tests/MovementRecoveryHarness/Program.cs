@@ -65,7 +65,7 @@ foreach (var intentional in new[] { "holding", "heal", "shoot", "door", "hands",
 {
  var(p,b,s)=Setup();b.Decision.CurrentCombatDecision="SeekCover";b.Mover.ActivePath=null!;
  b.Cover.CoverPoint_MovingTo=new();
- switch(intentional){case "holding":b.Cover.CoverInUse=new(){Position=new(1,0,0)};break;case "heal":b.BotOwner.Medecine.Using=true;break;case "shoot":b.BotOwner.ShootData.Shooting=true;break;case "door":b.BotOwner.DoorOpener.Interacting=true;break;case "hands":b.Player.HandsController.Busy=true;break;case "ghost":p.Ghosted=true;break;case "client":p.Authority=false;break;}
+ switch(intentional){case "holding":b.Cover.CoverInUse=new(){Position=new(1,0,0)};b.Cover.CoverPoint_MovingTo=b.Cover.CoverInUse;break;case "heal":b.BotOwner.Medecine.Using=true;break;case "shoot":b.BotOwner.ShootData.Shooting=true;break;case "door":b.BotOwner.DoorOpener.Interacting=true;break;case "hands":b.Player.HandsController.Busy=true;break;case "ghost":p.Ghosted=true;break;case "client":p.Authority=false;break;}
  Run(p,b,s,20);Check(b.Cover.Releases+b.Mover.Repaths+b.Mover.Stops+b.Mover.Jumps==0,"missing route retains protection: "+intentional);
 }
 {
@@ -84,3 +84,18 @@ Check(events.Any(e=>(string?)e["movementRecovery"]?["step"]=="repath"),"structur
 var fixture=events.First(e=>(string?)e["movementRecovery"]?["state"]=="attempted"&&(string?)e["movementRecovery"]?["step"]=="repath");
 string root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../artifacts/c06"));Directory.CreateDirectory(root);File.WriteAllText(Path.Combine(root,"recovery.json"),fixture.ToString());File.WriteAllLines(Path.Combine(root,"recovery.jsonl"),Comet.Api.Decisions.Events);
 Console.WriteLine($"C06 production adapter: {checks} checks passed");
+
+{
+ var(p,b,s)=Setup();b.Decision.CurrentCombatDecision="Retreat";b.Mover.ActivePath=null!;
+ b.Cover.CoverInUse=new(){Position=new(1,0,0)};b.Cover.CoverPoint_MovingTo=new();
+ Run(p,b,s,4);Check(b.Cover.Releases==1&&b.Mover.Repaths==1,"old nearby cover cannot mask missing route to a new distant destination");
+}
+{
+ var(p,b,s)=Setup();b.BotOwner.Medecine.Using=true;Run(p,b,s,45);
+ Check(s.MovementRecovery.Policy.Trace.StationaryPauseSeconds>=44&&s.MovementRecovery.Policy.Trace.Healing,"long stationary heal carries measured duration and native treatment evidence");
+ Check(b.Mover.Repaths+b.Mover.Stops==0,"diagnosing long treatment never cancels it");
+ Check(Comet.Api.Decisions.Events.Any(json=>json.Contains("\"stationaryPauseSeconds\":40")),"long intentional pause is periodically visible in diagnostic events");
+ b.Player.Position+=new Vector3(1,0,0);p.Tick(b,s,46);
+ Check(s.MovementRecovery.Policy.Trace.StationaryPauseSeconds==0,"real movement resets stationary pause timer");
+}
+Console.WriteLine($"PASS {checks} including stationary native activity diagnostics");

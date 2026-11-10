@@ -28,6 +28,7 @@ public sealed class PerformanceFrame
 }
 public sealed class PerformanceReport
 {
+    public object? Serialization { get; set; }
     public string Stage { get; set; } = "performance-window";
     public int FirstFrame { get; set; }
     public int LastFrame { get; set; }

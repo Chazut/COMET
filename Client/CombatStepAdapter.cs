@@ -149,7 +149,7 @@ public sealed partial class Plugin
         if(b.GoalEnemy==null||System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(b.GoalEnemy)!=r.TargetInstance)
         {EndCombatStep(s,"movement-contact-instance-changed");return;}
         if(Time.time-r.LastCallback>.4f){EndCombatStep(s,"movement-action-callback-expired");return;}
-        if(QueuedCombatMovement(b)){EndCombatStep(s,"movement-native-route-queued");return;}
+        if(QueuedCombatMovement(b)&&r.Path!=null){EndCombatStep(s,"movement-native-route-queued");return;}
         if(r.PauseOwnsEmpty&&b.Mover.ActivePath!=null){EndCombatStep(s,"pause-route-replaced");return;}
         // Check ownership before recording position deltas: another native route's movement is not M01 progress.
         f.NativeRouteValid=r.Path==null||OwnCombatStep(r)
@@ -210,11 +210,10 @@ public sealed partial class Plugin
             {
                 // Only replace movement from the currently verified native shooting action.
                 if(r.Path!=null&&!OwnCombatStep(r)&&b.Mover.ActivePath!=null){EndCombatStep(s,"movement-route-replaced");return;}
-                if(QueuedCombatMovement(b)){EndCombatStep(s,"movement-native-route-queued");return;}
                 // SAIN Cancel(0) still waits at least 0.33 s and queues the replacement. Finish the verified
                 // shooting route through SAIN's own completion method so a step starts on the route we observe.
-                if(b.Mover.ActivePath is BotPathDataManual previous)combatStopPath.Invoke(previous,new object[]{false,"COMET short combat step"});
-                if(b.Mover.ActivePath!=null){EndCombatStep(s,"movement-native-route-took-over");return;}
+                if(!ReleaseShootingRoute(b,out var released)){EndCombatStep(s,"movement-native-route-took-over");return;}
+                if(released>0)t.Alternatives=t.Alternatives.Concat(new[]{"native shooting handoff: "+released+" observed legs released"}).TakeLast(6).ToArray();
                 if(!b.Mover.WalkToPointByWay(route,true,.1f,false)){EndCombatStep(s,"movement-native-request-refused");return;}
                 r.Path=b.Mover.ActivePath;r.Goal=sample.position;r.StepOrigin=b.Position;r.PathStarted=r.Path?.TimeStarted??-1;
                 if(!OwnCombatStep(r)||!r.Policy.Request(DP(r.Goal),label,Time.time,jumpRandom.NextDouble(),c))
@@ -258,6 +257,33 @@ public sealed partial class Plugin
         var active=b.Mover.ActivePath;
         var one=combatPathOne(b.Mover);var two=combatPathTwo(b.Mover);
         return !ReferenceEquals(one,active)&&one.Status==EBotMoveStatus.ReadyToMove||!ReferenceEquals(two,active)&&two.Status==EBotMoveStatus.ReadyToMove;
+    }
+    // Called only from a validated StandAndShoot/DogFight action. SAIN Stop may
+    // synchronously promote its second prepared leg; release that exact leg too,
+    // never a newly installed/retargeted route from an emergency or another mod.
+    private static bool ReleaseShootingRoute(BotComponent b,out int released)
+    {
+        released=0;
+        if(!ShootingHandoffAllowed(b))return false;
+        var active=b.Mover.ActivePath;var queued=CrossfireQueuedPath(b);
+        if(active==null)return queued==null;
+        if(active is not BotPathDataManual first||queued is not null and not BotPathDataManual)return false;
+        var destination=queued?.Destination??default;var observed=Time.time;
+        combatStopPath.Invoke(first,new object[]{false,"COMET observed shooting handoff"});released++;
+        if(queued is BotPathDataManual second&&ReferenceEquals(b.Mover.ActivePath,queued)
+            &&!QueuedCombatMovement(b)&&Vector3.Distance(second.Destination,destination)<.02f
+            &&second.TimeStarted>=observed&&second.TimeStarted<=Time.time
+            &&ShootingHandoffAllowed(b))
+        {combatStopPath.Invoke(second,new object[]{false,"COMET observed shooting queue"});released++;}
+        return b.Mover.ActivePath==null&&!QueuedCombatMovement(b)&&ShootingHandoffAllowed(b);
+    }
+    private static bool ShootingHandoffAllowed(BotComponent b)
+    {
+        return b.Decision.CurrentCombatDecision is ECombatDecision.StandAndShoot or ECombatDecision.DogFight
+            &&b.Decision.CurrentSelfDecision==ESelfActionType.None&&b.Decision.CurrentSquadDecision==ESquadDecision.None
+            &&b.Player.MovementContext.IsGrounded&&b.Grenade.GrenadeDangerPoint==null
+            &&!b.BotOwner.Medecine.Using&&!b.BotOwner.WeaponManager.Reload.Reloading
+            &&!b.BotOwner.WeaponManager.Grenades.ThrowindNow;
     }
     private static IBotPathData? CrossfireQueuedPath(BotComponent b)
     {

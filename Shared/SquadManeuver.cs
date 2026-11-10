@@ -31,7 +31,7 @@ public sealed class ManeuverMember
 {
     public string Id="",Name="",Personality="",Role="",Status="assigned",Reason="",RearContact="",SelectionReason="";
     public double Ammo,Score,Roll,ReadyAt=-1,LastSeen,ProgressAt,BestDistance=double.MaxValue,Shots,LastShot=-100;
-    public bool Confirmed,Applied;
+    public bool Confirmed,Applied,VisibleContact;
 }
 public sealed class ManeuverTrace
 {
@@ -57,6 +57,9 @@ public sealed class SquadManeuverPlan
     public ManeuverMember? Member(string id)=>Members.Find(x=>x.Id==id);
     public bool MaySuppress=>Active&&State=="active"&&Members.Any(x=>x.Role=="flank"&&x.Status=="moving")&&!Members.Any(x=>x.Role=="flank"&&(x.Status=="holding"||x.Reason.Contains("enemy-visible")));
     public bool SupportReady(double now)=>Member(Support) is {Confirmed:true,Applied:true} s&&s.Status!="ended"&&now-s.LastSeen<1;
+    public bool HasProgressingFlanker(double now,SquadManeuverConfig c)=>Active&&now>=Started&&now<Until
+        &&Members.Any(m=>m.Role=="flank"&&m.Status=="moving"&&m.Confirmed&&m.Applied
+            &&now>=m.LastSeen&&now-m.LastSeen<1&&now>=m.ProgressAt&&now-m.ProgressAt<c.StallTimeout);
     public void End(string why){State="ended";Reason=why;foreach(var m in Members){m.Applied=false;m.Status="ended";m.Reason=why;}}
     public void Drop(string id,string why)
     {
@@ -83,7 +86,7 @@ public sealed class SquadManeuverPlan
         var m=Member(id)!;var support=Member(Support);
         return new(){Plan=Id,State=State,Role=m.Role,Reason=m.Reason.Length>0?m.Reason:Reason,Support=Support,SupportName=support?.Name??"",
             Confirmed=m.Confirmed,SupportReady=SupportReady(now),Remaining=Math.Max(0,Until-now),Chance=c.Chance,Roll=Roll*100,Shots=m.Shots,
-            FireState=m.Role=="rear"?"watching known rear threat":now-m.LastShot<.3?"observed suppression fire":"holding",
+            FireState=m.Role=="rear"?"watching known rear threat":now-m.LastShot<.3?"observed support fire":"holding",
             Members=Members.Select(x=>$"{x.Name} [{x.Role}]: {x.Status}{(x.Reason.Length>0?" - "+x.Reason:"")}").ToArray(),
             Selection=Members.Select(x=>new ManeuverSelection{Id=x.Id,Name=x.Name,Role=x.Role,Reason=x.SelectionReason,
                 Ammo=x.Ammo,MinimumAmmo=MinimumAmmo,Roll=x.Roll*100,Participation=Participation}).ToArray()};
@@ -119,13 +122,13 @@ public sealed class SquadManeuverBoard
         var members=candidates.OrderBy(x=>x.Score).ThenBy(x=>x.Id,StringComparer.Ordinal).ToList();
         foreach(var m in members)
         {
-            m.SelectionReason=m.Score<0?"personality-holds-support":!MedicalChoice.Finite(m.Ammo)||m.Ammo<c.MinimumAmmo?"ammo-below-flank-threshold"
+            m.SelectionReason=m.VisibleContact?"visible-contact-anchor":m.Score<0?"personality-holds-support":!MedicalChoice.Finite(m.Ammo)||m.Ammo<c.MinimumAmmo?"ammo-below-flank-threshold"
                 :!MedicalChoice.Finite(m.Roll)||m.Roll<0||m.Roll>=1||m.Roll*100>=participation?"individual-participation-declined":"flank-eligible";
             m.Role=m.SelectionReason=="flank-eligible"?"flank":"support";
         }
         // Preserve the only willing flanker. A non-participant can still provide
         // support; selecting that flanker as support first used to waste this plan.
-        var support=members.Find(x=>x.Role=="support")??members[0];support.Role="support";
+        var support=members.Find(x=>x.VisibleContact)??members.Find(x=>x.Role=="support")??members[0];support.Role="support";
         if(support.SelectionReason=="flank-eligible")support.SelectionReason="selected-anchor-support";
         if(c.RearWatch){var rear=members.Find(x=>x.Id!=support.Id&&x.Role=="support"&&x.RearContact.Length>0);if(rear!=null)rear.Role="rear";}
         var plan=new SquadManeuverPlan{Id="maneuver-"+(++serial),Group=group,Enemy=enemy,Support=support.Id,Started=now,Until=now+c.Duration,Evidence=evidence,Roll=roll,MinimumAmmo=c.MinimumAmmo,Participation=participation};

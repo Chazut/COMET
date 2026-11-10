@@ -236,7 +236,14 @@ public sealed partial class Plugin
         &&r.Path.TimeStarted==r.PathAt&&Vector3.Distance(r.Path.Destination,r.Goal)<.02f;
     private bool StopCornerRoute(BotState s,bool initial=false)
     {
-        var r=s.CornerPeek;var b=r.Owner;if(b==null||QueuedCombatMovement(b))return false;
+        var r=s.CornerPeek;var b=r.Owner;if(b==null)return false;
+        if(initial)
+        {
+            if(!ReleaseShootingRoute(b,out var released))return false;
+            if(released>0)r.Policy.Trace!.Alternatives=r.Policy.Trace.Alternatives.Concat(new[]{"native shooting handoff: "+released+" observed legs released"}).TakeLast(6).ToArray();
+            r.Path=null;r.OwnEmpty=true;return true;
+        }
+        if(QueuedCombatMovement(b))return false;
         var active=b.Mover.ActivePath;
         if(active!=null) {
             if(!OwnCornerPath(r)&&!initial)return false;

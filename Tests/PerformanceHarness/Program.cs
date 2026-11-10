@@ -56,6 +56,7 @@ try
     var lines=File.ReadAllLines(Directory.GetFiles(dir).Single()).Select(JObject.Parse).ToArray();
     Check((string?)lines[0]["session"]=="first"&&(int?)lines[0]["configRevision"]==7,"metadata identifies exact raid and config");
     var report=lines.Single(x=>(string?)x["stage"]=="performance-summary");
+    Check(report["serialization"]?["snapshotContracts"]!=null&&report["serialization"]?["compatibilityPreparationMs"]!=null,"performance report preserves contract counts and cold preparation cost");
     Check((long?)report["modules"]?[0]?["calls"]==3,"same-module children reuse parent timing, including exceptions");
     Check((long?)report["coalescedScopes"]==2,"reused nested scopes explicitly counted");
     Check(report["modules"]!.Count()==2&&(string?)report["modules"]?[1]?["module"]=="Diagnostics.BuildEvent.EmitChild","event builders have separate attribution");

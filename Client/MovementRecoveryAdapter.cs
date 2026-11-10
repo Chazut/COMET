@@ -22,6 +22,9 @@ internal sealed class MovementRecoveryRuntime
     internal double Next,LogAt=-1000;
     internal string Key="";
     internal bool Fault;
+    internal string PauseKey="";
+    internal double PauseAt;
+    internal Vector3 PausePosition;
 }
 public sealed partial class Plugin
 {
@@ -70,7 +73,10 @@ public sealed partial class Plugin
         bool seekingCover = f.Action is "SeekCover" or "ShiftCover" or "Retreat";
         var cover = b.Cover.CoverPoint_MovingTo;
         bool holdingCover = b.Cover.CoverInUse != null && !b.Cover.CoverInUse.CoverData.IsBad
-            && (b.Cover.CoverInUse.Position-p).sqrMagnitude <= 4;
+            && (b.Cover.CoverInUse.Position-p).sqrMagnitude <= 4
+            // Old cover is not a deliberate hold while a different destination
+            // remains pending. Preserve real stationary cover and medical pauses.
+            && (cover==null||(cover.Position-p).sqrMagnitude<=4);
         if(b.SAINLayersActive && seekingCover && !holdingCover && !f.Intent && cover!=null
             && (cover.Position-p).sqrMagnitude>4 && f.Pause.Length==0)
         {
@@ -100,6 +106,14 @@ public sealed partial class Plugin
         if(recoveryFrame!=Time.frameCount){recoveryFrame=Time.frameCount;recoverySamples=0;}
         if(recoverySamples>=8)return;recoverySamples++;r.Next=now+config!.MovementRecovery.SampleInterval;
         var f=ReadMovementRecovery(b,s,out var next);string command=r.Policy.Observe(f,config.MovementRecovery);
+        var trace=r.Policy.Trace;
+        var pauseKey=f.Pause+"/"+f.Action;
+        if(f.Pause.Length==0||r.PauseKey!=pauseKey||(r.PausePosition-b.Position).sqrMagnitude>.25f)
+        {r.PauseKey=pauseKey;r.PauseAt=now;r.PausePosition=b.Position;}
+        trace.StationaryPauseSeconds=f.Pause.Length>0?Math.Max(0,now-r.PauseAt):0;
+        trace.SelfAction=b.Decision.CurrentSelfDecision.ToString();trace.Healing=b.BotOwner.Medecine?.Using==true;
+        trace.Reloading=b.BotOwner.WeaponManager?.Reload.Reloading==true;
+        trace.HandsBusy=b.Player.HandsController==null||b.Player.HandsController.IsInInteractionStrictCheck();
         if(command.Length==0){RecordMovementRecovery(s);return;}
         RecordMovementRecovery(s,true);
         var fresh=ReadMovementRecovery(b,s,out next);
@@ -228,7 +242,7 @@ public sealed partial class Plugin
         // Idle walking needs no heartbeat. Active incidents refresh the map context with a short TTL.
         // Include blocked native cover intentions, including the reason recovery is
         // deliberately paused. Otherwise a stationary SAIN action is invisible here.
-        bool coverContext=t.Action is "SeekCover" or "ShiftCover" or "Retreat";
+        bool coverContext=t.Action is "SeekCover" or "ShiftCover" or "Retreat" || t.StationaryPauseSeconds>=30;
         bool blockedCover=coverContext&&(t.State=="paused"||t.MissingCoverRoute);
         if(!force&&t.StalledSeconds<1&&t.State!="recovered"&&!blockedCover)return;
         string key=t.State+"|"+t.Reason+"|"+t.Incident+"|"+t.Step+"|"+t.Owner+"|"+t.Action+"|"+t.MissingCoverRoute;
