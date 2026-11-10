@@ -23,7 +23,7 @@ internal sealed class GrenadeChoiceRuntime
 public sealed partial class Plugin
 {
     private bool GrenadeChoiceScope(BotComponent b)=>config?.Enabled==true&&config.GrenadeChoice.Enabled
-        &&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
+        &&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
     private bool GrenadeChoiceInProgress(BotComponent b)=>GrenadeChoiceScope(b)&&b.BotOwner.WeaponManager.Grenades.ThrowindNow;
 
     private bool ChooseGrenade(BotComponent b,Enemy e,BotState s,bool arc)

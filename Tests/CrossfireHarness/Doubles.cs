@@ -63,7 +63,7 @@ namespace Comet.Client{
  internal class Other{public Flag Policy=new();}internal class Flag{public bool Active;}
  internal class FearTrace{public bool Panic;}internal class FearModel{public FearTrace Current=new();}
  internal class BotState{public FearModel Fear=new();public SuppressionDisciplineRuntime SuppressionDiscipline=new();public CrossfireRuntime Crossfire=new();public Other PostCombat=new(),Relocation=new(),CoverFeint=new();public string Id=Guid.NewGuid().ToString(),ProfileId,Name="Test PMC",Feature="",Decision="";public BotState(BotComponent b,CometConfig c,string session){ProfileId=b.ProfileId;}}
- internal static class NativeAdapter{public static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;public static Situation Capture(BotComponent b,Enemy? e,bool a,bool g)=>new();}internal class Situation{public string ContactSource="shared";}
+ internal static class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;public static Situation Capture(BotComponent b,Enemy? e,bool a,bool g)=>new();}internal class Situation{public string ContactSource="shared";}
  internal class Budget{public bool Available=true;public int Calls,Used,Frame=-1;public bool TryBegin(int frame){Calls++;if(Frame!=frame){Frame=frame;Used=0;}if(!Available||Used>=2)return false;Used++;return true;}public void Charge(double ms){}}
  internal class Sink{public List<string> Lines=new();public void Write(string s)=>Lines.Add(s);}
  internal static class Diagnostics{ internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}

@@ -50,7 +50,7 @@ public sealed partial class Plugin
     private void SampleCoverTravel(BotComponent b,BotState s)
     {
         var r=s.CoverTravel;if(r.Fault)return;
-        if(config?.Enabled!=true||!config.CoverTravel.Enabled||b.IsDead||!b.BotActive||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsPmcAi(b))
+        if(config?.Enabled!=true||!config.CoverTravel.Enabled||b.IsDead||!b.BotActive||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsSupportedAi(b))
         {EndCoverTravel(s,"travel-ineligible");r.Enemy=null;r.SeenAt=-1000;return;}
         var e=b.GoalEnemy;
         if(!ReferenceEquals(e,r.Enemy)){EndCoverTravel(s,"travel-contact-changed");r.Enemy=e;r.SeenAt=r.GeometryAt=-1000;r.SampleAt=-1000;}
@@ -60,7 +60,7 @@ public sealed partial class Plugin
     }
     private string CoverTravelBlock(BotComponent b,BotState s)
     {
-        if(config?.Enabled!=true||!config.CoverTravel.Enabled||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsPmcAi(b)
+        if(config?.Enabled!=true||!config.CoverTravel.Enabled||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsSupportedAi(b)
             ||!b.BotActive||b.IsDead||b.GameEnding||!b.SAINLayersActive)return "travel-ineligible";
         if(b.CurrentAction?.GetType().FullName!=SeekCoverType||b.CurrentAction.GetType().Assembly!=typeof(BotComponent).Assembly)
             return "travel-native-action-priority";

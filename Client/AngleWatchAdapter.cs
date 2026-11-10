@@ -39,7 +39,7 @@ public sealed partial class Plugin
     {
         var r=s.AngleWatch;
         if(r.Fault)return;
-        if(config?.Enabled!=true||!config.AngleWatch.Enabled||b==null||b.IsDead||!b.BotActive||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsPmcAi(b))
+        if(config?.Enabled!=true||!config.AngleWatch.Enabled||b==null||b.IsDead||!b.BotActive||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsSupportedAi(b))
         {r.Enemy=null;r.SeenAt=-1000;EndAngle(s,"angle-ineligible");return;}
         var e=b.GoalEnemy;
         if(!ReferenceEquals(r.Enemy,e)){EndAngle(s,"angle-contact-changed");r.Enemy=e;r.SeenAt=r.GeometryAt=-1000;r.NextGeometry=0;r.Candidates=Array.Empty<AngleCandidate>();}

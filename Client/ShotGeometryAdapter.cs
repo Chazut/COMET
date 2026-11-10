@@ -48,7 +48,7 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(ManualShootClass),nameof(ManualShootClass.ManualUpdate)),prefix:new HarmonyMethod(typeof(Plugin),nameof(GeometryUpdate)){priority=Priority.First});
         h.Patch(AccessTools.Method(typeof(ManualShootClass),nameof(ManualShootClass.Reset)),postfix:new HarmonyMethod(typeof(Plugin),nameof(GeometryReset)));
     }
-    private bool GeometryScope(BotComponent b)=>ContactSafety.AllowsGoal(b)&&config?.Enabled==true&&config.ShotGeometry.Enabled&&NativeAdapter.IsPmcAi(b)
+    private bool GeometryScope(BotComponent b)=>ContactSafety.AllowsGoal(b)&&config?.Enabled==true&&config.ShotGeometry.Enabled&&NativeAdapter.IsSupportedAi(b)
         &&Authority&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId)&&b.SAINLayersActive;
 
     // Used by M06, W07 and ordinary native manual fire. Null preserves their pre-W08 checks when disabled/faulted.

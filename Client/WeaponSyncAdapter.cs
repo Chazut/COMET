@@ -53,7 +53,7 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(BotComponent),nameof(BotComponent.ManualUpdate)),postfix:new HarmonyMethod(typeof(Plugin),nameof(EnsureWeaponSyncTracked)));
     }
     // Maintenance also runs outside SAIN combat layers, e.g. while ORBIT loots.
-    private bool WeaponSyncScope(BotComponent b)=>config?.Enabled==true&&config.WeaponSync.Enabled&&NativeAdapter.IsPmcAi(b)
+    private bool WeaponSyncScope(BotComponent b)=>config?.Enabled==true&&config.WeaponSync.Enabled&&NativeAdapter.IsSupportedAi(b)
         &&b.BotActive&&!b.IsDead&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
     private static void WeaponListChanged(BotWeaponSelector __instance)=>Instance?.MarkWeaponSync(__instance?._owner?.GetPlayer,"weapon-list-changed");
     private static void WeaponHandsChanged(BotWeaponManager __instance)=>Instance?.MarkWeaponSync(__instance?._owner?.GetPlayer,"weapon-in-hands-changed");
@@ -62,7 +62,7 @@ public sealed partial class Plugin
     private static void EnsureWeaponSyncTracked(BotComponent __instance)
     {
         var p=Instance;if(p?.config?.Enabled!=true||!p.config.WeaponSync.Enabled||p.states.ContainsKey(__instance)
-            ||!NativeAdapter.IsPmcAi(__instance)||!__instance.BotActive||__instance.GameEnding||!p.Authority)return;
+            ||!NativeAdapter.IsSupportedAi(__instance)||!__instance.BotActive||__instance.GameEnding||!p.Authority)return;
         p.MarkWeaponSync(__instance.Player,"initial-check");
     }
     private void MarkWeaponSync(Player? player,string reason)

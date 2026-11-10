@@ -10,7 +10,7 @@ internal static class VisibleDecisionTests
         int count = 0;
         void Check(bool ok, string why) { if (!ok) throw new Exception("A02: " + why); count++; }
         VisibleSituation Frame() => new() {
-            Contact = new Situation { Now = 20, Target = "one", IsAi = true, IsPmc = true, IsAuthority = true, IsActive = true,
+            Contact = new Situation { Now = 20, Target = "one", IsAi = true, IsSupportedBot = true, IsAuthority = true, IsActive = true,
                 Visible = true, HasContact = true, ContactAge = .1, KnownDistance = 12, Personality = "Normal" },
             WeaponReady = true, CanShoot = true, ProbeReady = true, CoverReachable = true, PushReachable = true,
             CoverId = "wall", ThreatSignature = "one:visible", ThreatCount = 1, PushPathLength = 12,
@@ -23,7 +23,7 @@ internal static class VisibleDecisionTests
             return c;
         }
         foreach (var mutation in new Action<VisibleSituation>[] {
-            v => v.Contact.IsAi = false, v => v.Contact.IsPmc = false, v => v.Contact.IsAuthority = false,
+            v => v.Contact.IsAi = false, v => v.Contact.IsSupportedBot = false, v => v.Contact.IsAuthority = false,
             v => v.Contact.IsActive = false, v => v.Contact.Ghost = true, v => v.Contact.Visible = false,
             v => v.Contact.HasContact = false, v => v.Contact.Target = "", v => v.Contact.ContactAge = 26,
             v => v.Contact.ContactAge = -1, v => v.Contact.Now = double.NaN, v => v.Contact.KnownDistance = double.PositiveInfinity,

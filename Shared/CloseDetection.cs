@@ -19,7 +19,7 @@ public sealed class CloseDetectionConfig
 
 public sealed class CloseDetectionFrame
 {
-    public bool MasterEnabled, PmcAi, Active, Authority, Ghost, ValidTarget, Blind, InFov, ClearRecentRay;
+    public bool MasterEnabled, SupportedAi, Active, Authority, Ghost, ValidTarget, Blind, InFov, ClearRecentRay;
     public double Distance, ThirdParty = 1, Unknown = 1, NativeModifier = 1;
 }
 public sealed class CloseDetectionTrace
@@ -38,7 +38,7 @@ public static class CloseDetection
     public static string Eligibility(CloseDetectionConfig c, CloseDetectionFrame f)
     {
         if (!f.MasterEnabled || !c.Enabled || c.ReductionPercent == 0) return "close-disabled";
-        if (!f.PmcAi || !f.Active || !f.Authority || f.Ghost) return "close-out-of-scope";
+        if (!f.SupportedAi || !f.Active || !f.Authority || f.Ghost) return "close-out-of-scope";
         if (!f.ValidTarget) return "close-invalid-target";
         if (!Finite(f.Distance) || f.Distance < 0 || !Finite(f.NativeModifier) || f.NativeModifier <= 0) return "close-invalid-input";
         if (f.Distance >= c.StartDistance) return "close-out-of-range";

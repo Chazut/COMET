@@ -60,13 +60,13 @@ public sealed partial class Plugin
         coverFactoryBypass = true;
         try { return (IEnumerator)(coverFactory.Invoke(finder, null) ?? throw new InvalidOperationException("SAIN returned no cover iterator")); } finally { coverFactoryBypass = false; }
     }
-    private int CoverScanMode(BotComponent b) => config?.Enabled != true || !config.CoverScan.Enabled || !Authority || !NativeAdapter.IsPmcAi(b) ? 0
+    private int CoverScanMode(BotComponent b) => config?.Enabled != true || !config.CoverScan.Enabled || !Authority || !NativeAdapter.IsSupportedAi(b) ? 0
         : !b.BotActive || b.IsDead || b.GameEnding || Ghost(b.ProfileId) ? 2 : 1;
     private static string CoverContact(BotComponent b) => b.GoalEnemy?.LastKnownPosition.HasValue == true ? b.GoalEnemy.EnemyProfileId : "";
     private static void WrapCoverScan(CoverFinderComponent __instance, ref IEnumerator __result)
     {
         var p = Instance;
-        if (coverFactoryBypass || p == null || !NativeAdapter.IsPmcAi(__instance.Bot)) return;
+        if (coverFactoryBypass || p == null || !NativeAdapter.IsSupportedAi(__instance.Bot)) return;
         StopCoverScan(__instance);
         var f = __instance; var b = f.Bot; var r = new CoverScanRuntime();
         Func<bool>? retry=null;p.ConfigureCoverRetry(b,ref retry);

@@ -62,7 +62,7 @@ internal static class OpponentTests
         {
             var m = new OpponentMemory();var v=View();v.Weapon=weapon;v.Body=v.Head="unknown";m.Observe("e",1,10,v,c);
             var own=LoadoutModel.Classify("assaultRifle",false,true,800,false,true,"",cfg.Loadout);own.At=10;own.Ready=true;
-            return new Situation { Now=10,Target="e",HasContact=true,IsAi=true,IsPmc=true,IsAuthority=true,IsActive=true,
+            return new Situation { Now=10,Target="e",HasContact=true,IsAi=true,IsSupportedBot=true,IsAuthority=true,IsActive=true,
                 KnownDistance=distance,Loadout=own,Opponent=m.Snapshot("e",1,10,c) };
         }
         List<Candidate> Choices() => new[]{"Push","Shoot","Cover","FallBack","Hold","Search","Grenade"}.Select(a=>new Candidate{Decision=a,Score=50,Eligible=true}).ToList();
@@ -75,7 +75,7 @@ internal static class OpponentTests
         var withoutOwn=S();withoutOwn.Loadout=null;Check(Adjust(withoutOwn).All(a=>a.OpponentDelta==0),"relative pistol advantage needs own weapon evidence");
         var impossible=Choices();impossible[0].Eligible=false;impossible[0].Reason="unsafe-push";
         OpponentAssessment.Adjust(impossible,S(),c);Check(!impossible[0].Eligible && impossible[0].Score==50 && impossible[0].Reason=="unsafe-push","native refusal retained");
-        foreach(var mutate in new Action<Situation>[] {s=>s.IsAi=false,s=>s.IsPmc=false,s=>s.IsAuthority=false,s=>s.IsActive=false,s=>s.Ghost=true,
+        foreach(var mutate in new Action<Situation>[] {s=>s.IsAi=false,s=>s.IsSupportedBot=false,s=>s.IsAuthority=false,s=>s.IsActive=false,s=>s.Ghost=true,
             s=>s.HasContact=false,s=>s.Opponent=null,s=>s.Opponent!.Target="another",s=>s.Opponent!.At=11,s=>s.Now=11,s=>s.KnownDistance=double.NaN})
         {var s=S();mutate(s);Check(Adjust(s).All(a=>a.OpponentDelta==0),"scope and invalid input fail neutral");}
         c.Enabled=false;Check(Adjust(S()).All(a=>a.OpponentDelta==0),"OFF neutral");c.Enabled=true;

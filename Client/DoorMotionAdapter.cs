@@ -44,7 +44,7 @@ public sealed partial class Plugin
     }
     private bool DoorSyncReady=>!fikaPresent||DoorMotionNetwork.Ready?.Invoke()==true;
     private bool MotionScoped(BotComponent b)=>config?.Enabled==true&&config.DoorMotion.Enabled&&Authority
-        &&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
+        &&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
     private static void PushBegin(WorldInteractiveObject __instance,EDoorState __0,out bool __state)
     {
         __state=false;var p=Instance;if(p==null)return;

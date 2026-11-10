@@ -75,7 +75,7 @@ static class ShotGeometryTests
             var md=pe.GetMetadataReader();var type=md.TypeDefinitions.Select(md.GetTypeDefinition).Single(t=>md.GetString(t.Name)=="Plugin");
             MethodDefinition M(string name)=>type.GetMethods().Select(md.GetMethodDefinition).Single(m=>md.GetString(m.Name)==name);
             int Calls(string name,string call)=>ReloadTimingTests.Calls(pe,md,M(name),call);
-            foreach(string gate in new[]{"IsPmcAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding","get_SAINLayersActive"})Check(Calls("GeometryScope",gate)==1,"scope "+gate);
+            foreach(string gate in new[]{"IsSupportedAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding","get_SAINLayersActive"})Check(Calls("GeometryScope",gate)==1,"scope "+gate);
             Check(Calls("CheckShotGeometry","TryBegin")==1&&Calls("CheckShotGeometry","Charge")==1,"shared budget");
             Check(Calls("PrefireFrame","CheckShotGeometry")==1&&Calls("DisciplineGeometry","CheckShotGeometry")==1,"shared M06/W07 checker");
             Check(Calls("GeometryAmmo","get_CurrentAmmoTemplate")==0&&Calls("GeometryAmmo","FirstRealAmmo")==1,"actual ammunition only");

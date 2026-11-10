@@ -58,7 +58,7 @@ static class SainHandoffTests
         // Real selector/memory integration: a handoff must not allow the same failed goal to win again.
         var cfg=new CometConfig();foreach(var key in cfg.Weights.Keys.ToArray())cfg.Weights[key]=key=="Search"?1:0;
         var memory=new PlanProgress(cfg.Progress);memory.CandidateAttempts["Search"]="goal";
-        var s=new Situation{Now=10,Target="enemy",HasContact=true,IsAi=true,IsPmc=true,IsAuthority=true,IsActive=true,KnownDistance=10,ContactAge=1,Progress=memory};
+        var s=new Situation{Now=10,Target="enemy",HasContact=true,IsAi=true,IsSupportedBot=true,IsAuthority=true,IsActive=true,KnownDistance=10,ContactAge=1,Progress=memory};
         var engine=new HiddenEnemyDecision(cfg);Check(engine.Evaluate(s).Decision==Tactic.Search,"initial native-capable search");
         memory.Fail("goal",10.1,"progress-stalled");s.Now=10.1;Check(engine.Evaluate(s).Decision==null,"A12 refuses failed goal");
         h=new(c);h.Accepted(10.1,"A01","Search",Cue());h.Begin(10.2,"no-feasible-option","unavailable",Cue());engine.Release("handoff");

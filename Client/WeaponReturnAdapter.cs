@@ -38,7 +38,7 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(BotWeaponSelector),nameof(BotWeaponSelector.ChangeToMain)),prefix:new HarmonyMethod(typeof(Plugin),nameof(ChooseWeaponReturn)));
         h.Patch(AccessTools.Method(typeof(BotWeaponSelector),nameof(BotWeaponSelector.ShallChangeIfNoAmmo)),prefix:new HarmonyMethod(typeof(Plugin),nameof(SuppressRandomWeaponSwap)));
     }
-    private bool WeaponReturnScope(BotComponent b)=>config?.Enabled==true&&(config.WeaponReturn.Enabled||config.WeaponRange.Enabled)&&NativeAdapter.IsPmcAi(b)
+    private bool WeaponReturnScope(BotComponent b)=>config?.Enabled==true&&(config.WeaponReturn.Enabled||config.WeaponRange.Enabled)&&NativeAdapter.IsSupportedAi(b)
         &&b.BotActive&&!b.IsDead&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId)&&b.SAINLayersActive;
     private bool WeaponReturnState(BotWeaponSelector selector,out BotComponent b,out BotState s)
     {

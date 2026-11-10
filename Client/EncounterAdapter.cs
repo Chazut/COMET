@@ -30,7 +30,7 @@ public sealed partial class Plugin
         {
             if(r.Fault)return;
             if(config?.Enabled!=true||!config.Encounter.Enabled||b==null||b.IsDead||!b.BotActive||b.GameEnding
-                ||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsPmcAi(b))
+                ||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsSupportedAi(b))
             {EndEncounter(s,"encounter-out-of-scope");return;}
             if(Time.time-r.SampleAt<.09f)return;
             r.SampleAt=Time.time;

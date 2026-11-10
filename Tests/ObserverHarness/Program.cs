@@ -47,7 +47,7 @@ namespace Comet.ObserverProbe
     sealed class Bot {public bool Pmc=true,BotActive=true;public Act Shoot=new(),ManualShoot=new(),Aim=new();}
     sealed class Act{public void EndShoot(){}public void Reset(){}public void LoseAimTarget(){}}
     sealed class BotDecisionManager {public Bot Bot=null!;public ECombatDecision CurrentCombatDecision;public ESelfActionType CurrentSelfDecision;public ESquadDecision CurrentSquadDecision;}
-    static class NativeAdapter {public static bool IsPmcAi(Bot b)=>b.Pmc;}
+    static class NativeAdapter {public static bool IsSupportedAi(Bot b)=>b.Pmc;}
     sealed class Settings{public bool Enabled=true;public Visible VisibleCombat=new();}
     sealed class Visible{public float CoverMemory=2;}
     sealed class Situation{public bool Visible;public string Target="target";}
@@ -66,6 +66,8 @@ namespace Comet.ObserverProbe
         public void Track(Bot b,BotState s){Instance=this;states.Add(b,s);}
         public void Observe(BotDecisionManager d)=>Accepted(d);
         bool Ghost(string profile)=>IsGhost;
+        // Service arbitration is covered by ControlHarness; this harness exercises acceptance without a service.
+        bool ObservePlanService(Bot bot,BotState state,bool observe)=>false;
         bool FeintAccepted(BotDecisionManager d,BotState s){SpecialCalls++;return Special==1;}
         bool RelocationAccepted(BotDecisionManager d,BotState s){SpecialCalls++;return Special==2;}
         bool ImpactDecisionObserved(BotDecisionManager d,BotState s){SpecialCalls++;return Special==3;}

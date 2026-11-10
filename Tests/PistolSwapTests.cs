@@ -72,7 +72,7 @@ static class PistolSwapTests
         var score=Reload(F());score.ReloadScore=double.NaN;policy=new();Check(!policy.Evaluate(F(),P(),score,c),"invalid score yields");
         using(var pe=new PEReader(File.OpenRead("Client/bin/Release/netstandard2.1/COMET.dll"))){var md=pe.GetMetadataReader();var type=md.TypeDefinitions.Select(md.GetTypeDefinition).Single(t=>md.GetString(t.Name)=="Plugin");
             MethodDefinition Method(string name)=>type.GetMethods().Select(md.GetMethodDefinition).Single(m=>md.GetString(m.Name)==name);
-            foreach(var gate in new[]{"IsPmcAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding","get_SAINLayersActive"})Check(ReloadTimingTests.Calls(pe,md,Method("PistolScope"),gate)==1,"compiled scope "+gate);
+            foreach(var gate in new[]{"IsSupportedAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding","get_SAINLayersActive"})Check(ReloadTimingTests.Calls(pe,md,Method("PistolScope"),gate)==1,"compiled scope "+gate);
             foreach(var method in new[]{"ReadPistol","TryPistolSwap","SamplePistolSwap"})foreach(var forbidden in new[]{"get_RealDistance","get_EnemyPosition","get_BulletCount","BotCancelReload","AddAmmoToMagazines","FastForward","SetSlotItem","Teleport"})
                 Check(ReloadTimingTests.Calls(pe,md,Method(method),forbidden)==0,"no hidden info, cached ammo or forced animation: "+method+forbidden);
             Check(ReloadTimingTests.Calls(pe,md,Method("TryPistolSwap"),"TryChangeToSlot")==1,"one native switch API");

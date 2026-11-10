@@ -66,7 +66,7 @@ public sealed partial class Plugin
         return GunfireGate(sensor, distance, ref result) ? nativeGunfireGate(sensor, distance) : result;
     }
     private bool GunfireScoped(BotComponent b) => world != null && config?.Enabled == true && config.Gunfire.Enabled
-        && NativeAdapter.IsPmcAi(b) && b.BotActive && !b.GameEnding && Authority && !Ghost(b.ProfileId);
+        && NativeAdapter.IsSupportedAi(b) && b.BotActive && !b.GameEnding && Authority && !Ghost(b.ProfileId);
 
     private static void GunfireBegin(HearingSensor __instance, AISoundData sound, ref GunfireCall? __state)
     {

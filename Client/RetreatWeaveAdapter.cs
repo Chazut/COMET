@@ -34,7 +34,7 @@ public sealed partial class Plugin
     }
     private string WeaveBlock(BotComponent b,BotState s)
     {
-        if(config?.Enabled!=true||!config.RetreatWeave.Enabled||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsPmcAi(b)
+        if(config?.Enabled!=true||!config.RetreatWeave.Enabled||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsSupportedAi(b)
             ||b.IsDead||!b.BotActive||b.GameEnding||!b.SAINLayersActive)return "weave-ineligible";
         if(MedicalPostureGuard(b))return "medical-posture-protected";
         var a=b.CurrentAction?.GetType();string d=b.Decision.CurrentCombatDecision.ToString();
@@ -55,7 +55,7 @@ public sealed partial class Plugin
     {
         var r=s.RetreatWeave;if(r.Fault)return;
         if(!b.IsDead&&r.Policy.ObserveFlight(b.Player.MovementContext.IsGrounded,Time.time))RecordWeave(s,true);
-        if(config?.Enabled!=true||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsPmcAi(b)||b.IsDead||!b.BotActive||b.GameEnding)
+        if(config?.Enabled!=true||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsSupportedAi(b)||b.IsDead||!b.BotActive||b.GameEnding)
         {EndWeave(s,"weave-ineligible");r.Enemy=null;r.SeenAt=r.FireAt=-1000;return;}
         var e=b.GoalEnemy;
         if(!ReferenceEquals(r.Enemy,e)){EndWeave(s,"weave-contact-changed");r.Enemy=e;r.SeenAt=r.FireAt=r.SampleAt=r.ShotStamp=-1000;r.Context="";}

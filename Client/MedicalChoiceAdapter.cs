@@ -79,7 +79,7 @@ public sealed partial class Plugin
     private static void SurgeryStopped(object __instance)
     {var p=Instance;var b=(BotComponent)surgeryBot.GetValue(__instance)!;if(p!=null&&p.states.TryGetValue(b,out var s))s.Medical.SurgeryOwned=false;}
     private bool MedicalScope(BotComponent b)=>config?.Enabled==true&&config.MedicalChoice.Enabled&&world!=null&&Authority
-        &&b!=null&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId)&&(b.SAINLayersActive||PostCombatMedicalScope(b));
+        &&b!=null&&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId)&&(b.SAINLayersActive||PostCombatMedicalScope(b));
     private static ESelfActionType MedicalAction(string choice)=>choice=="FirstAid"?ESelfActionType.FirstAid:choice=="Surgery"?ESelfActionType.Surgery:choice=="Stims"?ESelfActionType.Stims:ESelfActionType.None;
     private string MedicalPriority(BotComponent b,BotState s)
     {

@@ -24,7 +24,7 @@ namespace HarmonyLib {
 namespace QuestingBots.Controllers {public static class BotRegistrationManager {public static readonly HashSet<string> Asleep=new();public static bool Throw;public static bool IsBotSleeping(string id)=>Throw?throw new Exception("QB unavailable"):Asleep.Contains(id);}}
 namespace QuestingBots.BotLogic.ExternalMods.ModInfo {public static class SAINModInfo {public static bool IsSAINLayer(string name)=>name.StartsWith("SAIN");}}
 namespace Comet.Client {
- internal static class NativeAdapter {internal static bool IsPmcAi(BotComponent b)=>b.Pmc&&!b.Human;}
+ internal static class NativeAdapter {internal static bool IsSupportedAi(BotComponent b)=>b.Pmc&&!b.Human;}
  internal sealed class BotState(BotComponent b) {
   internal BotComponent Owner=b;internal string ProfileId=b.ProfileId,Id=Guid.NewGuid().ToString(),Name="PMC",ActiveLabel="COMET:Hold",Decision="Hold";internal bool Retired;internal string Feature="A01",Expected="Hold";internal Recovery Crossfire=new();internal Reservation Reservation=new();
   internal Handoff Handoff=new();internal Recovery PostCombat=new();

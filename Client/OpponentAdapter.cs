@@ -26,7 +26,7 @@ public sealed partial class Plugin
         h.Patch(hit, postfix: new HarmonyMethod(typeof(Plugin), nameof(OpponentHit)));
     }
     private bool OpponentEligible(BotComponent bot) => config?.Enabled == true && config.Opponent.Enabled && Authority
-        && NativeAdapter.IsPmcAi(bot) && bot.BotActive && !Ghost(bot.ProfileId);
+        && NativeAdapter.IsSupportedAi(bot) && bot.BotActive && !Ghost(bot.ProfileId);
     private static void OpponentHeard(Enemy ___Enemy, SAINSoundType __0, EnemyPlace __2)
     {
         var p = Instance;

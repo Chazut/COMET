@@ -7,7 +7,7 @@ namespace EFT
  public class Player {public bool IsAI=true;public Health? HealthController=new();public Profile Profile=new();}
  public class Health {public bool IsAlive=true;}
  public class Profile {public Info Info=new();}
- public class Info {public Settings Settings=new();}
+ public class Info {public Settings Settings=new();public string? Nickname="Scav",MainProfileNickname;}
  public class Settings {public WildSpawnType Role=WildSpawnType.pmcUSEC;}
  public class RevivablePlayer:Player{public bool ThrowRead;private bool downed;public bool Downed{get{if(ThrowRead)throw new Exception("downed unavailable");return downed;}set=>downed=value;}}
  public class BotOwner{public BotComponent? Bot; public WeaponManager? WeaponManager=new(); public T? GetComponent<T>() where T:class=>Bot as T;}
@@ -20,7 +20,7 @@ namespace SAIN.Components
 }
 namespace Comet.Client
 {
- internal static class NativeAdapter{internal static bool IsPmcAi(BotComponent b)=>!b.IsDead&&b.Player.IsAI&&b.Player.Profile.Info.Settings.Role is EFT.WildSpawnType.pmcUSEC or EFT.WildSpawnType.pmcBEAR;}
+ internal static class NativeAdapter{internal static bool IsSupportedAi(BotComponent b)=>!b.IsDead&&BotEligibility.Supports(b.Player);}
  internal class Resettable {internal void Release(string r){}internal void Clear(){}internal void Reset(string r){}}
  internal class BotState
  {

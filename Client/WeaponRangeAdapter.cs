@@ -20,7 +20,7 @@ internal sealed class WeaponRangeRuntime
 }
 public sealed partial class Plugin
 {
-    private bool WeaponRangeScope(BotComponent b)=>config?.Enabled==true&&config.WeaponRange.Enabled&&NativeAdapter.IsPmcAi(b)
+    private bool WeaponRangeScope(BotComponent b)=>config?.Enabled==true&&config.WeaponRange.Enabled&&NativeAdapter.IsSupportedAi(b)
         &&b.BotActive&&!b.IsDead&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId)&&b.SAINLayersActive;
     private WeaponReturnConfig RangeArbiterConfig()=>config!.WeaponReturn.Enabled?config.WeaponReturn:new WeaponReturnConfig
     {

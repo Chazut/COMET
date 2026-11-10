@@ -18,7 +18,7 @@ namespace EFT {
  public interface IPlayer { }
  public class OtherPlayer:IPlayer { }
  public class Profile {public string Nickname="PMC";public Info Info=new();}
- public class Info {public Settings Settings=new();}
+ public class Info {public Settings Settings=new();public string? Nickname="Scav",MainProfileNickname;}
  public class Settings {public WildSpawnType Role=WildSpawnType.pmcUSEC;}
  public class Health {public bool Alive=true,Throw;public bool IsAlive=>Throw?throw new Exception("health read"):Alive;}
  public class Transform {public UnityEngine.Object? Original=new();}

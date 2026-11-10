@@ -17,7 +17,7 @@ internal static class LoadoutTests
             var p = LoadoutModel.Classify(cls, bolt, cls == "smg" || cls == "assaultRifle", 850, scope, dot, ammo, c);
             p.At = 10; p.WeaponId = cls + scope; p.Ready = p.ResourcesKnown = true; p.LoadedRounds = 20; return p;
         }
-        Situation S(LoadoutTrace? p, double d = 12) => new() { Now = 10, IsAi = true, IsPmc = true, IsAuthority = true,
+        Situation S(LoadoutTrace? p, double d = 12) => new() { Now = 10, IsAi = true, IsSupportedBot = true, IsAuthority = true,
             IsActive = true, HasContact = true, Target = "contact", ContactAge = 1, KnownDistance = d, Loadout = p };
         List<Candidate> Options() => new[] { "Push", "Shoot", "Hold", "Search", "FallBack", "Cover", "Grenade" }
             .Select(d => new Candidate { Decision = d, Score = 50, Eligible = true }).ToList();
@@ -44,7 +44,7 @@ internal static class LoadoutTests
         var impossible=Options();impossible[4].Eligible=false;impossible[4].Reason="no-reachable-cover";
         LoadoutModel.Adjust(impossible,S(Kit("sniperRifle",true)),c);
         Check(!impossible[4].Eligible && impossible[4].Score==50 && impossible[4].Reason=="no-reachable-cover","wrong range cannot permit unsafe retreat");
-        foreach(var mutate in new Action<Situation>[] {s=>s.IsAi=false,s=>s.IsPmc=false,s=>s.IsAuthority=false,s=>s.IsActive=false,s=>s.Ghost=true,
+        foreach(var mutate in new Action<Situation>[] {s=>s.IsAi=false,s=>s.IsSupportedBot=false,s=>s.IsAuthority=false,s=>s.IsActive=false,s=>s.Ghost=true,
             s=>s.Loadout=null,s=>s.Loadout!.State="refresh-pending",s=>s.Loadout!.Ready=false,s=>s.Loadout!.At=11,s=>s.Loadout!.At=4,
             s=>s.Loadout!.Cqb=double.NaN,s=>s.Loadout!.IdealRange=0,s=>s.KnownDistance=double.PositiveInfinity}) {
             var s=S(Kit("smg"));mutate(s);Check(Adjust(s).All(x=>x.LoadoutDelta==0),"scope/missing/stale/invalid snapshot is neutral");

@@ -87,7 +87,7 @@ internal static class CoverFeintTests
         using(var pe=new PEReader(File.OpenRead("Client/bin/Release/netstandard2.1/COMET.dll"))) {
             var md=pe.GetMetadataReader();var plugin=md.TypeDefinitions.Select(md.GetTypeDefinition).Single(t=>md.GetString(t.Name)=="Plugin");
             MethodDefinition Method(string name)=>plugin.GetMethods().Select(md.GetMethodDefinition).Single(m=>md.GetString(m.Name)==name);
-            foreach(var gate in new[]{"IsPmcAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding","get_SAINLayersActive"})
+            foreach(var gate in new[]{"IsSupportedAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding","get_SAINLayersActive"})
                 Check(Calls(pe,md,Method("FeintScope"),gate)==1,"compiled scope gate "+gate);
             Check(Calls(pe,md,Method("FeintPathInitialized"),"Remove")==1,"reused path invalidates old generation");
             Check(Calls(pe,md,Method("RefreshFeint"),"RemainingRelocationRoute")==1&&Calls(pe,md,Method("RefreshFeint"),"FeintRouteClear")==1,"actual native steering route rechecked");

@@ -62,7 +62,7 @@ public sealed class VisibleEnemyDecision
     {
         var s = v.Contact;
         if (!c.Enabled || !c.VisibleCombat.Enabled) return "disabled";
-        if (!s.IsAi || !s.IsPmc) return "not-pmc-ai";
+        if (!s.IsAi || !s.IsSupportedBot) return "unsupported-bot";
         if (!s.IsAuthority) return "not-authority";
         if (!s.IsActive || s.Ghost) return "inactive-or-ghost";
         if (!s.Visible) return "enemy-not-visible";

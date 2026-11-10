@@ -45,7 +45,7 @@ public static class CoverResponseModel
             KnownThreats = Math.Max(0, v.ThreatCount), ScoreCap = c.ScoreCap };
         CoverResponseTrace Refuse(string reason) { t.Reason = reason; return t; }
         if (!c.Enabled || c.ScoreCap == 0) return Refuse("cover-response-disabled");
-        if (!s.IsAi || !s.IsPmc || !s.IsAuthority || !s.IsActive || s.Ghost || !s.Visible || !s.HasContact
+        if (!s.IsAi || !s.IsSupportedBot || !s.IsAuthority || !s.IsActive || s.Ghost || !s.Visible || !s.HasContact
             || s.Target.Length == 0 || !Finite(s.Now)) return Refuse("cover-response-ineligible");
         if (!v.ProbeReady) return Refuse("cover-response-probe-pending");
         if (!v.CoverReachable || p == null || !p.Complete) return Refuse("cover-response-no-route");

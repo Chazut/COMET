@@ -59,7 +59,7 @@ static class SilentSearchTests
         Check(!reviews.TryReview(new(){Eligible=true,Target=""}),"empty target refused");
 
         CometConfig Config(){var cfg=new CometConfig{HoldLimit=30,PlanLimit=60};cfg.DecisionVariety.Enabled=false;cfg.TacticalMistakes.Enabled=false;foreach(var key in cfg.Weights.Keys.ToArray())cfg.Weights[key]=key=="Hold"||key=="Search"?1:0;return cfg;}
-        Situation S(double at)=>new(){Now=at,Target="heard",Personality="Normal",IsAi=true,IsPmc=true,IsAuthority=true,IsActive=true,HasContact=true,ContactAge=at-100,KnownDistance=20,InCover=true};
+        Situation S(double at)=>new(){Now=at,Target="heard",Personality="Normal",IsAi=true,IsSupportedBot=true,IsAuthority=true,IsActive=true,HasContact=true,ContactAge=at-100,KnownDistance=20,InCover=true};
         var config=Config();var engine=new HiddenEnemyDecision(config);Check(engine.Evaluate(S(100)).Decision==Tactic.Hold,"initial cover hold");
         var plain=S(115);Check(engine.Evaluate(plain).Decision==Tactic.Hold,"baseline hysteresis preserves hold");
         var after=S(115);after.SilentSearch=SilentSearchPolicy.Evaluate(F(),c);var chosen=engine.Evaluate(after);

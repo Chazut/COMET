@@ -51,7 +51,7 @@ public sealed partial class Plugin
         BrainManager.AddCustomLayer(typeof(CrossfireLayer),new(){"PMC","PmcUsec","PmcBear","Assault","ExUsec","Knight","BigPipe","BirdEye"},21);
     }
     private bool CrossfireScope(BotComponent b)=>config?.Enabled==true&&(config.Crossfire.Enabled||config.CoverMate.Enabled||config.SquadTrade.Enabled||config.SquadStorm.Enabled)&&world!=null&&Authority
-        &&b!=null&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId)&&ContactSafety.AllowsGoal(b);
+        &&b!=null&&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId)&&ContactSafety.AllowsGoal(b);
     private string CrossfireBlock(BotComponent b,BotState s,bool maneuverCandidate=false,bool supportCandidate=false)
     {
         if(!CrossfireScope(b)||!config!.Crossfire.Enabled)return "crossfire-out-of-scope";

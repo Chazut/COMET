@@ -29,10 +29,10 @@ static class CloseDetectionTests
             var game=JsonSerializer.Deserialize<CometConfig>(store.ForGame())!;Check(game.CloseDetection.FullDistance==2&&game.CloseDetection.ReductionPercent==75,"client receives authoritative values");
         }
         finally { if(Directory.Exists(dir))Directory.Delete(dir,true); }
-        CloseDetectionFrame Frame(double distance=3)=>new(){MasterEnabled=true,PmcAi=true,Active=true,Authority=true,ValidTarget=true,InFov=true,ClearRecentRay=true,Distance=distance,ThirdParty=1.5,Unknown=1.5,NativeModifier=9};
+        CloseDetectionFrame Frame(double distance=3)=>new(){MasterEnabled=true,SupportedAi=true,Active=true,Authority=true,ValidTarget=true,InFov=true,ClearRecentRay=true,Distance=distance,ThirdParty=1.5,Unknown=1.5,NativeModifier=9};
         foreach(var (d,attention) in new[]{(0d,1d),(2.99,1),(3,1),(4.5,1.625),(5.999,2.2495833333333333),(6,2.25),(9,2.25)})
         {var t=CloseDetection.Evaluate(c,Frame(d));Near(t.FinalModifier,4*attention,"distance ramp "+d);Check(!t.VisualAcquired,"correction is not acquisition");}
-        foreach(var edit in new Action<CloseDetectionFrame>[] {f=>f.MasterEnabled=false,f=>f.PmcAi=false,f=>f.Active=false,f=>f.Authority=false,f=>f.Ghost=true,f=>f.ValidTarget=false,f=>f.Blind=true,f=>f.InFov=false,f=>f.ClearRecentRay=false})
+        foreach(var edit in new Action<CloseDetectionFrame>[] {f=>f.MasterEnabled=false,f=>f.SupportedAi=false,f=>f.Active=false,f=>f.Authority=false,f=>f.Ghost=true,f=>f.ValidTarget=false,f=>f.Blind=true,f=>f.InFov=false,f=>f.ClearRecentRay=false})
         {var f=Frame();edit(f);var t=CloseDetection.Evaluate(c,f);Near(t.FinalModifier,9,"excluded or obstructed target retains native");Check(t.State=="native","refusal never claims action");}
         foreach(var percent in new[]{0d,25,50,75,100})
         {var t=CloseDetection.Evaluate(new(){ReductionPercent=percent},Frame(4.5));Near(t.FinalModifier,9-(5*.5*percent/100),"strength affects only extra penalty");}

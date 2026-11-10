@@ -46,7 +46,7 @@ public sealed partial class Plugin
         }
     }
     private bool CloseScoped(BotComponent b) => world != null && config?.Enabled == true && config.CloseDetection.Enabled
-        && config.CloseDetection.ReductionPercent > 0 && NativeAdapter.IsPmcAi(b) && b.BotActive && !b.GameEnding && Authority && !Ghost(b.ProfileId);
+        && config.CloseDetection.ReductionPercent > 0 && NativeAdapter.IsSupportedAi(b) && b.BotActive && !b.GameEnding && Authority && !Ghost(b.ProfileId);
     private static float CloseSight(Enemy enemy)
     {
         float native = EnemyGainSightClass.GetGainSightModifier(enemy); // Native calculation and repeat-seen/heard bonus run once.
@@ -64,7 +64,7 @@ public sealed partial class Plugin
         double distance = enemy.RealDistance;
         // No extra per-part work, allocation or log traffic for distant targets.
         if (!CloseDetection.Finite(distance) || distance < 0 || distance >= c.StartDistance || !CloseDetection.Finite(native) || native <= 0) return native;
-        var f = new CloseDetectionFrame { MasterEnabled = true, PmcAi = true, Active = true, Authority = true,
+        var f = new CloseDetectionFrame { MasterEnabled = true, SupportedAi = true, Active = true, Authority = true,
             ValidTarget = enemy.EnemyPlayer != null && enemy.EnemyPlayer.HealthController.IsAlive && !Ghost(enemy.EnemyProfileId),
             Distance = distance, NativeModifier = native, Blind = b.Flashed.IsFlashed };
         var angles = enemy.Vision.Angles;

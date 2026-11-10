@@ -31,7 +31,7 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(SAINMoverClass),nameof(SAINMoverClass.ManualUpdate)),postfix:new HarmonyMethod(typeof(Plugin),nameof(ReadyAfterMover)));
     }
     private bool ReadyScope(BotComponent b)=>config?.Enabled==true&&config.ReadyStance.Enabled&&world!=null&&Authority
-        &&b!=null&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
+        &&b!=null&&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
     private static void ReadyFight(BotDecisionManager __instance)
     {
         var p=Instance;var b=__instance.Bot;if(p==null)return;

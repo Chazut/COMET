@@ -52,7 +52,7 @@ public sealed partial class Plugin
     private static void ImpactPollEnd(BotDecisionManager __instance)
     { if(Instance?.states.TryGetValue(__instance.Bot,out var s)==true)s.Impact.InDecisionPoll=false; }
     private bool ImpactScoped(BotComponent b) => config?.Enabled==true&&config.ImpactReaction.Enabled&&world!=null
-        &&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&Authority&&!Ghost(b.ProfileId);
+        &&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&Authority&&!Ghost(b.ProfileId);
     private string ImpactPriority(BotComponent b,ImpactRuntime r)
     {
         return ImpactPolicy.Priority(ImpactScoped(b),Time.time<r.FaultUntil,
@@ -66,7 +66,7 @@ public sealed partial class Plugin
     private static void ImpactHit(SAINBotMedicalClass __instance,DamageInfo __0)
     {
         var p=Instance;var b=__instance.Bot;
-        if(p==null||!NativeAdapter.IsPmcAi(b))return;
+        if(p==null||!NativeAdapter.IsSupportedAi(b))return;
         try
         {
             if(!p.ImpactScoped(b))return;

@@ -26,7 +26,7 @@ namespace SAIN.Models.Enums{public enum EShootReason{None,Suppression}}
 namespace SAIN.SAINComponent.Classes{public class SAINFriendlyFireClass{public BotComponent Bot=null!;public void ManualUpdate(){}}}
 namespace SAIN.SAINComponent.Classes.WeaponFunction{public class ManualShootClass{public BotComponent Bot=null!;public bool TryShoot(object enemy,Vector3 targetPos,bool checkFF=true,int reason=0)=>true;}}
 namespace SAIN.Components {
- public class BotComponent{public string ProfileId="pmc-1";public bool IsDead,GameEnding,IsPmc=true,BotActive=true,IsGhost;public EFT.Player Player=new();public EFT.BotOwner BotOwner;public Vector3 Position;public TransformData Transform=new();public Shoot ManualShoot=new();public Decision Decision=new();public Squad Squad=new();public BotComponent(){BotOwner=new(){Bot=this};}}
+ public class BotComponent{public string ProfileId="pmc-1";public bool IsDead,GameEnding,IsSupportedBot=true,BotActive=true,IsGhost;public EFT.Player Player=new();public EFT.BotOwner BotOwner;public Vector3 Position;public TransformData Transform=new();public Shoot ManualShoot=new();public Decision Decision=new();public Squad Squad=new();public BotComponent(){BotOwner=new(){Bot=this};}}
  public class TransformData{public WeaponData WeaponData=new();public HeadData HeadData=new();}public class HeadData{public Vector3 HeadPosition=new(0,1.6f,5);}public class WeaponData{public Vector3 FirePort=new(0,1,0),PointDirection=new(0,0,1);}
  public class Shoot{public SAIN.Models.Enums.EShootReason Reason;public Vector3 ShootPosition;}
  public class Decision{public SAIN.Preset.Shared.Enums.ECombatDecision CurrentCombatDecision=SAIN.Preset.Shared.Enums.ECombatDecision.StandAndShoot;}
@@ -35,7 +35,7 @@ namespace SAIN.Components {
 }
 namespace Comet.Client {
  internal class BotState{public string ProfileId,Name,Id="s08-instance";public SquadFireRuntime SquadFire=new();public BotState(BotComponent b,CometConfig c,string session){ProfileId=b.ProfileId;Name=b.Player.Profile.Nickname;}}
- internal static class NativeAdapter{public static bool IsPmcAi(BotComponent b)=>b.IsPmc;}
+ internal static class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.IsSupportedBot;}
  internal class Budget{public bool Allow=true;public int Calls;public bool TryBegin(int frame){Calls++;return Allow;}public void Charge(double n){}}
  internal class Log{public List<string> Warnings=new();public void LogWarning(string s)=>Warnings.Add(s);}
  internal class Sink{public List<string> Events=new();public void Write(string s)=>Events.Add(s);}

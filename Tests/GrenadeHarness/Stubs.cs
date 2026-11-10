@@ -53,7 +53,7 @@ namespace Comet.Core {public static class ImpactReaction{public static bool Fini
 namespace Comet.Client {
  internal class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);internal static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};internal List<string> Events=new();internal void Write(string value)=>Events.Add(value);}
  internal class Log {internal void LogWarning(string s){}}
- internal static class NativeAdapter {internal static void ContinueGrenadeSearch(BotComponent b,BotState s,CometConfig c){}internal static bool IsPmcAi(BotComponent b)=>b.Pmc&&!b.IsDead;}
+ internal static class NativeAdapter {internal static void ContinueGrenadeSearch(BotComponent b,BotState s,CometConfig c){}internal static bool IsSupportedAi(BotComponent b)=>b.Pmc&&!b.IsDead;}
  internal class FakeRuntime {internal FakePolicy Policy=new();internal bool CallbackPending;}internal class FakePolicy {internal bool Active;}
  internal class GrenadeTrajectoryRuntime {internal bool Pending,Fault;}
  internal class BotState {internal GrenadeTrajectoryRuntime GrenadeTrajectory=new();internal GrenadeJudgmentRuntime GrenadeJudgment=new();internal OpportunityMemory Opportunity=new();internal FakeRuntime Fake=new();internal string ProfileId,Name="Test PMC",Id="instance";internal BotState(BotComponent b,CometConfig c,string session){ProfileId=b.ProfileId;}}

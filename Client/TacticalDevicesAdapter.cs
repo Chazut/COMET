@@ -52,7 +52,7 @@ public sealed partial class Plugin
             prefix:new HarmonyMethod(typeof(Plugin),nameof(TacticalDevicesDispose)));
     }
     private bool DeviceScope(BotComponent b)=>config?.Enabled==true&&config.TacticalDevices.Enabled&&world!=null&&Authority
-        &&b!=null&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
+        &&b!=null&&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
     private BotState DeviceState(BotComponent b)
     {
         if(!states.TryGetValue(b,out var s)) {s=new BotState(b,config!,session);states.Add(b,s);}return s;
@@ -76,9 +76,13 @@ public sealed partial class Plugin
             bool want=deviceWant(__instance);
             var native=b.BotOwner.BotLight;
             bool dark=native._isInDarkPlace&&SAIN.SAINPlugin.LoadedPreset.GlobalSettings.General.Flashlight.AllowLightOnForDarkBuildings;
-            // Preserve the original SAIN PMC/no-enemy and EFT light-use gates. This changes execution, not tactics.
+            // Preserve SAIN's own role-specific light preference. Player Scavs use
+            // assault settings even though they now participate in COMET tactics.
+            var flashlight=SAIN.SAINPlugin.LoadedPreset.GlobalSettings.General.Flashlight;
+            bool offWithoutEnemy=BotEligibility.Kind(b.Player)=="player-scav"
+                ? flashlight.TurnLightOffNoEnemySCAV : flashlight.TurnLightOffNoEnemyPMC;
             if(want&&(!native.CanUseBySettings||!dark&&b.BotOwner.Memory.GoalEnemy==null
-                &&SAIN.SAINPlugin.LoadedPreset.GlobalSettings.General.Flashlight.TurnLightOffNoEnemyPMC))
+                &&offWithoutEnemy))
             {p.PauseTacticalDevices(s,"devices-native-on-not-allowed");return false;}
             if(!want&&dark) {p.PauseTacticalDevices(s,"devices-native-dark-room");return false;}
             if(!p.DeviceHandsReady(b,hand)) {p.PauseTacticalDevices(s,"devices-hands-busy");return false;}

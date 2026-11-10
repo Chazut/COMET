@@ -219,7 +219,7 @@ class BotState
  public DecisionExecution Execution=new();public Engine Engine=new();public VisibleEngine VisibleEngine=new();public Runtime CoverFeint=new(),Relocation=new(),Emergency=new();public Progress Progress=new();public CoverPoint SelectedCover;
  public Probe Probe=new();public FearRuntime Fear=new();public Loadout LoadoutAtSelection=new();public Intent Intent=new();
 }
-static class NativeAdapter{public static bool IsPmcAi(BotComponent b)=>b.Pmc;public static Situation Capture(BotComponent b,Enemy e,bool authority,bool ghost)=>new(){Target=e.EnemyProfileId,Hurt=b.Hurt,LowAmmo=b.LowAmmo,Suppressed=b.Suppressed};}
+static class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.Pmc;public static Situation Capture(BotComponent b,Enemy e,bool authority,bool ghost)=>new(){Target=e.EnemyProfileId,Hurt=b.Hurt,LowAmmo=b.LowAmmo,Suppressed=b.Suppressed};}
 static class VisibleAdapter{public static bool Pending;public static bool WeaponReady(BotComponent b)=>!b.BotOwner.WeaponManager.Reload.Reloading;public static bool ValidCover(BotComponent b,CoverPoint p)=>p?.Valid==true;public static VisibleSituation Capture(BotComponent b,Enemy e,Situation s,BotState state,Config c)=>new(){Pending=Pending};}
 static class ProgressAdapter{public static string CoverKey(CoverPoint p)=>"cover";}static class VisibleEnemyDecision{public static string Ineligible(VisibleSituation v,Config c)=>v.Pending?"exposure-probe-pending":null;}
 class Log{public void LogWarning(string text)=>throw new Exception(text);}

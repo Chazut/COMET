@@ -8,7 +8,7 @@
 <PageTitle>COMET settings</PageTitle>
 <main class="comet" inert="@(preview != null)">
     <header class="page-heading"><div><span class="eyebrow">COMET / DEVELOPMENT PREVIEW</span><h1>Make the fight your own.</h1>
-        <p>Choose a starting level, then tune how PMCs approach combat. Your SAIN settings stay unchanged.</p></div>
+        <p>Choose a starting level, then tune how PMCs and AI Player Scavs approach combat. Human players, ordinary scavs and bosses are excluded. Your SAIN settings stay unchanged.</p></div>
         <span class="authority">Server settings<br /><strong>Applies next raid</strong></span></header>
     @if (editor == null) { <p role="alert">@message</p><button @onclick="ReadSaved">Try again</button> }
     else {
@@ -44,7 +44,7 @@
             <span>Comparing does not change your settings.</span></div>
         <details class="quiet-details reading-guide"><summary>How to read these settings</summary>
             <p>Saved is your last saved setup. A default is the supplied value for the named COMET level, before your edits or personal preset. Restore copies the selected comparison value into your draft.</p>
-            <p>Chances apply only when the described conditions are met. They are not a percentage of all PMCs. Weights favor an option without guaranteeing it. Seconds (s), meters (m), percentages (%) and multipliers (x) are shown beside the values.</p>
+            <p>Chances apply only when the described conditions are met. They are not a percentage of all eligible bots. Weights favor an option without guaranteeing it. Seconds (s), meters (m), percentages (%) and multipliers (x) are shown beside the values.</p>
             <p>For a multiplier, 1 keeps the original amount and 0.5 halves it. For a 0-1 scale, 0.5 means halfway along that scale; it is only a chance when the description says so.</p>
         </details>
         @if (search.Trim().Length > 0) { <p class="notice">Searching all themes and advanced settings. @visible.Count result(s).</p> }

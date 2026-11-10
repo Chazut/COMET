@@ -54,7 +54,7 @@ public sealed partial class Plugin
         return result;
     }
     private bool JumpScope(BotComponent b,BotState s)=>ContactSafety.AllowsGoal(b)&&config?.Enabled==true&&Authority&&!Ghost(s.ProfileId)
-        &&NativeAdapter.IsPmcAi(b)&&!b.IsDead&&b.BotActive&&!b.GameEnding&&b.SAINLayersActive;
+        &&NativeAdapter.IsSupportedAi(b)&&!b.IsDead&&b.BotActive&&!b.GameEnding&&b.SAINLayersActive;
     private TacticalJumpFrame JumpFrame(BotComponent b,BotState s,string source,string kind,Vector3 direction,Vector3 landing,double minSpeed,double minStamina,bool clearance,double age)
     {
         var v=b.Player.Velocity;v.y=0;direction.y=0;
@@ -84,7 +84,7 @@ public sealed partial class Plugin
         var p=Instance;var b=mover.Bot;
         if(MedicalPostureGuard(b))return false;
         if(p?.config==null||!p.config.Enabled||!p.config.TacticalJump.Enabled||!p.config.TacticalJump.NativeRush
-            ||!NativeAdapter.IsPmcAi(b)||!p.Authority||p.Ghost(b.ProfileId))return mover.TryJump();
+            ||!NativeAdapter.IsSupportedAi(b)||!p.Authority||p.Ghost(b.ProfileId))return mover.TryJump();
         if(!p.states.TryGetValue(b,out var s))return mover.TryJump();
         if(s.TacticalJump.Fault)return mover.TryJump();
         try {

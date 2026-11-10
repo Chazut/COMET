@@ -61,7 +61,7 @@ public sealed partial class Plugin
     private static int BarrelReloadChamberPredicate(Weapon weapon)=>ReferenceEquals(weapon,barrelReloadRequest)
         &&weapon.ReloadMode==Weapon.EReloadMode.OnlyBarrel&&weapon.ChamberAmmoCount<weapon.Chambers.Length
             ?0:weapon.ChamberAmmoCount;
-    private bool ReloadScope(BotComponent b)=>config?.Enabled==true&&(config.ReloadTiming.Enabled||config.PistolSwap.Enabled)&&NativeAdapter.IsPmcAi(b)
+    private bool ReloadScope(BotComponent b)=>config?.Enabled==true&&(config.ReloadTiming.Enabled||config.PistolSwap.Enabled)&&NativeAdapter.IsSupportedAi(b)
         &&b.BotActive&&!b.IsDead&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId)&&b.SAINLayersActive;
     private static int ReloadLoaded(Weapon w)=>w.ChamberAmmoCount+(w.ReloadMode==Weapon.EReloadMode.OnlyBarrel?0:w.GetCurrentMagazine()?.Count??0);
     private static bool ChooseReloadTiming(SelfActionDecisionClass __instance,Enemy enemy,BotComponent bot,ref bool __result)

@@ -98,7 +98,7 @@ namespace Comet.Client
         internal string ProfileId,Name="Test PMC",Id;internal readonly SquadVoiceRuntime SquadVoice=new();
         internal BotState(BotComponent b,CometConfig c,string session){ProfileId=b.ProfileId;Id=session+":"+b.ProfileId;}
     }
-    internal static class NativeAdapter { internal static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.IsAi; }
+    internal static class NativeAdapter { internal static bool IsSupportedAi(BotComponent b)=>b.Pmc&&b.IsAi; }
     internal class Diagnostics
     { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);
         internal static readonly JsonSerializerSettings Json=new(){ContractResolver=new DefaultContractResolver{NamingStrategy=new CamelCaseNamingStrategy()}};

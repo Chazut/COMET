@@ -116,7 +116,7 @@ checks += GrenadeDispersionTests.Run();
 checks += GrenadeFilterTests.Run();
 void Check(bool ok, string message) { if (!ok) throw new Exception(message); checks++; }
 void Throws(Action action, string message) { try { action(); } catch (ArgumentException) { checks++; return; } catch (InvalidOperationException) { checks++; return; } throw new Exception(message); }
-Situation Contact() => new() { Target = "enemy-1", Now = 10, HasContact = true, ContactAge = 2, KnownDistance = 12, IsAi = true, IsPmc = true, IsAuthority = true, IsActive = true };
+Situation Contact() => new() { Target = "enemy-1", Now = 10, HasContact = true, ContactAge = 2, KnownDistance = 12, IsAi = true, IsSupportedBot = true, IsAuthority = true, IsActive = true };
 CometConfig Only(params Tactic[] enabled)
 {
     var config = new CometConfig();
@@ -126,7 +126,7 @@ CometConfig Only(params Tactic[] enabled)
 
 // Eligibility must revoke an existing plan immediately, even during its commitment window.
 foreach (var mutation in new Action<Situation>[] {
-    s => s.IsAi = false, s => s.IsPmc = false, s => s.IsAuthority = false, s => s.IsActive = false,
+    s => s.IsAi = false, s => s.IsSupportedBot = false, s => s.IsAuthority = false, s => s.IsActive = false,
     s => s.Ghost = true, s => s.Visible = true, s => s.HasContact = false, s => s.Target = "",
     s => s.ContactAge = 26, s => s.ContactAge = double.NaN, s => s.KnownDistance = double.PositiveInfinity,
     s => s.ContactAge = -1, s => s.Now = double.NaN

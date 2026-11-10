@@ -64,7 +64,7 @@ namespace Manimal.CSGas.Gas{
 }
 namespace Comet.Client{
  internal class BotState(BotComponent b){public GasRuntime Gas=new();public string ProfileId=b.ProfileId,Name=b.ProfileId,Id="instance";}
- internal static class NativeAdapter{public static bool IsPmcAi(BotComponent b)=>b.Pmc;}
+ internal static class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.Pmc;}
  public class Sink{public List<string> Lines=new();public void Write(string s)=>Lines.Add(s);public void Publish(string s,Action<Exception> a){}}
  public class Log{public List<string> Lines=new();public void LogWarning(string s)=>Lines.Add(s);public void LogInfo(string s)=>Lines.Add(s);}
  public static class Api{public static Sink Decisions=new();}public static class Diagnostics{ internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}

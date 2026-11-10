@@ -53,7 +53,7 @@ static class OpportunityTests
         }
         m=new();Check(!m.Hear("e",1,10,"heal",true,double.NaN,0,0,c),"invalid perception position");
 
-        Situation S()=>new(){Now=10.5,Target="e",IsAi=true,IsPmc=true,IsAuthority=true,IsActive=true,HasContact=true,KnownDistance=8,ContactAge=.5};
+        Situation S()=>new(){Now=10.5,Target="e",IsAi=true,IsSupportedBot=true,IsAuthority=true,IsActive=true,HasContact=true,KnownDistance=8,ContactAge=.5};
         OpportunityTravel V()=>new(){Ready=true,Complete=true,WeaponReady=true,ThreatCount=1,PathLength=8,Corners=2,Risk=.1,RiskLimit=.65,WalkSpeed=3,SprintSpeed=6,Stamina=.8,CanSprint=true};
         OpportunityTrace Trace(Situation s, OpportunityTravel v,string cue="surgery") {var t=Memory(cue).Snapshot("e",1,s.Now,c);OpportunityModel.Assess(t,s,v,c);return t;}
         var s=S();var v=V();var t=Trace(s,v);Check(t.State=="usable"&&t.Eta>0,"safe surgery opportunity");
@@ -68,7 +68,7 @@ static class OpportunityTests
             v=>v.WalkSpeed=0,v=>v.Stamina=double.NaN,v=>v.SprintSpeed=double.NaN,v=>v.Corners=0,v=>v.PathLength=double.NaN,v=>v.Risk=-1,v=>v.VerticalTravel=double.NaN}) {
             v=V();mutate(v);Check(Trace(S(),v).State=="rejected","unsafe/unknown travel refused");
         }
-        foreach(var mutate in new Action<Situation>[] {s=>s.IsAi=false,s=>s.IsPmc=false,s=>s.IsAuthority=false,s=>s.IsActive=false,s=>s.Ghost=true,s=>s.HasContact=false,
+        foreach(var mutate in new Action<Situation>[] {s=>s.IsAi=false,s=>s.IsSupportedBot=false,s=>s.IsAuthority=false,s=>s.IsActive=false,s=>s.Ghost=true,s=>s.HasContact=false,
             s=>s.Target="other",s=>s.Hurt=true,s=>s.LowAmmo=true,s=>s.Suppressed=true,s=>s.Fear=new(){Panic=true}}) {
             s=S();mutate(s);Check(Trace(s,V()).State=="rejected","scope and safety cannot be bypassed");
         }

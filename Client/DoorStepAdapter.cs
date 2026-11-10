@@ -48,7 +48,7 @@ public sealed partial class Plugin
     {
         var r=s.StepPeek;var t=r.Policy.Trace!;
         if(config?.Enabled!=true||!config.DoorApproach.Enabled||!config.DoorStepPeek.Enabled||r.Fault
-            ||!NativeAdapter.IsPmcAi(b)||!b.BotActive||b.IsDead||b.GameEnding||!Authority||Ghost(b.ProfileId))return "step-out-of-scope";
+            ||!NativeAdapter.IsSupportedAi(b)||!b.BotActive||b.IsDead||b.GameEnding||!Authority||Ghost(b.ProfileId))return "step-out-of-scope";
         if(MedicalPostureGuard(b))return "medical-posture-protected";
         if(e==null||!ReferenceEquals(e,b.GoalEnemy)||!e.EnemyKnown||e.KnownPlaces.LastKnownPosition is not Vector3 known
             ||!r.Policy.SameContact(e.EnemyProfileId,DP(known))||e.TimeSinceLastKnownUpdated>config.DoorApproach.ContactLifetime

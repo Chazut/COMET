@@ -59,7 +59,7 @@ internal static class FearTests
         Check(FearEvidence.InView(15,20,40,60,40,false) && !FearEvidence.InView(15,120,40,60,40,false)
             && !FearEvidence.InView(15,20,10,60,40,false) && !FearEvidence.InView(15,20,40,60,40,true),"range FOV and flash perception gates");
 
-        Situation Contact() => new() {Now=10,Target="first",IsAi=true,IsPmc=true,IsActive=true,IsAuthority=true,HasContact=true,ContactAge=2,KnownDistance=10};
+        Situation Contact() => new() {Now=10,Target="first",IsAi=true,IsSupportedBot=true,IsActive=true,IsAuthority=true,HasContact=true,ContactAge=2,KnownDistance=10};
         var sit=Contact();sit.Fear=new FearTrace {Level=1,Panic=true};
         var candidates=new List<Candidate> {new(){Decision="Shoot",Score=70,Eligible=true},new(){Decision="Cover",Score=60,Eligible=true},
             new(){Decision="Push",Score=65,Eligible=true},new(){Decision="Hold",Score=50,Eligible=true},new(){Decision="FallBack",Score=99,Eligible=false}};
@@ -75,7 +75,7 @@ internal static class FearTests
         Check(pan.Candidates.Single(x=>x.Decision==pan.Decision.ToString()).Score==pan.Candidates.Where(x=>x.Eligible).Max(x=>x.Score),"best feasible A01 response");
         sit.Target="second";sit.Now=10.2;var changedTarget=hidden.Evaluate(sit);Check(changedTarget.Candidates.Any(x=>x.FearDelta!=0),"target handoff retains same fear snapshot");
         sit.Unavailable[Tactic.FallBack]="no-reachable-cover";sit.Now=10.3;Check(hidden.Evaluate(sit).Candidates.Single(x=>x.Decision=="FallBack").Eligible==false,"panic preserves native route gates");
-        sit.IsPmc=false;Check(hidden.Evaluate(sit).Decision==null,"non-PMC excluded");sit.IsPmc=true;sit.Ghost=true;Check(hidden.Evaluate(sit).Decision==null,"ghost excluded");sit.Ghost=false;sit.IsAuthority=false;Check(hidden.Evaluate(sit).Decision==null,"client excluded");
+        sit.IsSupportedBot=false;Check(hidden.Evaluate(sit).Decision==null,"non-PMC excluded");sit.IsSupportedBot=true;sit.Ghost=true;Check(hidden.Evaluate(sit).Decision==null,"ghost excluded");sit.Ghost=false;sit.IsAuthority=false;Check(hidden.Evaluate(sit).Decision==null,"client excluded");
         var vis=new VisibleSituation {Contact=Contact(),WeaponReady=true,CanShoot=true,ProbeReady=true,CoverReachable=true,PushReachable=true,ThreatCount=1,PushPathLength=10,CoverId="c"};
         vis.Contact.Visible=true;vis.Contact.Fear=new FearTrace {Level=.9,Panic=true};var ve=new VisibleEnemyDecision(config,"panic-visible");var vc=ve.Evaluate(vis);
         Check(vc.Mixing != null && vc.Mixing.Roll==null && vc.Mixing.Mistake?.Roll==null,"visible panic bypasses variety and mistakes");

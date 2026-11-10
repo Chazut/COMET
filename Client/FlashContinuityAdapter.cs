@@ -59,7 +59,7 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(t, nameof(BotFlashedClass.Dispose)), postfix: new HarmonyMethod(typeof(Plugin), nameof(DisposedFlash)));
     }
     private bool FlashScope(BotComponent b) => world != null && config?.Enabled == true && config.FlashContinuity.Enabled
-        && b != null && !b.IsDead && NativeAdapter.IsPmcAi(b) && b.BotActive && !b.GameEnding && Authority && !Ghost(b.ProfileId);
+        && b != null && !b.IsDead && NativeAdapter.IsSupportedAi(b) && b.BotActive && !b.GameEnding && Authority && !Ghost(b.ProfileId);
     private static bool ValidPoint(Vector3 v) => FlashContinuityRules.Finite(v.x) && FlashContinuityRules.Finite(v.y) && FlashContinuityRules.Finite(v.z);
     private static float FlashDuration(BotComponent b, float baseTime)
     {

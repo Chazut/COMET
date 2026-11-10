@@ -120,7 +120,7 @@ public sealed partial class Plugin
         var p = Instance;
         if (p?.config == null) return true;
         var bot = __instance.Bot;
-        if (!NativeAdapter.IsPmcAi(bot)) return true;
+        if (!NativeAdapter.IsSupportedAi(bot)) return true;
         try
         {
             if (!p.config.Enabled || !p.config.ThreatSelection.Enabled || !p.Authority || !bot.BotActive || p.Ghost(bot.ProfileId)
@@ -146,7 +146,7 @@ public sealed partial class Plugin
                 }
                 p.threatSamples++; runtime.Frame = Time.frameCount;
                 var frame = new ThreatFrame { Now = Time.time, Current = __instance.GoalEnemy?.EnemyProfileId ?? "",
-                    IsAi = true, IsPmc = true, IsAuthority = true, Active = true,
+                    IsAi = true, IsSupportedBot = true, IsAuthority = true, Active = true,
                     Trigger = newHit ? "new-hit" : runtime.Nearby != null ? "new-close-visible" : !valid ? "contact-changed" : "periodic",
                     Truncated = __instance.KnownEnemies.Count > ThreatSelection.CandidateLimit };
                 runtime.References.Clear();

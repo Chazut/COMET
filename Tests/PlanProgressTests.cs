@@ -76,7 +76,7 @@ static class PlanProgressTests
 
         {
             var late=new CometConfig();late.DecisionVariety.Enabled=false;late.TacticalMistakes.Enabled=false;
-            Situation Contact(double age)=>new(){Now=100+age,Target="heard-enemy",HasContact=true,IsAi=true,IsPmc=true,IsAuthority=true,IsActive=true,ContactAge=age,KnownDistance=15};
+            Situation Contact(double age)=>new(){Now=100+age,Target="heard-enemy",HasContact=true,IsAi=true,IsSupportedBot=true,IsAuthority=true,IsActive=true,ContactAge=age,KnownDistance=15};
             var decision=new HiddenEnemyDecision(late).Evaluate(Contact(late.ContactLifetime-.12));
             Check(decision.Candidates.Where(x=>x.Decision is "Flank" or "Push" or "Search").All(x=>!x.Eligible&&x.Reason=="contact-window-too-short-to-start"),"raid391 no new movement for a contact expiring in 120ms");
             Check(decision.Candidates.Any(x=>x.Decision=="FallBack"&&x.Eligible),"protective retreat stays available for stale contact");
@@ -90,7 +90,7 @@ static class PlanProgressTests
         config.DecisionVariety.Enabled=false;config.TacticalMistakes.Enabled=false;
         foreach(var k in config.Weights.Keys.ToArray())config.Weights[k]=k=="Hold"||k=="Search"?1:0;
         m=new(c);f=Frame();m.Observe(f);Advance(m,f,6);
-        Situation S()=>new(){Now=f.Now,Target="e",HasContact=true,IsAi=true,IsPmc=true,IsAuthority=true,IsActive=true,ContactAge=2,KnownDistance=12,InCover=true,Progress=m};
+        Situation S()=>new(){Now=f.Now,Target="e",HasContact=true,IsAi=true,IsSupportedBot=true,IsAuthority=true,IsActive=true,ContactAge=2,KnownDistance=12,InCover=true,Progress=m};
         var hidden=new HiddenEnemyDecision(config);var s=S();Check(hidden.Evaluate(s).Decision==Tactic.Hold,"native safety allows useful hold");f.Now=6.25;m.Observe(f);s.Now=f.Now+5.5;Check(hidden.Evaluate(s).Decision==Tactic.Hold,"A12 replaces old wall-clock hold cap");
         Advance(m,f,20);s.Now=f.Now;Check(hidden.Evaluate(s).Decision==Tactic.Search,"hard hold exhaustion defeats commitment");
         m.Fail("goal",21,"progress-stalled");m.CandidateAttempts["Search"]="goal";s.Now=21;Check(hidden.Evaluate(s).Decision==null,"all unsafe/exhausted options yield to SAIN");

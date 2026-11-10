@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Comet.Client;
 
-// Explicit fail-closed guards on known PMC calls. C08's normal prefix fallback (true)
+// Explicit fail-closed guards on known supported-bot calls. C08's normal prefix fallback (true)
 // would execute the invalid native method, so this file is not rewritten by C08.
 public sealed partial class Plugin
 {
@@ -53,9 +53,7 @@ public sealed partial class Plugin
         owner=null;
         if(key==null||config?.Enabled!=true||!Authority)return false;
         if(validityOwners.TryGetValue(key,out owner))return true;
-        if(player==null||!player.IsAI)return false;
-        var role=player.Profile?.Info?.Settings?.Role;
-        if(role!=WildSpawnType.pmcUSEC&&role!=WildSpawnType.pmcBEAR)return false;
+        if(player==null||!BotEligibility.Supports(player))return false;
         owner=new(){Player=new(player),Profile=player.ProfileId,Name=player.Profile?.Nickname??"PMC"};
         validityOwners.Add(key,owner);validityLogs.Add(owner);return true;
     }

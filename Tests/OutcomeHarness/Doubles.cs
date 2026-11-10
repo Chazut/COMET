@@ -56,7 +56,7 @@ namespace Comet.Client {
  internal class KnownThreat {public string Id="enemy";public Vector3 Position=new(20,0,0);}
  internal class ExposureProbe {public float At;public Vector3 Origin;public double Current=.8;public List<KnownThreat> Threats=new(){new()};}
  internal static class VisibleAdapter {public static bool ValidCover(BotComponent b,CoverPoint c)=>c.Valid;public static bool WeaponReady(BotComponent b)=>b.BotOwner.WeaponReady;}
- internal static class NativeAdapter {public static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
+ internal static class NativeAdapter {public static bool IsSupportedAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
  internal class FlankRuntime {public CoverPoint? Point;}
  internal class BotState {public FlankRuntime Flank=new();public OutcomeRuntime Outcomes=new();public string ProfileId="observer",Name="Test PMC",Id="native-observer",Decision="Cover",Feature="A02",ActiveLabel="COMET:Cover";
   public string CounterFeature="";public int CounterEncounter,CounterOpportunity;public bool CounterObserverFailed;public MixTrace? Mixing;

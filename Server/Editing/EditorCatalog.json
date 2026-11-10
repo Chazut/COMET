@@ -578,9 +578,9 @@
     },
     "General": {
       "Title": "General",
-      "Description": "COMET affects eligible PMC AI only. SAIN keeps its own settings.",
+      "Description": "COMET affects PMC bots and AI Player Scavs only. Human players, ordinary scavs and bosses are excluded. SAIN keeps its own settings.",
       "Category": "Overview",
-      "Summary": "Enable or disable COMET tactics for PMC AI."
+      "Summary": "Enable or disable COMET tactics for PMCs and AI Player Scavs."
     },
     "LostContact": {
       "Title": "Lost contact - A01",
@@ -4585,7 +4585,7 @@
     },
     "Enabled": {
       "Label": "Enable COMET",
-      "Help": "Apply COMET tactics to eligible PMC AI. Changes apply next raid.",
+      "Help": "Apply COMET tactics to PMCs and AI Player Scavs. Changes apply next raid.",
       "Section": "General",
       "Simple": true
     },

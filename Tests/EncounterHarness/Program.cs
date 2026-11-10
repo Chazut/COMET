@@ -13,7 +13,7 @@ Situation Situation()=>new(){Now=13.5,Target="target",KnownX=10,KnownY=0,KnownZ=
  var(p,b,s)=Setup();Pattern(p,b,s);Check(s.Encounter.Trace?.Eligible==true,"three observed returns recognized through production adapter");
  Check(s.Encounter.Trace?.Count==3,"continuous visibility counts once");Check(Physics.Calls<=30,"probe cache limits work");
  var t=p.Read(b,s,Situation());Check(t?.Eligible==true,"fresh matching context read");
- var sit=Situation();sit.Encounter=t;sit.IsAi=sit.IsPmc=sit.IsAuthority=sit.IsActive=true;
+ var sit=Situation();sit.Encounter=t;sit.IsAi=sit.IsSupportedBot=sit.IsAuthority=sit.IsActive=true;
  var result=new HiddenEnemyDecision(p.config!).Evaluate(sit);s.Decision=result.Decision?.ToString()??"";s.Candidates=result.Candidates;p.Choice(s,sit);
  Check(sit.Encounter!.AppliedBonus==15&&sit.Encounter.Alternatives.Length>0,"actual chooser contribution and alternatives attached");
  Check(s.Encounter.Trace!.Choice==s.Decision,"choice snapshot detached from sampler");

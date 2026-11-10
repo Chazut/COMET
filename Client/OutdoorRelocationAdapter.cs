@@ -75,7 +75,7 @@ public sealed partial class Plugin
     private static bool OwnRelocationRoute(RelocationRuntime r,IBotPathData? path)=>path!=null&&r.Routes.TryGetValue(path,out var mesh)
         &&ReferenceEquals(mesh,path.NavMeshPath)&&Vector3.Distance(path.Destination,VP(r.Policy.Goal))<.35f;
     private bool RelocationScope(BotComponent b,BotState s)=>ContactSafety.AllowsGoal(b)&&config?.Enabled==true&&config.OutdoorRelocation.Enabled
-        &&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(s.ProfileId)&&b.SAINLayersActive;
+        &&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(s.ProfileId)&&b.SAINLayersActive;
     private void ObserveRelocationContact(BotComponent b,BotState s)
     {
         var e=b.GoalEnemy;if(e==null)return;

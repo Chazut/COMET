@@ -108,7 +108,7 @@ public sealed partial class Plugin
     private void PlanDoorSupport(DoorSupportOperation o)
     {
         // One candidate per operation/tick; all casts and path calculations share D01's work budget.
-        var members=o.Leader.Squad.Members.Values.Where(b=>b!=null&&!ReferenceEquals(b,o.Leader)&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead)
+        var members=o.Leader.Squad.Members.Values.Where(b=>b!=null&&!ReferenceEquals(b,o.Leader)&&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead)
             .OrderBy(b=>Vector3.Distance(b.Position,VP(o.Door.Geometry.Center))).Take(8).ToArray();
         if(members.Length==0)return;
         int index=o.Cursor++;int variant=index%5;int member=(index/5)%members.Length;

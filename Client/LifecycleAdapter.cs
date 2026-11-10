@@ -60,14 +60,12 @@ public sealed partial class Plugin
         // Player/health can outlive the bot owner during teardown. Do not let
         // deferred action callbacks dereference already-disposed native modules.
         if(b.BotOwner==null||b.BotOwner.WeaponManager==null||b.BotOwner.WeaponManager.Selector==null)return "unavailable";
-        if(LifePmc(b)&&Instance?.Ghost(b.ProfileId)==true)return "sleeping";
+        if(LifeSupportedBot(b)&&Instance?.Ghost(b.ProfileId)==true)return "sleeping";
         return "alive";
     }
-    private static bool LifePmc(BotComponent b)
+    private static bool LifeSupportedBot(BotComponent b)
     {
-        if(b==null||b.Player==null||!b.Player.IsAI)return false;
-        var role=b.Player.Profile?.Info?.Settings?.Role;
-        return role==WildSpawnType.pmcUSEC||role==WildSpawnType.pmcBEAR;
+        return b != null && BotEligibility.Supports(b.Player);
     }
     partial void GuardLifecycle(FaultScope scope,ref bool allowed)
     {
@@ -92,7 +90,7 @@ public sealed partial class Plugin
             }
             // There is no COMET state to retire before the first decision. In particular,
             // an untracked downed PMC must remain eligible after a later revive.
-            if(!tracked)return !LifePmc(b)||LifeStatus(b)=="alive";
+            if(!tracked)return !LifeSupportedBot(b)||LifeStatus(b)=="alive";
             string phase=LifeStatus(b);
             if(phase=="alive")return true;
             RetireLife(b,phase,"");return false;
@@ -156,7 +154,7 @@ public sealed partial class Plugin
             try
             {
                 if(phase is "dead" or "removed"){RetireLife(b,phase,"");suspendedLives.RemoveAt(i);continue;}
-                if(phase!="alive"||config?.Enabled!=true||!LifePmc(b)||!b.BotActive||b.GameEnding||Ghost(life.Profile))continue;
+                if(phase!="alive"||config?.Enabled!=true||!LifeSupportedBot(b)||!b.BotActive||b.GameEnding||Ghost(life.Profile))continue;
                 if(b.ProfileId!=life.Profile||life.Player!=null&&(!life.Player.TryGetTarget(out var original)||!ReferenceEquals(original,b.Player)))
                 {life.Terminal=true;suspendedLives.RemoveAt(i);continue;}
                 if(faultIsolation.BotDisabled(b)){life.Terminal=true;suspendedLives.RemoveAt(i);continue;}

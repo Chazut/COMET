@@ -47,7 +47,7 @@ public sealed partial class Plugin
     private readonly GrenadeArcBudget grenadeArcBudget=new();
     private readonly System.Diagnostics.Stopwatch grenadeArcClock=new();
     private bool GrenadeTrajectoryScope(BotComponent b)=>config?.Enabled==true&&config.GrenadeTrajectory.Enabled
-        &&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
+        &&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
 
     // Called only after SAIN's throw permission/cooldown checks and the personal-evidence gate.
     // null means unfinished work, not a failed trajectory or a new G01 roll.

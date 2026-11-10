@@ -31,7 +31,7 @@ public sealed partial class Plugin
         var bot = ___Enemy.Bot;
         try
         {
-            if (!p.Authority || !NativeAdapter.IsPmcAi(bot) || !bot.BotActive || p.Ghost(bot.ProfileId) || __2 == null
+            if (!p.Authority || !NativeAdapter.IsSupportedAi(bot) || !bot.BotActive || p.Ghost(bot.ProfileId) || __2 == null
                 || !ReferenceEquals(__2, ___Enemy.KnownPlaces.LastHeardPlace)) return;
             // A sound can arrive before the first combat decision. Capture it then, without any global enemy cache.
             if (!p.states.TryGetValue(bot, out var state)) { state = new BotState(bot, p.config, p.session); p.states.Add(bot, state); }

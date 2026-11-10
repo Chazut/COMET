@@ -19,7 +19,7 @@ internal static class ThreatSelectionTests
         { var bad=new ThreatSelectionConfig();change(bad);bool threw=false;try{bad.Validate();}catch(ArgumentException){threw=true;}Check(threw,"invalid configuration rejected"); }
         ThreatContact Contact(string id,double distance,bool visible=true) => new() { Id=id, Valid=true, Visible=visible, Source=visible?"seen":"heard",
             ObservedAt=10,Distance=distance,X=distance,Y=0,Z=0 };
-        ThreatFrame Frame(string current,params ThreatContact[] contacts) {var f=new ThreatFrame{Now=10,Current=current,IsAi=true,IsPmc=true,IsAuthority=true,Active=true};f.Contacts.AddRange(contacts);return f;}
+        ThreatFrame Frame(string current,params ThreatContact[] contacts) {var f=new ThreatFrame{Now=10,Current=current,IsAi=true,IsSupportedBot=true,IsAuthority=true,Active=true};f.Contacts.AddRange(contacts);return f;}
         void Advance(ThreatFrame f,double now) {f.Now=now;foreach(var e in f.Contacts.Where(e=>e.Visible)) e.ObservedAt=now;}
         var a=Contact("a",55);var b=Contact("b",20);var frame=Frame("a",a,b);var selector=new ThreatSelection(cfg);
         Check(selector.Evaluate(frame).Reason=="threat-kept-commitment","ordinary better contact cannot instantly steal target");
@@ -59,7 +59,7 @@ internal static class ThreatSelectionTests
         frame=Frame("a",Contact("a",20),Contact("b",30));selector=new(cfg);selector.Evaluate(frame);
         frame.Contacts[0].Valid=false;Advance(frame,10.1);Check(selector.Evaluate(frame).Selected=="b","death/removal does not wait for hold");
         frame.Contacts[1].Valid=false;Check(selector.Evaluate(frame).Selected=="","no usable target yields to native selection");
-        foreach(Action<ThreatFrame> change in new Action<ThreatFrame>[] {x=>x.IsPmc=false,x=>x.IsAi=false,x=>x.IsAuthority=false,
+        foreach(Action<ThreatFrame> change in new Action<ThreatFrame>[] {x=>x.IsSupportedBot=false,x=>x.IsAi=false,x=>x.IsAuthority=false,
             x=>x.Active=false,x=>x.Ghost=true,x=>x.NativeUrgency=true,x=>x.Now=double.NaN,x=>x.Now=-1})
         {frame=Frame("a",Contact("a",20),Contact("b",5));change(frame);Check(new ThreatSelection(cfg).Evaluate(frame).Selected=="","scope or urgency excluded");}
         cfg.Enabled=false;Check(new ThreatSelection(cfg).Evaluate(Frame("a",Contact("a",5))).Selected=="","master toggle");cfg.Enabled=true;

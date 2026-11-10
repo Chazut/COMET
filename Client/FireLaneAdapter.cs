@@ -61,7 +61,7 @@ public sealed partial class Plugin
     }
     private string LaneBlock(BotComponent b,BotState s)
     {
-        if(config?.Enabled!=true||!config.FireLane.Enabled||!Authority||world==null||!NativeAdapter.IsPmcAi(b)||b.IsDead||!b.BotActive||b.GameEnding||Ghost(b.ProfileId))return "lane-ineligible";
+        if(config?.Enabled!=true||!config.FireLane.Enabled||!Authority||world==null||!NativeAdapter.IsSupportedAi(b)||b.IsDead||!b.BotActive||b.GameEnding||Ghost(b.ProfileId))return "lane-ineligible";
         if(b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed||b.Grenade.GrenadeDangerPoint!=null||b.GoalEnemy?.IsVisible==true||b.BotOwner.ShootData.Shooting||b.ManualShoot.Shooting)return "lane-direct-combat-priority";
         if(b.Decision.CurrentCombatDecision is ECombatDecision.AvoidGrenade or ECombatDecision.SeekCover or ECombatDecision.Retreat or ECombatDecision.RunAway)return "lane-escape-priority";
         if(b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.BotOwner.Medecine.Using||MedicalPostureGuard(b)||b.BotOwner.WeaponManager.Reload.Reloading

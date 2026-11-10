@@ -22,7 +22,7 @@ public sealed partial class Plugin
     private void ObserveCounterExecution(BotComponent bot,BotState state)
     {
         if(config?.Enabled!=true||!config.TacticCounters.Enabled||!Authority||state.Feature is not ("A01" or "A02")
-            ||state.Mixing==null||state.ActiveLabel.Length==0||!NativeAdapter.IsPmcAi(bot)||!bot.BotActive
+            ||state.Mixing==null||state.ActiveLabel.Length==0||!NativeAdapter.IsSupportedAi(bot)||!bot.BotActive
             ||bot.IsDead||bot.GameEnding||Ghost(bot.ProfileId))return;
         if((state.CounterFeature==state.Feature&&state.CounterEncounter==state.Mixing.Encounter&&state.CounterOpportunity==state.Mixing.Opportunity)
             ||bot.Decision.CurrentCombatDecision!=state.Expected||!bot.SAINLayersActive

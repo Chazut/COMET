@@ -32,11 +32,9 @@ internal static class NativeAdapter
             new[] {typeof(SAIN.SAINComponent.SubComponents.CoverFinder.CoverPoint),typeof(bool),typeof(SAIN.Models.Enums.ESprintUrgency)})?.ReturnType != typeof(bool))
             throw new MissingMethodException("SAIN GoToCoverPoint");
     }
-    internal static bool IsPmcAi(BotComponent bot)
+    internal static bool IsSupportedAi(BotComponent bot)
     {
-        if (bot == null || bot.Player == null || !bot.Player.IsAI || bot.IsDead) return false;
-        var role = bot.Player.Profile.Info.Settings.Role;
-        return role == WildSpawnType.pmcUSEC || role == WildSpawnType.pmcBEAR;
+        return bot != null && !bot.IsDead && BotEligibility.Supports(bot.Player);
     }
     internal static Situation Capture(BotComponent bot, Enemy enemy, bool authority, bool ghost)
     {
@@ -49,7 +47,7 @@ internal static class NativeAdapter
         var health = bot.Memory.Health.HealthStatus;
         return new Situation {
             Now = Time.time, Target = enemy.EnemyProfileId, Personality = bot.Info.Personality.ToString(),
-            IsAi = bot.Player.IsAI, IsPmc = IsPmcAi(bot), IsAuthority = authority, IsActive = bot.BotActive && !bot.IsDead,
+            IsAi = bot.Player.IsAI, IsSupportedBot = IsSupportedAi(bot), IsAuthority = authority, IsActive = bot.BotActive && !bot.IsDead,
             Ghost = ghost, Visible = enemy.IsVisible, HasContact = known.HasValue && ContactSafety.Allows(bot,enemy),
             ContactAge = enemy.TimeSinceLastKnownUpdated, KnownDistance = known.HasValue ? Vector3.Distance(bot.Position, known.Value) : 0,
             KnownX = known?.x ?? 0, KnownY = known?.y ?? 0, KnownZ = known?.z ?? 0, ContactSource = source,

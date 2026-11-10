@@ -27,7 +27,7 @@ namespace SAIN.Preset.Shared.Enums{public enum ECombatDecision{None,Search,Stand
 namespace SAIN.Models.Enums{public enum EBotMoveStatus{Moving,DoorInteraction}}
 namespace SAIN.SAINComponent.Classes.Mover{public class Path{public bool Moving=true,Crawling;public SAIN.Models.Enums.EBotMoveStatus Status;public UnityEngine.AI.NavMeshPathStatus PathStatus;public Vector3 Destination=new(10,0,5);}public class Mover{public Path? ActivePath=new();}}
 namespace SAIN.Components {
- public class BotComponent{public string ProfileId="pmc-1";public bool IsDead,GameEnding,IsPmc=true,BotActive=true,IsGhost;public EFT.Player Player=new();public EFT.BotOwner BotOwner=new();public Vector3 Position;public TransformData Transform=new();public Shoot ManualShoot=new();public Enemy? GoalEnemy;public Suppression Suppression=new();public Grenades Grenade=new();public Decision Decision=new();public Mover Mover=new();public Squad Squad=new();}
+ public class BotComponent{public string ProfileId="pmc-1";public bool IsDead,GameEnding,IsSupportedBot=true,BotActive=true,IsGhost;public EFT.Player Player=new();public EFT.BotOwner BotOwner=new();public Vector3 Position;public TransformData Transform=new();public Shoot ManualShoot=new();public Enemy? GoalEnemy;public Suppression Suppression=new();public Grenades Grenade=new();public Decision Decision=new();public Mover Mover=new();public Squad Squad=new();}
  public class TransformData{public WeaponData WeaponData=new();}public class WeaponData{public Vector3 FirePort=new(0,1,0),PointDirection=new(0,0,1);}
  public class Shoot{public bool Shooting;public Vector3 ShootPosition;}
  public class Enemy{public bool IsVisible;public Known KnownPlaces=new();}public class Known{public Place? LastSeenPlace;}public class Place{public Vector3 Position;}
@@ -39,7 +39,7 @@ namespace SAIN.Classes{public class PlayerMovementController{public void SetTarg
 namespace Comet.Client {
  internal class Toggle{public bool Active;}internal class OtherMove{public Toggle Policy=new();}internal class Reservation{public object? Lease;}
  internal class BotState{public string ProfileId="pmc-1",Name="Mover",Id="s07-instance";public FireLaneRuntime FireLane=new();public OtherMove CombatStep=new(),CornerPeek=new(),CornerChase=new(),CornerPrefire=new(),RetreatWeave=new(),Entry=new(),RoomClear=new(),Ambush=new();public Reservation Reservation=new();}
- internal static class NativeAdapter{public static bool IsPmcAi(BotComponent b)=>b.IsPmc;}
+ internal static class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.IsSupportedBot;}
  internal class Budget{public bool Allow=true;public int Calls;public bool TryBegin(int frame){Calls++;return Allow;}public void Charge(double n){}}
  internal class Log{public List<string> Warnings=new();public void LogWarning(string s)=>Warnings.Add(s);}
  internal class Sink{public List<string> Events=new();public void Write(string s)=>Events.Add(s);}

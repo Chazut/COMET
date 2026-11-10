@@ -121,4 +121,11 @@ foreach(string kind in new[]{"overflow","duplicate"})
 }
 foreach(var json in events){var e=JObject.Parse(json);C(e["feature"]?.ToString() is "L01" or "L02","valid event feature");if(e["feature"]!.ToString()=="L02")C(e["tacticalDevices"]!=null,"typed trace present");}
 Directory.CreateDirectory("artifacts");File.WriteAllLines("artifacts/l02-adapter-events.jsonl",events.Where(x=>JObject.Parse(x)["feature"]!.ToString()=="L02"));
+foreach(bool playerScav in new[]{false,true}) foreach(bool pmcOff in new[]{false,true}) foreach(bool scavOff in new[]{false,true}) {
+ var(p,b,l,h)=Setup();b.BotOwner.Memory.GoalEnemy=null;
+ b.Player.Profile.Info.Settings.Role=playerScav?WildSpawnType.assault:WildSpawnType.pmcUSEC;
+ b.Player.Profile.Info.MainProfileNickname=playerScav?"Player":null;
+ var settings=SAINPlugin.LoadedPreset.GlobalSettings.General.Flashlight;settings.TurnLightOffNoEnemyPMC=pmcOff;settings.TurnLightOffNoEnemySCAV=scavOff;
+ Tick(l);C(h.Commands.Count==((playerScav?scavOff:pmcOff)?0:1),"SAIN light preference follows actual bot role");
+}
 Console.WriteLine($"{n} L02 production adapter/Harmony checks passed; {events.Count} events. Controlled native doubles, not a raid.");

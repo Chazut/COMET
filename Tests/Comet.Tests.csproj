@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><Compile Remove="BotScopeHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="RuntimeRegressionHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="DiagnosticGateHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="Raid392Harness/**/*.cs" /></ItemGroup>

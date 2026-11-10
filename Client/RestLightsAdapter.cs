@@ -55,7 +55,7 @@ public sealed partial class Plugin
             prefix:new HarmonyMethod(typeof(Plugin),nameof(RestLightsDispose)));
     }
     private bool RestScope(BotComponent b)=>config?.Enabled==true&&config.RestLights.Enabled&&world!=null&&Authority
-        &&b!=null&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
+        &&b!=null&&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
     private static void RestLightsTick(BotLightController __instance,bool __runOriginal)
     {
         var p=Instance;var b=__instance.Bot;if(p==null||b==null)return;

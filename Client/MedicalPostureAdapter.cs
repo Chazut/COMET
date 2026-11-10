@@ -28,7 +28,7 @@ public sealed partial class Plugin
             prefix:new HarmonyMethod(typeof(Plugin),nameof(MedicalLeanRequest)){priority=Priority.First});
     }
     private bool MedicalPostureScope(BotComponent b)=>config?.Enabled==true&&config.MedicalPosture.Enabled&&world!=null&&Authority
-        &&b!=null&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
+        &&b!=null&&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
     private static bool MedicalLeanSelection(LeanClass __instance)=>!MedicalPostureGuard(__instance.Bot);
     private static void MedicalLeanRequest(LeanClass __instance,ref LeanSetting value)
     {if(value!=LeanSetting.None&&MedicalPostureGuard(__instance.Bot))value=LeanSetting.None;}

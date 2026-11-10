@@ -103,7 +103,7 @@ internal static class DoorJumpTests
             var md=pe.GetMetadataReader();
             List<string> Calls(string method)=>FloorHearingTests.ReadIl(pe.GetMethodBody(md.TypeDefinitions.Select(md.GetTypeDefinition).Single(x=>md.GetString(x.Name)=="Plugin").GetMethods().Select(md.GetMethodDefinition).Single(x=>md.GetString(x.Name)==method).RelativeVirtualAddress).GetILBytes()!)
                 .Where(x=>x.op==OpCodes.Call||x.op==OpCodes.Callvirt).Select(x=>FloorHearingTests.Name(md,(int)x.operand!)).ToList();
-            foreach(var required in new[]{"IsPmcAi","get_Authority","Ghost","get_IsVisible","get_CurrentSelfDecision","get_CurrentSquadDecision","get_IsUnderFire","get_EnemyKnown","SameContact"})Check(Calls("JumpGate").Contains(required),"compiled scope contract "+required);
+            foreach(var required in new[]{"IsSupportedAi","get_Authority","Ghost","get_IsVisible","get_CurrentSelfDecision","get_CurrentSquadDecision","get_IsUnderFire","get_EnemyKnown","SameContact"})Check(Calls("JumpGate").Contains(required),"compiled scope contract "+required);
             foreach(var required in new[]{"CapsuleCastNonAlloc","OverlapCapsuleNonAlloc","Raycast","Clear"})Check(Calls("JumpLane").Contains(required),"compiled swept clearance "+required);
             foreach(var required in new[]{"get_Velocity","get_IsGrounded","ControlledJump","Observe","WalkToPointByWay","LookToPoint"})Check(Calls("StepDoorJump").Contains(required),"compiled native observation "+required);
             foreach(var required in new[]{"Interact","ExecuteInteraction","InRangeToInteract","ShallInteract"})Check(Calls("RequestJumpDoorOpen").Contains(required),"native opening "+required);

@@ -56,4 +56,11 @@ p.Move(pc);before=events.Count;p.Reset();Check(events.Count>before&&events.Skip(
 pc.Player=new();Check(p.Move(pc),"new raid clears stale identity");
 var huge=new PlayerComponent();huge.Player.ProfileId=new string('x',2048);huge.Player.Destroyed=true;p.Add(new(),huge);Check(((string?)JObject.Parse(events.Last())["validity"]?["source"])?.Length==512,"diagnostic source bounded");
 var dir=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../artifacts/c10"));Directory.CreateDirectory(dir);File.WriteAllLines(Path.Combine(dir,"validity.jsonl"),events);File.WriteAllText(Path.Combine(dir,"validity.json"),"["+string.Join(",",events)+"]");
+foreach(bool legacy in new[]{false,true}) {
+ var sc=new Plugin();var actor=new PlayerComponent();actor.Player.Profile.Info.Settings.Role=WildSpawnType.assault;
+ if(legacy)actor.Player.Profile.Info.Nickname="Scav (Player)";else actor.Player.Profile.Info.MainProfileNickname="Player";
+ Check(sc.Move(actor),"healthy Player Scav movement allowed");actor.Player.HealthController!.Alive=false;
+ Check(!sc.Move(actor),"dead Player Scav native movement guarded");actor.Player.HealthController.Alive=true;
+ Check(sc.Move(actor),"restored Player Scav movement allowed");
+}
 Console.WriteLine($"C10 production native validity guards: {checks} checks, {events.Count} events. Native/Unity calls doubled; no live raid.");

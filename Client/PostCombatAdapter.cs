@@ -35,7 +35,7 @@ public sealed partial class Plugin
         BrainManager.AddCustomLayer(typeof(PostCombatLayer),new(){"PMC","PmcUsec","PmcBear","Assault","ExUsec","Knight","BigPipe","BirdEye"},21);
     }
     private bool PostScope(BotComponent b)=>config?.Enabled==true&&config.PostCombat.Enabled&&world!=null&&Authority
-        &&b!=null&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
+        &&b!=null&&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
     private bool PostCombatMedicalScope(BotComponent b)=>states.TryGetValue(b,out var s)
         &&(s.PostCombat.Layer&&s.PostCombat.Policy.Active||s.PostCombat.MedicalOwner&&(s.Medical.Policy.Active||s.Medical.Interruption.Active));
     private bool PostSurgeryTooSoon(BotComponent b,BotState s)=>PostCombatMedicalScope(b)&&Time.time-s.PostCombat.Policy.LastFight<config!.MedicalChoice.SurgeryQuiet;

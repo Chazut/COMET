@@ -103,7 +103,7 @@ public sealed partial class Plugin
     { __state = voiceSource; if (__runOriginal && (voiceSource == null || __originalMethod.Name != "GroupSay")) voiceSource = VoiceSources[__originalMethod]; }
     private static void SquadVoiceScopeEnd(string? __state) => voiceSource = __state;
     private bool SquadVoiceScope(BotComponent b) => config?.Enabled == true && Authority && world != null
-        && NativeAdapter.IsPmcAi(b) && b.BotActive && !b.IsDead && !b.GameEnding && !Ghost(b.ProfileId)
+        && NativeAdapter.IsSupportedAi(b) && b.BotActive && !b.IsDead && !b.GameEnding && !Ghost(b.ProfileId)
         && b.Squad.BotInGroup && b.Squad.Members != null && b.Squad.Members.Count > 1 && b.Squad.Members.Count <= 16;
     private static void SquadVoiceRequestBegin(SAINBotTalkClass __instance, EPhraseTrigger phrase, MethodBase __originalMethod, bool __runOriginal, out SquadVoiceCall? __state)
     {

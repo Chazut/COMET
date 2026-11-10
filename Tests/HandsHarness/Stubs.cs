@@ -52,7 +52,7 @@ namespace Comet.Client {
  internal class BotState {internal HandsRecoveryRuntime HandsRecovery=new();internal string ProfileId="p",Name="PMC",Id="instance";internal Situation? Situation=new();
   internal OtherRuntime Fake=new(),RoomClear=new(),WeaponReturn=new(),PistolSwap=new(),QuickReload=new();
   internal BotState(SAIN.Components.BotComponent b,Comet.Core.CometConfig c,string session){} }
- internal static class NativeAdapter {internal static bool IsPmcAi(SAIN.Components.BotComponent b)=>b.Pmc;}
+ internal static class NativeAdapter {internal static bool IsSupportedAi(SAIN.Components.BotComponent b)=>b.Pmc;}
  internal class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);internal static JsonSerializerSettings Json=new(){ContractResolver=new CamelCasePropertyNamesContractResolver()};
   internal bool Throw;internal List<string> Events=new();internal void Write(string s){if(Throw)throw new Exception("log failure");Events.Add(s);}}
  internal class Log {internal void LogWarning(string s){} }

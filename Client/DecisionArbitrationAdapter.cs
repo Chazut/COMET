@@ -12,7 +12,7 @@ namespace Comet.Client;
 public sealed partial class Plugin
 {
     private bool TacticalScope(BotComponent b, Enemy? enemy) => config?.Enabled == true && world != null
-        && Authority && NativeAdapter.IsPmcAi(b) && b.BotActive && !b.GameEnding && !Ghost(b.ProfileId)
+        && Authority && NativeAdapter.IsSupportedAi(b) && b.BotActive && !b.GameEnding && !Ghost(b.ProfileId)
         && enemy != null && ContactSafety.Allows(b,enemy) && !enemy.IsZombie && enemy.KnownPlaces.LastKnownPosition.HasValue
         && enemy.TimeSinceLastKnownUpdated >= 0 && enemy.TimeSinceLastKnownUpdated <= config.ContactLifetime;
 

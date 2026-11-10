@@ -270,7 +270,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 var log = Logger; // Writer holds the logger, never the Plugin/world.
                 try { diagnostics = new Diagnostics(Path.Combine(BepInEx.Paths.PluginPath, "..", "COMET", "diagnostics"), session, text => log.LogWarning(text)); }
                 catch (Exception ex) { Logger.LogError("COMET cannot open diagnostic file; RR events remain available. " + ex.Message); }
-                diagnostics?.Write(Diagnostics.Serialize(new {schema=1,session,stage="raid-start",map=current.LocationId,
+                diagnostics?.Write(Diagnostics.Serialize(new {schema=1,session,stage="raid-start",map=current.LocationId,botScope="pmc-and-ai-player-scav",
                     utc=DateTime.UtcNow.ToString("O"),realtime=Time.realtimeSinceStartup,
                     cometVersion=typeof(Plugin).Assembly.GetName().Version?.ToString(),
                     assemblyMvid=typeof(Plugin).Assembly.ManifestModule.ModuleVersionId.ToString(),
@@ -366,7 +366,7 @@ public sealed partial class Plugin : BaseUnityPlugin
         var plugin = Instance;
         if (plugin == null || plugin.config == null) return true;
         var bot = __instance.Bot;
-        if (!NativeAdapter.IsPmcAi(bot) || enemy == null)
+        if (!NativeAdapter.IsSupportedAi(bot) || enemy == null)
         {
             if(bot!=null && plugin.states.TryGetValue(bot,out var old))
             {plugin.Release(old,"contact-ended-or-out-of-scope");old.Handoff.Clear();}
@@ -567,7 +567,7 @@ public sealed partial class Plugin : BaseUnityPlugin
         if (plugin == null || !plugin.states.TryGetValue(__instance.Bot, out var state)) return;
         try
         {
-            if(plugin.config?.Enabled!=true || state.Retired || !NativeAdapter.IsPmcAi(__instance.Bot)
+            if(plugin.config?.Enabled!=true || state.Retired || !NativeAdapter.IsSupportedAi(__instance.Bot)
                 || !__instance.Bot.BotActive || !plugin.Authority || plugin.Ghost(state.ProfileId))
             {plugin.Release(state,"disabled-inactive-ghost-or-non-authority");return;}
             if(plugin.ObservePlanService(__instance.Bot,state,true))return;
@@ -576,7 +576,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             if(plugin.ImpactDecisionObserved(__instance,state)){state.RequestedFrame=-1;return;}
             plugin.SilentDecisionObserved(__instance,state);
             bool applied = IntegrationContract.Accept(
-                plugin.config?.Enabled==true && !state.Retired && NativeAdapter.IsPmcAi(__instance.Bot)
+                plugin.config?.Enabled==true && !state.Retired && NativeAdapter.IsSupportedAi(__instance.Bot)
                 && __instance.Bot.BotActive && plugin.Authority && !plugin.Ghost(state.ProfileId),
                 state.Decision.Length>0,state.RequestedFrame,Time.frameCount,(int)state.Expected,(int)__instance.CurrentCombatDecision,
                 __instance.CurrentSelfDecision!=ESelfActionType.None,__instance.CurrentSquadDecision!=ESquadDecision.None);
@@ -615,7 +615,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 else plugin.YieldToSain(state, __instance.CurrentCombatDecision == ECombatDecision.None && __instance.CurrentSelfDecision == ESelfActionType.None && __instance.CurrentSquadDecision == ESquadDecision.None
                     ? "native-decision-cleared" : "sain-priority:" + __instance.CurrentCombatDecision + "/" + __instance.CurrentSelfDecision + "/" + __instance.CurrentSquadDecision,"priority");
             }
-            if(!applied && state.Handoff.Yielded && NativeAdapter.IsPmcAi(__instance.Bot) && __instance.Bot.BotActive
+            if(!applied && state.Handoff.Yielded && NativeAdapter.IsSupportedAi(__instance.Bot) && __instance.Bot.BotActive
                 && plugin.Authority && !plugin.Ghost(state.ProfileId)
                 && state.Handoff.ObserveNative(Time.time,__instance.CurrentCombatDecision.ToString(),__instance.CurrentSelfDecision.ToString(),__instance.CurrentSquadDecision.ToString()))
                 plugin.Emit(state,"evaluated","handoff-native-observed","A13");
@@ -636,7 +636,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             var bot = __instance.Bot;
             var point = state.SelectedCover;
             bool moveRefused=false;
-            if (plugin.Authority && !plugin.Ghost(bot.ProfileId) && NativeAdapter.IsPmcAi(bot) && bot.BotActive
+            if (plugin.Authority && !plugin.Ghost(bot.ProfileId) && NativeAdapter.IsSupportedAi(bot) && bot.BotActive
                 && bot.Decision.CurrentSelfDecision == ESelfActionType.None && bot.Decision.CurrentSquadDecision == ESquadDecision.None
                 && (bot.Decision.CurrentCombatDecision == ECombatDecision.SeekCover || bot.Decision.CurrentCombatDecision == ECombatDecision.Retreat) && VisibleAdapter.ValidCover(bot, point)
                 && !state.Progress.Blocked(ProgressAdapter.CoverKey(point),Time.time)
@@ -744,7 +744,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 ? new { reason=state.ArbitrationReason, native=state.ArbitrationNative, expected=state.Expected.ToString(), decision=state.Decision } : null,
             realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"), configRevision = config?.Revision ?? 0,
             cometVersion = "0.1.0", config=decisionConfiguration.Take(config,session),
-            profileId = state.ProfileId, name = state.Name, botInstance = state.Id,
+            profileId = state.ProfileId, name = state.Name, botInstance = state.Id, botKind = state.BotKind,
             decision = state.Decision, candidates = state.Candidates, mixing = state.Mixing, tacticObservationVersion = 1,
             flank = state.Decision=="Flank" ? new { accepted=state.Flank.MoveAccepted, reason=state.Flank.Reason,
                 destination=state.Flank.Point==null?null:new {x=state.Flank.Point.Position.x,y=state.Flank.Point.Position.y,z=state.Flank.Point.Position.z} } : null,
@@ -959,7 +959,7 @@ internal sealed class BotState
     internal object? MovementEvidence;
     internal string MovementSource = "";
     internal float MovementHeardAt = float.NegativeInfinity;
-    internal readonly string ProfileId, Name, Id = Guid.NewGuid().ToString("N");
+    internal readonly string BotKind, ProfileId, Name, Id = Guid.NewGuid().ToString("N");
     internal readonly HiddenEnemyDecision Engine;
     internal readonly VisibleEnemyDecision VisibleEngine;
     internal readonly CoverIntent Intent = new CoverIntent();
@@ -1016,7 +1016,7 @@ internal sealed class BotState
     internal bool GrenadeReady;
     internal Vector3 GrenadeTarget;
     internal BotState(BotComponent bot, CometConfig config, string session, string? identity = null)
-    { Owner=bot;if(identity!=null)Id=identity; ProfileId = bot.ProfileId; Name = bot.Player.Profile.Nickname; Handoff = new SainHandoff(config.Handoff);
+    { Owner=bot;BotKind=BotEligibility.Kind(bot.Player);if(identity!=null)Id=identity; ProfileId = bot.ProfileId; Name = bot.Player.Profile.Nickname; Handoff = new SainHandoff(config.Handoff);
         Impact = new ImpactRuntime(config.ImpactReaction);
         Gunfire = new GunfireReaction(config.Gunfire);
         uint quietSeed=2166136261; foreach(char ch in session+":"+ProfileId+":P02")quietSeed=unchecked((quietSeed^ch)*16777619);

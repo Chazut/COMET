@@ -60,7 +60,7 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(PlayerComponent),nameof(PlayerComponent.OnMakingShot)),postfix:new HarmonyMethod(typeof(Plugin),nameof(DisciplineShot)));
         h.Patch(AccessTools.Method(typeof(SAINShootData),"AimAndShootAtEnemy"),prefix:new HarmonyMethod(typeof(Plugin),nameof(DisciplineVisibleFire)));
     }
-    private bool DisciplineScope(BotComponent b)=>ContactSafety.AllowsGoal(b)&&config?.Enabled==true&&config.SuppressionDiscipline.Enabled&&NativeAdapter.IsPmcAi(b)
+    private bool DisciplineScope(BotComponent b)=>ContactSafety.AllowsGoal(b)&&config?.Enabled==true&&config.SuppressionDiscipline.Enabled&&NativeAdapter.IsSupportedAi(b)
         &&b.BotActive&&!b.IsDead&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId)&&b.SAINLayersActive;
     private SuppressionDisciplineFrame DisciplineFrame(BotComponent b,BotState s,Enemy? e)
     {

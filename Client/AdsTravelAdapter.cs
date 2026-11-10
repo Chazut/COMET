@@ -43,7 +43,7 @@ public sealed partial class Plugin
         {s.AdsTravel.NativeWanted=__result;s.AdsTravel.NativeKnown=true;}
     }
     private bool AdsEligible(BotComponent b,BotState s)=>config?.Enabled==true&&config.AdsTravel.Enabled
-        &&Authority&&!Ghost(s.ProfileId)&&NativeAdapter.IsPmcAi(b)&&!b.IsDead&&b.BotActive&&!b.GameEnding&&b.SAINLayersActive;
+        &&Authority&&!Ghost(s.ProfileId)&&NativeAdapter.IsSupportedAi(b)&&!b.IsDead&&b.BotActive&&!b.GameEnding&&b.SAINLayersActive;
     private static bool ObservedAds(BotComponent b)=>b.BotOwner.WeaponManager?.ShootController?.IsAiming==true;
     private AdsTravelFrame AdsFrame(BotComponent b,BotState s)
     {

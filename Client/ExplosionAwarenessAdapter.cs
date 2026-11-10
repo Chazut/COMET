@@ -72,7 +72,7 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(SAINSteeringClass), "TickPlayerSteering"), prefix: new HarmonyMethod(typeof(Plugin), nameof(BlastSteer)));
     }
     private bool BlastEnabled => world != null && config?.Enabled == true && config.ExplosionAwareness.Enabled && Authority;
-    private bool BlastScope(BotComponent b) => BlastEnabled && b != null && NativeAdapter.IsPmcAi(b)
+    private bool BlastScope(BotComponent b) => BlastEnabled && b != null && NativeAdapter.IsSupportedAi(b)
         && b.BotActive && !b.IsDead && !b.GameEnding && !Ghost(b.ProfileId);
     private static IEnumerable<CodeInstruction> BlastReportTranspiler(IEnumerable<CodeInstruction> instructions)
     {

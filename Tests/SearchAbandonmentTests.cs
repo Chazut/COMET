@@ -81,7 +81,7 @@ internal static class SearchAbandonmentTests
             var md=pe.GetMetadataReader();var plugin=md.TypeDefinitions.Select(md.GetTypeDefinition).Single(x=>md.GetString(x.Name)=="Plugin");
             List<string> Calls(string name)=>FloorHearingTests.ReadIl(pe.GetMethodBody(plugin.GetMethods().Select(md.GetMethodDefinition).Single(x=>md.GetString(x.Name)==name).RelativeVirtualAddress).GetILBytes()!)
                 .Where(x=>x.op==OpCodes.Call||x.op==OpCodes.Callvirt).Select(x=>FloorHearingTests.Name(md,(int)x.operand!)).ToList();
-            var calls=Calls("CheckSearchedPlace");Check(calls.Contains("IsPmcAi")&&calls.Contains("get_Authority")&&calls.Contains("Ghost"),"PMC authority ghost guards");
+            var calls=Calls("CheckSearchedPlace");Check(calls.Contains("IsSupportedAi")&&calls.Contains("get_Authority")&&calls.Contains("Ghost"),"PMC authority ghost guards");
             Check(calls.Contains("get_TimeLastKnownUpdated")&&calls.Contains("Linecast"),"remembered timestamp and local physics");
             Check(calls.Contains("get_LookDirection")&&calls.Contains("get_IsFlashed"),"actual view and blindness guard");
             foreach(var name in new[]{"CheckSearchedPlace","SearchForgetObserved"})

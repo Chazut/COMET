@@ -38,7 +38,7 @@ public sealed partial class Plugin
             if (++checkedMembers > 64) break;
             try
             {
-                if (!NativeAdapter.IsPmcAi(bot) || bot.ProfileId == player.ProfileId || !bot.BotActive || p.Ghost(bot.ProfileId)) continue;
+                if (!NativeAdapter.IsSupportedAi(bot) || bot.ProfileId == player.ProfileId || !bot.BotActive || p.Ghost(bot.ProfileId)) continue;
                 if (!Witnesses(bot, player.Position + Vector3.up, 40)) continue;
                 if (!p.states.TryGetValue(bot, out var state))
                 { state = new BotState(bot, p.config, p.session); p.states.Add(bot, state); }
@@ -51,7 +51,7 @@ public sealed partial class Plugin
     private void RefreshFear(BotComponent bot, BotState state)
     {
         if (config == null || Time.time < state.NextFearSample) return;
-        if (!config.Enabled || !config.Fear.Enabled || !NativeAdapter.IsPmcAi(bot) || !bot.BotActive || !Authority || Ghost(state.ProfileId))
+        if (!config.Enabled || !config.Fear.Enabled || !NativeAdapter.IsSupportedAi(bot) || !bot.BotActive || !Authority || Ghost(state.ProfileId))
         { state.NextFearSample = Time.time + .25f; state.Fear.Pause(Time.time); return; }
         if (fearFrame != Time.frameCount) { fearFrame = Time.frameCount; fearSamples = 0; }
         if (fearSamples >= 2) return; // At most 16 supporting-ally LOS rays per frame across all PMCs.

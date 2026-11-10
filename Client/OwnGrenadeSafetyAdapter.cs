@@ -54,7 +54,7 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(SAIN.Classes.PlayerMovementController),"SetTargetMoveDirection"),prefix:new HarmonyMethod(typeof(Plugin),nameof(OwnMoveInput)){priority=Priority.First});
     }
     private bool OwnScope(BotComponent b)=>config?.Enabled==true&&config.OwnGrenadeSafety.Enabled&&b!=null&&!b.IsDead
-        &&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
+        &&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
     private static void OwnGrenadeUpdate(BotComponent __instance)
     {
         var p=Instance;if(p==null||p.world==null||p.config==null)return;

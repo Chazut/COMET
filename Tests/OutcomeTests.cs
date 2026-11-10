@@ -40,10 +40,10 @@ internal static class OutcomeTests
   foreach(var edit in new Action<OutcomeFrame>[] {f=>f.Scoped=false,f=>f.HasContact=false,f=>f.ContactAge=25,f=>f.ContactAge=double.NaN,f=>f.Exposure=double.NaN,f=>f.Health=-1})
   {var m=new TacticalOutcomes();Good(m,0);var f=F(1.5);edit(f);Check(m.Observe(f,c).State=="ended"&&m.HistoryCount==0,"scope/invalid clears");}
   mem.Clear();Check(mem.HistoryCount==0&&!mem.HasAttempt,"encounter end");
-  var cfg2=new CometConfig();Situation S()=>new(){Target="enemy",IsAi=true,IsPmc=true,IsActive=true,IsAuthority=true,Outcome=evidence.Copy()};
+  var cfg2=new CometConfig();Situation S()=>new(){Target="enemy",IsAi=true,IsSupportedBot=true,IsActive=true,IsAuthority=true,Outcome=evidence.Copy()};
   List<Candidate> Candidates()=>new(){new(){Decision="Cover",Score=50,Eligible=true}};
   var candidates=Candidates();var s=S();OutcomeScoring.Adjust(candidates,s,cfg2);Check(candidates[0].Score==55&&s.Outcome!.Effects[0].Applied==5,"score applied");
-  foreach(var edit in new Action<Situation>[] {x=>x.Ghost=true,x=>x.IsPmc=false,x=>x.IsAuthority=false,x=>x.Hurt=true,x=>x.LowAmmo=true,x=>x.Suppressed=true,x=>x.Target="other",x=>x.Outcome!.Remaining=0})
+  foreach(var edit in new Action<Situation>[] {x=>x.Ghost=true,x=>x.IsSupportedBot=false,x=>x.IsAuthority=false,x=>x.Hurt=true,x=>x.LowAmmo=true,x=>x.Suppressed=true,x=>x.Target="other",x=>x.Outcome!.Remaining=0})
   {s=S();edit(s);candidates=Candidates();OutcomeScoring.Adjust(candidates,s,cfg2);Check(candidates[0].Score==50,"urgency/scope priority");}
   candidates=Candidates();candidates[0].Eligible=false;OutcomeScoring.Adjust(candidates,S(),cfg2);Check(candidates[0].Score==50,"ineligible stays ineligible");
   candidates=Candidates();OutcomeScoring.Adjust(candidates,S(),cfg2,true);Check(candidates[0].Score==50,"visible danger priority");

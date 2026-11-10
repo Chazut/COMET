@@ -57,7 +57,7 @@ namespace SAIN.Components.CoverFinder {
 namespace SAIN.SAINComponent.Classes.Mover {public class SAINMoverClass(BotComponent b){public BotComponent Bot=b;public bool GoToCoverPoint(CoverPoint point)=>true;}}
 namespace Comet.Api {public static class Decisions {public static readonly List<string> Events=new();public static void Publish(string j,Action<Exception> e)=>Events.Add(j);}}
 namespace Comet.Client {
- internal static class NativeAdapter {public static bool IsPmcAi(BotComponent b)=>b.Pmc&&!b.IsDead;}
+ internal static class NativeAdapter {public static bool IsSupportedAi(BotComponent b)=>b.Pmc&&!b.IsDead;}
  internal static class ProgressAdapter {public static string CoverKey(CoverPoint? p)=>p?.Id??"";}
  internal class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static readonly Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};public void Write(string s){}}
  internal class Log {public List<string> Warnings=new();public void LogWarning(string s)=>Warnings.Add(s);}

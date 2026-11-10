@@ -44,7 +44,7 @@ public sealed partial class Plugin
     private void SampleHoldAngle(BotComponent b,BotState s)
     {
         var r=s.HoldAngle;if(r.Fault)return;
-        if(config?.Enabled!=true||!config.HoldAngle.Enabled||b.IsDead||!b.BotActive||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsPmcAi(b))
+        if(config?.Enabled!=true||!config.HoldAngle.Enabled||b.IsDead||!b.BotActive||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsSupportedAi(b))
         {EndHoldAngle(s,"hold-angle-ineligible");r.Enemy=null;r.SeenAt=-1000;return;}
         var e=b.GoalEnemy;
         if(!ReferenceEquals(r.Enemy,e)){EndHoldAngle(s,"hold-angle-contact-changed");r.Enemy=e;r.SeenAt=-1000;}

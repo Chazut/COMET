@@ -60,7 +60,7 @@ public sealed partial class Plugin
     private static void SquadFireManualEnd(SquadFireAimScope? __state)
     {if(__state!=null)__state.Runtime.ManualTarget=__state.Previous;}
     private bool SquadFireScope(BotComponent b)=>config?.Enabled==true&&config.SquadFire.Enabled&&Authority&&world!=null
-        &&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId)
+        &&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId)
         &&b.Squad.Members!=null&&b.Squad.Members.Count>1&&b.Squad.Members.Count<=16;
     private static bool SquadFireTrigger(ShootData __instance,ref bool __result,bool __runOriginal)
     {

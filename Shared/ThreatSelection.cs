@@ -29,7 +29,7 @@ public sealed class ThreatFrame
     public string Current { get; set; } = "";
     public string Trigger { get; set; } = "periodic";
     public bool IsAi { get; set; }
-    public bool IsPmc { get; set; }
+    public bool IsSupportedBot { get; set; }
     public bool IsAuthority { get; set; }
     public bool Active { get; set; }
     public bool Ghost { get; set; }
@@ -86,7 +86,7 @@ public sealed class ThreatSelection
     public static bool Finite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
     private static bool Dated(double? value, double now) => value.HasValue && Finite(value.Value) && value.Value >= 0 && value.Value <= now;
     private static double Fade(double age, double duration) => Math.Max(0, 1 - age / duration);
-    public static bool Scope(ThreatFrame f) => f.IsAi && f.IsPmc && f.IsAuthority && f.Active && !f.Ghost && !f.NativeUrgency;
+    public static bool Scope(ThreatFrame f) => f.IsAi && f.IsSupportedBot && f.IsAuthority && f.Active && !f.Ghost && !f.NativeUrgency;
 
     public ThreatScore Score(ThreatContact e, double now)
     {

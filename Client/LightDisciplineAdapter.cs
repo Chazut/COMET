@@ -42,7 +42,7 @@ public sealed partial class Plugin
             prefix: new HarmonyMethod(typeof(Plugin), nameof(LightDisciplineDispose)));
     }
     private bool LightScope(BotComponent b) => config?.Enabled == true && config.LightDiscipline.Enabled && world != null && Authority
-        && b != null && NativeAdapter.IsPmcAi(b) && b.BotActive && !b.IsDead && !b.GameEnding && !Ghost(b.ProfileId) && b.SAINLayersActive;
+        && b != null && NativeAdapter.IsSupportedAi(b) && b.BotActive && !b.IsDead && !b.GameEnding && !Ghost(b.ProfileId) && b.SAINLayersActive;
 
     private static bool LightDisciplineTick(BotLightController __instance, bool __runOriginal)
     {

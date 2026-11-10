@@ -26,7 +26,7 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(Recoil),nameof(Recoil.CalcRecoilDecay)),prefix:new HarmonyMethod(typeof(Plugin),nameof(RecoveryDecay)));
     }
     private bool RecoveryScope(BotComponent b)=>config?.Enabled==true&&config.RecoilRecovery.Enabled
-        &&NativeAdapter.IsPmcAi(b)&&Authority&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!b.IsCheater&&!Ghost(b.ProfileId)&&b.SAINLayersActive;
+        &&NativeAdapter.IsSupportedAi(b)&&Authority&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!b.IsCheater&&!Ghost(b.ProfileId)&&b.SAINLayersActive;
     private static string RecoveryWeapon(BotComponent b)=>(b.Player.HandsController as Player.FirearmController)?.Item?.Id.ToString()??"";
     private static string RecoveryClass(BotComponent b)=>b.Info.WeaponInfo?.EWeaponClass.ToString()??"";
 

@@ -76,7 +76,7 @@ public static class LoadoutModel
     {
         foreach (var a in choices) { a.ScoreBeforeLoadout = a.Score; a.LoadoutDelta = 0; a.LoadoutReason = "loadout-neutral"; }
         var p = s.Loadout;
-        if (!c.Enabled || !s.IsAi || !s.IsPmc || !s.IsAuthority || !s.IsActive || s.Ghost || p == null || p.State != "ready" || !p.Ready
+        if (!c.Enabled || !s.IsAi || !s.IsSupportedBot || !s.IsAuthority || !s.IsActive || s.Ghost || p == null || p.State != "ready" || !p.Ready
             || !Finite(p.IdealRange) || p.IdealRange <= 0 || !Unit(p.Cqb) || !Unit(p.Long)
             || !Finite(s.KnownDistance) || s.KnownDistance < 0 || !Finite(p.At) || s.Now < p.At || s.Now - p.At > c.RefreshSeconds) return;
         double ratio = s.KnownDistance / p.IdealRange;

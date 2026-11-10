@@ -41,7 +41,7 @@ public sealed partial class Plugin
     private string JumpGate(BotComponent b,Enemy? e,BotState s)
     {
         if(config?.Enabled!=true||!config.DoorJumpPeek.Enabled||!config.DoorApproach.Enabled||s.Jump.Fault
-            ||!NativeAdapter.IsPmcAi(b)||!b.BotActive||b.IsDead||b.GameEnding||!Authority||Ghost(b.ProfileId))return "peek-out-of-scope";
+            ||!NativeAdapter.IsSupportedAi(b)||!b.BotActive||b.IsDead||b.GameEnding||!Authority||Ghost(b.ProfileId))return "peek-out-of-scope";
         if(MedicalPostureGuard(b))return "medical-posture-protected";
         if(e==null||!ReferenceEquals(e,b.GoalEnemy)||!e.EnemyKnown||e.KnownPlaces.LastKnownPosition is not Vector3 known
             ||!s.Jump.Policy.SameContact(e.EnemyProfileId,DP(known))||e.TimeSinceLastKnownUpdated>config.DoorApproach.ContactLifetime

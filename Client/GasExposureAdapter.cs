@@ -47,13 +47,13 @@ public sealed partial class Plugin
    h.Patch(AccessTools.Method(action,"Stop"),postfix:new HarmonyMethod(typeof(Plugin),nameof(GasActionStopped)));
    h.Patch(AccessTools.Method(typeof(BotComponent),nameof(BotComponent.ManualUpdate)),postfix:new HarmonyMethod(typeof(Plugin),nameof(GasBotUpdate)));
    h.Patch(AccessTools.Method(typeof(BotDecisionManager),"getDecision"),prefix:new HarmonyMethod(typeof(Plugin),nameof(GasDecision)){priority=Priority.First});
-   Logger.LogInfo("G08 ready: "+gasBridge.Status+"; awake authoritative PMCs only");
+   Logger.LogInfo("G08 ready: "+gasBridge.Status+"; awake authoritative PMCs and AI Player Scavs only");
   }catch(Exception ex){DisableGas(ex);}
  }
  internal static void GasCloudCreated(Component __instance){try{Instance?.gasBridge.Add(__instance,false);}catch(Exception e){Instance?.DisableGas(e);}}
  internal static void GasEmitterCreated(Component __result){try{Instance?.gasBridge.Add(__result,true);}catch(Exception e){Instance?.DisableGas(e);}}
  private bool GasScope(BotComponent b)=>gasBridge.Ready&&world!=null&&config?.Enabled==true&&config.GasExposure.Enabled&&b!=null&&!b.IsDead
-  &&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
+  &&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
  private void DisableGas(Exception ex)
  {gasBridge.Ready=false;gasBridge.Clear();Logger.LogWarning("G08 inactive, native AI retained: "+ex.GetBaseException().Message);foreach(var pair in states)DropGas(pair.Key,pair.Value,"gas-provider-unavailable");}
  // Runs before the existing G04/G05 arbitration. Only a verified Manimal grenade is removed

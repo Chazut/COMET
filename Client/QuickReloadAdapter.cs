@@ -52,7 +52,7 @@ public sealed partial class Plugin
             yield return new CodeInstruction(OpCodes.Call,AccessTools.Method(typeof(Plugin),nameof(DispatchMagazineReload)));
         }
     }
-    private bool QuickReloadScope(BotComponent b)=>config?.Enabled==true&&config.QuickReload.Enabled&&NativeAdapter.IsPmcAi(b)
+    private bool QuickReloadScope(BotComponent b)=>config?.Enabled==true&&config.QuickReload.Enabled&&NativeAdapter.IsSupportedAi(b)
         &&b.BotActive&&!b.IsDead&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId)&&b.SAINLayersActive;
     private static void DispatchMagazineReload(IFirearmHandsController controller,Magazine magazine,ItemAddress address,Callback callback,BotReload reload)
     {

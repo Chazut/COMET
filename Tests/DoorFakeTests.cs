@@ -97,7 +97,7 @@ internal static class DoorFakeTests
         using(var pe=new PEReader(File.OpenRead("Client/bin/Release/netstandard2.1/COMET.dll"))){
             var md=pe.GetMetadataReader();List<string> Calls(string method)=>FloorHearingTests.ReadIl(pe.GetMethodBody(md.TypeDefinitions.Select(md.GetTypeDefinition).Single(x=>md.GetString(x.Name)=="Plugin").GetMethods().Select(md.GetMethodDefinition).Single(x=>md.GetString(x.Name)==method).RelativeVirtualAddress).GetILBytes()!)
                 .Where(x=>x.op==OpCodes.Call||x.op==OpCodes.Callvirt).Select(x=>FloorHearingTests.Name(md,(int)x.operand!)).ToList();
-            foreach(string name in new[]{"IsPmcAi","get_Authority","Ghost","get_BotActive","get_GameEnding"})Check(Calls("FakeScope").Contains(name),"native scope "+name);
+            foreach(string name in new[]{"IsSupportedAi","get_Authority","Ghost","get_BotActive","get_GameEnding"})Check(Calls("FakeScope").Contains(name),"native scope "+name);
             foreach(string name in new[]{"get_IsVisible","get_IsUnderFire","get_CurrentSelfDecision","get_CurrentSquadDecision","get_LastKnownPosition","get_IsGrounded"})Check(Calls("FakeGate").Contains(name),"native interruption "+name);
             Check(Calls("FakeCover").Contains("Raycast")&&Calls("FakeCover").Contains("get_LastKnownPosition"),"personal remembered position cover probes");
             foreach(string name in new[]{"SetInHands","CheckGrenade","FakeWeaponReady"})Check(Calls("DrawDoorFake").Contains(name),"native draw contract "+name);

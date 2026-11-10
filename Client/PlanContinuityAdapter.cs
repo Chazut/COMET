@@ -19,7 +19,7 @@ public sealed partial class Plugin
     // their choice while SAIN/EFT execute the animation and inventory operation.
     private string OwnedPlanService(BotComponent b, BotState s, bool committed)
     {
-        if(config?.Enabled != true || world == null || s.Retired || !Authority || !NativeAdapter.IsPmcAi(b)
+        if(config?.Enabled != true || world == null || s.Retired || !Authority || !NativeAdapter.IsSupportedAi(b)
             || !b.BotActive || b.IsDead || b.GameEnding || ReadDowned(b.Player) || Ghost(b.ProfileId) || !b.SAINLayersActive
             || b.Grenade.GrenadeDangerPoint != null || b.Decision.CurrentCombatDecision == ECombatDecision.AvoidGrenade
             || b.Decision.DogFightDecision.DogFightActive || b.BotOwner.WeaponManager?.IsMelee == true) return "";

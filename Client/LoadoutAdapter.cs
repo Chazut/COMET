@@ -40,7 +40,7 @@ public sealed partial class Plugin
     }
     private LoadoutTrace? ReadLoadout(BotComponent bot, BotState state)
     {
-        if (config?.Enabled != true || !config.Loadout.Enabled || !Authority || !NativeAdapter.IsPmcAi(bot) || !bot.BotActive || Ghost(bot.ProfileId)) return null;
+        if (config?.Enabled != true || !config.Loadout.Enabled || !Authority || !NativeAdapter.IsSupportedAi(bot) || !bot.BotActive || Ghost(bot.ProfileId)) return null;
         var runtime = state.Loadout;
         var weapon = bot.Player.HandsController?.Item as Weapon;
         if (weapon == null) { runtime.Refresh.Invalidate("no-weapon-in-hands"); return new LoadoutTrace { State = "no-weapon", At = Time.time }; }

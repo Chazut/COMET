@@ -43,7 +43,7 @@ namespace SAIN
 }
 namespace Comet.Client
 {
- internal static class NativeAdapter {internal static bool IsPmcAi(BotComponent b)=>b.Pmc;}
+ internal static class NativeAdapter {internal static bool IsSupportedAi(BotComponent b)=>b.Pmc;}
  internal sealed class WeaponReturnRuntime {internal readonly WeaponReturnPolicy Policy=new();internal bool Fault;internal string Intent="";}
  internal sealed class BotState
  {

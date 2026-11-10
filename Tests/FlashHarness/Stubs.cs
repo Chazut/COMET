@@ -46,7 +46,7 @@ namespace SAIN.SAINComponent.Classes.Sense {
 }
 namespace Comet.Core{public class CometConfig {public bool Enabled=true;public long Revision=1;public FlashContinuityConfig FlashContinuity=new();}}
 namespace Comet.Client {
- public static class NativeAdapter{public static bool IsPmcAi(BotComponent b)=>b.Pmc;}
+ public static class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.Pmc;}
  internal class GasRuntime{internal double Intensity;}
  internal class BotState {internal readonly FlashRuntime Flash=new();internal readonly GasRuntime Gas=new();internal string ProfileId,Name="test",Id="instance";internal BotState(BotComponent b){ProfileId=b.ProfileId;}}
  public class Sink{public List<string> Lines=new();public void Write(string s)=>Lines.Add(s);public void Publish(string s,Action<Exception> onError){}}

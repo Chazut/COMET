@@ -86,6 +86,16 @@ Check(events.Any(x=>x.Contains("\"state\":\"sleeping\"")),"I02 sleeping lifecycl
 sleep.InGhost=false;Time.unscaledTimeAsDouble=20;sleep.Sweep();
 Check(sleep.states.ContainsKey(sb)&&sleep.states[sb].Id!=beforeSleep.Id,"I02 wake creates fresh generation");
 int wakingActions=sleep.Actions;sleep.Callback(beforeSleep);sleep.Act(sb);Check(sleep.OldCallbacks==0&&sleep.Actions==wakingActions+1,"I02 pre-sleep callbacks cannot act after wake");
+// Player Scavs must follow the very same real lifecycle path as PMCs.
+foreach (bool legacy in new[] { false, true }) {
+ var sc=new Plugin();var playerScav=sc.Add();playerScav.Player.Profile.Info.Settings.Role=WildSpawnType.assault;
+ if(legacy)playerScav.Player.Profile.Info.Nickname="Scav (Player)";else playerScav.Player.Profile.Info.MainProfileNickname="Player";
+ sc.Act(playerScav);var generation=sc.states[playerScav];Check(sc.Actions==1,"Player Scav action allowed");
+ sc.InGhost=true;sc.Act(playerScav);sc.Sweep();Check(generation.Retired&&!sc.states.ContainsKey(playerScav),"Player Scav sleeps and releases state");
+ sc.InGhost=false;Time.unscaledTimeAsDouble+=2;sc.Sweep();Check(sc.states.ContainsKey(playerScav),"Player Scav resumes after wake");
+ int actions=sc.Actions;sc.Callback(generation);sc.Act(playerScav);Check(sc.Actions==actions+1&&sc.OldCallbacks==0,"Player Scav rejects stale callbacks");
+ playerScav.Player.HealthController!.IsAlive=false;sc.Act(playerScav);sc.Sweep();Check(!sc.states.ContainsKey(playerScav),"Player Scav death clears state");
+}
 var dir=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../artifacts/c09"));Directory.CreateDirectory(dir);
 File.WriteAllLines(Path.Combine(dir,"lifecycle.jsonl"),events.Where(x=>x.Contains("\"feature\":\"C09\"")));
 File.WriteAllText(Path.Combine(dir,"lifecycle.json"),"["+string.Join(",",events.Where(x=>x.Contains("\"feature\":\"C09\"")))+"]");

@@ -78,7 +78,7 @@ static class ReloadTimingTests
             Check(type.GetFields().Select(md.GetFieldDefinition).Any(m=>md.GetString(m.Name)=="_lastReloadTime"),"native reload clock exists");}
         using(var pe=new PEReader(File.OpenRead("Client/bin/Release/netstandard2.1/COMET.dll"))){var md=pe.GetMetadataReader();var type=md.TypeDefinitions.Select(md.GetTypeDefinition).Single(t=>md.GetString(t.Name)=="Plugin");
             MethodDefinition Method(string name)=>type.GetMethods().Select(md.GetMethodDefinition).Single(m=>md.GetString(m.Name)==name);
-            foreach(var gate in new[]{"IsPmcAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding","get_SAINLayersActive"})Check(Calls(pe,md,Method("ReloadScope"),gate)==1,"compiled scope "+gate);
+            foreach(var gate in new[]{"IsSupportedAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding","get_SAINLayersActive"})Check(Calls(pe,md,Method("ReloadScope"),gate)==1,"compiled scope "+gate);
             foreach(var method in new[]{"ReloadFrame","ChooseReloadTiming","SampleReloadTiming"})foreach(var forbidden in new[]{"get_RealDistance","get_EnemyPosition","get_VulnerableAction","BotCancelReload","AddAmmoToMagazines","FastForward","Teleport"})
                 Check(Calls(pe,md,Method(method),forbidden)==0,"no hidden info, fake ammo or forced cancel: "+method+forbidden);
             Check(Calls(pe,md,Method("ChooseReloadTiming"),"CanReload")==1&&Calls(pe,md,Method("ChooseReloadTiming"),"ReloadMagazine")==1&&Calls(pe,md,Method("ChooseReloadTiming"),"ReloadAmmo")==1,"actual native reload API");

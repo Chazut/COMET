@@ -72,7 +72,7 @@ namespace SAIN.SAINComponent.Classes.EnemyClasses {
 namespace SAIN.SAINComponent.Classes.Mover {public class SAINSteeringClass(BotComponent b){public BotComponent Bot=b;public int Requests;public Vector3 Last;public void TickPlayerSteering(){Comet.Client.Plugin.Steer(this);}public void LookToPoint(Vector3 p){Requests++;Last=p;}}}
 namespace Comet.Core {public class CometConfig{public bool Enabled=true;public long Revision=1;public ExplosionAwarenessConfig ExplosionAwareness=new();public static void Range(double x,double a,double b,string n){if(!Comet.Core.ExplosionAwareness.Finite(x)||x<a||x>b)throw new ArgumentException(n);}}}
 namespace Comet.Client {
- public static class NativeAdapter{public static bool IsPmcAi(BotComponent b)=>b.Pmc;}public static class VisibleAdapter{public static bool Ready=true;public static bool WeaponReady(BotComponent b)=>Ready;}
+ public static class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.Pmc;}public static class VisibleAdapter{public static bool Ready=true;public static bool WeaponReady(BotComponent b)=>Ready;}
  internal class Fear {internal Fear Current=>this;internal bool Panic;}internal class Sight{internal object? Current;}
  internal class BotState(BotComponent b,Comet.Core.CometConfig c,string session){internal BlastRuntime Blast=new();internal string ProfileId=b.ProfileId,Name="Test PMC",Id="instance";internal Fear Fear=new();internal Sight Sight=new();internal string ActiveLabel="";}
  public class Sink{public List<string> Lines=new();public void Write(string s)=>Lines.Add(s);public void Publish(string s,Action<Exception> ex){}}

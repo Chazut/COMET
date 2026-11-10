@@ -12,7 +12,7 @@ internal static class PlanContinuityTests
         Check(!lease.Keep(20.1,.5,"target:Shoot",false),"invalid action cancels");
         Check(!lease.Keep(double.NaN,.5,"x",true),"invalid clock cancels");
         Check(!lease.Keep(21,0,"x",true),"zero tolerance");
-        VisibleSituation Frame()=>new(){Contact=new(){Now=10,Target="enemy",IsAi=true,IsPmc=true,IsAuthority=true,IsActive=true,
+        VisibleSituation Frame()=>new(){Contact=new(){Now=10,Target="enemy",IsAi=true,IsSupportedBot=true,IsAuthority=true,IsActive=true,
             Visible=true,HasContact=true,KnownDistance=12,ContactAge=.1,Personality="Normal"},WeaponReady=true,CanShoot=true,
             ProbeReady=true,ThreatCount=1,ThreatSignature="enemy:visible",ContinuationSafe=true};
         CometConfig Config(){var c=new CometConfig();c.VisibleCombat.CoverWeight=0;c.VisibleCombat.PushWeight=0;return c;}

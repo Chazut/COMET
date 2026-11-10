@@ -36,7 +36,7 @@ for(int i=14;i<=90;i++)Tick(p,b,s,i*.125f);Check(s.Outcomes.Memory.HistoryCount=
 // Exercise a real detached action boundary and then a comparable repeated attempt.
 s.ActiveLabel="";for(int i=91;i<=98;i++)Tick(p,b,s,i*.125f);s.ActiveLabel="COMET:Cover";Good(p,b,s,12.5f);
 var t=p.Read(b,s)!;Check(t.Effects.Single(x=>x.Action=="Cover").Delta==5,"repeated nearby approach applies bounded bonus");
-s.Situation=new(){Target="enemy",IsAi=true,IsPmc=true,IsActive=true,IsAuthority=true,Outcome=t};s.Candidates=new(){new(){Decision="Cover",Eligible=true,Score=60}};
+s.Situation=new(){Target="enemy",IsAi=true,IsSupportedBot=true,IsActive=true,IsAuthority=true,Outcome=t};s.Candidates=new(){new(){Decision="Cover",Eligible=true,Score=60}};
 OutcomeScoring.Adjust(s.Candidates,s.Situation,p.config!);p.Choice(s,s.Situation);Check(t.Choice=="Cover"&&t.Effects.Single(x=>x.Action=="Cover").Applied==5&&t.Alternatives.Length==1,"score and alternatives diagnostic");
 string rootDir=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));string output=Path.Combine(rootDir,"artifacts/e04");Directory.CreateDirectory(output);
 File.WriteAllLines(Path.Combine(output,"outcomes.jsonl"),p.diagnostics.Lines);

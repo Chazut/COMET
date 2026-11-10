@@ -34,7 +34,7 @@ public sealed partial class Plugin
     private static void PatchMovementRecovery(Harmony h)=>h.Patch(AccessTools.Method(typeof(BotComponent),nameof(BotComponent.ManualUpdate)),
         postfix:new HarmonyMethod(typeof(Plugin),nameof(TrackMovementRecovery)));
     private bool MovementRecoveryScope(BotComponent b)=>config?.Enabled==true&&config.MovementRecovery.Enabled&&Authority
-        &&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
+        &&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
     private static void TrackMovementRecovery(BotComponent __instance)
     {
         var p=Instance;if(p==null)return;

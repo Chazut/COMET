@@ -39,7 +39,7 @@ namespace SAIN.SAINComponent.Classes.Mover{public class SAINMoverClass(BotCompon
 namespace Comet.Client{
  internal class PostureState{public PosturePolicy Policy=new();}internal class PosturePolicy{public bool Blocking;}
  internal class BotState{public ReadyStanceRuntime ReadyStance=new();public PostureState MedicalPosture=new();public string ProfileId,Name="Test PMC",Id="test-instance";public BotState(BotComponent b,CometConfig c,string session){ProfileId=b.ProfileId;}}
- internal static class NativeAdapter{public static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
+ internal static class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
  internal static class Diagnostics{ internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
  internal class Sink{public List<string> Lines=new();public void Write(string line)=>Lines.Add(line);}
  internal static class Logger{public static List<string> Warnings=new();public static void LogWarning(string s)=>Warnings.Add(s);}

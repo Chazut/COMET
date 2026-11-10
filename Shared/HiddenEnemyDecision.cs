@@ -10,7 +10,7 @@ public sealed class Situation
     public double Now;
     public string Target = "";
     public string Personality = "Normal";
-    public bool IsAi, IsPmc, IsAuthority, IsActive, Ghost, Visible, HasContact;
+    public bool IsAi, IsSupportedBot, IsAuthority, IsActive, Ghost, Visible, HasContact;
     public double ContactAge, KnownDistance;
     public double KnownX, KnownY, KnownZ;
     public string ContactSource = "SAIN last-known";
@@ -83,7 +83,7 @@ public sealed class HiddenEnemyDecision
     public static string? Ineligible(Situation s, CometConfig c)
     {
         if (!c.Enabled) return "disabled";
-        if (!s.IsAi || !s.IsPmc) return "not-pmc-ai";
+        if (!s.IsAi || !s.IsSupportedBot) return "unsupported-bot";
         if (!s.IsAuthority) return "not-authority";
         if (!s.IsActive) return "inactive";
         if (s.Ghost) return "ghost";

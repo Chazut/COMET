@@ -42,7 +42,7 @@ internal static class ProgressAdapter
     {
         var p=bot.Position;var d=bot.Decision;var path=bot.Mover.ActivePath;
         var enemy=bot.GoalEnemy;var known=enemy?.KnownPlaces.LastKnownPosition;
-        var f=new ProgressFrame {Now=Time.time,X=p.x,Y=p.y,Z=p.z,Scoped=NativeAdapter.IsPmcAi(bot)&&bot.BotActive&&authority&&!ghost,
+        var f=new ProgressFrame {Now=Time.time,X=p.x,Y=p.y,Z=p.z,Scoped=NativeAdapter.IsSupportedAi(bot)&&bot.BotActive&&authority&&!ghost,
             Action=state.Decision,Owned=state.ActiveLabel.Length>0 && d.CurrentCombatDecision==state.Expected && bot.SAINLayersActive && bot.CurrentAction!=null,
             Target=enemy?.EnemyProfileId??"",CueAt=enemy==null?-1:Time.time-enemy.TimeSinceLastKnownUpdated,
             CueX=known?.x??0,CueY=known?.y??0,CueZ=known?.z??0};
@@ -115,7 +115,7 @@ public sealed partial class Plugin
         state.NextProgressSample=Time.time+.25f;
         try
         {
-            if(!NativeAdapter.IsPmcAi(bot) || !bot.BotActive || !Authority || Ghost(bot.ProfileId))
+            if(!NativeAdapter.IsSupportedAi(bot) || !bot.BotActive || !Authority || Ghost(bot.ProfileId))
             { state.Progress.Clear();state.ProgressAtSelection=null;return; }
             var frame=ProgressAdapter.Capture(bot,state,Authority,Ghost(bot.ProfileId),config);
             if(RecoveryOwnsStall(state)&&PlanProgress.IsMove(frame.Action)&&!frame.Arrived&&!frame.Paused)
@@ -145,7 +145,7 @@ public sealed partial class Plugin
     {
         var plugin=Instance;var bot=__instance.Bot;
         if(plugin?.config?.Progress.Enabled!=true || !plugin.states.TryGetValue(bot,out var state) || state.ProgressUnavailable || state.ActiveLabel.Length==0
-            || !NativeAdapter.IsPmcAi(bot) || !bot.BotActive || !plugin.Authority || plugin.Ghost(bot.ProfileId)
+            || !NativeAdapter.IsSupportedAi(bot) || !bot.BotActive || !plugin.Authority || plugin.Ghost(bot.ProfileId)
             || bot.Decision.CurrentCombatDecision!=state.Expected || bot.Decision.CurrentSelfDecision!=ESelfActionType.None || bot.Decision.CurrentSquadDecision!=ESquadDecision.None)return true;
         if(!state.Progress.Blocked(ProgressAdapter.CoverKey(point),Time.time))return true;
         plugin.RetireProgressCover(bot,state);

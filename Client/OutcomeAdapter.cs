@@ -34,7 +34,7 @@ public sealed partial class Plugin
         h.Patch(hit,postfix:new HarmonyMethod(typeof(Plugin),nameof(OutcomeHit)));
     }
     private bool OutcomeScoped(BotComponent b)=>config?.Enabled==true&&config.Outcomes.Enabled&&Authority&&b!=null
-        &&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
+        &&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
     private static bool OutcomeAction(BotComponent b,string action)
     {
         var type=b.CurrentAction?.GetType();

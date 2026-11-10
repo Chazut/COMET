@@ -74,7 +74,7 @@ static class QuickReloadTests
         {
             var md=pe.GetMetadataReader();var type=md.TypeDefinitions.Select(md.GetTypeDefinition).Single(t=>md.GetString(t.Name)=="Plugin");
             MethodDefinition M(string name)=>type.GetMethods().Select(md.GetMethodDefinition).Single(m=>md.GetString(m.Name)==name);
-            foreach(var gate in new[]{"IsPmcAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding","get_SAINLayersActive"})Check(ReloadTimingTests.Calls(pe,md,M("QuickReloadScope"),gate)==1,"compiled scope "+gate);
+            foreach(var gate in new[]{"IsSupportedAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding","get_SAINLayersActive"})Check(ReloadTimingTests.Calls(pe,md,M("QuickReloadScope"),gate)==1,"compiled scope "+gate);
             Check(ReloadTimingTests.Calls(pe,md,M("PatchQuickReload"),"Patch")==2,"reload redirect plus physical drop observer");
             Check(ReloadTimingTests.Calls(pe,md,M("DispatchMagazineReload"),"QuickReloadMag")==1&&ReloadTimingTests.Calls(pe,md,M("DispatchMagazineReload"),"ReloadMag")==1,"single native fast route plus untouched normal fallback");
             foreach(var method in new[]{"QuickReloadFrameFor","DispatchMagazineReload","SampleQuickReload","ObserveDroppedReloadMagazine"})

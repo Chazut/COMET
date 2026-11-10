@@ -56,7 +56,7 @@ namespace SAIN.Components {
 namespace HarmonyLib {public class Harmony{public void Patch(System.Reflection.MethodInfo m,HarmonyMethod postfix){}}public class HarmonyMethod(Type t,string n){}public static class AccessTools{public static System.Reflection.MethodInfo Method(Type t,string n)=>t.GetMethod(n)!;}}
 namespace Comet.Api {public static class Decisions{public static List<string> Events=new();public static void Publish(string s,Action<Exception> error)=>Events.Add(s);}}
 namespace Comet.Client {
- internal static class NativeAdapter{internal static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
+ internal static class NativeAdapter{internal static bool IsSupportedAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
  internal static class ProgressAdapter{internal static string CoverKey(CoverPoint p)=>Destination(p.Position);internal static string Destination(Vector3 p)=>$"{p.x}/{p.y}/{p.z}";}
  internal class Diagnostics{ internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);internal static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};internal void Write(string s){}}
  internal class DummyPolicy{public bool Active;public DummyTrace? Trace;}internal class DummyTrace{public string State="";}internal class DummyRuntime{public DummyPolicy Policy=new();}

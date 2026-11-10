@@ -32,7 +32,7 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(BotReload),nameof(BotReload.TryFillMagazines)),
             prefix:new HarmonyMethod(typeof(Plugin),nameof(HandsFillGuard)){priority=Priority.First});
     }
-    private bool HandsRecoveryScope(BotComponent b)=>config?.Enabled==true&&config.HandsRecovery.Enabled&&NativeAdapter.IsPmcAi(b)
+    private bool HandsRecoveryScope(BotComponent b)=>config?.Enabled==true&&config.HandsRecovery.Enabled&&NativeAdapter.IsSupportedAi(b)
         &&b.BotActive&&!b.IsDead&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
     private static void TrackHandsRecovery(BotComponent __instance)
     {

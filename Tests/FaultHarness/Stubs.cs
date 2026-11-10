@@ -13,7 +13,7 @@ namespace SAIN.Components
 }
 namespace Comet.Client
 {
- internal static class NativeAdapter{internal static bool IsPmcAi(BotComponent b)=>b.Pmc;}
+ internal static class NativeAdapter{internal static bool IsSupportedAi(BotComponent b)=>b.Pmc;}
  internal class BotState
  {
   internal BotComponent Owner;internal string Id,ProfileId,Name="Test PMC",ActiveLabel="COMET:Test",Decision="Test";

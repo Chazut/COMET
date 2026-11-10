@@ -58,7 +58,7 @@ internal static class EncounterTests
         bounded.Clear();Check(bounded.Count==0,"raid/ghost cleanup");
         var expiry=new EncounterMemory();Run(expiry);Check(!expiry.Sample(F(34,false),c).Eligible&&expiry.Count==0,"no retention across quiet encounter gaps");
         var disabled=new EncounterConfig{Enabled=false};Check(!m.Sample(F(3.1,false),disabled).Eligible&&m.Count==0,"disable clears memory");
-        Situation S()=>new(){Now=3,Target="target",IsAi=true,IsPmc=true,IsAuthority=true,IsActive=true,HasContact=true,ContactAge=.1,KnownDistance=14,
+        Situation S()=>new(){Now=3,Target="target",IsAi=true,IsSupportedBot=true,IsAuthority=true,IsActive=true,HasContact=true,ContactAge=.1,KnownDistance=14,
             Encounter=ready.Copy()};
         var cfg=new CometConfig();cfg.DecisionVariety.Enabled=false;cfg.TacticalMistakes.Enabled=false;
         var selection=new HiddenEnemyDecision(cfg).Evaluate(S());var hold=selection.Candidates.Single(x=>x.Decision=="Hold");

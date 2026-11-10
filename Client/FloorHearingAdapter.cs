@@ -62,7 +62,7 @@ public sealed partial class Plugin
     }
     private static int LocalIndex(object value) => value is LocalBuilder local ? local.LocalIndex : Convert.ToInt32(value);
     private bool FloorScoped(BotComponent b) => world != null && config?.Enabled == true && config.FloorHearing.Enabled
-        && NativeAdapter.IsPmcAi(b) && b.BotActive && !b.GameEnding && Authority && !Ghost(b.ProfileId);
+        && NativeAdapter.IsSupportedAi(b) && b.BotActive && !b.GameEnding && Authority && !Ghost(b.ProfileId);
 
     private static float FloorRange(float nativeRange, HearingAnalysis analysis, AISoundData sound, float environment, float occlusion)
     {

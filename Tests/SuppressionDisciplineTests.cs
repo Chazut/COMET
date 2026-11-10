@@ -59,7 +59,7 @@ static class SuppressionDisciplineTests
             var md=pe.GetMetadataReader();var type=md.TypeDefinitions.Select(md.GetTypeDefinition).Single(t=>md.GetString(t.Name)=="Plugin");
             MethodDefinition M(string name)=>type.GetMethods().Select(md.GetMethodDefinition).Single(m=>md.GetString(m.Name)==name);
             int Calls(string name,string call)=>ReloadTimingTests.Calls(pe,md,M(name),call);
-            foreach(string gate in new[]{"IsPmcAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding","get_SAINLayersActive"})Check(Calls("DisciplineScope",gate)==1,"scope "+gate);
+            foreach(string gate in new[]{"IsSupportedAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding","get_SAINLayersActive"})Check(Calls("DisciplineScope",gate)==1,"scope "+gate);
             Check(Calls("DisciplineGeometry","TryBegin")==1&&Calls("DisciplineGeometry","Charge")==1,"geometry budget");
             Check(Calls("DisciplineShot","Shot")==1,"actual native shot observation");
             Check(Calls("DisciplineVisibleFire","EndDiscipline")==1,"normal visible firing released");

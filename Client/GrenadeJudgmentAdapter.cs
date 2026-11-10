@@ -34,7 +34,7 @@ public sealed partial class Plugin
             prefix:new HarmonyMethod(typeof(Plugin),nameof(GrenadeThrowBefore)){priority=Priority.Last},
             postfix:new HarmonyMethod(typeof(Plugin),nameof(GrenadeThrowAfter)));
     }
-    private bool GrenadeJudgmentScope(BotComponent b)=>config?.Enabled==true&&config.GrenadeJudgment.Enabled&&NativeAdapter.IsPmcAi(b)
+    private bool GrenadeJudgmentScope(BotComponent b)=>config?.Enabled==true&&config.GrenadeJudgment.Enabled&&NativeAdapter.IsSupportedAi(b)
         &&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
     private BotState GrenadeState(BotComponent b)
     {if(!states.TryGetValue(b,out var s))states.Add(b,s=new BotState(b,config!,session));return s;}

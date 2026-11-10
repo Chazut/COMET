@@ -105,7 +105,7 @@ public static class OpportunityModel
     {
         if (t.State != "assess") return;
         void Reject(string why) { t.State = "rejected"; t.Reason = why; }
-        if (!c.Enabled || !s.IsAi || !s.IsPmc || !s.IsAuthority || !s.IsActive || s.Ghost || !s.HasContact || t.Target != s.Target)
+        if (!c.Enabled || !s.IsAi || !s.IsSupportedBot || !s.IsAuthority || !s.IsActive || s.Ghost || !s.HasContact || t.Target != s.Target)
         { Reject("opportunity-ineligible-observer"); return; }
         if (!v.Ready) { Reject("opportunity-probe-pending"); return; }
         t.KnownThreats = v.ThreatCount;
@@ -141,7 +141,7 @@ public static class OpportunityModel
         var t = s.Opportunity;
         if (t == null) return;
         t.Bonus = 0;
-        if (!c.Enabled || t.State != "usable" || t.Target != s.Target || !s.IsAi || !s.IsPmc || !s.IsActive || !s.IsAuthority || s.Ghost
+        if (!c.Enabled || t.State != "usable" || t.Target != s.Target || !s.IsAi || !s.IsSupportedBot || !s.IsActive || !s.IsAuthority || s.Ghost
             || !s.HasContact || s.LowAmmo || s.Hurt || s.Suppressed || s.Fear?.Panic == true
             || !OpponentMemory.ValidAge(s.Now - t.At, .5) || t.Eta == null || !OpportunityMemory.Finite(t.Eta.Value)
             || t.Eta < 0 || t.Window - (s.Now - t.HeardAt) <= t.Eta + c.SafetyMargin) return;

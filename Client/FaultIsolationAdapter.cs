@@ -108,7 +108,7 @@ public sealed partial class Plugin
         try
         {
             var b=s.Bot;
-            if(!Authority||(b!=null&&!NativeAdapter.IsPmcAi(b)))return;
+            if(!Authority||(b!=null&&!NativeAdapter.IsSupportedAi(b)))return;
             faultCleaning=true;faultCleanupFailed=false;faultCleanupError=null;
             try
             {

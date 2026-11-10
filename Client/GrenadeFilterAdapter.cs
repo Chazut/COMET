@@ -18,7 +18,7 @@ internal sealed class GrenadeFilterRuntime
 }
 public sealed partial class Plugin
 {
-    private bool GrenadeFilterScope(BotComponent b)=>config?.Enabled==true&&config.GrenadeFilter.Enabled&&NativeAdapter.IsPmcAi(b)
+    private bool GrenadeFilterScope(BotComponent b)=>config?.Enabled==true&&config.GrenadeFilter.Enabled&&NativeAdapter.IsSupportedAi(b)
         &&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
     private static string GrenadeCategory(ThrowWeap? item)=>item==null?"unknown":GrenadeFilterRules.Classify(item.ThrowType.ToString(),item.IsDummy,
         item.EmitTime,item.MaxExplosionDistance,item.Blindness.y,item.Contusion.y,item.FragmentsCount);

@@ -101,7 +101,7 @@ internal static class TacticalJumpTests
             MethodDefinition Method(string name)=>plugin.GetMethods().Select(md.GetMethodDefinition).Single(m=>md.GetString(m.Name)==name);
             foreach(var method in new[]{"StepDoorJump","RefreshCornerPeek","RefreshChase","WeaveMovement","NativeRushJump"})
                 Check(Calls(pe,md,Method(method),"ControlledJump")==1,"common gate integration "+method);
-            foreach(var gate in new[]{"IsPmcAi","get_Authority","Ghost","get_IsDead","get_BotActive","get_GameEnding","get_SAINLayersActive"})
+            foreach(var gate in new[]{"IsSupportedAi","get_Authority","Ghost","get_IsDead","get_BotActive","get_GameEnding","get_SAINLayersActive"})
                 Check(Calls(pe,md,Method("JumpScope"),gate)==1,"compiled scope "+gate);
             Check(Calls(pe,md,Method("ControlledJump"),"TryJump")==2,"native jump execution plus module-disabled pass through");
             foreach(var method in new[]{"ControlledJump","SampleTacticalJump","JumpFireAllowed","NativeRushJump"})

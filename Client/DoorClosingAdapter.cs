@@ -56,7 +56,7 @@ public sealed partial class Plugin
             =>ClosingBefore(__instance,__0,__2,ref __result,out __state);
         internal static void After(bool __result,DoorClosingAttempt? __state,Exception? __exception)=>ClosingAfter(__result,__state,__exception);
     }
-    private bool ClosingScoped(BotComponent b)=>config?.Enabled==true&&Authority&&b!=null&&NativeAdapter.IsPmcAi(b)
+    private bool ClosingScoped(BotComponent b)=>config?.Enabled==true&&Authority&&b!=null&&NativeAdapter.IsSupportedAi(b)
         &&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
     private static void ClosingOpened(WorldInteractiveObject __instance,EDoorState __0,Exception? __exception)
     {

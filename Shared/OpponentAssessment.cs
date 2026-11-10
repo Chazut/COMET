@@ -103,7 +103,7 @@ public static class OpponentAssessment
         foreach (var a in choices) { a.ScoreBeforeOpponent = a.Score; a.OpponentDelta = 0; a.OpponentReason = "opponent-neutral"; }
         var t = s.Opponent;
         if (t != null) t.Advantage = 0;
-        if (!c.Enabled || !s.IsAi || !s.IsPmc || !s.IsAuthority || !s.IsActive || s.Ghost || !s.HasContact
+        if (!c.Enabled || !s.IsAi || !s.IsSupportedBot || !s.IsAuthority || !s.IsActive || s.Ghost || !s.HasContact
             || t == null || t.Target != s.Target || t.State != "estimated" || !OpponentMemory.ValidAge(s.Now - t.At, .5)
             || !OpponentMemory.Finite(s.KnownDistance) || s.KnownDistance < 0) return;
         double advantage = 0;

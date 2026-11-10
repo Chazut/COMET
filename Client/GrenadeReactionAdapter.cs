@@ -51,7 +51,7 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(BotPathDataManual),nameof(BotPathDataManual.TickPath)),prefix:new HarmonyMethod(typeof(Plugin),nameof(EscapePathTick)){priority=Priority.First});
         h.Patch(AccessTools.Method(typeof(SAIN.Classes.PlayerMovementController),"SetTargetMoveDirection"),prefix:new HarmonyMethod(typeof(Plugin),nameof(EscapeMoveInput)){priority=Priority.First});
     }
-    private bool EscapeScope(BotComponent b)=>config?.Enabled==true&&config.GrenadeReaction.Enabled&&NativeAdapter.IsPmcAi(b)
+    private bool EscapeScope(BotComponent b)=>config?.Enabled==true&&config.GrenadeReaction.Enabled&&NativeAdapter.IsSupportedAi(b)
         &&!b.IsDead&&b.BotActive&&!b.GameEnding&&b.SAINLayersActive&&Authority&&!Ghost(b.ProfileId);
     // Called by the existing G04 postfix: a single writer arbitrates native danger selection.
     private bool SelectGrenadeEscape(GrenadeReactionClass native)

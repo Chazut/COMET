@@ -47,7 +47,7 @@ public sealed partial class Plugin
     private void SampleChase(BotComponent b,BotState s)
     {
         var r=s.CornerChase;
-        if(config?.CornerChase.Enabled!=true||r.Fault||b==null||b.IsDead||!b.BotActive||!Authority||Ghost(b.ProfileId)||!NativeAdapter.IsPmcAi(b)) {r.Memory.Clear();return;}
+        if(config?.CornerChase.Enabled!=true||r.Fault||b==null||b.IsDead||!b.BotActive||!Authority||Ghost(b.ProfileId)||!NativeAdapter.IsSupportedAi(b)) {r.Memory.Clear();return;}
         if(Time.time-r.SampleAt<.1f)return;r.SampleAt=Time.time;
         var e=b.GoalEnemy;int instance=e==null?0:System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e);
         if(instance!=r.ObservationInstance){r.Memory.Clear();r.ObservationInstance=instance;}

@@ -99,7 +99,7 @@ internal static class DoorApproachTests
             var md=pe.GetMetadataReader();
             List<string> Calls(string method)=>FloorHearingTests.ReadIl(pe.GetMethodBody(md.TypeDefinitions.Select(md.GetTypeDefinition).Single(x=>md.GetString(x.Name)=="Plugin").GetMethods().Select(md.GetMethodDefinition).Single(x=>md.GetString(x.Name)==method).RelativeVirtualAddress).GetILBytes()!)
                 .Where(x=>x.op==OpCodes.Call||x.op==OpCodes.Callvirt).Select(x=>FloorHearingTests.Name(md,(int)x.operand!)).ToList();
-            foreach(var required in new[]{"IsPmcAi","get_Authority","Ghost","get_BotActive","get_CurrentSelfDecision","get_CurrentSquadDecision","get_EnemyKnown","Gate"})Check(Calls("DoorGate").Contains(required),"actual scope contract: "+required);
+            foreach(var required in new[]{"IsSupportedAi","get_Authority","Ghost","get_BotActive","get_CurrentSelfDecision","get_CurrentSquadDecision","get_EnemyKnown","Gate"})Check(Calls("DoorGate").Contains(required),"actual scope contract: "+required);
             foreach(var required in new[]{"CanGoToPoint","Placement","OverlapCapsuleNonAlloc","Raycast","Clear"})Check(Calls("ValidateDoor").Contains(required),"native validation contract: "+required);
             Check(Calls("StepDoor").Contains("WalkToPointByWay")&&Calls("FinishDoor").Contains("OwnsDoorPath")&&Calls("FinishDoor").Contains("Cancel"),"native movement and scoped cancellation wired");
             Check(Calls("Release").Contains("EndDoor")&&Calls("Update").Contains("RefreshDoor"),"release and sweep lifecycle wired");

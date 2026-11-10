@@ -82,7 +82,7 @@ internal static class EnvironmentContextTests
             List<string> Calls(string type,string method)=>FloorHearingTests.ReadIl(pe.GetMethodBody(md.TypeDefinitions.Select(md.GetTypeDefinition).Single(x=>md.GetString(x.Name)==type).GetMethods().Select(md.GetMethodDefinition).Single(x=>md.GetString(x.Name)==method).RelativeVirtualAddress).GetILBytes()!)
                 .Where(x=>x.op==OpCodes.Call||x.op==OpCodes.Callvirt).Select(x=>FloorHearingTests.Name(md,(int)x.operand!)).ToList();
             var calls=Calls("Plugin","RefreshEnvironment");
-            foreach(var required in new[]{"IsPmcAi","get_Authority","Ghost","get_BotActive","get_GameEnding","get_GoalEnemy","get_Environment","NeedsCeiling","RaycastNonAlloc","Clear","Charge"})Check(calls.Contains(required),"live adapter contract: "+required);
+            foreach(var required in new[]{"IsSupportedAi","get_Authority","Ghost","get_BotActive","get_GameEnding","get_GoalEnemy","get_Environment","NeedsCeiling","RaycastNonAlloc","Clear","Charge"})Check(calls.Contains(required),"live adapter contract: "+required);
             Check(Calls("NativeAdapter","GrenadeCapability").Contains("RefreshEnvironment"),"actual grenade preparation requests geometry");
             Check(!Calls("Plugin","Update").Contains("RaycastNonAlloc"),"ordinary sweep does not directly cast");
             Check(CleanupIl.Calls(pe,md,"Plugin","EndRaid").Contains("ClearEnvironment"),"shared buffers reset on raid end");

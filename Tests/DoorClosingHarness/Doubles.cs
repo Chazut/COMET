@@ -109,7 +109,7 @@ namespace SAIN.SAINComponent.Classes.Mover {
  }
 }
 namespace Comet.Client {
- internal static class NativeAdapter {internal static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.IsAI;}
+ internal static class NativeAdapter {internal static bool IsSupportedAi(BotComponent b)=>b.Pmc&&b.IsAI;}
  internal static class ProgressAdapter {internal static string Destination(Vector3 p)=>"goal";}
  internal class DoorWork {internal DoorDataStruct Data;internal DoorGeometry Geometry=new();}
  internal class Policy {internal bool Active,Planning,Pending;}

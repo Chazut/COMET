@@ -58,7 +58,7 @@ sealed class Boundaries(string file,Dictionary<string,string> callbacks,List<obj
  {
   string name=m.Identifier.Text,owner=(m.Parent as TypeDeclarationSyntax)?.Identifier.Text??"";
   bool callback=callbacks.TryGetValue(name,out var kind)&&kind!="transpiler";
-  if(file=="ContactSafety"||m.Body==null&&m.ExpressionBody==null||m.Modifiers.Any(SyntaxKind.PartialKeyword)||name.StartsWith("Patch")||kind=="transpiler"||name.EndsWith("Error")||name=="IsPmcAi")return m;
+  if(file is "ContactSafety" or "BotEligibility"||m.Body==null&&m.ExpressionBody==null||m.Modifiers.Any(SyntaxKind.PartialKeyword)||name.StartsWith("Patch")||kind=="transpiler"||name.EndsWith("Error")||name=="IsSupportedAi")return m;
   // Skip diagnostics as their own independent sink boundary below; never quarantine combat for a consumer failure.
   bool telemetry=(name.StartsWith("Record")||name=="Emit")
    &&(m.ToString().Contains("JsonConvert.SerializeObject")||m.ToString().Contains("Diagnostics.Serialize("));
@@ -98,11 +98,11 @@ sealed class Boundaries(string file,Dictionary<string,string> callbacks,List<obj
    : file=="SearchAbandonmentAdapter" && name=="SearchForgetObserved"
    ? "if (!NeedsAbandonment(__instance, true)) return;"
    : file=="WeaponSyncAdapter" && name=="EnsureWeaponSyncTracked"
-   ? "if (Instance?.config?.Enabled != true || !Instance.config.WeaponSync.Enabled || Instance.states.ContainsKey(__instance) || !NativeAdapter.IsPmcAi(__instance)) return;"
+   ? "if (Instance?.config?.Enabled != true || !Instance.config.WeaponSync.Enabled || Instance.states.ContainsKey(__instance) || !NativeAdapter.IsSupportedAi(__instance)) return;"
    : file=="WeaponSyncAdapter" && name is "WeaponListChanged" or "WeaponHandsChanged"
-   ? "if (Instance?.config?.Enabled != true || !Instance.config.WeaponSync.Enabled || __instance?._owner?.GetPlayer?.IsAI != true || (__instance._owner.Profile.Info.Settings.Role != EFT.WildSpawnType.pmcUSEC && __instance._owner.Profile.Info.Settings.Role != EFT.WildSpawnType.pmcBEAR)) return;"
+   ? "if (Instance?.config?.Enabled != true || !Instance.config.WeaponSync.Enabled || !BotEligibility.Supports(__instance?._owner?.GetPlayer)) return;"
    : file=="CrossfireAdapter" && name=="ObserveCrossfire"
-   ? "if (Instance?.config?.Enabled != true || !NativeAdapter.IsPmcAi(__instance.Bot)) return;" : "";
+   ? "if (Instance?.config?.Enabled != true || !NativeAdapter.IsSupportedAi(__instance.Bot)) return;" : "";
   string wrapped=$$"""
   {
    {{outs}}

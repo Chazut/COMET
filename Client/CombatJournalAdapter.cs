@@ -49,7 +49,7 @@ public sealed partial class Plugin
             postfix:new HarmonyMethod(typeof(I01JournalHitHook),nameof(I01JournalHitHook.After)));
         h.Patch(AccessTools.Method(typeof(Player),nameof(Player.OnDead)),prefix:new HarmonyMethod(typeof(Plugin),nameof(JournalDeathObserved)){priority=int.MaxValue});
     }
-    private bool JournalScope(BotComponent b)=>world!=null&&config?.Enabled==true&&Authority&&NativeAdapter.IsPmcAi(b)
+    private bool JournalScope(BotComponent b)=>world!=null&&config?.Enabled==true&&Authority&&NativeAdapter.IsSupportedAi(b)
         &&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId)&&!ReadDowned(b.Player);
     private static void TrackCombatJournal(BotComponent __instance)
     {
@@ -63,7 +63,7 @@ public sealed partial class Plugin
     private BotState? JournalState(IPlayer? player,bool allowDead=false)
     {
         if(player==null||world==null||config?.Enabled!=true||!Authority||!player.IsAI
-            ||!SAINEnableClass.GetSAIN(player.ProfileId,out var b)||b==null||!NativeAdapter.IsPmcAi(b)||Ghost(b.ProfileId))return null;
+            ||!SAINEnableClass.GetSAIN(player.ProfileId,out var b)||b==null||!NativeAdapter.IsSupportedAi(b)||Ghost(b.ProfileId))return null;
         if(!allowDead&&!JournalScope(b))return null;
         if(!states.TryGetValue(b,out var s)){s=new BotState(b,config,session);states.Add(b,s);}return s;
     }

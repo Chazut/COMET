@@ -65,7 +65,7 @@ internal static class DecisionVarietyTests
         { var pp=Pool();pp[0].Score=double.NaN;pp[1].Score=double.PositiveInfinity;pp[2].Score=-1;
             var m=new DecisionMixer(c,"bad-input",false);Check(m.Select(pp,"e","Normal","test")!.Decision=="Hold","nonfinite and negative scores never enter draw"); }
 
-        Situation Hidden() => new() { Target="enemy", Now=10, ContactAge=0, KnownDistance=8, HasContact=true, IsAi=true,IsPmc=true,IsAuthority=true,IsActive=true };
+        Situation Hidden() => new() { Target="enemy", Now=10, ContactAge=0, KnownDistance=8, HasContact=true, IsAi=true,IsSupportedBot=true,IsAuthority=true,IsActive=true };
         var hc=new CometConfig { PlanLimit=60, SwitchMargin=0 };
         foreach(var k in hc.Weights.Keys.ToArray())hc.Weights[k]=0;
         hc.Weights["Push"]=80d/70;hc.Weights["Grenade"]=76d/75;hc.Weights["Flank"]=72d/50;

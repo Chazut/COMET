@@ -70,7 +70,7 @@ static class WeaponSyncTests
             var md=pe.GetMetadataReader();var type=md.TypeDefinitions.Select(md.GetTypeDefinition).Single(t=>md.GetString(t.Name)=="Plugin");
             MethodDefinition M(string name)=>type.GetMethods().Select(md.GetMethodDefinition).Single(m=>md.GetString(m.Name)==name);
             int Calls(string name,string call)=>ReloadTimingTests.Calls(pe,md,M(name),call);
-            foreach(string gate in new[]{"IsPmcAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding"})Check(Calls("WeaponSyncScope",gate)==1,"scope "+gate);
+            foreach(string gate in new[]{"IsSupportedAi","get_Authority","Ghost","get_BotActive","get_IsDead","get_GameEnding"})Check(Calls("WeaponSyncScope",gate)==1,"scope "+gate);
             Check(Calls("WeaponSyncScope","get_SAINLayersActive")==0,"maintenance also during noncombat looting");
             Check(Calls("EnsureWeaponSyncTracked","MarkWeaponSync")==1,"enroll before first combat and after delayed config");
             foreach(string call in new[]{"IsInReloadOperation","IsInInteraction","get_IsChanging","get_Reloading","get_Using"})Check(Calls("SyncBlock",call)>0,"native transition protected "+call);

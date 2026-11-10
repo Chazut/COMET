@@ -17,7 +17,7 @@ public sealed partial class Plugin
     private static bool PrepareCometSearch(SearchClass __instance, Enemy enemy)
     {
         var p = Instance; var bot = __instance.Bot;
-        if (p?.config?.Enabled != true || !p.Authority || !NativeAdapter.IsPmcAi(bot) || !bot.BotActive || bot.IsDead || bot.GameEnding || p.Ghost(bot.ProfileId)
+        if (p?.config?.Enabled != true || !p.Authority || !NativeAdapter.IsSupportedAi(bot) || !bot.BotActive || bot.IsDead || bot.GameEnding || p.Ghost(bot.ProfileId)
             || !p.states.TryGetValue(bot, out var state) || state.Decision != "Search" || state.Expected != ECombatDecision.Search
             || state.ActiveLabel.Length == 0 || bot.Decision.CurrentSelfDecision != ESelfActionType.None
             || bot.Decision.CurrentSquadDecision != ESquadDecision.None) return true;

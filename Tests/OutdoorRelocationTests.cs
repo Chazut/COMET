@@ -102,7 +102,7 @@ internal static class OutdoorRelocationTests
         using(var pe=new PEReader(File.OpenRead("Client/bin/Release/netstandard2.1/COMET.dll"))) {
             var md=pe.GetMetadataReader();var plugin=md.TypeDefinitions.Select(md.GetTypeDefinition).Single(t=>md.GetString(t.Name)=="Plugin");
             MethodDefinition Method(string name)=>plugin.GetMethods().Select(md.GetMethodDefinition).Single(m=>md.GetString(m.Name)==name);
-            foreach(var gate in new[]{"IsPmcAi","get_Authority","Ghost","get_BotActive","get_GameEnding","get_SAINLayersActive"})
+            foreach(var gate in new[]{"IsSupportedAi","get_Authority","Ghost","get_BotActive","get_GameEnding","get_SAINLayersActive"})
                 Check(Calls(pe,md,Method("RelocationScope"),gate)==1,"compiled PMC authority gate "+gate);
             Check(Calls(pe,md,Method("RelocationPathInitialized"),"Remove")==1,"native path reuse revokes previous ownership");
             Check(Calls(pe,md,Method("RelocationFrame"),"get_PathStatus")==0&&Calls(pe,md,Method("RelocationFrame"),"get_NavMeshPath")>0,"cover mover uses real mesh, not unset status");

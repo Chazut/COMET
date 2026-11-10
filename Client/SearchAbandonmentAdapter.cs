@@ -39,7 +39,7 @@ public sealed partial class Plugin
         if(!ReferenceEquals(b.GoalEnemy,e)&&!s.Abandonment.Remembers(e.EnemyProfileId))return;
         try
         {
-            if(s.AbandonFault||!p.config.Enabled||!p.config.SearchAbandonment.Enabled||!NativeAdapter.IsPmcAi(b)
+            if(s.AbandonFault||!p.config.Enabled||!p.config.SearchAbandonment.Enabled||!NativeAdapter.IsSupportedAi(b)
                 ||!b.BotActive||b.IsDead||b.GameEnding||!p.Authority||p.Ghost(b.ProfileId))
             {p.EndAbandonment(s,"search-check-out-of-scope",true);return;}
             if(s.Entry.Policy.Active||s.Fake.Policy.Active||s.StepPeek.Policy.Active||s.Jump.Policy.Active||s.RunBy.Policy.Active){p.EndAbandonment(s,"search-check-door-jump");return;}

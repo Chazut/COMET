@@ -16,8 +16,10 @@ namespace EFT.InventoryLogic {
  public class LightComponent {public Item Item;public bool IsActive=true;public int SelectedMode=2;public LightComponent(){Item=new(){Light=this};}}
 }
 namespace EFT {
+ public enum WildSpawnType {pmcUSEC,pmcBEAR,assault}
+ public class Profile {public Info Info=new();} public class Info {public Settings Settings=new();public string? Nickname="Scav",MainProfileNickname;} public class Settings{public WildSpawnType Role=WildSpawnType.pmcUSEC;}
  public struct LightsState {public string Id;public bool IsActive;public int LightMode;}
- public class Player {public string ProfileId="player"; public bool IsAI=true,IsSprintEnabled; [MethodImpl(MethodImplOptions.NoInlining)] public virtual void OnItemAddedOrRemoved(Item item,object location,bool added){}public Vector3 Velocity;public object? HandsController;
+ public class Player {public Profile Profile=new();public string ProfileId="player"; public bool IsAI=true,IsSprintEnabled; [MethodImpl(MethodImplOptions.NoInlining)] public virtual void OnItemAddedOrRemoved(Item item,object location,bool added){}public Vector3 Velocity;public object? HandsController;
   public class FirearmController {public Player? _player;public bool Destroyed;[MethodImpl(MethodImplOptions.NoInlining)]public virtual void Drop(float animationSpeed,Action callback,bool fastDrop,Item? nextControllerItem=null){Destroyed=true;callback();}
    public HashSet<string> Ignore=new();public bool Delayed;public Action<LightsState[]>? Handler;public Weapon Item=new();public bool Ready=true,Remove,Reload,Spawn,Inventory,Interact,Processing,Refuse,Throw;public List<LightsState[]> Commands=new();
    public bool IsInRemoveOperation()=>Remove;public bool IsInReloadOperation()=>Reload;public bool IsInSpawnOperation()=>Spawn;public bool IsInventoryOpen()=>Inventory;public bool IsInInteractionStrictCheck()=>Interact;public bool IsHandsProcessing()=>Processing;
@@ -57,7 +59,7 @@ namespace SAIN.SAINComponent.Classes.WeaponFunction {
 namespace Comet.Client {
  internal class PolicyFlag {public bool Active;}internal class RuntimeFlag {public PolicyFlag Policy=new();}
  internal class BotState {public RestLightsRuntime RestLights=new();public TacticalDevicesRuntime TacticalDevices=new();public LightDisciplineRuntime LightDiscipline=new();public RuntimeFlag Ambush=new(),HoldAngle=new();public string ProfileId,Name="Test PMC",Id="light-instance";public BotState(BotComponent b,CometConfig c,string session){ProfileId=b.ProfileId;}}
- internal static class NativeAdapter {public static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
+ internal static class NativeAdapter {public static bool IsSupportedAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
  internal static class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}
  internal class Sink {public List<string> Lines=new();public void Write(string line)=>Lines.Add(line);}
  internal class Log {public List<string> Warnings=new();public void LogWarning(string s)=>Warnings.Add(s);}
@@ -76,7 +78,7 @@ namespace SAIN {
  public static class SAINEnableClass {public static Dictionary<string,SAIN.Components.BotComponent> Bots=new();public static bool GetSAIN(string id,out SAIN.Components.BotComponent b)=>Bots.TryGetValue(id,out b!);}
  public static class SAINPlugin {public static PresetData LoadedPreset=new();}
  public class PresetData {public Globals GlobalSettings=new();}public class Globals {public General General=new();} public class General {public Flashlight Flashlight=new();}
- public class Flashlight {public bool AllowLightOnForDarkBuildings=true,TurnLightOffNoEnemyPMC=true;}
+ public class Flashlight {public bool AllowLightOnForDarkBuildings=true,TurnLightOffNoEnemyPMC=true,TurnLightOffNoEnemySCAV;}
 }
 public static class TestItemLocalization {
  public static int Calls;

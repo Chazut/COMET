@@ -107,7 +107,7 @@ internal static class DoorStepTests
         using(var pe=new PEReader(File.OpenRead("Client/bin/Release/netstandard2.1/COMET.dll"))){
             var md=pe.GetMetadataReader();List<string> Calls(string method)=>FloorHearingTests.ReadIl(pe.GetMethodBody(md.TypeDefinitions.Select(md.GetTypeDefinition).Single(x=>md.GetString(x.Name)=="Plugin").GetMethods().Select(md.GetMethodDefinition).Single(x=>md.GetString(x.Name)==method).RelativeVirtualAddress).GetILBytes()!)
                 .Where(x=>x.op==OpCodes.Call||x.op==OpCodes.Callvirt).Select(x=>FloorHearingTests.Name(md,(int)x.operand!)).ToList();
-            foreach(string name in new[]{"IsPmcAi","get_Authority","Ghost","get_IsVisible","get_CurrentSelfDecision","get_CurrentSquadDecision","get_IsUnderFire","SameContact"})Check(Calls("StepGate").Contains(name),"native scope "+name);
+            foreach(string name in new[]{"IsSupportedAi","get_Authority","Ghost","get_IsVisible","get_CurrentSelfDecision","get_CurrentSquadDecision","get_IsUnderFire","SameContact"})Check(Calls("StepGate").Contains(name),"native scope "+name);
             foreach(string name in new[]{"Observe","get_PoseLevel","get_IsGrounded","WalkToPointByWay","Contains","Different","RunVolume","get_EyePosition","get_LookDirection"})Check(Calls("StepDoorPeek").Contains(name),"observed execution contract "+name);
             Check(Calls("FinishDoorJump").Contains("TryStartDoorStep")&&!Calls("FinishDoorRun").Contains("TryStartDoorStep"),"D02 only continuation");
             Check(Calls("Release").Contains("EndDoorStep")&&Calls("Update").Contains("RefreshDoorStep")&&Calls("DoorSearchStep").Contains("StepDoorPeek"),"lifecycle hooked");

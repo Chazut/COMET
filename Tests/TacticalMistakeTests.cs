@@ -81,7 +81,7 @@ internal static class TacticalMistakeTests
         }
         Check(differs,"different bots do not share draws");
 
-        Situation Contact() => new() { Target="enemy",Now=10,Personality="Normal",HasContact=true,ContactAge=0,KnownDistance=8,IsAi=true,IsPmc=true,IsActive=true,IsAuthority=true };
+        Situation Contact() => new() { Target="enemy",Now=10,Personality="Normal",HasContact=true,ContactAge=0,KnownDistance=8,IsAi=true,IsSupportedBot=true,IsActive=true,IsAuthority=true };
         VisibleSituation Visible() => new() { Contact=Contact(),WeaponReady=true,CanShoot=true,CoverReachable=true,PushReachable=true,ProbeReady=true,ThreatCount=1,ThreatSignature="enemy",CoverId="cover",
             CurrentExposure=.2,CoverExposure=.1,CoverRouteRisk=.1,PushRouteRisk=.1,PushPathLength=10 };
         var pc=Always();pc.VisibleCombat.ShootWeight=80d/56;pc.VisibleCombat.CoverWeight=76d/54.5;pc.VisibleCombat.PushWeight=66d/47.5;pc.VisibleCombat.SwitchMargin=0;
@@ -108,7 +108,7 @@ internal static class TacticalMistakeTests
         hidden.Fail(Tactic.Flank,contact.Now,"native-refusal");var retry=hidden.Evaluate(contact);
         Check(retry.Decision==Tactic.Push && retry.Mixing!.Mistake!.State=="native-retry" && retry.Mixing.Mistake.Roll==null,"native refusal gets deterministic fallback");
         foreach(var gate in new[]{"scav","human","remote","ghost","inactive"}) {
-            var frame=Contact();frame.IsPmc=gate!="scav";frame.IsAi=gate!="human";frame.IsAuthority=gate!="remote";frame.Ghost=gate=="ghost";frame.IsActive=gate!="inactive";
+            var frame=Contact();frame.IsSupportedBot=gate!="scav";frame.IsAi=gate!="human";frame.IsAuthority=gate!="remote";frame.Ghost=gate=="ghost";frame.IsActive=gate!="inactive";
             Check(new HiddenEnemyDecision(hc).Evaluate(frame).Mixing==null,"no A05 outside eligible PMC authority: "+gate);
         }
 

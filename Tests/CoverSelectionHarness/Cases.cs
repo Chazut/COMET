@@ -98,7 +98,7 @@ class Settings{public bool Enabled=true;}class Config{public Settings Progress=n
 class Engine{public int Refusals;public void NotifyNativeRefusal()=>Refusals++;}
 class BotState{public string Feature,ActiveLabel;public bool ProgressUnavailable;public CoverPoint SelectedCover;public PlanProgress Progress=new();public object ProgressAtSelection;public Probe Probe;public Engine VisibleEngine=new();}
 static class ContactSafety{public static bool Allowed=true;public static bool AllowsGoal(BotComponent b)=>Allowed;}
-static partial class NativeAdapter{public static bool IsPmcAi(BotComponent b)=>b.Pmc;}
+static partial class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.Pmc;}
 static partial class ProgressAdapter{public static string CoverKey(CoverPoint p)=>p?.Key??"";}
 static partial class VisibleAdapter{public static bool ValidCover(BotComponent b,CoverPoint p)=>p?.Valid==true;}
 class Log{public void LogWarning(string text)=>throw new Exception(text);}

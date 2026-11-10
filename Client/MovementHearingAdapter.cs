@@ -59,7 +59,7 @@ public sealed partial class Plugin
         public bool Added;
     }
     private bool MovementEnabled => config?.Enabled == true && config.MovementHearing.Enabled && world != null && Time.time >= movementFaultUntil && Authority;
-    private bool MovementListener(BotComponent bot) => bot != null && MovementHearingScope.Listener(Authority, NativeAdapter.IsPmcAi(bot), bot.BotActive && !bot.IsDead, bot.GameEnding, Ghost(bot.ProfileId));
+    private bool MovementListener(BotComponent bot) => bot != null && MovementHearingScope.Listener(Authority, NativeAdapter.IsSupportedAi(bot), bot.BotActive && !bot.IsDead, bot.GameEnding, Ghost(bot.ProfileId));
     private bool MovementSource(PlayerComponent source) => source != null && MovementHearingScope.Source(source.IsAI, source.IsActive, Ghost(source.ProfileId));
     private static string MovementFamily(SAINSoundType type) => type switch {
         SAINSoundType.FootStep => "step", SAINSoundType.Sprint => "step", SAINSoundType.Jump => "jump", SAINSoundType.Land => "land", _ => "" };

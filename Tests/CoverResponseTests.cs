@@ -13,7 +13,7 @@ static class CoverResponseTests
         var c = config.CoverResponse; config.Validate();
         Check(c.Enabled, "enabled default"); Near(c.ShortExposure, .75, "short crossing"); Near(c.LongExposure, 1.5, "long crossing"); Near(c.ScoreCap, 25, "bounded influence");
         VisibleSituation V(double length = 8) => new() {
-            Contact = new() { Now = 10, Target = "enemy", Personality = "Chad", IsAi = true, IsPmc = true, IsActive = true, IsAuthority = true,
+            Contact = new() { Now = 10, Target = "enemy", Personality = "Chad", IsAi = true, IsSupportedBot = true, IsActive = true, IsAuthority = true,
                 HasContact = true, Visible = true, KnownDistance = 10, ContactAge = 0 },
             WeaponReady = true, CanShoot = true, CoverReachable = true, ProbeReady = true, CoverId = "wall", ThreatSignature = "enemy", ThreatCount = 1,
             CurrentExposure = 1, CoverExposure = 0, CoverRouteRisk = .4,
@@ -47,7 +47,7 @@ static class CoverResponseTests
             t=Run(v, choices); Check(t.ShootDelta==0 && t.CoverDelta>=0, "never penalizes defence when trading is unsafe");
         }
         v=V(.6);v.Contact.LowAmmo=true;Check(Run(v).CoverDelta>0,"quick protection still helps low ammo");
-        foreach (var mutate in new Action<VisibleSituation>[] {v=>v.Contact.IsAi=false,v=>v.Contact.IsPmc=false,v=>v.Contact.IsAuthority=false,
+        foreach (var mutate in new Action<VisibleSituation>[] {v=>v.Contact.IsAi=false,v=>v.Contact.IsSupportedBot=false,v=>v.Contact.IsAuthority=false,
             v=>v.Contact.IsActive=false,v=>v.Contact.Ghost=true,v=>v.Contact.Visible=false,v=>v.Contact.HasContact=false,v=>v.Contact.Now=double.NaN,
             v=>v.ProbeReady=false,v=>v.WeaponReady=false,v=>v.CoverReachable=false,v=>v.CoverTravel=null,v=>v.CoverTravel!.Complete=false,
             v=>v.CoverTravel!.DoorBusy=true,v=>v.CoverTravel!.StartError=1,v=>v.CoverTravel!.PathLength=double.NaN,

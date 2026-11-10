@@ -56,7 +56,7 @@ public sealed partial class Plugin
     {
         if(!ContactSafety.Allows(b,e))return "door-no-hostile-contact";
         if(MedicalPostureGuard(b))return "medical-posture-protected";
-        var c=config!;bool scope=c.Enabled&&!s.Door.Fault&&NativeAdapter.IsPmcAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
+        var c=config!;bool scope=c.Enabled&&!s.Door.Fault&&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
         bool search=s.ActiveLabel=="COMET:Search"&&s.Feature=="A01"&&s.Decision=="Search"&&b.Decision.CurrentCombatDecision==ECombatDecision.Search
             &&b.SAINLayersActive&&b.CurrentAction?.GetType().Name=="SearchAction"&&ReferenceEquals(e,b.GoalEnemy);
         bool unsafeNow=b.Flashed.IsFlashed||b.EnemyController.VisibleEnemies.Count>0||b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed

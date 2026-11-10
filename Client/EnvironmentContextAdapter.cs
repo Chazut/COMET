@@ -18,7 +18,7 @@ public sealed partial class Plugin
     internal void RefreshEnvironment(BotComponent bot,BotState s,bool ceiling=false)
     {
         if(config==null||!config.Enabled||!config.EnvironmentContext.Enabled||s.EnvironmentFault
-            ||!NativeAdapter.IsPmcAi(bot)||!bot.BotActive||bot.GameEnding||!Authority||Ghost(bot.ProfileId)||bot.GoalEnemy==null)
+            ||!NativeAdapter.IsSupportedAi(bot)||!bot.BotActive||bot.GameEnding||!Authority||Ghost(bot.ProfileId)||bot.GoalEnemy==null)
         {s.Environment.Clear();return;}
         try
         {

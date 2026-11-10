@@ -45,7 +45,7 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(BaseSoundPlayer),"PlayClipInternal"),prefix:new HarmonyMethod(typeof(Plugin),nameof(FeintSoundBefore)),
             postfix:new HarmonyMethod(typeof(Plugin),nameof(FeintSoundAfter)));
     }
-    private bool FeintScope(BotComponent b,BotState s)=>ContactSafety.AllowsGoal(b)&&config?.Enabled==true&&config.CoverFeint.Enabled&&NativeAdapter.IsPmcAi(b)
+    private bool FeintScope(BotComponent b,BotState s)=>ContactSafety.AllowsGoal(b)&&config?.Enabled==true&&config.CoverFeint.Enabled&&NativeAdapter.IsSupportedAi(b)
         &&b.BotActive&&!b.IsDead&&!b.GameEnding&&Authority&&!Ghost(s.ProfileId)&&b.SAINLayersActive;
     private static bool MagazineOperation(Player.FirearmController? f)=>f?.CurrentHandsOperation is Player.FirearmController.UtilityOperation op
         &&op._utilityOperationType==Player.FirearmController.UtilityOperation.EUtilityType.CheckMagazine;

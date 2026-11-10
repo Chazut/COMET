@@ -73,7 +73,7 @@ public sealed partial class Plugin
     private ControlWatch? WatchControl(BotState s)
     {
         var b=s.Owner;
-        if(s.Retired||b==null||!NativeAdapter.IsPmcAi(b)||!Authority||config?.Enabled!=true||world==null)return null;
+        if(s.Retired||b==null||!NativeAdapter.IsSupportedAi(b)||!Authority||config?.Enabled!=true||world==null)return null;
         if(controlWatches.TryGetValue(b,out var existing))
         {if(!ReferenceEquals(existing.State,s)){existing.State=s;existing.Policy=new();existing.Journal=new();existing.JournalFailed=false;}return existing;}
         if(controlWatches.Count>=512||b.BotOwner?.Brain?.BaseBrain==null)return null;
@@ -90,7 +90,7 @@ public sealed partial class Plugin
         if(w.Cleaning||world==null||config?.Enabled!=true)return;
         try
         {
-            if(!Authority||b==null||b.IsDead||!NativeAdapter.IsPmcAi(b))return;
+            if(!Authority||b==null||b.IsDead||!NativeAdapter.IsSupportedAi(b))return;
             string owner=Sleeping(b.ProfileId)?"sleep":ControlHandoff.Classify(name,isGhost!=null,qbPresent,lbPresent);
             if(w.State.Retired&&owner!="sleep")return;
             var trace=w.Policy.Observe(Time.time,owner,name);

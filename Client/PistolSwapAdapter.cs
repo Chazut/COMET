@@ -18,7 +18,7 @@ internal sealed class PistolSwapRuntime
 }
 public sealed partial class Plugin
 {
-    private bool PistolScope(BotComponent b)=>config?.Enabled==true&&config.PistolSwap.Enabled&&NativeAdapter.IsPmcAi(b)
+    private bool PistolScope(BotComponent b)=>config?.Enabled==true&&config.PistolSwap.Enabled&&NativeAdapter.IsSupportedAi(b)
         &&b.BotActive&&!b.IsDead&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId)&&b.SAINLayersActive;
 
     private static Weapon? HolsteredPistol(BotComponent b)=>b.Player.Inventory?.Equipment?.GetSlot(EquipmentSlot.Holster)?.ContainedItem as Weapon;

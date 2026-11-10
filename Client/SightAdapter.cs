@@ -14,7 +14,7 @@ internal static class SightAdapter
         var e = bot.GoalEnemy;
         var frame = state.SightFrame;
         frame.Now = Time.time; frame.Target = e?.EnemyProfileId ?? "";
-        frame.Eligible = NativeAdapter.IsPmcAi(bot) && bot.BotActive && authority && !ghost && e != null;
+        frame.Eligible = NativeAdapter.IsSupportedAi(bot) && bot.BotActive && authority && !ghost && e != null;
         frame.Visible = e?.IsVisible == true; frame.WeaponReady = VisibleAdapter.WeaponReady(bot);
         frame.OwnedPlan = (state.Feature == "A02" && state.ActiveLabel == "COMET:Shoot"
             || state.Feature == "A03" && state.ActiveLabel == "COMET:KeepAngle")

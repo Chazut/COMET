@@ -56,7 +56,7 @@ public sealed partial class Plugin
     }
     private bool TransitScoped(BotComponent b,BotState s,IBotPathData path,bool recovery=false)
     {
-        if(config?.Enabled!=true||(!recovery&&(!config.DoorTransit.Enabled||s.Transit.Fault))||!Authority||b==null||!NativeAdapter.IsPmcAi(b)
+        if(config?.Enabled!=true||(!recovery&&(!config.DoorTransit.Enabled||s.Transit.Fault))||!Authority||b==null||!NativeAdapter.IsSupportedAi(b)
             ||!b.BotActive||b.IsDead||b.GameEnding||Ghost(b.ProfileId)||!b.Player.MovementContext.IsGrounded
             ||!ReferenceEquals(b.Mover.ActivePath,path)||path is not BotPathDataManual manual||manual.CancelRequested||(!recovery&&(manual.PausedRequested
             ||!path.Moving||path.Status==EBotMoveStatus.Paused))||SupportingDoor(s)!=null||s.Door.Policy.Planning||s.Interruption.Policy.Pending||s.Support!=null)return false;

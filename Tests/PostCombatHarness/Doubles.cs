@@ -92,7 +92,7 @@ namespace Comet.Client{
  internal class SurgeryDouble(BotComponent b){public BotComponent Bot=>b;}
  internal class BotState{public PostCombatRuntime PostCombat=new();public MedicalRuntime Medical=new();public string ProfileId="pmc",Name="Medic",Id="instance";public ActionState HandsRecovery=new(),Fake=new();public BotState(BotComponent b,CometConfig c,string session){ProfileId=b.ProfileId;}}
  internal class ActionState{public Flags Policy=new();}internal class Flags{public bool BlocksSwitch,Active;}
- internal class NativeAdapter{public static bool IsPmcAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
+ internal class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
  internal class LoadoutAdapter{public static EquipmentSlot[] Carried=Enum.GetValues<EquipmentSlot>();public static EquipmentSlot? RootSlot(Item i,object equipment)=>i.Removed?null:i.Slot;}
  internal class Budget{public bool Available=true;public int Calls;public bool TryBegin(int f){Calls++;return Available;}public void Charge(double ms){}}
  internal class Diagnostic{public List<string> Lines=new();public void Write(string s)=>Lines.Add(s);}

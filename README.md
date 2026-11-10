@@ -2,7 +2,7 @@
 
 **Coordinated Opponents, Movement & Engagement Tactics**
 
-COMET adds tactical combat behavior for PMC bots on top of the original SAIN. It has its own client plugin, server configuration and web interface. SAIN remains required; ORBIT and Raid Review are optional.
+COMET adds tactical combat behavior for PMCs and AI Player Scavs on top of the original SAIN. It has its own client plugin, server configuration and web interface. SAIN remains required; ORBIT and Raid Review are optional.
 
 **Development preview.** Implementation and automated tests are in place, and live raid testing has started. This is not a finished release. Automated checks do not establish reliable behavior in Unity or multiplayer.
 
@@ -17,7 +17,7 @@ COMET adds tactical combat behavior for PMC bots on top of the original SAIN. It
 - Server-side settings, personal presets and Easy, Normal or Hard profiles. Hard is the default.
 - Decision logs and optional Raid Review reports, map badges and hover details.
 
-The current scope is standard PMC bots. Scavs, bosses and mod-added bot types are outside that scope. SAIN's preset settings are not rewritten.
+COMET controls standard PMC bots and AI bots that simulate Player Scavs. Human players (including human Player Scavs), ordinary scavs, bosses and custom bot roles are excluded. SAIN must already control the bot; COMET keeps its personality and SAIN settings. In Fika, only the AI host makes decisions. ORBIT Ghost Mode still pauses COMET until the bot wakes.
 
 ## Integrations
 
