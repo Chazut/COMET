@@ -37,6 +37,15 @@ internal static class DoorTransitTests
         m.End("reset");Step(0);Step(1);Check(m.Trace.Blocked==0,"observation gap not invented blockage");
         Step(.5);Check(m.Trace.State=="ended","clock rewind fails open");
         m.End("passed",true);Check(m.Trace.Passed&&!m.Trace.Slow&&m.Trace.ValidFor==0,"explicit crossing observation");
+        m.End("reset");Step(0,state:"Open");
+        for(int i=1;i<=60;i++) { if(i%8==0)m.Pause("transit-movement-changed");Step(i*.1,state:"Open"); }
+        Check(m.Trace.State=="blocked"&&!m.Trace.Slow,"repeated short replans cannot reset an open-door jam indefinitely");
+        m.End("reset");Step(0,state:"Open");
+        for(int i=1;i<=50;i++){m.Pause("transit-movement-changed");Step(i*.1,state:"Open");}
+        Check(m.Trace.State=="blocked","plan churn on every observed tick still reaches the blocked limit");
+        m.Pause("yield");m.End("ghost");Step(5.1,state:"Open");Check(m.Trace.Blocked==0,"terminal scope exit clears paused incident");
+        m.Pause("yield");Step(8,state:"Open");Check(m.Trace.Blocked==0,"long observation gaps discard stale jam evidence");
+        Step(8.1,state:"Open");m.Pause("yield");Step(8.2,state:"Open",origin:new(1,0,-1));Check(m.Trace.Blocked==0,"physical progress clears paused jam");
         var speed=new TransitSpeedLease();Check(speed.Limit(.7f,.25)==.25f,"cap");
         Check(speed.Limit(.15f,.25)==.15f,"does not accelerate existing slow move");
         Check(speed.Release(.15f,out float restore)&&restore==.15f&&!speed.Owned,"restore latest request");

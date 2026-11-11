@@ -13,6 +13,8 @@ public sealed partial class Plugin
         var forward=r.Known-r.Origin;forward.y=0;forward=forward.normalized;
         var side=new Vector3(-forward.z,0,forward.x);float sign=jumpRandom.Next(2)==0?1:-1;
         // Local, bounded search; short routes first. No global cover scan or hidden enemy transform.
+        // Include nearby lateral options in cramped interiors before the existing rings.
+        for(int i=0;i<8;i++){float a=i*Mathf.PI/4*sign;r.Candidates.Add(r.Origin+(side*Mathf.Sin(a)+forward*Mathf.Cos(a))*3);}
         for(int ring=1;ring<=4;ring++)for(int i=0;i<7;i++)
         {
             float a=(i+1)*Mathf.PI/4*sign,rad=Math.Min(ring*6,(float)config!.Crossfire.MaxPath*.7f);
@@ -55,8 +57,11 @@ public sealed partial class Plugin
         !Physics.Linecast(point+Vector3.up*1.4f,known+Vector3.up*1.2f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore);
     private void RejectCrossfire(CrossfireRuntime r,string why)
     {
-        if(!r.Rejects.Contains(why)&&r.Rejects.Count<8)r.Rejects.Add(why);
-        r.Policy.Trace!.Alternatives=r.Rejects.ToArray();r.Route=null;r.Samples.Clear();r.Sample=0;
+        var trace=r.Policy.Trace!;
+        if(trace.RejectionCounts.TryGetValue(why,out var count))trace.RejectionCounts[why]=count+1;
+        else if(trace.RejectionCounts.Count<24)trace.RejectionCounts[why]=1;
+        if(!r.Rejects.Contains(why)&&r.Rejects.Count<8){r.Rejects.Add(why);trace.Alternatives=r.Rejects.ToArray();}
+       r.Route=null;r.Samples.Clear();r.Sample=0;
     }
     private void ProbeCrossfire(BotComponent b,BotState s)
     {
@@ -65,9 +70,13 @@ public sealed partial class Plugin
         {
             if(r.Candidate>=r.Candidates.Count){EndCrossfire(b,s,"crossfire-no-safe-angle");return;}
             var candidate=r.Candidates[r.Candidate++];r.Policy.Trace!.Candidates=r.Candidate;
-            if(!NavMesh.SamplePosition(candidate,out var nav,.75f,NavMesh.AllAreas)||Math.Abs(nav.position.y-r.Origin.y)>2.5)
-            {RejectCrossfire(r,"no same-floor navigation");return;}
+            var trace=r.Policy.Trace;trace.CandidateX=candidate.x;trace.CandidateY=candidate.y;trace.CandidateZ=candidate.z;trace.CandidateAngle=null;trace.CandidateHeightDelta=null;
+            if(!NavMesh.SamplePosition(candidate,out var nav,.75f,NavMesh.AllAreas))
+            {RejectCrossfire(r,"no nearby navigation");return;}
+            trace.CandidateHeightDelta=nav.position.y-r.Origin.y;
+            if(Math.Abs(nav.position.y-r.Origin.y)>2.5){RejectCrossfire(r,"wrong navigation floor");return;}
             r.Goal=nav.position;r.Angle=CrossfireAngle(r.Reference,r.Goal,r.Known);
+            trace.CandidateAngle=r.Angle;
             var initialAngle=CrossfireAngle(r.Reference,r.Origin,r.Known);
             r.Policy.Trace!.RequiredAngle=CrossfireGeometry.RequiredAngle(r.Indoor?c.IndoorAngle:c.OutdoorAngle,
                 initialAngle,Vector3.Distance(r.Origin,r.Known),Math.Min(24,c.MaxPath*.7));

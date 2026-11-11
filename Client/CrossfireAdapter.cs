@@ -59,6 +59,7 @@ public sealed partial class Plugin
         if(e==null||!e.EnemyKnown||e.KnownPlaces.LastKnownPosition is not Vector3 known||!ValidPoint(known))return "crossfire-no-known-contact";
         bool supporting=supportCandidate||s.Crossfire.ManeuverRole?.Role=="support"
             ||maneuverCandidate&&b.Squad.Members!=null&&maneuverBoard.Get(ManeuverGroup(b)) is {Active:true} plan&&plan.Member(b.ProfileId)?.Role=="support";
+        if(!supporting&&s.MovementRecovery.Policy.RepositionBlock(config.MovementRecovery) is string movementBlock&&movementBlock.Length>0)return "crossfire-"+movementBlock;
         if(e.IsVisible&&!supporting)return "crossfire-enemy-visible";
         bool maneuver= maneuverCandidate||s.Crossfire.Maneuver?.Active==true;
         double contactAge=maneuver?config!.SquadManeuver.ContactAge:s.Crossfire.Policy.Active&&s.Crossfire.Policy.Trace?.Entrance!=null?config!.SecondaryEntrance.ContactAge:config!.Crossfire.ContactAge;

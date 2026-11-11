@@ -84,6 +84,12 @@ public sealed class CrossfireTrace
     public double? GoalX { get; set; }
     public double? GoalY { get; set; }
     public double? GoalZ { get; set; }
+    public Dictionary<string,int> RejectionCounts { get; set; }=new();
+    public double? CandidateX { get; set; }
+    public double? CandidateY { get; set; }
+    public double? CandidateZ { get; set; }
+    public double? CandidateAngle { get; set; }
+    public double? CandidateHeightDelta { get; set; }
     public int Candidates { get; set; }
     public string[] Alternatives { get; set; }=Array.Empty<string>();
 }

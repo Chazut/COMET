@@ -100,7 +100,7 @@ public sealed partial class Plugin
         }
         if(!TransitCurrent(b,s)){RestoreTransitSpeed(r);return;}
         var t=r.Policy.Trace;
-        if(t.State=="blocked"&&!RecoveryOwnsStall(s))
+        if(t.State=="blocked")
         {
             s.Progress.Fail(ProgressAdapter.Destination(path.Destination),Time.time,t.Reason);
             RecordDoorTransit(s,true);path.Cancel(0);EndDoorTransit(s,t.Reason);
@@ -188,14 +188,17 @@ public sealed partial class Plugin
                 return;
             }
             // Native cached range and cooldown checks still apply. Do not call TryInteractWithDoor with an arbitrary index.
-            if(!r.Policy.Trace.Recovery||w.Data.Door.DoorState!=EDoorState.Shut)return;
+            if(!r.Policy.Trace.Recovery||w.Data.Door.DoorState is not (EDoorState.Shut or EDoorState.Open))return;
+            if(w.Data.Door.DoorState==EDoorState.Open&&!r.DirectBlocker)return;
             var list=(List<DoorDataStruct>)transitDoors.GetValue(__instance)!;
             for(int i=0;i<list.Count&&i<48;i++)
             {
                 var data=list[i];if(data.Door!=w.Data.Door)continue;
                 data.ManualUpdate(b.Position);
                 if(!data.InRangeToInteract(data.Door)||!data.CanInteractByTime(Time.time))return;
-                list[i]=data;transitDoorIndex.SetValue(__instance,i);currentDoor=data;interactionType=EInteractionType.Open;__result=true;
+                list[i]=data;transitDoorIndex.SetValue(__instance,i);currentDoor=data;
+                interactionType=w.Data.Door.DoorState==EDoorState.Open?EInteractionType.Close:EInteractionType.Open;__result=true;
+                r.Policy.Trace.Reason=interactionType==EInteractionType.Close?"transit-open-leaf-blocks-route":"transit-shut-door-recovery";
                 r.Policy.Trace.Requested=true;p.RecordDoorTransit(s,true);return;
             }
         }
@@ -249,7 +252,14 @@ public sealed partial class Plugin
         // Teardown can meet disposed native objects. Each restoration and cleanup must still run.
         try{RestoreTransitSpeed(r);}catch(Exception ex){failure=ex;r.Speed.Release(float.NaN,out _);}
         try{RestoreTransitSprint(r);}catch(Exception ex){failure??=ex;}
-        try{if(r.Policy.Trace.State!="ended"){r.Policy.End(reason);RecordDoorTransit(s,true);}}catch(Exception ex){failure??=ex;}
+        try{
+            bool terminal=reason.Contains("ghost")||reason.Contains("inactive")||reason.Contains("authority")||reason.Contains("raid-ended")||reason.Contains("bot-ended")||reason.Contains("error")||reason.Contains("exception")||reason.Contains("reconsider");
+            bool active=r.Policy.Trace.State!="ended";
+            // Scope exit must clear a paused incident too, even if it already emitted its end event.
+            if(terminal)r.Policy.End(reason);
+            else if(active)r.Policy.Pause(reason);
+            if(active)RecordDoorTransit(s,true);
+        }catch(Exception ex){failure??=ex;}
         try{if(r.Owner!=null)transitControllers.Remove(r.Owner.PlayerComponent.CharacterController);}catch(Exception ex){failure??=ex;}
         finally{r.Path=null;r.Owner=null;r.Action=null;r.Door=null;r.Route.Clear();r.Validated=false;}
         if(failure!=null&&!r.Fault){r.Fault=true;Logger.LogWarning("COMET C01 cleanup yielded for this bot: "+failure.GetBaseException().Message);}

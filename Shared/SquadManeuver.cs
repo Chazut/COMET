@@ -29,7 +29,7 @@ public sealed class SquadManeuverConfig
 }
 public sealed class ManeuverMember
 {
-    public string Id="",Name="",Personality="",Role="",Status="assigned",Reason="",RearContact="",SelectionReason="";
+    public string Id="",Name="",Personality="",Role="",Status="assigned",Reason="",RearContact="",SelectionReason="",MovementBlock="";
     public double Ammo,Score,Roll,ReadyAt=-1,LastSeen,ProgressAt,BestDistance=double.MaxValue,Shots,LastShot=-100;
     public bool Confirmed,Applied,VisibleContact;
 }
@@ -122,7 +122,7 @@ public sealed class SquadManeuverBoard
         var members=candidates.OrderBy(x=>x.Score).ThenBy(x=>x.Id,StringComparer.Ordinal).ToList();
         foreach(var m in members)
         {
-            m.SelectionReason=m.VisibleContact?"visible-contact-anchor":m.Score<0?"personality-holds-support":!MedicalChoice.Finite(m.Ammo)||m.Ammo<c.MinimumAmmo?"ammo-below-flank-threshold"
+            m.SelectionReason=m.MovementBlock.Length>0?m.MovementBlock:m.VisibleContact?"visible-contact-anchor":m.Score<0?"personality-holds-support":!MedicalChoice.Finite(m.Ammo)||m.Ammo<c.MinimumAmmo?"ammo-below-flank-threshold"
                 :!MedicalChoice.Finite(m.Roll)||m.Roll<0||m.Roll>=1||m.Roll*100>=participation?"individual-participation-declined":"flank-eligible";
             m.Role=m.SelectionReason=="flank-eligible"?"flank":"support";
         }

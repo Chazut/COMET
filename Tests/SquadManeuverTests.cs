@@ -11,6 +11,14 @@ internal static class SquadManeuverTests
   foreach(var prop in typeof(SquadManeuverConfig).GetProperties().Where(x=>x.PropertyType==typeof(double)))foreach(double v in new[]{double.NaN,double.PositiveInfinity,-1d,10000d})
   {var config=new SquadManeuverConfig();prop.SetValue(config,v);bool rejected=false;try{config.Validate();}catch(ArgumentException){rejected=true;}C(rejected,"invalid "+prop.Name);}
   List<ManeuverMember> Team(int count=4)=>Enumerable.Range(0,count).Select(i=>new ManeuverMember{Id="p"+i,Name="PMC"+i,Ammo=100,Score=i==0?-10:2,Roll=0}).ToList();
+  {
+   var jamTeam=Team();jamTeam[1].MovementBlock="movement-awaiting-real-progress";
+   var selected=new SquadManeuverBoard().TryStart("jam","e",10,10,0,jamTeam,c,100)!;
+   C(selected.Member("p1")!.Role=="support"&&selected.Member("p1")!.SelectionReason==jamTeam[1].MovementBlock,"confirmed immobile member remains support with explicit reason");
+   C(selected.Members.Count(x=>x.Role=="flank")==2,"mobile teammates still flank");
+   jamTeam=Team(2);jamTeam[1].MovementBlock="movement-awaiting-real-progress";
+   var blocked=new SquadManeuverBoard();C(blocked.TryStart("jam2","e",10,10,0,jamTeam,c,100)==null,"no pretend maneuver when only flanker is immobilized");
+  }
   var board=new SquadManeuverBoard();var p=board.TryStart("a","e",10,10,.599,Team(),c,70)!;
   C(p!=null&&p.Members.Count(x=>x.Role=="flank")==3,"4v1 has three flankers");C(p.Support=="p0","prudent support preserves aggressive movers");
   C(!p.SupportReady(10)&&!p.MaySuppress,"assignment is not execution");

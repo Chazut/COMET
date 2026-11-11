@@ -65,6 +65,7 @@ public sealed class MovementRecoveryPolicy
     private bool anchored,eligible,exhausted,teleported;
     private int steps,incident;
     public MovementRecoveryTrace Trace {get;private set;}=new();
+    public string RepositionBlock(MovementRecoveryConfig c)=>c.Enabled&&anchored&&(exhausted||stall>=c.RepathAfter)?"movement-awaiting-real-progress":"";
     public bool Handling=>anchored&&!exhausted&&eligible&&stall>=1;
     public string Observe(MovementRecoveryFrame f,MovementRecoveryConfig c)
     {

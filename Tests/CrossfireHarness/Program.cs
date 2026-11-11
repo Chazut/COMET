@@ -164,6 +164,30 @@ foreach(string abort in new[]{"grenade","support","foreign","contact"}) {
  if(abort=="contact")b.GoalEnemy!.EnemyProfileId="changed";
  Step(.1f);a.Update(new());C(!r.Policy.Active&&p.Claims==0,"ground grace retains immediate abort "+abort);Save(p);
 }
+// Raid432: a nearby valid angle in a narrow room must be tried before distant rings.
+{
+ var(p,b,m)=Setup();b.GoalEnemy!.KnownPlaces.LastKnownPosition=m.GoalEnemy!.KnownPlaces.LastKnownPosition=new(0,0,8);
+ NavMesh.Sample=point=>Vector3.Distance(point,b.Position)<3.1f;
+ try{Plan(p,b);C(Vector3.Distance(p.states[b].Crossfire.Goal,b.Position)<3.1f,"nearby reachable angle succeeds when all distant candidates are outside navmesh");}
+ finally{NavMesh.Sample=null;}
+}
+{
+ var(p,b,m)=Setup();NavMesh.Sample=_=>false;
+ try{
+  p.Observe(b);for(int i=0;i<200&&p.states[b].Crossfire.Policy.Active;i++){Step();p.Sample(b);}
+  var t=p.states[b].Crossfire.Policy.Trace!;
+  C(!p.states[b].Crossfire.Policy.Active&&t.RejectionCounts["no nearby navigation"]==36,"bounded failed search records every rejected candidate");
+  C(t.Alternatives.Count(x=>x=="no nearby navigation")==1&&t.CandidateX.HasValue,"repeated rejection keeps compact alternatives and last candidate position");
+ }finally{NavMesh.Sample=null;}
+}
+{
+ var(p,b,m)=Setup();var s=p.states[b]=new(b,p.config!,"raid432");
+ var f=new Comet.Core.MovementRecoveryFrame{Intent=true,X=b.Position.x,Y=b.Position.y,Z=b.Position.z};
+ for(int i=0;i<=60;i++){f.Now=i*.5;var a=s.MovementRecovery.Policy.Observe(f,p.config!.MovementRecovery);if(a.Length>0)s.MovementRecovery.Policy.Result(true,"accepted");}
+ p.Observe(b);C(!s.Crossfire.Policy.Active&&p.Claims==0,"C06 exhausted mover cannot immediately receive a new flank route");
+ f.X+=.7;f.Now+=.5;s.MovementRecovery.Policy.Observe(f,p.config!.MovementRecovery);b.Position=new((float)f.X,0,0);
+ Step(1);Plan(p,b);C(s.Crossfire.Policy.Active,"real progress restores flank eligibility");
+}
 SecondaryEntranceHarness.Run();
 Raid397Harness.Run();
 SquadManeuverHarness.Run();

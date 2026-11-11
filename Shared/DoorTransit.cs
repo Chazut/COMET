@@ -48,18 +48,23 @@ public sealed class DoorTransit
 {
     private DoorPoint anchor;
     private double last=double.NaN;
+    private bool paused;
     public DoorTransitTrace Trace {get;private set;}=new();
     public void End(string reason,bool passed=false)
-    {Trace.State="ended";Trace.Reason=reason;Trace.ValidFor=0;Trace.Slow=false;Trace.StopSprint=false;Trace.Recovery=false;Trace.Passed=passed;last=double.NaN;}
+    {Trace.State="ended";Trace.Reason=reason;Trace.ValidFor=0;Trace.Slow=false;Trace.StopSprint=false;Trace.Recovery=false;Trace.Passed=passed;last=double.NaN;paused=false;}
+    // Release commands immediately, but retain physical evidence across short plan changes.
+    public void Pause(string reason)
+    {var observed=last;End(reason);last=observed;paused=true;}
     public DoorTransitTrace Observe(string door,string doorState,string action,DoorPoint origin,DoorPoint center,double distance,
         double now,bool blocked,bool busy,bool interacting,DoorTransitConfig c)
     {
         if(!c.Enabled||string.IsNullOrEmpty(door)||!origin.Finite||!center.Finite||!DoorPolicy.Finite(distance)||distance<0||distance>c.Anticipation
             ||!DoorPolicy.Finite(now)||now<0||!double.IsNaN(last)&&now<last)
         {End("transit-invalid-or-out-of-scope");return Trace;}
-        if(Trace.Door!=door||Trace.State=="ended")
+        bool resume=paused&&Trace.Door==door&&!double.IsNaN(last)&&now-last<=1&&(origin-anchor).Length<.2;
+        if(Trace.Door!=door||Trace.State=="ended"&&!resume)
         {Trace=new(){Door=door,DoorState=doorState,Action=action};anchor=origin;last=now;}
-        double dt=double.IsNaN(last)?0:now-last;last=now;
+        double dt=double.IsNaN(last)?0:now-last;last=now;paused=false;
         Trace.DoorState=doorState;Trace.Action=action;Trace.Distance=distance;Trace.X=center.X;Trace.Y=center.Y;Trace.Z=center.Z;
         Trace.Interacting=interacting;Trace.Passed=false;Trace.Recovery=false;
         if(dt>.5||(origin-anchor).Length>=.2||!blocked||busy||interacting||distance>c.SlowDistance)
@@ -70,7 +75,7 @@ public sealed class DoorTransit
         Trace.ValidFor=.35;
         Trace.State=interacting?"interacting":busy?"waiting":blocked?Trace.Slow?"slowing":"approaching":"clear";
         Trace.Reason=interacting?"transit-native-interaction":busy?"transit-door-busy":blocked?"transit-door-on-route":"transit-passage-clear";
-        Trace.Recovery=blocked&&!busy&&!interacting&&doorState=="Shut"&&Trace.Blocked>=.75;
+        Trace.Recovery=blocked&&!busy&&!interacting&&(doorState=="Shut"||doorState=="Open")&&Trace.Blocked>=.75;
         if(Trace.Blocked>=c.BlockedLimit)
         {Trace.State="blocked";Trace.Reason="transit-reconsider-blocked-route";Trace.Slow=false;Trace.StopSprint=false;Trace.Recovery=false;Trace.ValidFor=0;}
         return Trace;

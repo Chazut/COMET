@@ -44,13 +44,14 @@ public sealed partial class Plugin
                 if(mate==null||!CrossfireScope(mate)||mate.GoalEnemy?.EnemyProfileId!=enemy.EnemyProfileId)continue;
                 if(Vector3.Distance(b.Position,mate.Position)>c.SquadDistance)continue;
                 if(!states.TryGetValue(mate,out var ms)){if(states.Count>=512)continue;ms=new BotState(mate,config,session);states.Add(mate,ms);}
-                if(ms.Crossfire.Policy.Active||ms.Crossfire.Fault||Time.time<ms.Crossfire.Policy.RetryAt||CrossfireBlock(mate,ms,true,supportCandidate:mate.GoalEnemy.IsVisible).Length>0
+                if(ms.Crossfire.Policy.Active||ms.Crossfire.Fault||Time.time<ms.Crossfire.Policy.RetryAt||CrossfireBlock(mate,ms,true,supportCandidate:mate.GoalEnemy.IsVisible||ms.MovementRecovery.Policy.RepositionBlock(config.MovementRecovery).Length>0).Length>0
                     ||!CrossfireCanAcquire(mate))continue;
                 var mk=mate.GoalEnemy.KnownPlaces.LastKnownPosition;
                 if(mk==null||Vector3.Distance(mk.Value,known)>4||mate.GoalEnemy.TimeSinceLastKnownUpdated>c.ContactAge)continue;
                 double md=Vector3.Distance(mate.Position,mk.Value);if(md<c.MinDistance||md>c.MaxDistance)continue;
                 double ammo=ManeuverAmmo(mate);if(ammo<=0)continue;
                 candidates.Add(new(){Id=mate.ProfileId,Name=mate.Player.Profile.Nickname,Personality=mate.Info.Personality.ToString(),Ammo=ammo,VisibleContact=mate.GoalEnemy.IsVisible,
+                    MovementBlock=ms.MovementRecovery.Policy.RepositionBlock(config.MovementRecovery),
                     Score=SquadManeuverBoard.Score(mate.Info.Personality.ToString(),mate.Memory.Health.HealthStatus==ETagStatus.Healthy,ammo,c),
                     Roll=jumpRandom.NextDouble(),RearContact=ManeuverRearContact(mate,known,out _)});
             }
