@@ -58,13 +58,14 @@ public sealed class ChaseObservation
 public sealed class CornerChaseFrame
 {
     public CombatStepFrame Combat=new();
+    public string GeometryReason="";
     public int ObservationEpisode;
     public double SeenAt,PathLength,Speed,Stamina=100;
     public bool RealCorner,RouteValid=true,GeometryFresh=true,LaneSafe=true,AtGoal,CanJump,Fleeing,NativeLeanOwned;
 }
 public sealed class CornerChaseTrace
 {
-    public string State="planning",Reason="chase-selected",Target="",Action="RushEnemy",Source="personal-vision",Style="pie";
+    public string State="planning",Reason="chase-selected",Target="",Action="RushEnemy",Source="personal-vision",Style="pie",GeometryReason="";
     public int Episode,ObservationEpisode,Requests,Jumps,Side;
     public double Chance,Roll,Remaining,ValidFor,ContactAge,KnownX,KnownY,KnownZ,GoalX,GoalY,GoalZ,PathLength,Travel,Speed;
     public bool Selected,Requested,MovementObserved,JumpRequested,JumpAccepted,TakeoffObserved,LandingObserved;
@@ -100,7 +101,7 @@ public sealed class CornerChase
         consumed=f.ObservationEpisode;cooldown=c.Cooldown;NextAttempt=f.Combat.Now+cooldown;
         Known=f.Combat.Known;seenAt=f.SeenAt;last=f.Combat.Now;previous=f.Combat.Position;
         Trace=new(){Episode=++episode,ObservationEpisode=consumed,Target=f.Combat.Target,Chance=c.Chances.TryGetValue(f.Combat.Personality,out var chance)?chance:0,
-            Roll=roll*100,PathLength=DoorPolicy.Finite(f.PathLength)?Math.Max(0,f.PathLength):0,Side=side};Snapshot(f);
+            Roll=roll*100,PathLength=DoorPolicy.Finite(f.PathLength)?Math.Max(0,f.PathLength):0,Side=side,GeometryReason=f.GeometryReason};Snapshot(f);
         if(roll*100>=Trace.Chance){End("chase-roll-declined",last);return false;}
         if(!f.RealCorner||!DoorPolicy.Finite(f.PathLength)||f.PathLength<=0||f.PathLength>c.PathLimit||Math.Abs(side)!=1)
         {End("chase-no-real-reachable-corner",last);return false;}

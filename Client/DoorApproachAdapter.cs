@@ -174,21 +174,30 @@ public sealed partial class Plugin
         var candidates=new List<DoorWork>();int visited=0;
         foreach(var link in voxel.DoorLinks)
         {
-            if(++visited>48)break;
+            if(++visited>48){r.Policy.Trace!.ScanLimitReached=true;break;}
+            r.Policy.Trace!.DoorsScanned++;
             if(link==null||link.Door==null)continue;
             var work=new DoorWork{Data=new DoorDataStruct(link)};
-            if(!TryDoorGeometry(work.Data,out var g)){InvalidDoorGeometry(b,work.Data,DP(b.Position));continue;}
+            if(!TryDoorGeometry(work.Data,out var g)){
+                CountDoorGeometryRefusal(r.Policy.Trace,"geometry-invalid-frame");
+                InvalidDoorGeometry(b,work.Data,DP(b.Position));continue;
+            }
             work.Geometry=g;
             string why=DoorPolicy.Geometry(g,DP(b.Position),DP(known),route,config!.DoorApproach);
-            if(why.Length==0)candidates.Add(work);
-            else if((g.Center-DP(b.Position)).Length<=config!.DoorApproach.DoorDistance&&r.Policy.Trace!.Candidates.Count<12)
-                r.Policy.Trace.Candidates.Add(new(){Door=g.Id,Reason=why});
+            if(why.Length==0){candidates.Add(work);r.Policy.Trace.DoorsEligible++;}
+            else {
+                CountDoorGeometryRefusal(r.Policy.Trace,why);
+                if((g.Center-DP(b.Position)).Length<=config!.DoorApproach.DoorDistance&&r.Policy.Trace.Candidates.Count<12)
+                    r.Policy.Trace.Candidates.Add(new(){Door=g.Id,Reason=why});
+            }
         }
         foreach(var d in candidates.OrderBy(x=>(x.Geometry.Center-DP(b.Position)).Length).ThenBy(x=>x.Geometry.Id,StringComparer.Ordinal).Take(3))
             foreach(int variant in new[]{0,1})foreach(int side in new[]{-1,1})r.Work.Add(new(){Data=d.Data,Geometry=d.Geometry,Side=side,Variant=variant});
         if(r.Work.Count==0){EndDoor(s,"door-no-relevant-local-door");return;}
         RecordDoor(s,true);
     }
+    private static void CountDoorGeometryRefusal(DoorApproachTrace trace,string reason)
+    {trace.GeometryRefusals.TryGetValue(reason,out int count);trace.GeometryRefusals[reason]=count+1;}
     private string ValidateDoor(BotComponent b,DoorWork w,DoorPoint raw,bool calculate,out NavMeshPath? path,out Vector3 point,DoorApproachConfig? approach=null,bool stationary=false)
     {
         path=null;point=VP(raw);

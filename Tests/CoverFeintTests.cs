@@ -22,6 +22,21 @@ internal static class CoverFeintTests
         var wire=new List<JsonElement>();CoverFeintPolicy p=new();
         void Save()=>wire.Add(JsonSerializer.Deserialize<JsonElement>(Newtonsoft.Json.JsonConvert.SerializeObject(p.Trace,Comet.Client.Diagnostics.Json)));
         int rolls=0;double Low(){rolls++;return .1;}
+        var deferred=new CoverFeintPolicy();deferred.Begin(F(),c,Low);
+        deferred.DeferSafety(F(10.1),c,-1000);
+        Check(deferred.Active&&!deferred.Moving&&!deferred.WantsRoute&&deferred.Trace!.MoveRequests==0
+            &&deferred.Trace.Reason=="feint-waiting-for-safety-budget","first probe waits without inventing safety or moving");
+        deferred.DeferSafety(F(10.74),c,-1000);Check(deferred.Active,"bounded first-probe grace");
+        deferred.DeferSafety(F(10.75),c,-1000);Check(!deferred.Active&&deferred.Trace!.Reason=="feint-initial-safety-budget-expired","starvation remains bounded");
+        deferred=new();deferred.Begin(F(),c,Low);var danger=F(10.1);danger.Visible=true;
+        deferred.DeferSafety(danger,c,-1000);Check(!deferred.Active,"reacquired contact interrupts initial wait");
+        deferred=new();deferred.Begin(F(),c,Low);deferred.DeferSafety(F(10.1),c,10);
+        Check(deferred.Active,"brief deferral with recent proof");deferred.DeferSafety(F(10.21),c,10);
+        Check(!deferred.Active&&deferred.Trace!.Reason=="feint-safety-budget-expired","existing proof keeps strict expiry");
+        deferred=new();deferred.Begin(F(),c,Low);deferred.DeferSafety(F(9),c,-1000);Check(!deferred.Active,"reversed clock fails closed");
+        deferred=new();deferred.Begin(F(),c,Low);deferred.DeferSafety(F(10.1),c,-1000);
+        Check(deferred.Observe(F(10.2),c)&&deferred.Plan(new(1,0,0),10.2),"validated plan can continue after temporary deferral");
+        rolls=0;
         Check(p.Begin(F(),c,Low)&&p.Trace!.Kind=="peek","peek selected once");Save();
         Check(rolls==6&&!p.Begin(F(10.1),c,Low)&&rolls==6,"active tactic never rerolls");p.Accepted(true);Save();
         Check(p.Plan(new(1,0,0),10.1),"short peek plan");Save();p.RequestMove(10.2);Save();

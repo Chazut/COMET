@@ -47,7 +47,7 @@ public sealed class CoverFeintFrame
 public sealed class CoverFeintTrace
 {
     public string State="planning",Kind="",Reason="",Target="",Source="personal-vision",Action="Freeze",SoundEvent="";
-    public int Episode,CompletedPeeks,MoveRequests,JumpsAccepted,SoundEvents,PlaybackSubmissions;
+    public int Episode,CompletedPeeks,MoveRequests,JumpsAccepted,SoundEvents,PlaybackSubmissions,SafetyDeferrals;
     public double ValidFor,Elapsed,ContactAge,PeekChance,MagazineChance,PeekRoll,MagazineRoll,OrderRoll,PeekWeight,MagazineWeight,Exposure,Hold,Pause,Speed,DistanceMoved;
     public double X,Y,Z,KnownX,KnownY,KnownZ,GoalX,GoalY,GoalZ;
     public bool Requested,Accepted,MovementObserved,ExposedObserved,ReturnedObserved,MagazineRequested,MagazineAccepted,AnimationObserved,WeaponReady,DrewFire,ApproachObserved;
@@ -98,6 +98,23 @@ public sealed class CoverFeintPolicy
         Set("planning","feint-selected",f.Now);return true;
     }
     public void Accepted(bool accepted){if(Active){Trace!.Accepted=accepted;if(!accepted)End("feint-native-priority");}}
+    public void DeferSafety(CoverFeintFrame f,CoverFeintConfig c,double lastSafety)
+    {
+        if(!Active)return;
+        Trace!.SafetyDeferrals++;
+        if(!DoorPolicy.Finite(f.Now)||f.Now<started||!DoorPolicy.Finite(lastSafety))
+        {End("feint-invalid-safety-clock");return;}
+        if(lastSafety<0)
+        {
+            string gate=Gate(f,c);
+            if(gate.Length>0||!f.RouteValid){End(gate.Length>0?gate:"feint-native-route-taken-over");return;}
+            if(Trace.State!="planning"||f.Now-started>=.75)
+            {End("feint-initial-safety-budget-expired");return;}
+        }
+        else if(f.Now<lastSafety||f.Now-lastSafety>.2)
+        {End("feint-safety-budget-expired");return;}
+        Trace.Reason="feint-waiting-for-safety-budget";
+    }
     public void Alternative(string why){if(Trace==null)return;var a=new List<string>(Trace.Alternatives);if(a.Count==8)a.RemoveAt(0);a.Add(why);Trace.Alternatives=a.ToArray();}
     public bool Plan(DoorPoint goal,double now)
     {if(!Active||Trace!.State!="planning"||!goal.Finite)return false;Goal=goal;Trace.GoalX=goal.X;Trace.GoalY=goal.Y;Trace.GoalZ=goal.Z;Set(Trace.Kind=="peek"?"out-pending":"mag-pending","feint-plan-ready",now);return true;}

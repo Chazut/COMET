@@ -13,6 +13,15 @@ public sealed partial class Plugin
     private readonly RaycastHit[] environmentHits=new RaycastHit[16];
     private readonly System.Diagnostics.Stopwatch environmentClock=new();
 
+    // A consumer can run after Update or after movement invalidated the cached sample.
+    // Refresh the cheap native flags before reading; this does not request a ceiling raycast.
+    private EnvironmentTrace ReadEnvironment(BotComponent bot,BotState s,string consumer)
+    {
+        RefreshEnvironment(bot,s);
+        var p=bot.Position;
+        return s.Environment.Read(Time.time,p.x,p.y,p.z,config!.EnvironmentContext,consumer);
+    }
+
     // Called only from existing combat state updates or an actual grenade preparation.
     // P10 observes context; it never changes native indoor flags, grenade arcs or action scores.
     internal void RefreshEnvironment(BotComponent bot,BotState s,bool ceiling=false)

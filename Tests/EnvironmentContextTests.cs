@@ -42,6 +42,12 @@ internal static class EnvironmentContextTests
             Check(cache.NeedsSample(10.1,p.Item1,p.Item2,p.Item3,c),"3D movement invalidation");
         foreach(var now in new[]{9d,double.NaN,double.PositiveInfinity})Check(cache.NeedsSample(now,0,0,0,c),"invalid or reversed time");
         Check(cache.Read(10.1,1,0,0,c).Reported=="unknown","stale location never returned as current");
+        var consumerCache=new EnvironmentContext();consumerCache.Observe(10,0,0,0,false,false);
+        Check(consumerCache.Read(10.5,0,0,0,c).Reported=="unknown","expired outdoor context reproduces tactic rejection");
+        if(consumerCache.NeedsSample(10.5,0,0,0,c))consumerCache.Observe(10.5,0,0,0,false,false);
+        Check(consumerCache.Read(10.5,0,0,0,c).Reported=="outdoor"&&!consumerCache.NeedsSample(10.5,0,0,0,c),"consumer refresh restores native context once");
+        consumerCache.Observe(10.6,2,0,0,true,true);
+        Check(consumerCache.Read(10.6,2,0,0,c).Reported=="indoor","actual doorway transition still invalidates outdoor tactic");
         cache.ObserveCeiling(10,0,0,0,c,new("detected","overhead-surface",3));
         var hangar=cache.Read(10.1,0,0,0,c);
         Check(hangar.Ceiling=="detected"&&hangar.CeilingHeight==3&&hangar.CeilingAge>0&&hangar.ValidFor<.5,"cached physical hit carries age");
@@ -84,6 +90,9 @@ internal static class EnvironmentContextTests
             var calls=Calls("Plugin","RefreshEnvironment");
             foreach(var required in new[]{"IsSupportedAi","get_Authority","Ghost","get_BotActive","get_GameEnding","get_GoalEnemy","get_Environment","NeedsCeiling","RaycastNonAlloc","Clear","Charge"})Check(calls.Contains(required),"live adapter contract: "+required);
             Check(Calls("NativeAdapter","GrenadeCapability").Contains("RefreshEnvironment"),"actual grenade preparation requests geometry");
+            Check(Calls("Plugin","RelocationFrame").Contains("ReadEnvironment")&&Calls("Plugin","FeintFrame").Contains("ReadEnvironment"),"both outdoor tactics read refreshed native context");
+            var freshRead=Calls("Plugin","ReadEnvironment");
+            Check(freshRead.IndexOf("RefreshEnvironment")>=0&&freshRead.IndexOf("Read")>freshRead.IndexOf("RefreshEnvironment"),"refresh precedes consumer read");
             Check(!Calls("Plugin","Update").Contains("RaycastNonAlloc"),"ordinary sweep does not directly cast");
             Check(CleanupIl.Calls(pe,md,"Plugin","EndRaid").Contains("ClearEnvironment"),"shared buffers reset on raid end");
             foreach(var banned in new[]{"set_IsIndoors","set_Environment","SetEnemyKnown","AddEnemy","CalculatePath","FindObjectsOfType","DoThrow","get_EnemyPosition","set_IsVisible"})Check(!calls.Contains(banned),"observation cannot mutate combat: "+banned);

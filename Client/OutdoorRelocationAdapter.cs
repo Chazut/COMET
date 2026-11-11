@@ -95,9 +95,9 @@ public sealed partial class Plugin
             Speed=b.Player.Velocity.magnitude,HandsReady=VisibleAdapter.WeaponReady(b),Distance=known.HasValue?Vector3.Distance(b.Position,known.Value):0,
             Hurt=b.Memory.Health.HealthStatus!=ETagStatus.Healthy,
             HealthyPusher=b.Memory.Health.HealthStatus==ETagStatus.Healthy&&b.Info.PersonalitySettings.Rush.CanRushEnemyReloadHeal};
-        var env=s.Environment.Read(Time.time,b.Position.x,b.Position.y,b.Position.z,config!.EnvironmentContext,"outdoor-relocation");
+        var env=ReadEnvironment(b,s,"outdoor-relocation");
         // Disabled P10 keeps a conservative local EFT fallback; a roof alone is not an indoor classification.
-        f.Outdoor=config.EnvironmentContext.Enabled?env.Reported=="outdoor"&&!env.Conflict
+        f.Outdoor=config!.EnvironmentContext.Enabled?env.Reported=="outdoor"&&!env.Conflict
             :b.Player.Environment==EnvironmentType.Outdoor&&b.Player.AIData?.EnvironmentId==0;
         var opponent=s.Situation?.Opponent;
         f.LongWeapon=opponent?.Target==f.Target&&opponent.Evidence.Any(x=>x.Active&&x.Kind=="weapon"

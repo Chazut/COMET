@@ -73,8 +73,8 @@ public sealed partial class Plugin
             Protected=r.Protected,Exposed=r.Exposed,AtGoal=Vector3.Distance(b.Position,VP(r.Policy.Goal))<=.2f,
             Fire=e==null?-1:Math.Max(e.Status.TimeLastShotAtMe,e.Status.TimeLastShotMe)};
         f.MagazineAudible=r.Policy.Active?r.Policy.Trace!.Kind=="magazine":MagazineSoundAvailable(b,f.Distance);
-        var env=s.Environment.Read(Time.time,b.Position.x,b.Position.y,b.Position.z,config!.EnvironmentContext,"cover-feint");
-        f.Outdoor=config.EnvironmentContext.Enabled?env.Reported=="outdoor"&&!env.Conflict:b.Player.Environment==EnvironmentType.Outdoor&&b.Player.AIData?.EnvironmentId==0;
+        var env=ReadEnvironment(b,s,"cover-feint");
+        f.Outdoor=config!.EnvironmentContext.Enabled?env.Reported=="outdoor"&&!env.Conflict:b.Player.Environment==EnvironmentType.Outdoor&&b.Player.AIData?.EnvironmentId==0;
         var heard=e?.KnownPlaces.LastHeardPlace;
         if(heard!=null){f.Heard=silentHeardAt(heard);float distance=Vector3.Distance(b.Position,heard.Position);
             if(f.Heard>r.HeardAt+.01){r.Coming=r.HeardAt>=0&&distance<r.HeardDistance-.3f;r.HeardAt=(float)f.Heard;r.HeardDistance=distance;}
@@ -153,7 +153,13 @@ public sealed partial class Plugin
                         safe&=active.NavMeshPath.status==NavMeshPathStatus.PathComplete&&FeintRouteClear(b,RemainingRelocationRoute(b,active));}
                 if(!safe){EndFeint(s,"feint-cover-or-corridor-unsafe");return;}r.LastSafety=Time.time;r.NextSafety=Time.time+.1f;
             }finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}}
-            else if(Time.time-r.LastSafety>.2f){EndFeint(s,"feint-safety-budget-expired");return;}else return;
+            else {
+                // A newly selected plan has no safety proof yet. Wait stationary for a
+                // bounded first probe; never interpret the sentinel as an expired proof.
+                p.DeferSafety(f,config.CoverFeint,r.LastSafety);
+                if(!p.Active)FinishFeint(s);else RecordFeint(s);
+                return; // No movement, magazine check or jump without fresh validation.
+            }
         }
         f.Protected=r.Protected;f.Exposed=r.Exposed;
         if(!p.Observe(f,config.CoverFeint)){FinishFeint(s);return;}

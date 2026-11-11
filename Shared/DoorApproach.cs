@@ -77,6 +77,10 @@ public sealed class DoorApproachTrace
     public bool MovementAccepted { get; set; }
     public bool Moved { get; set; }
     public bool Arrived { get; set; }
+    public int DoorsScanned { get; set; }
+    public int DoorsEligible { get; set; }
+    public bool ScanLimitReached { get; set; }
+    public Dictionary<string,int> GeometryRefusals { get; set; }=new();
     public double ValidFor { get; set; }=1.5;
     public List<DoorCandidate> Candidates { get; set; }=new();
 }

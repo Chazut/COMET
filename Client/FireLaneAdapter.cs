@@ -19,7 +19,7 @@ namespace Comet.Client;
 internal sealed class FireLaneRuntime
 {
     internal readonly FireLanePolicy Policy=new();
-    internal float Callback=-100,GeometryAt=-100,LogAt=-100,StepInputAt=-100;
+    internal float Callback=-100,GeometryAt=-100,LogAt=-100,StepInputAt=-100,OpportunityAt=-100;
     internal Vector3 StepInputFrom,StepInputDirection;
     internal Vector3 At,Input,From,To,Left,Right;
     internal bool LeftSafe,RightSafe,Fresh,Fault;
@@ -95,7 +95,10 @@ public sealed partial class Plugin
         var originalDirection=direction;var originalDestination=finalMoveDestination;float originalStop=STOP_SPRINT_DIST;
         try {
             string block=!__runOriginal?"lane-other-prefix-owner":p.LaneBlock(b,s);
-            if(block.Length>0||!ValidPoint(direction)||direction.sqrMagnitude<.01){p.EndLane(s,block.Length>0?block:"lane-no-input");return true;}
+            if(block.Length>0||!ValidPoint(direction)||direction.sqrMagnitude<.01){
+                string why=block.Length>0?block:"lane-no-input";
+                p.RecordLaneOpportunity(b,s,why);p.EndLane(s,why);return true;
+            }
             var c=p.config.FireLane;var input=new Vector3(direction.x,0,direction.z).normalized;
             var position=b.Position;float speed=b.Player.Velocity.magnitude;
             if(!float.IsFinite(speed)||speed>20){p.EndLane(s,"lane-invalid-velocity");return true;}
@@ -103,6 +106,7 @@ public sealed partial class Plugin
             var rays=p.LaneRays(b,c);var threat=FireLaneGeometry.Threat(DP(position),DP(ahead),rays,c);
             // Finish the chosen short exit even once the next native input narrowly clears the lane.
             if(threat==null&&r.Policy.Trace?.State=="stepping")threat=rays.FirstOrDefault(x=>x.Shooter==r.Policy.Trace.Shooter);
+            if(threat==null)p.RecordLaneOpportunity(b,s,rays.Count==0?"lane-no-current-verified-shot":"lane-route-clear-of-squad-fire");
             var route=b.Mover.ActivePath!;var destination=route.Destination;
             string context=FormattableString.Invariant($"{RuntimeHelpers.GetHashCode(route)}:{b.Decision.CurrentCombatDecision}:{destination.x:0.0},{destination.y:0.0},{destination.z:0.0}");
             bool fresh=false;
@@ -171,6 +175,25 @@ public sealed partial class Plugin
     private void SampleLane(BotComponent b,BotState s)
     {
         if(s.FireLane.Policy.Active&&(Time.time-s.FireLane.Callback>.25||LaneBlock(b,s).Length>0))EndLane(s,"lane-owner-or-callback-ended");
+    }
+    private void RecordLaneOpportunity(BotComponent b,BotState s,string reason)
+    {
+        var r=s.FireLane;
+        if(r.Policy.Active||Time.time-r.OpportunityAt<5||config?.Enabled!=true||!config.FireLane.Enabled
+            ||!Authority||!NativeAdapter.IsSupportedAi(b)||b.IsDead||!b.BotActive||b.GameEnding||Ghost(b.ProfileId))return;
+        r.OpportunityAt=Time.time;
+        var members=b.Squad?.Members;if(members==null||members.Count<2||members.Count>16)return;
+        int shots=0;
+        foreach(var mate in members.Values)
+            if(mate!=null&&!ReferenceEquals(mate,b)&&!mate.IsDead&&mate.BotActive&&!Ghost(mate.ProfileId)
+                &&laneShots.TryGetValue(mate.ProfileId,out var shot)&&shot.Instance==RuntimeHelpers.GetHashCode(mate)
+                &&Time.time>=shot.At&&Time.time-shot.At<=config.FireLane.ShotGrace)shots++;
+        if(shots==0)return;
+        // Diagnostic only: never publish an intervention/badge for a gate that did not act.
+        diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="S07",stage="diagnostic",
+            decision="FireLane",reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),
+            configRevision=config.Revision,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
+            fireLane=new{state="evaluated",reason,validFor=0,opportunityOnly=true,recentSquadShooters=shots}}));
     }
     private void EndLane(BotState s,string reason)
     {if(!s.FireLane.Policy.Active)return;s.FireLane.Policy.End(reason);s.FireLane.Fresh=false;s.FireLane.StepInputAt=-100;RecordLane(s,true);}

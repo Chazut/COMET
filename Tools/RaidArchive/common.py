@@ -65,6 +65,22 @@ def connect(root):
     ''')
     return c
 
+def backup_analysis(c,root,version):
+    """Coherent WAL-aware snapshot once before a new analyzer replaces reports."""
+    folder=pathlib.Path(root)/'analysis-backups';folder.mkdir(exist_ok=True)
+    target=folder/('before-'+version+'.sqlite')
+    if target.exists():return target
+    if c.in_transaction:raise RuntimeError('Backup must precede analysis/import writes')
+    if not c.execute("SELECT 1 FROM raids WHERE report IS NOT NULL AND report!='{}' LIMIT 1").fetchone():return None
+    temporary=target.with_suffix('.pending')
+    try:
+        with contextlib.closing(sqlite3.connect(temporary)) as dest:
+            c.backup(dest,pages=512)
+        os.replace(temporary,target)
+    finally:
+        with contextlib.suppress(FileNotFoundError):temporary.unlink()
+    return target
+
 def store_file(root, path):
     """Content-addressed originals, compressed; copy only once, detect a concurrent write."""
     root = pathlib.Path(root); path = pathlib.Path(path)

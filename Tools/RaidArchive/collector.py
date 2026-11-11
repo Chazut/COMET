@@ -2,7 +2,7 @@
 from __future__ import annotations
 import contextlib,ctypes,datetime as dt,gzip,json,logging,os,pathlib,re,shutil,sqlite3,time
 from common import *
-from analyze import analyze
+from analyze import analyze,stale_analyses,ANALYZER_VERSION
 
 SESSION=re.compile(r'(?:^|-)([0-9a-f]{32})(?:\.part\d+)?\.jsonl$',re.I)
 
@@ -209,6 +209,8 @@ def collect(settings,force=False):
         return {'state':'waiting-for-raid-end','imported':0}
     raids,links=rr_index(game);rrby={r['raidId']:r for r in raids};changed=set();errors=0
     with contextlib.closing(connect(root)) as c:
+        stale=stale_analyses(c)
+        if stale:backup_analysis(c,root,ANALYZER_VERSION)
         for session,paths in eligible.items():
             if active_raid(game):break
             mapped=links.get(session,[]);rrid=mapped[0] if len(mapped)==1 else None
@@ -268,6 +270,14 @@ def collect(settings,force=False):
                 ensure(c,rid,{'rrId':rr['raidId'],'rrMapping':'exact','map':rr['location'],'time':rr['time'],'rr':rr})
                 capture_rr(c,root,game,rid,rr['raidId']);analyze(c,rid);changed.add(rid);c.commit()
             except Exception:errors+=1;c.rollback();logging.exception('RR archive failed: %s',rid)
+        # Sources may have disappeared from the game after rotation. The archived
+        # events are sufficient to update their reports. Bounded work each cycle,
+        # yielding before every historical raid if a new live raid has begun.
+        for rid in [r for r in stale_analyses(c) if r not in changed][:2]:
+            if active_raid(game):break
+            try:analyze(c,rid);changed.add(rid)
+            except Exception:
+                errors+=1;c.rollback();logging.exception('Historical re-analysis failed: %s',rid)
         for rid in changed:
             row=c.execute('SELECT metadata,report FROM raids WHERE id=?',(rid,)).fetchone()
             if row:

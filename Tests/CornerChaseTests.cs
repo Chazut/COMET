@@ -70,6 +70,9 @@ internal static class CornerChaseTests
         foreach(var change in new Action<CornerChaseFrame>[] { f=>f.RealCorner=false,f=>f.PathLength=15.01,f=>f.PathLength=0,f=>f.PathLength=double.NaN }) {
             frame=Frame();change(frame);chase=new();Check(!chase.Begin(frame,c,0,0,1)&&!chase.Begin(Frame(10.1),c,0,0,1),"geometry failure consumes one episode, no repeated expensive trials");
         }
+        frame=Frame();frame.RealCorner=false;frame.GeometryReason="route-has-no-bend";chase=new();
+        Check(!chase.Begin(frame,c,0,0,1)&&chase.Trace!.GeometryReason=="route-has-no-bend"&&!chase.Trace.Requested,
+            "geometry rejection retains the concrete cause without reporting movement");
         chase=Begin();frame=Frame(10.1);frame.Combat.Visible=true;Check(!chase.Observe(frame,c)&&chase.Trace!.Reason=="chase-contact-reacquired","immediate native combat handback");
         chase=Begin();frame=Frame(10.1);frame.Combat.Position=new(100,0,0);Check(!chase.Observe(frame,c)&&!chase.Trace!.MovementObserved,"teleport is not chase movement");
         chase=Begin();Check(!chase.Observe(Frame(10.41),c),"stale callback");chase=Begin();Check(!chase.Observe(Frame(9.9),c),"clock reversal");

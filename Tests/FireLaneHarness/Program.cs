@@ -40,6 +40,13 @@ Setup();p.Shot(mate);Move();p.Clear();Check(p.Shots==0&&!state.FireLane.Policy.A
 Setup(-.2f);bot.Player.IsSprintEnabled=true;p.Shot(mate);Check(Move()&&!state.FireLane.Policy.Active,"no abrupt sideways sprint");
 Setup(-.2f);var second=new BotComponent{ProfileId="second",Position=new(-1.3f,0,0)};second.Transform.WeaponData.FirePort=new(-1.3f,1,0);bot.Squad.Members[second.ProfileId]=second;p.Mates.Add(second);p.Shot(mate);p.Shot(second);Check(Move()&&!state.FireLane.Policy.Active,"cannot escape into a second firing lane");
 // A continuous short hold, then observed side-step: real adapter telemetry for RR fixtures.
+Setup();bot.BotOwner.Memory.IsUnderFire=true;p.Shot(mate);int published=Api.Decisions.Count;
+Check(Move()&&state.FireLane.Policy.Trace==null,"urgent fight does not create a fake lane action");
+Check(p.diagnostics!.Events.Count==1&&p.diagnostics.Events[0].Contains("lane-direct-combat-priority"),"recent squad fire refusal recorded");
+Check(Api.Decisions.Count==published,"diagnostic gate does not publish an RR intervention");
+for(int i=0;i<100;i++)Move();Check(p.diagnostics.Events.Count==1,"diagnostic bounded even with repeated input callbacks");
+Advance(5);Move();Check(p.diagnostics.Events.Count==1,"old shot does not invent a new opportunity");
+Advance(5);p.Shot(mate);Move();Check(p.diagnostics.Events.Count==2,"new recent shot can renew diagnostic after throttle");
 Setup();Time.time=Time.realtimeSinceStartup=22;for(int i=0;i<32;i++){p.Shot(mate);Move();Advance(.05f);if(state.FireLane.Policy.Trace?.State=="stepping"){bot.Player.Velocity=new(-1,0,0);bot.Position+=new Vector3(-.05f,0,0);}}
 p.End(bot);events.AddRange(p.diagnostics!.Events);
 foreach(var json in events){var row=JObject.Parse(json);Check((string?)row["feature"]=="S07","feature identifier");var t=row["fireLane"]!;Check((double)t["validFor"]!<=.25,"bounded map lease");if((double)t["validFor"]!>0)Check((bool)t["applied"]!&&(bool)t["confirmed"]!,"map only observed effects");}

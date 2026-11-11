@@ -1,0 +1,10 @@
+const {strict:assert}=require('node:assert');
+const {coverageSummary,lifecycleValue}=require('./evidence-view.js');
+assert.equal(coverageSummary({disabledRaids:4},4),'Disabled in recorded config');
+assert.equal(coverageSummary({disabledRaids:0},0),'No recorded opportunity');
+assert.equal(coverageSummary({events:10,observationFacts:{'Speed cap applied':9}}),'Effect / observation recorded');
+assert.equal(coverageSummary({events:10,observationFacts:{accepted:9}}),'Evaluated; execution unconfirmed');
+assert.equal(lifecycleValue({counting:'trace',coverage:'events-only'},'started'),null);
+assert.equal(lifecycleValue({counting:'trace',identifiedRaids:2,started:3},'started'),3);
+assert.equal(lifecycleValue({id:'A01',counting:'choice',identifiedRaids:2},'completed'),null);
+console.log('Evidence view: 7 regressions passed');

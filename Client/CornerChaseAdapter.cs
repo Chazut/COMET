@@ -91,7 +91,7 @@ public sealed partial class Plugin
                 if(!p.doorBudget.TryBegin(Time.frameCount))return true;
                 p.doorClock.Restart();
                 try {
-                    f.RealCorner=p.PlanChase(b,s);f.PathLength=r.PathLength;f.CanJump=ChaseCanJump(b)&&r.JumpSafe&&f.Stamina>=p.config.CornerChase.JumpMinStamina;
+                    f.RealCorner=p.PlanChase(b,s,out f.GeometryReason);f.PathLength=r.PathLength;f.CanJump=ChaseCanJump(b)&&r.JumpSafe&&f.Stamina>=p.config.CornerChase.JumpMinStamina;
                     if(!r.Policy.Begin(f,p.config.CornerChase,p.jumpRandom.NextDouble(),p.jumpRandom.NextDouble(),r.Side)){p.RecordChase(s);return true;}
                     r.Owner=b;r.Action=__instance;r.TargetInstance=System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(b.GoalEnemy);
                     r.Stage=r.Policy.Trace!.Style=="pie"&&r.WideSafe?0:1;
@@ -107,30 +107,39 @@ public sealed partial class Plugin
             return false;
         }catch(Exception ex){p.ChaseError(s,ex);return true;}
     }
-    private bool PlanChase(BotComponent b,BotState s)
+    private bool PlanChase(BotComponent b,BotState s,out string reason)
     {
         var r=s.CornerChase;var c=config!.CornerChase;r.PathLength=0;r.Side=0;r.WideSafe=r.JumpSafe=false;
         var known=VP(r.Memory.Known);var route=new NavMeshPath();var end=known;
+        reason="chase-contact-no-navmesh";
         if(!NavMesh.SamplePosition(end,out var sample,.35f,NavMesh.AllAreas))return false;end=sample.position;
         NavMesh.CalculatePath(b.Position,end,NavMesh.AllAreas,route);
+        reason="chase-contact-route-incomplete-or-too-long";
         if(!CornerChase.Route(DP(b.Position),DP(end),route.corners.Select(DP).ToArray(),route.status==NavMeshPathStatus.PathComplete,c.PathLimit,out r.PathLength))return false;
         // Last seen can be just before the turn. A short projection uses only direction observed while visible.
         if(route.corners.Length<3&&Time.time-r.Memory.SeenAt<=1&&r.Memory.Speed>=.5&&r.Memory.Direction.Length>.5) {
             var projected=known+VP(r.Memory.Direction)*Mathf.Min(1,(float)r.Memory.Speed*.25f);
+            reason="chase-projected-contact-no-navmesh";
             if(!NavMesh.SamplePosition(projected,out sample,.25f,NavMesh.AllAreas))return false;end=sample.position;
             NavMesh.CalculatePath(b.Position,end,NavMesh.AllAreas,route);
+            reason="chase-projected-route-incomplete-or-too-long";
             if(!CornerChase.Route(DP(b.Position),DP(end),route.corners.Select(DP).ToArray(),route.status==NavMeshPathStatus.PathComplete,c.PathLimit,out r.PathLength))return false;
         }
+        reason="chase-route-has-no-bend";
         var pts=route.corners;if(pts.Length<3)return false;
         var incoming=pts[1]-pts[0];incoming.y=0;var outgoing=pts[2]-pts[1];outgoing.y=0;
+        reason="chase-first-bend-segments-too-short";
         if(incoming.magnitude<.6||outgoing.magnitude<.5)return false;
+        reason="chase-bend-angle-outside-range";
         float angle=Vector3.Angle(incoming,outgoing);if(angle<25||angle>145)return false;
         r.Corner=pts[1];r.Side=Vector3.Dot(Vector3.Cross(Vector3.up,incoming.normalized),outgoing)>0?1:-1;
         r.Exit=pts[1]+outgoing.normalized*Mathf.Min(1.5f,outgoing.magnitude);
         var before=pts[1]-incoming.normalized*Mathf.Min(1.2f,incoming.magnitude);
         // Solid, vertical obstruction + navigation bend. Foliage-only loss does not qualify.
+        reason="chase-bend-has-no-vertical-obstruction";
         if(!Physics.Linecast(before+Vector3.up*1.2f,r.Exit+Vector3.up*1.2f,out var hit,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore)
             ||Math.Abs(hit.normal.y)>.4f)return false;
+        reason="chase-exit-route-unsafe-or-too-long";
         if(!ChaseRoute(b,b.Position,r.Exit,c.PathLimit,out _,out _))return false;
         var away=-Vector3.Cross(Vector3.up,incoming.normalized)*r.Side;
         var raw=before+away*(float)c.WideOffset;
@@ -141,7 +150,7 @@ public sealed partial class Plugin
                 &&ChaseRoute(b,r.Wide,r.Exit,c.PathLimit,out _,out double z)&&a+z<=c.PathLimit;
         }
         r.JumpSafe=RunVolume(b,before,r.Corner,true).Length==0&&RunVolume(b,r.Corner,r.Exit,true).Length==0;
-        r.Origin=b.Position;return true;
+        r.Origin=b.Position;reason="chase-verified-corner";return true;
     }
     private bool ChaseRoute(BotComponent b,Vector3 from,Vector3 goal,double limit,out NavMeshPath route,out double length)
     {

@@ -1,4 +1,5 @@
 using Comet.Client;
+using Comet.Core;
 using EFT.Interactive;
 using SAIN.Components;
 using SAIN.SAINComponent.Classes.Mover;
@@ -73,6 +74,15 @@ foreach(float floor in new[]{5.18f,-5.18f,12f})
 }
 plugin.Release(bot);
 Check(plugin.Lines.Last().Contains("\"validFor\":0"),"release clears map observation");
+foreach(float floor in new[]{2.4f,-2.4f,3f})
+{
+ data.Link.BottomY=0;data.Link.Close1=new(-.5f,floor+1,0);data.Link.Close2_Normal=new(.5f,floor+1,0);
+ data.Link.Open1=new(-.5f,floor+1,0);data.Link.Open2=new(-.5f,floor+1,1);
+ door.Collider.Low=floor;door.Collider.High=floor+2;
+ Check(plugin.Geometry(data,out var low)&&Math.Abs(low.Center.Y-floor)<.01&&low.Source=="native-physical-floor","plausible zero is repaired from the actual leaf below the old 4m cutoff");
+ Check(DoorSpatial.Candidate(low,new(2,floor,2))==""&&DoorSpatial.Candidate(low,new(2,0,2))=="geometry-wrong-floor","physical floor selects only the correct storey");
+ data.Link.BottomY=floor;Check(plugin.Geometry(data,out low)&&low.Source=="native","valid explicit floor is preserved");
+}
 int ended=plugin.Lines.Count;plugin.Release(bot);Check(plugin.Lines.Count==ended,"release idempotent");
 string root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));Directory.CreateDirectory(Path.Combine(root,"artifacts/c03"));
 File.WriteAllLines(Path.Combine(root,"artifacts/c03/geometry.jsonl"),plugin.Lines);

@@ -3,7 +3,8 @@ from __future__ import annotations
 import argparse,collections,contextlib,http.server,io,json,logging,logging.handlers,os,pathlib
 import shutil,sqlite3,tempfile,threading,time,urllib.parse,webbrowser,zipfile
 from common import *
-from analyze import analyze,CATALOG
+from analyze import analyze,CATALOG,ANALYZER_VERSION,stale_analyses
+from evidence import evidence_note
 from collector import collect,active_raid
 
 def query_settings(path):
@@ -55,7 +56,10 @@ class State:
                 self.status={'state':'waiting-for-raid-end','error':'Re-analysis deferred during a raid. Try again afterwards.'};return
             self.status={'state':'reanalyzing'}
             with contextlib.closing(connect(self.root)) as c:
+                if stale_analyses(c):backup_analysis(c,self.root,ANALYZER_VERSION)
                 for row in c.execute('SELECT id FROM raids').fetchall():
+                    if active_raid(self.settings['game']):
+                        self.status={'state':'waiting-for-raid-end','updated':utc()};return
                     report=analyze(c,row[0]);atomic_json(self.root/'raids'/row[0]/'report.json',report)
             self.status={'state':'ready','updated':utc()}
         except Exception:
@@ -77,15 +81,29 @@ def totals(c,filters):
     options={key:sorted({r[key] for r in rows if r.get(key)}) for key in ('map','build','configHash')}
     for key in ('map','build','configHash'):
         if filters.get(key):rows=[r for r in rows if r.get(key)==filters[key][0]]
-    ids={r['id'] for r in rows};features={s['id']:dict(s,raids=0,raidIds=[],events=0,started=0,completed=0,unconfirmed=0,selected=0) for s in CATALOG}
+    # RR-only history, menu-only sessions and general logs are not combat tests.
+    ids={r['id'] for r in rows if r['bots']>0};features={s['id']:dict(s,raids=0,raidIds=[],events=0,started=0,completed=0,unconfirmed=0,selected=0,
+        identifiedRaids=0,disabledRaids=0,enabledRaids=0,unknownConfigRaids=0,changedConfigRaids=0,
+        effects=collections.Counter(),observationFacts=collections.Counter(),evidenceNote=evidence_note(s['id'])) for s in CATALOG}
     for row in c.execute("SELECT * FROM features WHERE profile='' "):
         if row['raid'] not in ids:continue
-        m=json.loads(row['metrics']);f=features.setdefault(row['feature'],dict(id=row['feature'],name=row['feature'],raids=0,events=0,started=0,completed=0,unconfirmed=0,selected=0))
+        m=json.loads(row['metrics']);f=features.get(row['feature'])
+        if f is None:
+            f=dict(id=row['feature'],name=row['feature'],status='unknown',raids=0,raidIds=[],events=0,started=0,completed=0,unconfirmed=0,selected=0,
+                identifiedRaids=0,disabledRaids=0,enabledRaids=0,unknownConfigRaids=0,changedConfigRaids=0,
+                effects=collections.Counter(),observationFacts=collections.Counter(),evidenceNote=evidence_note(row['feature']))
+            features[row['feature']]=f
         for key in ('events','started','completed','unconfirmed','selected'):f[key]+=m.get(key,0)
         f['raids']+=bool(m['events'])
+        f['identifiedRaids']+=m.get('coverage')=='identified-attempts'
+        f['disabledRaids']+=m.get('configEnabled') is False
+        f['enabledRaids']+=m.get('configEnabled') is True
+        f['unknownConfigRaids']+=m.get('configEnabled') is None
+        f['changedConfigRaids']+=bool(m.get('configChanged'))
+        f['effects'].update(m.get('effects',{}));f['observationFacts'].update(m.get('observationFacts',{}))
         if m['events']:f.setdefault('raidIds',[]).append(row['raid'])
     return {'raids':rows,'features':list(features.values()),'totalEvents':sum(r['events'] for r in rows),'filterOptions':options,
-            'recordedRaids':sum(r['events']>0 for r in rows)}
+            'recordedRaids':len(ids),'archiveEntries':len(rows)}
 
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version='RaidObservatory/1'
@@ -111,6 +129,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def get(self):
         url=urllib.parse.urlsplit(self.path);path=urllib.parse.unquote(url.path);q=urllib.parse.parse_qs(url.query)
         if path=='/':return self.send((HERE/'index.html').read_bytes(),mime='text/html; charset=utf-8')
+        if path=='/evidence-view.js':return self.send((HERE/'evidence-view.js').read_bytes(),mime='text/javascript; charset=utf-8')
         if path=='/api/status':return self.send(dict(self.state.status,archive=str(self.state.root),rrUrl=self.state.settings['rrUrl']))
         with contextlib.closing(connect(self.state.root)) as c:
             if path=='/api/overview':return self.send(totals(c,q))

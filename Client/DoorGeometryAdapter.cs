@@ -20,7 +20,10 @@ public sealed partial class Plugin
         bool custom=d.Link.name?.StartsWith("DoorLink_Custom_",StringComparison.Ordinal)==true;
         double frameY=custom?(d.Link.Open1.y+d.Link.Open2.y)*.5:(d.Link.Close1.y+d.Link.Close2_Normal.y)*.5;
         bool repaired=false;
-        if(custom||!DoorPolicy.Finite(bottom)||Math.Abs(frameY-bottom)>4)
+        bool missing= !DoorPolicy.Finite(bottom)||Math.Abs(frameY-bottom)>4;
+        // Even a plausible zero can be the wrong floor (e.g. a 2-3 m upper level).
+        // A bounded read of this door's own leaf provides independent physical evidence.
+        if(custom||missing||Math.Abs(frameY-bottom)>.6)
         {
             // Native links can also leave BottomY at zero (Labs upper floor).
             // Repair from this door's physical leaf only, never the bot's floor.
@@ -31,8 +34,9 @@ public sealed partial class Plugin
             if(panels!=null&&panels.Count<=16)foreach(var panel in panels)
                 if(panel!=null&&panel.enabled&&panel.gameObject.activeInHierarchy&&!panel.isTrigger)
                 { double y=panel.bounds.min.y;if(DoorPolicy.Finite(y)&&Math.Abs(frameY-y)<=4){candidate=found?Math.Min(candidate,y):y;found=true;} }
-            if(!custom&&!found)return false;
-            bottom=candidate;repaired=!custom;
+            if(!custom&&!found&&missing)return false;
+            if(custom||found&&(!DoorPolicy.Finite(bottom)||Math.Abs(candidate-bottom)>.6))
+            {bottom=candidate;repaired=!custom;}
         }
         bool valid=DoorSpatial.Decode(d.Door.Id??d.Link.Id.ToString(),d.Door.DoorState.ToString(),d.Link.name??"",
             DP(d.Link.Close1),DP(d.Link.Close2_Normal),DP(d.Link.Open1),DP(d.Link.Open2),bottom,out g);

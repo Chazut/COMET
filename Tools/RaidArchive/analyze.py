@@ -1,7 +1,13 @@
 """Conservative, versioned evidence reducer. No inferred physical success."""
 from __future__ import annotations
 import collections,hashlib,json
-from common import HERE,VERSION,at,dumps,load,number,unpack,utc
+from common import HERE,at,dumps,load,number,unpack,utc
+
+# A code/catalog change invalidates derived reports even when the originals did
+# not change. Archive/export schema VERSION is deliberately independent.
+ANALYZER_VERSION=hashlib.sha256(b''.join((HERE/p).read_bytes() for p in
+    ('analyze.py','catalog.json','evidence.py'))).hexdigest()[:20]
+from evidence import effect_facts,extra_phases,feature_identity,evidence_note
 
 CATALOG=load(HERE/'catalog.json',[])
 COUNTS=('events','opportunities','eligible','selected','requested','accepted','started','completed','interrupted','refused','released','unconfirmed')
@@ -12,7 +18,18 @@ def new_metrics():
     return {**dict.fromkeys(COUNTS,0),'reasons':collections.Counter(),'states':collections.Counter(),
             'coverage':'no-evidence','configEnabled':None,'durationSamples':0,'durationTotal':0,
             'randomTrials':0,'expectedSelections':0.0,'randomSelections':0,'unknownIdentityEvents':0,
-            'observationFacts':collections.Counter()}
+            'observationFacts':collections.Counter(),'effects':collections.Counter()}
+
+def merge_config(previous,incoming):
+    """Merge partial telemetry, including nested fragments, within one revision."""
+    result=dict(previous)
+    for key,value in incoming.items():
+        result[key]=merge_config(result.get(key,{}),value) if isinstance(value,dict) and isinstance(result.get(key,{}),dict) else value
+    return result
+
+def stale_analyses(c):
+    return [r[0] for r in c.execute('SELECT id,report FROM raids')
+            if json.loads(r[1] or '{}').get('analyzerVersion')!=ANALYZER_VERSION]
 
 def payloads(e, catalog=CATALOG):
     own=e.get('feature'); yielded=set()
@@ -68,6 +85,7 @@ def phases(e,t,spec):
         if t.get('started') is True:result.add('started')
         # W01 ends observation with state=ended, including unsuccessful reloads.
         if t.get('finished') is True and t.get('improved') is True:result.add('completed')
+    result.update(extra_phases(spec['id'],t))
     if state=='completed': result.add('completed')
     if state=='interrupted': result.add('interrupted')
     # Attached context is not the parent tactic: an A01 start does not mean
@@ -91,7 +109,9 @@ def analyze(c,raid):
         if e.get('schema',1)!=1:unsupported+=1;continue
         if stage=='diagnostics-end': footer=e;continue
         if stage=='raid-start': headers.append(e);continue
-        if isinstance(e.get('config'),dict): configs[str(e.get('configRevision',0))]=e['config']
+        if isinstance(e.get('config'),dict):
+            revision=str(e.get('configRevision',0))
+            configs[revision]=merge_config(configs.get(revision,{}),e['config'])
         if stage=='summary':
             summaries.append(e)
             f=e.get('feature')
@@ -116,16 +136,20 @@ def analyze(c,raid):
             if state:m['states'][state]+=1
             own_config=e.get(spec.get('trace','')+'Config')
             if isinstance(own_config,dict) and isinstance(own_config.get('enabled'),bool):m['configEnabled']=own_config['enabled']
-            ident=identity(e,t,spec['counting'])
+            ident=feature_identity(e,t,spec) or identity(e,t,spec['counting'])
+            effects=effect_facts(f,t)
             if ident is None:
                 m['unknownIdentityEvents']+=1
                 m['observationFacts'].update(phases(e,t,spec))
+                m['observationFacts'].update(effects)
             else:
                 key=(f,profile,bot,*ident)
                 a=attempts.setdefault(key,{'seen':set(),'first':clock,'last':clock,'event':row['event_key'],
                                           'feature':f,'profile':profile,'decision':e.get('decision',''),'reason':reason})
                 a['last']=clock;a['reason']=reason;m['coverage']='identified-attempts'
                 facts=phases(e,t,spec)
+                for effect in effects-a['seen']:m['effects'][effect]+=1
+                a['seen']|=effects
                 if spec['counting'] in ('choice','draw'):
                     facts.add('opportunities')
                 if spec['counting']=='choice' and 'candidates' not in a['seen']:
@@ -170,7 +194,7 @@ def analyze(c,raid):
         total=new_metrics()
         for m in feature_rows:
             for key in COUNTS+('durationSamples','durationTotal','randomTrials','randomSelections','expectedSelections','unknownIdentityEvents'):total[key]+=m[key]
-            total['reasons'].update(m['reasons']);total['states'].update(m['states']);total['observationFacts'].update(m['observationFacts'])
+            total['reasons'].update(m['reasons']);total['states'].update(m['states']);total['observationFacts'].update(m['observationFacts']);total['effects'].update(m['effects'])
         enabled_values=set()
         for snapshot in configs.values():
             configured=at(snapshot,spec['config']) if spec.get('config') else None
@@ -184,11 +208,14 @@ def analyze(c,raid):
                           'identified-attempts' if any(m['coverage']=='identified-attempts' for m in feature_rows) else 'events-only' if total['events'] else 'no-evidence'
         total['name']=spec['name'];total['status']=spec['status'];total['partial']=partial
         total['counting']=spec['counting']
+        total['evidenceNote']=evidence_note(f)
         total['completionMeaning']='Feature-reported completion; does not prove animation quality or combat effectiveness.'
         for m in [total,*feature_rows]:
             m['counting']=spec['counting']
             m['reasons']=dict(m['reasons'].most_common(30));m['states']=dict(m['states'].most_common(30))
             m['observationFacts']=dict(m['observationFacts'])
+            m['effects']=dict(m['effects'])
+            m['evidenceNote']=evidence_note(f)
         c.execute('INSERT INTO features VALUES(?,?,?,?)',(raid,f,'',dumps(total)))
     for (f,p),m in metrics.items():
         if p:c.execute('INSERT OR REPLACE INTO features VALUES(?,?,?,?)',(raid,f,p,dumps(m)))
@@ -196,7 +223,7 @@ def analyze(c,raid):
         c.execute('INSERT INTO alerts(raid,feature,profile,kind,message,event_key,clock) VALUES(?,?,?,?,?,?,?)',(raid,f,p,kind,msg,key,clock))
     for actor in actors.values():actor['instances']=sorted(actor['instances']);actor['personalities']=sorted(actor['personalities'])
     config_hash=hashlib.sha256(dumps({k:v for k,v in cfg.items() if k!='revision'}).encode()).hexdigest() if cfg else None
-    report={'analyzerVersion':VERSION,'analyzedAt':utc(),'partial':partial,'footer':footer,'malformed':malformed,'unsupportedSchemas':unsupported,
+    report={'analyzerVersion':ANALYZER_VERSION,'analyzedAt':utc(),'partial':partial,'footer':footer,'malformed':malformed,'unsupportedSchemas':unsupported,
       'recording':'no-comet-evidence' if not sources else 'partial' if partial else 'closed',
       'headers':headers,'configs':configs,'configHash':config_hash,'actors':actors,'firstClock':first,'lastClock':last,
       'summaries':summaries,'sources':dict(sources),'attempts':len(attempts),'alerts':len(set(alerts)),
