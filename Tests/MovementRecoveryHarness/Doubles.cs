@@ -34,7 +34,7 @@ namespace EFT {
  public class Medical {public bool Using;}public class DoorOpener{public bool Interacting;}public class Shoot{public bool Shooting;}
  public class Weapons {public Reload Reload=new();public Selector Selector=new();}public class Reload{public bool Reloading;}public class Selector{public bool IsChanging;}
 }
-namespace EFT.Interactive {public class Door{}}
+namespace EFT.Interactive {public class Door{public string Id="door-test",DoorState="Shut";}}
 namespace EFT.Ballistics {public enum MaterialType{Glass,GlassShattered,Concrete}public class BaseBallistic{}public class BallisticCollider:BaseBallistic{public MaterialType TypeOfMaterial;}}
 namespace SAIN.Models.Enums {}
 namespace SAIN.Preset.Shared.Enums {public enum ESelfActionType{None,Heal}}

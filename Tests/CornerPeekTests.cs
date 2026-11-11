@@ -20,7 +20,20 @@ internal static class CornerPeekTests
         Check(c.Enabled&&c.Chance==50&&c.MinDistance==5&&c.MaxDistance==25&&c.MaxStep==1&&c.ExposedMin==.35&&c.ExposedMax==.6
             &&c.HiddenMin==.25&&c.HiddenMax==.45&&c.MaxPeeks==2&&c.SequenceLimit==4&&c.CooldownMin==4&&c.CooldownMax==6
             &&c.SightGrace==1.2&&c.JumpShare==25&&c.RunShare==15,"approved defaults");
-        var p=new CornerPeek();Check(!p.Begin(C(),1,c,.5,0,0,0,true)&&p.Trace!.Reason=="corner-roll-declined","50 boundary declines");
+        // Raid435: selection during deceleration used to fail at only 15 cm of inertia.
+        var p=Begin();double initialDeadline=p.Deadline;
+        Check(!p.SettleOrigin(new(.2,0,0),2,true,10.08)&&p.Active&&p.Trace!.Reason=="corner-waiting-for-stop","inertia waits inside bounded planning window");
+        Check(p.SettleOrigin(new(.3,0,0),.1,true,10.2)&&p.Exposed.X==.3&&p.Trace!.ExposedX==.3,"geometry origin rebased to actual stop");
+        Check(p.Deadline==initialDeadline&&p.Plan(new(-.45,0,0),"step",10.25),"settling never extends sequence and allows local geometry plan");
+        Check(p.Observe(F(10.3,.3),c,""),"rebased exposed hold remains valid");
+        p=Begin();Check(!p.SettleOrigin(new(0,0,0),1,true,10)&&p.Active,"first callback with native velocity cannot settle");
+        foreach(var bad in new[]{new DoorPoint(.61,0,0),new DoorPoint(0,.21,0),new DoorPoint(double.NaN,0,0)})
+        {p=Begin();Check(!p.SettleOrigin(bad,0,true,10.1)&&!p.Active,"displacement/height/invalid sample still rejected");}
+        p=Begin();Check(!p.SettleOrigin(new(.2,0,0),1,true,10.5)&&!p.Active&&p.Trace!.Reason=="corner-planning-timeout","inertia cannot prolong planning indefinitely");
+        p=Begin();Check(!p.SettleOrigin(new(0,0,0),0,false,10.1)&&p.Active,"airborne sample never becomes geometry origin");
+        p=Begin();Check(p.SettleOrigin(new(.2,0,0),0,true,10.1),"initial stop accepted");
+        Check(!p.SettleOrigin(new(.36,0,0),0,true,10.2)&&!p.Active,"movement after geometry began invalidates it");
+        p=new CornerPeek();Check(!p.Begin(C(),1,c,.5,0,0,0,true)&&p.Trace!.Reason=="corner-roll-declined","50 boundary declines");
         Check(!p.Begin(C(10.1),2,c,0,0,0,0,true),"decline cooldown prevents reroll");
         foreach(var pair in new[]{(0d,"jump"),(.24999,"jump"),(.25,"run-by"),(.39999,"run-by"),(.4,"step"),(.999,"step")})
         {p=Begin(0,pair.Item1);Check(p.Trace!.Style==pair.Item2,"60/25/15 style intervals");}

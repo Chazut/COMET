@@ -37,6 +37,8 @@ public sealed class MovementRecoveryFrame
 }
 public sealed class MovementRecoveryTrace
 {
+    public string BlockingDoor {get;set;}="";
+    public string BlockingDoorState {get;set;}="";
     public double StationaryPauseSeconds {get;set;}
     public string SelfAction {get;set;}="";
     public bool Healing {get;set;}
@@ -109,9 +111,10 @@ public sealed class MovementRecoveryPolicy
     private static readonly string[] Commands={"early-vault","repath","vault-or-jump","teleport","stop"};
     private static double Threshold(MovementRecoveryConfig c,int i)=>i==0?c.EarlyJumpAfter:i==1?c.RepathAfter:i==2?c.JumpAfter:i==3?c.TeleportAfter:c.StopAfter;
     private void Anchor(MovementRecoveryFrame f)
-    {x=f.X;y=f.Y;z=f.Z;anchored=true;eligible=false;exhausted=false;teleported=false;stall=0;steps=0;incident++;Trace.Step="";Trace.Result="";}
+    {x=f.X;y=f.Y;z=f.Z;anchored=true;eligible=false;exhausted=false;teleported=false;stall=0;steps=0;incident++;Trace.Step="";Trace.Result="";Trace.BlockingDoor=Trace.BlockingDoorState="";}
     public void Result(bool accepted,string reason,bool teleport=false)
     {Trace.State=exhausted?"exhausted":accepted?"attempted":"rejected";Trace.Reason=reason;Trace.Result=accepted?"accepted-awaiting-movement":"refused";teleported=accepted&&teleport;}
+    public void Exhaust(){exhausted=true;Trace.ValidFor=0;}
     public void End(string reason)
     {last=double.NaN;anchored=eligible=exhausted=teleported=false;stall=0;steps=0;Trace=new(){State="ended",Reason=reason,Incident=incident};}
     private static bool Finite(double n)=>!double.IsNaN(n)&&!double.IsInfinity(n);

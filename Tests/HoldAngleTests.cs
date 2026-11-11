@@ -18,6 +18,10 @@ internal static class HoldAngleTests
         var aim=new DoorPoint(2,1.3,3);
         Check(c.Enabled&&c.AdjustPose&&c.Delay==1&&c.MaxStep==1.5&&c.Spacing==.3,"approved switches and distances");
         Check(c.Limit==4&&c.Refresh==.25&&c.Retry==8&&c.RepeatRetry==15,"approved duration/refresh/retries");
+        var moving=new HoldAngle();var settling=F();settling.Speed=1;
+        Check(!moving.Begin(settling,c)&&moving.Trace==null,"deceleration does not consume the hold-angle opportunity");
+        settling.Now=10.2;settling.Position=new(.2,0,0);settling.Speed=.1;
+        Check(moving.Begin(settling,c)&&moving.Origin.X==.2,"hold-angle geometry starts from the actual stop");
         var p=new HoldAngle();var f=F(9.99);Check(!p.Begin(f,c),"original Hold must last one second first");
         Check(p.Begin(F(),c),"begin after original delay");
         Check(p.Trace!.State=="planning"&&!p.Trace.MoveRequested&&!p.Trace.PoseRequested&&!p.Trace.Arrived,"planning claims no native action");

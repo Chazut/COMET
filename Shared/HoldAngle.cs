@@ -75,7 +75,7 @@ public sealed class HoldAngle
     }
     public bool Begin(HoldAngleFrame f,HoldAngleConfig c)
     {
-        if(Active||Gate(f,c).Length>0||f.Now-f.HoldStarted<c.Delay||f.Now<NextAttempt
+        if(Active||Gate(f,c).Length>0||f.Speed>.35||f.Now-f.HoldStarted<c.Delay||f.Now<NextAttempt
             ||lastTarget==f.Target&&lastHold==f.HoldStarted)return false;
         if(failedTarget==f.Target&&(f.Position-failedPosition).Length<1&&(f.Known-failedKnown).Length<2)return false;
         Origin=Goal=f.Position;Pose=basePose=f.Pose;hold=lastHold=f.HoldStarted;lastTarget=f.Target;last=f.Now;deadline=f.Now+c.Limit;

@@ -132,24 +132,47 @@ public sealed partial class Plugin
                 else reason="recovery-repath-requested";
                 b.Mover.RecalcPath();b.BotOwner.Mover.RecalcWay();accepted=true;break;
             case "early-vault":case "vault-or-jump":
-                accepted=TryRecoveryJump(b,next,out reason);break;
+                accepted=TryRecoveryJump(b,next,out reason,out var door);
+                if(door!=null)
+                {
+                    trace.BlockingDoor=door.Id??"unknown";trace.BlockingDoorState=door.DoorState.ToString();
+                    // A leaf alone does not prove C01/C04 is doing any work. After a failed
+                    // repath and a second stalled check, yield the blocked route now.
+                    if(command=="vault-or-jump")
+                    {
+                        ReleaseBlockedRecoveryRoute(b,s,fresh);
+                        accepted=true;reason="recovery-door-route-released-for-replan";
+                        r.Policy.Exhaust();
+                    }
+                }
+                break;
             case "teleport":accepted=TryRecoveryTeleport(b,next,out reason);break;
             case "stop":
-                s.Progress.Fail(f.Route,Time.time,"recovery-movement-exhausted");
-                b.Mover.Stop();b.BotOwner.Mover.Stop();
-                if(fresh.Action is "SeekCover" or "ShiftCover" or "Retreat")b.Cover.StopSeekingCover();
-                if(s.ActiveLabel.Length>0)Release(s,"recovery-movement-exhausted");
+                ReleaseBlockedRecoveryRoute(b,s,fresh);
                 accepted=true;reason="recovery-stopped-for-owner-replan";break;
         }
         r.Policy.Result(accepted,reason,command=="teleport");RecordMovementRecovery(s,true);
     }
-    private bool TryRecoveryJump(BotComponent b,Vector3 next,out string reason)
+    private void ReleaseBlockedRecoveryRoute(BotComponent b,BotState s,MovementRecoveryFrame f)
     {
+        s.Progress.Fail(f.Route,Time.time,"recovery-movement-exhausted");
+        b.Mover.Stop();b.BotOwner.Mover.Stop();
+        if(f.Action is "SeekCover" or "ShiftCover" or "Retreat")
+        {
+            // A moving door leaf is temporary: the failed route is cached, not the cover forever.
+            b.Cover.StopSeekingCover();
+        }
+        if(s.ActiveLabel.Length>0)Release(s,"recovery-movement-exhausted");
+    }
+    private bool TryRecoveryJump(BotComponent b,Vector3 next,out string reason,out Door? door)
+    {
+        door=null;
         reason="recovery-no-low-obstacle";
         var dir=next-b.Position;dir.y=0;if(dir.sqrMagnitude<.01f)return false;dir.Normalize();
         if(!RecoveryActorsClear(b,b.Position,b.Position+dir*1.2f,.7f)){reason="recovery-person-ahead";return false;}
         if(!Physics.Raycast(b.Position+Vector3.up*.4f,dir,out var low,.75f,LayersMaskController.PlayerStaticDoorMask,QueryTriggerInteraction.Ignore))return false;
-        if(low.collider.GetComponentInParent<Door>()!=null){reason="recovery-door-owned-by-C01-C04";return false;}
+        door=low.collider.GetComponentInParent<Door>();
+        if(door!=null){reason="recovery-door-leaf-blocking-route";return false;}
         if(Physics.Raycast(b.Position+Vector3.up*1.3f,dir,1.2f,LayersMaskController.PlayerStaticDoorMask,QueryTriggerInteraction.Ignore))
         {reason="recovery-obstacle-too-high";return false;}
         if(b.Mover.TryVault()){reason="recovery-vault-requested";return true;}

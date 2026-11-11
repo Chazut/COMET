@@ -139,9 +139,11 @@ public sealed partial class Plugin
     private void PlanCornerPeek(BotComponent b,BotState s)
     {
         var r=s.CornerPeek;var p=r.Policy;var t=p.Trace!;var c=config!.CornerPeek;
-        if(Vector3.Distance(b.Position,r.Origin)>.15f){EndCornerPeek(s,"corner-planning-origin-moved");return;}
-        // Native Stop only releases the route. Let real inertia settle before starting a firing window.
-        if(r.Speed>.35f||!b.Player.MovementContext.IsGrounded)return;
+        var velocity=b.Player.Velocity;velocity.y=0;
+        // The first callback can precede a displacement sample. Native velocity still carries inertia.
+        if(!p.SettleOrigin(DP(b.Position),Math.Max(r.Speed,velocity.magnitude),b.Player.MovementContext.IsGrounded,Time.time))
+        {if(!p.Active)FinishCornerPeek(s);return;}
+        r.Origin=VP(p.Exposed);
         var known=VP(p.Known);
         if(!CornerOpen(b,r.Origin,known)){EndCornerPeek(s,"corner-initial-angle-blocked");return;}
         if(r.PlanStage==0) {

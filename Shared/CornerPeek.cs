@@ -67,6 +67,8 @@ public sealed class CornerPeek
     private double last,started,lastVisible,phaseEnd,cooldown,progressAt;
     private DoorPoint previous,progress;
     private double exposedDuration,hiddenDuration;
+    private DoorPoint selectionOrigin;
+    private bool originSettled;
     public bool Begin(CombatStepFrame f,int episode,CornerPeekConfig c,double roll,double styleRoll,double durationRoll,double cooldownRoll,bool bold)
     {
         if(Active||f.Now<NextAttempt||!Unit(roll)||!Unit(styleRoll)||!Unit(durationRoll)||!Unit(cooldownRoll)||!Finite(f.Now))return false;
@@ -75,9 +77,30 @@ public sealed class CornerPeek
         if(!c.Enabled||roll*100>=c.Chance){End(!c.Enabled?"corner-disabled":"corner-roll-declined",f.Now);return false;}
         if(Scope(f).Length>0||!f.Visible||f.Source!="personal-vision"||!Point(f.Known)||!Point(f.Position)||!Distance(f,c)) {End("corner-no-visible-opportunity",f.Now);return false;}
         Trace.Selected=true;Trace.Style=Trace.RequestedStyle=bold?(styleRoll*100<c.JumpShare?"jump":styleRoll*100<c.JumpShare+c.RunShare?"run-by":"step"):"step";
-        Exposed=previous=progress=f.Position;Known=f.Known;last=started=lastVisible=progressAt=f.Now;Deadline=f.Now+c.SequenceLimit;
+        Exposed=previous=progress=selectionOrigin=f.Position;originSettled=false;Known=f.Known;last=started=lastVisible=progressAt=f.Now;Deadline=f.Now+c.SequenceLimit;
         exposedDuration=Mix(c.ExposedMin,c.ExposedMax,durationRoll);hiddenDuration=Mix(c.HiddenMin,c.HiddenMax,1-durationRoll);
         Trace.ExposedX=Exposed.X;Trace.ExposedY=Exposed.Y;Trace.ExposedZ=Exposed.Z;Update(f.Now);return true;
+    }
+    // Stop releases the path before physical inertia ends. Capture the firing origin once,
+    // before probing geometry, without extending the planning or sequence deadlines.
+    public bool SettleOrigin(DoorPoint position,double speed,bool grounded,double now)
+    {
+        if(!Active||Trace!.State!="planning")return false;
+        if(!Point(position)||!Finite(speed)||speed<0||!Finite(now)||now<last)
+        {End("corner-invalid-planning-origin",now);return false;}
+        if((position-selectionOrigin).Length>.6||Math.Abs(position.Y-selectionOrigin.Y)>.2)
+        {End("corner-planning-origin-displaced",now);return false;}
+        if(now-started>=.5){End("corner-planning-timeout",now);return false;}
+        if(originSettled)
+        {
+            if((position-Exposed).Length>.15||speed>.35||!grounded)
+            {End("corner-planning-origin-moved",now);return false;}
+            return true;
+        }
+        if(speed>.35||!grounded){Trace.Reason="corner-waiting-for-stop";return false;}
+        originSettled=true;Exposed=position;
+        Trace.ExposedX=position.X;Trace.ExposedY=position.Y;Trace.ExposedZ=position.Z;
+        Trace.Reason="corner-planning-origin-settled";return true;
     }
     public bool Plan(DoorPoint hidden,string style,double now)
     {

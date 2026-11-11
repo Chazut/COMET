@@ -29,7 +29,32 @@ foreach(var change in new Action<Plugin,BotComponent>[] {(p,b)=>b.Pmc=false,(p,b
 foreach(var pause in new Action<Plugin,BotComponent,BotState>[] {(p,b,s)=>b.BotOwner.Medecine.Using=true,(p,b,s)=>b.BotOwner.WeaponManager.Reload.Reloading=true,(p,b,s)=>b.BotOwner.DoorOpener.Interacting=true,(p,b,s)=>b.Player.HandsController.Busy=true,(p,b,s)=>b.BotOwner.ShootData.Shooting=true,(p,b,s)=>b.Search.CurrentState="Wait",(p,b,s)=>{s.ActiveLabel="COMET";s.Decision="Hold";},(p,b,s)=>p.doorSwings.Add(new(){Bot=b}),(p,b,s)=>((BotPathDataManual)b.Mover.ActivePath).Status=EBotMoveStatus.Complete})
 {var(p,b,s)=Setup();pause(p,b,s);Run(p,b,s,20);Check(b.Mover.Repaths+b.Mover.Jumps+b.Mover.Stops==0,"intentional pause or arrival protected");}
 {var(p,b,s)=Setup();p.config!.HandsRecovery.Enabled=false;p.states.Clear();p.Enroll(b);Check(p.states.ContainsKey(b),"C06 enrolls independently of W10 or combat decisions");}
-{var(p,b,s)=Setup();Physics.LowCollider=new(){Parent=new Door()};Run(p,b,s,6);Check(b.Mover.Jumps==0&&b.Mover.Vaults==0&&b.Mover.Repaths==1,"door leaf belongs to C04");}
+// Raid435 feiqiuT_T: a leaf is not evidence that a door interaction is in progress.
+foreach(string action in new[]{"Search","SeekCover","ShiftCover","Retreat"})
+{
+ var(p,b,s)=Setup();b.Decision.CurrentCombatDecision=action;s.ActiveLabel="COMET";
+ var cover=new CoverPoint();b.Cover.CoverPoint_MovingTo=cover;
+ Physics.LowCollider=new(){Parent=new Door{Id="factory-leaf",DoorState="Open"}};
+ Run(p,b,s,6);
+ Check(b.Mover.Jumps==0&&b.Mover.Vaults==0&&b.Mover.Repaths==1,"door leaf never vaulted, repath attempted first");
+ Check(b.Mover.Stops==1&&p.Releases==1,"blocked leaf route released at second obstacle check: "+action);
+ Check(s.MovementRecovery.Policy.Trace.State=="exhausted"&&s.MovementRecovery.Policy.Trace.BlockingDoor=="factory-leaf","door identity and exhausted status preserved");
+ Check(b.Cover.Releases==(action=="Search"?0:1)&&!cover.CoverData.IsBad,"release cover request without permanent blacklist");
+ for(double t=6.5;t<20;t+=.5)p.Tick(b,s,t);
+ Check(b.Mover.Stops==1&&b.Player.Teleports==0,"no repeated stop or teleport while stationary");
+ b.Player.Position=new(1,0,0);p.Tick(b,s,20);
+ Check(s.MovementRecovery.Policy.Trace.State=="recovered"&&s.MovementRecovery.Policy.Trace.BlockingDoor=="","only movement confirms recovery and clears old blocker");
+}
+{
+ var(p,b,s)=Setup();Physics.LowCollider=new(){Parent=new Door()};Run(p,b,s,4);
+ b.BotOwner.DoorOpener.Interacting=true;for(double t=4.5;t<15;t+=.5)p.Tick(b,s,t);
+ Check(b.Mover.Stops==0,"real door interaction after repath pauses recovery");
+}
+{
+ var(p,b,s)=Setup();Physics.LowCollider=new(){Parent=new Door()};Run(p,b,s,4);
+ Physics.LowCollider=new();p.Tick(b,s,5.5);
+ Check(b.Mover.Stops==0&&b.Mover.Vaults==1,"cleared door leaf does not trigger early route release");
+}
 {var(p,b,s)=Setup();Singleton<GameWorld>.Instance.AllAlivePlayersList.Add(new(){Position=new(.8f,0,0)});Run(p,b,s,6);Check(b.Mover.Jumps+b.Mover.Vaults==0,"no jumping over teammate or another actor");}
 {var(p,b,s)=Setup();Singleton<GameWorld>.Instance.AllAlivePlayersList.Add(new(){Position=new(.8f,.9f,0)});Run(p,b,s,6);Check(b.Mover.Jumps+b.Mover.Vaults==0,"actor on a nearby step still occupies the swept body space");}
 {var(p,b,s)=Setup();((BotPathDataManual)b.Mover.ActivePath).PausedRequested=true;Run(p,b,s,20);Check(b.Mover.Repaths+b.Mover.Jumps+b.Mover.Stops==0,"pending native pause protected before status update");}
