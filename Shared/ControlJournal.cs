@@ -27,6 +27,7 @@ public sealed class ControlJournalEvent
     public bool Waiting { get; set; }
     public int Cycles { get; set; }
     public int Incident { get; set; }
+    public MovementObservation? Motion { get; set; }
 }
 public sealed class ControlJournal
 {

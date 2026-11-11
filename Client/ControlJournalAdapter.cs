@@ -41,7 +41,30 @@ public sealed partial class Plugin
                 if(s.PostCombat.Layer)o.Residual+=" recovery-layer-record";
                 if(s.Reservation.Lease!=null&&s.Reservation.Lease.Until>Time.time)o.Residual+=" unexpired-door-lease-record";
             }
-            foreach(var e in watch.Journal.Observe(Time.time,o,config.ControlJournal))
+            var events=watch.Journal.Observe(Time.time,o,config.ControlJournal);
+            // A native Search can crouch even when P02's optional quiet caps were
+            // declined. Record actual locomotion separately from plan ownership.
+            // No raycasts, movement commands or per-frame serialization.
+            if(watch.Movement.Due(Time.time,!suspended&&owner=="combat")&&!watch.MovementFailed)
+            {
+                try
+                {
+                    var velocity=b.Player.Velocity;
+                    var motion=MovementObserver.Capture(b.Player.PoseLevel,velocity.x,velocity.z,b.Player.IsInPronePose,b.Player.IsSprintEnabled);
+                    if(motion!=null)
+                    {
+                        if(events.Count==0)events.Add(new(){Kind="movement",Owner=o.Owner,Layer=o.Layer,Action=o.Action,Feature=o.Feature,Blocker=o.Blocker,Reason="locomotion-observed"});
+                        events[events.Count-1].Motion=motion;
+                    }
+                }
+                catch(Exception ex)
+                {
+                    watch.MovementFailed=true;
+                    ControlJournalUnavailable("locomotion");
+                    try{Logger.LogWarning("T04 locomotion observation unavailable: "+ex.Message);}catch{}
+                }
+            }
+            foreach(var e in events)
             {
                 if(Time.time-watch.JournalBudgetAt>=1){watch.JournalBudgetAt=Time.time;watch.JournalEvents=0;}
                 // Observe emits a bounded set of real transitions/intervals per call.

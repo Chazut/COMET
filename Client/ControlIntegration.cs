@@ -26,6 +26,8 @@ public sealed partial class Plugin
         internal BotState State=null!;
         internal bool Cleaning;
         internal ControlJournal Journal=new();
+        internal MovementObserver Movement=new();
+        internal bool MovementFailed;
         internal bool JournalFailed;
         internal double JournalBudgetAt;
         internal int JournalEvents;

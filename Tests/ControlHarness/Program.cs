@@ -82,3 +82,24 @@ foreach(var (service,feature) in new[]{("FirstAid","H01"),("Surgery","H01"),("St
 }
 Check(services.Releases==0,"service attribution never forces a layer release");services.Clear();
 Console.WriteLine($"T04/I02 including service continuity: {checks} checks passed.");
+
+// Real adapter reads native posture even without P02 quiet caps or a COMET plan.
+var locomotion=new Plugin();locomotion.config!.ControlJournal.Enabled=true;locomotion.Connect(new());
+var ls=locomotion.Add();ls.ActiveLabel="";ls.Owner.Player.PoseLevel=.35f;ls.Owner.Player.Velocity=new(){x=.6f,y=4,z=0};
+ls.Owner.CurrentAction=new SearchAction();Tick(500);Decisions.Events.Clear();locomotion.Sample();
+var locomotionJson=Decisions.Events.Select(JObject.Parse).Last(e=>e["controlJournal"]?["motion"] is JObject);var measured=locomotionJson["controlJournal"]?["motion"];
+Check(measured!=null&&measured["speed"]!.Value<double>()==.6&&measured["pose"]!.Value<double>()==.35,"native horizontal crouch movement recorded");
+Check((string?)locomotionJson["controlJournal"]?["feature"]=="","native posture is not falsely owned by COMET");
+Check(ls.Owner.Player.PoseLevel==.35f&&ls.Owner.Player.Velocity.y==4,"read-only observer leaves gameplay untouched");
+int MotionCount()=>Decisions.Events.Select(JObject.Parse).Count(e=>e["controlJournal"]?["motion"] is JObject);
+for(int i=1;i<4;i++){Tick(500+i*.25f);locomotion.Sample();}Check(MotionCount()==1,"no repeated per-frame motion record");
+Tick(501);locomotion.Sample();Check(MotionCount()==2,"movement heartbeat uses existing diagnostic stream");
+Tick(501.1f);ls.Owner.BotOwner.Brain.BaseBrain.Select("OrbitBrainLayer");Tick(501.2f);ls.Owner.BotOwner.Brain.BaseBrain.Select("SAIN : Combat Layer");
+Check(MotionCount()==2,"rapid layer cycling cannot multiply motion observations");
+Tick(502);ls.Owner.BotOwner.Brain.BaseBrain.Select("OrbitBrainLayer");locomotion.Sample();Check(MotionCount()==2,"no combat-motion sample during ORBIT ownership");
+Tick(503);locomotion.isGhost=_=>true;locomotion.Sample();Check(MotionCount()==2,"sleep does not manufacture movement");
+locomotion.isGhost=_=>false;locomotion.Authority=false;Tick(504);ls.Owner.BotOwner.Brain.BaseBrain.Select("SAIN : Combat Layer");locomotion.Sample();Check(MotionCount()==2,"Fika replica cannot publish movement");
+locomotion.Authority=true;locomotion.config.ControlJournal.Enabled=false;Tick(505);locomotion.Sample();Check(MotionCount()==2,"diagnostic toggle disables movement sampling");
+File.WriteAllText(Path.Combine(dir,"movement.json"),locomotionJson.ToString());locomotion.Clear();
+Console.WriteLine($"T04/I02 including observed locomotion: {checks} checks passed.");
+sealed class SearchAction { }

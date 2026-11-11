@@ -1,7 +1,7 @@
 using Comet.Core;
 using SAIN.Components;
 using System.Reflection;
-namespace UnityEngine { public static class Time {public static float time,realtimeSinceStartup;public static double unscaledTimeAsDouble;} }
+namespace UnityEngine { public struct Vector3 {public float x,y,z;} public class Player {public UnityEngine.Vector3 Velocity;public float PoseLevel=1;public bool IsInPronePose,IsSprintEnabled;} public static class Time {public static float time,realtimeSinceStartup;public static double unscaledTimeAsDouble;} }
 namespace EFT {
  public enum BotLogicDecision { Test }
  public class AICoreLayer<T>(string name){public string Name()=>name;}
@@ -10,7 +10,7 @@ namespace EFT {
  public class Owner {public Brain Brain=new();public Memory Memory=new();public Medicine Medecine=new();public Weapons WeaponManager=new();}
  public class Memory {public bool IsUnderFire;} public class Medicine {public bool Using;} public class Weapons {public Reload Reload=new();} public class Reload {public bool Reloading;}
 }
-namespace SAIN.Components {public class BotComponent {public bool IsDead,Pmc=true,Human;public string ProfileId=Guid.NewGuid().ToString();public EFT.Owner BotOwner=new();public object Player=new();public bool SAINLayersActive=true;public object? CurrentAction=new();public Decision Decision=new();public Contact? GoalEnemy;public Info Info=new();}}
+namespace SAIN.Components {public class BotComponent {public bool IsDead,Pmc=true,Human;public string ProfileId=Guid.NewGuid().ToString();public EFT.Owner BotOwner=new();public UnityEngine.Player Player=new();public bool SAINLayersActive=true;public object? CurrentAction=new();public Decision Decision=new();public Contact? GoalEnemy;public Info Info=new();}}
 namespace SAIN.Components {public class Decision {public string CurrentCombatDecision="Hold",CurrentSelfDecision="None",CurrentSquadDecision="None";} public class Contact {public string EnemyProfileId="enemy";public bool IsVisible;public float TimeSinceLastKnownUpdated;}public class Info {public string Personality="Normal";} }
 namespace BepInEx.Bootstrap {
  public class Info {public object Instance=new();}

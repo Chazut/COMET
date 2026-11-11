@@ -9,6 +9,18 @@ internal static class ControlJournalTests
     {
         int n=0;void Check(bool value,string why){n++;if(!value)throw new Exception("T04: "+why);}
         string Json(object x)=>JsonConvert.SerializeObject(x,Diagnostics.Json);
+        var movement=new MovementObserver();int samples=0;
+        for(int i=0;i<1000;i++)if(movement.Due(i*.01,true))samples++;
+        Check(samples==10,"locomotion sampling bounded at one per second");
+        Check(!movement.Due(9.9,false)&&!movement.Due(9.91,true),"rapid handoff cannot bypass locomotion rate limit");
+        Check(movement.Due(1,true),"new clock permits a fresh observation");
+        foreach(double bad in new[]{double.NaN,double.PositiveInfinity,-1d})Check(!movement.Due(bad,true),"invalid locomotion clock");
+        var motion=MovementObserver.Capture(.35,.3,.4,false,false)!;
+        Check(motion.Pose==.35&&motion.Speed==.5&&!motion.Prone&&!motion.Sprinting&&motion.ValidFor==1.5,"actual horizontal motion and pose captured without ownership claims");
+        Check(MovementObserver.Capture(0,0,0,true,false)!.Prone,"stationary prone is separate from crouching");
+        Check(MovementObserver.Capture(1,3,4,false,true)!.Speed==5,"sprint velocity observed");
+        foreach(var bad in new[]{MovementObserver.Capture(double.NaN,0,0,false,false),MovementObserver.Capture(1,21,0,false,false),MovementObserver.Capture(1,0,double.PositiveInfinity,false,false),MovementObserver.Capture(2,0,0,false,false)})
+            Check(bad==null,"invalid or teleport motion not presented as locomotion");
         var c=new ControlJournalConfig();c.Validate();Check(c.Enabled&&c.LongWait==30&&c.RapidReturn==5&&c.CycleThreshold==3&&c.Window==20,"approved defaults");
         foreach(Action bad in new Action[]{()=>new ControlJournalConfig{LongWait=0}.Validate(),()=>new ControlJournalConfig{RapidReturn=double.NaN}.Validate(),()=>new ControlJournalConfig{CycleThreshold=13}.Validate(),()=>new ControlJournalConfig{Window=61}.Validate()})
         {bool rejected=false;try{bad();}catch{rejected=true;}Check(rejected,"configuration bounds");}
