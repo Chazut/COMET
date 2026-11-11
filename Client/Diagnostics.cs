@@ -163,13 +163,28 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
                     || property.ItemIsReference.HasValue || property.ItemReferenceLoopHandling.HasValue
                     || property.ItemTypeNameHandling.HasValue)return contract;
                 var member=Expression.PropertyOrField(target,property.UnderlyingName!);
-                body.Add(Expression.Call(writer,nameof(JsonWriter.WritePropertyName),Type.EmptyTypes,Expression.Constant(property.PropertyName)));
                 var write=typeof(JsonWriter).GetMethod(nameof(JsonWriter.WriteValue),new[]{member.Type});
                 // Typed primitive writes avoid boxing and repeated serializer property
                 // dispatch. Nested objects/collections still use Newtonsoft's contracts.
-                body.Add(write!=null && member.Type!=typeof(object) && write.GetParameters()[0].ParameterType==member.Type
+                Expression writeValue=write!=null && member.Type!=typeof(object) && write.GetParameters()[0].ParameterType==member.Type
                     ? Expression.Call(writer,write,member)
-                    : Expression.Call(serializer,nameof(JsonSerializer.Serialize),Type.EmptyTypes,writer,Expression.Convert(member,typeof(object))));
+                    : Expression.Call(serializer,nameof(JsonSerializer.Serialize),Type.EmptyTypes,writer,Expression.Convert(member,typeof(object)));
+                Expression propertyWrite=Expression.Block(
+                    Expression.Call(writer,nameof(JsonWriter.WritePropertyName),Type.EmptyTypes,Expression.Constant(property.PropertyName)),writeValue);
+                if(!member.Type.IsValueType || Nullable.GetUnderlyingType(member.Type)!=null)
+                {
+                    // Read once even when filtering nulls; a getter must not be
+                    // executed twice by the snapshot writer.
+                    var memberValue=Expression.Variable(member.Type,"memberValue");
+                    Expression writeLocal=write!=null && member.Type!=typeof(object) && write.GetParameters()[0].ParameterType==member.Type
+                        ? Expression.Call(writer,write,memberValue)
+                        : Expression.Call(serializer,nameof(JsonSerializer.Serialize),Type.EmptyTypes,writer,Expression.Convert(memberValue,typeof(object)));
+                    propertyWrite=Expression.Block(new[]{memberValue},Expression.Assign(memberValue,member),Expression.IfThen(Expression.OrElse(
+                        Expression.NotEqual(Expression.Property(serializer,nameof(JsonSerializer.NullValueHandling)),Expression.Constant(NullValueHandling.Ignore)),
+                        Expression.NotEqual(memberValue,Expression.Constant(null,member.Type))),Expression.Block(
+                            Expression.Call(writer,nameof(JsonWriter.WritePropertyName),Type.EmptyTypes,Expression.Constant(property.PropertyName)),writeLocal)));
+                }
+                body.Add(propertyWrite);
             }
             body.Add(Expression.Call(writer,nameof(JsonWriter.WriteEndObject),Type.EmptyTypes));
             var writeObject=Expression.Lambda<Action<JsonWriter,object,JsonSerializer>>(
@@ -213,11 +228,14 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
         internal static readonly JsonSerializerSettings Json = new JsonSerializerSettings { ContractResolver = new PreparedDiagnosticResolver() };
         [ThreadStatic] private static JsonSerializer? serializer;
         [ThreadStatic] private static Func<JsonSerializerSettings>? serializerDefaults;
+        [ThreadStatic] private static string? snapshotPolicy;
         [ThreadStatic] private static System.Text.StringBuilder? buffer;
         [ThreadStatic] private static bool serializing;
         internal static readonly JsonSerializerSettings SnapshotJson = new JsonSerializerSettings { ContractResolver = new SnapshotDiagnosticResolver() };
         internal static object SerializerMetrics()=>new {
             globalDefaults=JsonConvert.DefaultSettings!=null,
+            typedSnapshots=serializer?.ContractResolver is SnapshotDiagnosticResolver,
+            snapshotCompatibility=serializer==null?"not-initialized":snapshotPolicy,
             snapshotContracts=((PreparedDiagnosticResolver)SnapshotJson.ContractResolver!).ContractsBuilt,
             snapshotPreparationMs=((PreparedDiagnosticResolver)SnapshotJson.ContractResolver!).ContractBuildMilliseconds,
             compatibilityContracts=((PreparedDiagnosticResolver)Json.ContractResolver!).ContractsBuilt,
@@ -233,7 +251,16 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
             {
                 var defaults=JsonConvert.DefaultSettings;
                 if(serializer==null || !ReferenceEquals(serializerDefaults,defaults))
-                { serializer=JsonSerializer.CreateDefault(defaults==null?SnapshotJson:Json);serializerDefaults=defaults; }
+                {
+                    var effective=defaults?.Invoke();
+                    serializer=JsonSerializer.Create(effective??Json);
+                    serializer.ContractResolver=Json.ContractResolver!;
+                    // A defaults factory alone does not require the slower writer.
+                    // Check effective policies, retaining fallback for custom semantics.
+                    snapshotPolicy=effective?.Error!=null?"error-handler":SnapshotCompatibility(serializer);
+                    if(snapshotPolicy=="compatible")serializer.ContractResolver=SnapshotJson.ContractResolver!;
+                    serializerDefaults=defaults;
+                }
                 // Global serializer customizations are outside the fixed diagnostic
                 // contract. Preserve their behavior with the original writer.
                 using var output=new StringWriter(text,System.Globalization.CultureInfo.InvariantCulture);
@@ -242,6 +269,18 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
             }
             catch { serializer=null;throw; }
             finally { text.Clear();if(text.Capacity>65536)buffer=null;serializing=false; }
+        }
+        internal static string SnapshotCompatibility(JsonSerializer value)
+        {
+            if(value.DefaultValueHandling!=DefaultValueHandling.Include)return "default-value-filter";
+            if(value.TypeNameHandling!=TypeNameHandling.None || value.PreserveReferencesHandling!=PreserveReferencesHandling.None
+                || value.ReferenceLoopHandling!=ReferenceLoopHandling.Error)return "reference-or-type-policy";
+            if(value.TraceWriter!=null)return "trace-writer";
+            // Enum members still go through Serialize. A primitive/object converter
+            // could change typed property output, so preserve its ordinary contracts.
+            foreach(var converter in value.Converters)
+                if(converter.GetType()!=typeof(Newtonsoft.Json.Converters.StringEnumConverter))return "custom-converter:"+converter.GetType().Name;
+            return "compatible";
         }
         private readonly BlockingCollection<string> queue = new BlockingCollection<string>(4096);
         private readonly Action<string> warn;

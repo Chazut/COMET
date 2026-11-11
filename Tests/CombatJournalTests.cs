@@ -51,6 +51,24 @@ static class CombatJournalTests
         Check(!report.Finish(0).Any(),"report finalization idempotent");
         report=new("raid");seq=0;Configure();Context(0);Context(100);pages=Finish();
         Check((double)Rows(pages,"T01")[0]["seconds"]! ==0&&!(bool)pages[0]["journalReport"]!["complete"]!,"missing observation interval never counted as action duration");
+        Check((int)pages[0]["journalReport"]!["invalidEvents"]! ==0&&(int)pages[0]["journalReport"]!["observationGaps"]! ==1,"late sample is an observation gap, not corrupt input");
+        Check((bool)pages.First(p=>(string?)p["feature"]=="T03")["journalReport"]!["complete"]!,"combat sampling gap does not invalidate weapon facts");
+        report=new("raid");seq=0;Configure();Context(93.768,bot:"dashu01");Context(100.799,bot:"dashu01");Context(102,bot:"dashu01");pages=Finish();
+        Check(Math.Abs((double)pages[0]["journalReport"]!["unobservedSeconds"]!-7.031)<.00001&&Math.Abs((double)Rows(pages,"T01")[0]["seconds"]!-1.201)<.00001,"raid 431 gap excluded, following observed interval retained");
+        Check((string?)pages[0]["journalReport"]!["gapExamples"]![0]!["name"]=="dashu01","gap records bot and time for next raid diagnosis");
+        var previousCulture=System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            foreach(string culture in new[]{"en-US","fr-FR","de-DE"})
+            {
+                System.Globalization.CultureInfo.CurrentCulture=System.Globalization.CultureInfo.GetCultureInfo(culture);
+                report=new("raid");seq=0;Configure();Context(1.25);Context(3.75);Context(4,kind:"hit-dealt",damage:42.5);pages=Finish();
+                Check((double)Rows(pages,"T01")[0]["seconds"]! ==2.5&&(double)Rows(pages,"T01")[0]["damageDealt"]! ==42.5,"fractional journal times and damage independent of OS locale: "+culture);
+            }
+        }
+        finally{System.Globalization.CultureInfo.CurrentCulture=previousCulture;}
+        report=new("raid");seq=0;Configure();Context(10);Context(9);pages=Finish();
+        Check((int)pages[0]["journalReport"]!["invalidEvents"]! ==1&&(int)pages[0]["journalReport"]!["observationGaps"]! ==0,"backwards timestamp remains invalid");
         report=new("raid");seq=0;Configure();Context(0);Context(1,kind:"pause");Context(6);pages=Finish();
         Check((double)Rows(pages,"T01")[0]["seconds"]! ==0,"sleep pause removes stale timeline");
         report=new("raid");seq=0;Configure(false);Context(1);pages=Finish();Check(!Rows(pages,"T01").Any()&&!(bool)pages[0]["journalReport"]!["enabled"]!,"disabled is not zero observed combat");

@@ -64,16 +64,29 @@ internal static class VisibleAdapter
     {
         // Respect an existing destination. FindCoverPoint is patched only when COMET owns the choice.
         var owned = bot.Cover.CoverInUse ?? bot.Cover.CoverPoint_MovingTo;
-        if (owned != null && progress?.Blocked(ProgressAdapter.CoverKey(owned),Time.time)!=true && ValidCover(bot, owned)) return owned;
-        CoverPoint? best = null; float length = float.MaxValue;
-        int checkedPoints = 0;
-        foreach (var p in bot.Cover.CoverPoints)
+        if (owned != null && progress?.Blocked(ProgressAdapter.CoverKey(owned),Time.time)!=true && ValidCover(bot, owned)
+            && Plugin.SelectionCoverUsable(bot, owned, out _)) return owned;
+        // Recheck only the cheapest eligible candidate, then the next if refused.
+        // Do not perform geometry/path recalculation for every improving entry in
+        // an unsorted native list. Keep the same 24-entry bound and no allocations.
+        uint rejected = 0;
+        for (int attempt = 0; attempt < 24; attempt++)
         {
-            if (++checkedPoints > 24) break;
-            if (!ValidCover(bot, p) || progress?.Blocked(ProgressAdapter.CoverKey(p),Time.time)==true || p.PathData.PathLength >= length) continue;
-            best = p; length = p.PathData.PathLength;
+            CoverPoint? best = null; float length = float.MaxValue;
+            int checkedPoints = 0, bestIndex = -1;
+            foreach (var p in bot.Cover.CoverPoints)
+            {
+                int index = checkedPoints++;
+                if (index >= 24) break;
+                if ((rejected & (1u << index)) != 0 || !ValidCover(bot, p)
+                    || progress?.Blocked(ProgressAdapter.CoverKey(p),Time.time)==true || p.PathData.PathLength >= length) continue;
+                best = p; length = p.PathData.PathLength; bestIndex = index;
+            }
+            if (best == null) return null;
+            if (Plugin.SelectionCoverUsable(bot, best, out _)) return best;
+            rejected |= 1u << bestIndex;
         }
-        return best;
+        return null;
     }
     internal static VisibleSituation Capture(BotComponent bot, Enemy enemy, Situation contact, BotState state, CometConfig config)
     {

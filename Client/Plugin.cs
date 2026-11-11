@@ -636,12 +636,21 @@ public sealed partial class Plugin : BaseUnityPlugin
         {
             var bot = __instance.Bot;
             var point = state.SelectedCover;
+            // A loss of authority or a native emergency is not a failed route.
+            if (!plugin.Authority || plugin.Ghost(bot.ProfileId) || !NativeAdapter.IsSupportedAi(bot) || !bot.BotActive
+                || bot.Decision.CurrentSelfDecision != ESelfActionType.None || bot.Decision.CurrentSquadDecision != ESquadDecision.None
+                || (bot.Decision.CurrentCombatDecision != ECombatDecision.SeekCover && bot.Decision.CurrentCombatDecision != ECombatDecision.Retreat))
+            {
+                plugin.Emit(state, "interrupted", "selected-cover-control-changed");
+                plugin.YieldToSain(state, "selected-cover-control-changed");
+                return true;
+            }
             bool moveRefused=false;
-            if (plugin.Authority && !plugin.Ghost(bot.ProfileId) && NativeAdapter.IsSupportedAi(bot) && bot.BotActive
-                && bot.Decision.CurrentSelfDecision == ESelfActionType.None && bot.Decision.CurrentSquadDecision == ESquadDecision.None
-                && (bot.Decision.CurrentCombatDecision == ECombatDecision.SeekCover || bot.Decision.CurrentCombatDecision == ECombatDecision.Retreat) && VisibleAdapter.ValidCover(bot, point)
+            string failure = "selected-cover-invalidated-before-move";
+            if (VisibleAdapter.ValidCover(bot, point)
                 && !state.Progress.Blocked(ProgressAdapter.CoverKey(point),Time.time)
                 && (state.Feature == "A01" || state.Probe != null && Time.time - state.Probe.At <= 1 && ReferenceEquals(state.Probe.Cover, point))
+                && SelectionCoverUsable(bot, point!, out failure)
                 && !(moveRefused=!bot.Mover.GoToCoverPoint(point!, false, ESprintUrgency.High)))
             { __result = point!; return false; }
             // A stale/rejected point is still a failed attempt, even when validation
@@ -649,7 +658,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             if(point!=null)state.Progress.Fail(ProgressAdapter.CoverKey(point),Time.time,
                 moveRefused?"progress-native-move-refused":"progress-cover-invalidated");
             state.ProgressAtSelection=state.Progress.Current;
-            plugin.Emit(state, "rejected", moveRefused?"selected-cover-refused-by-native-mover":"selected-cover-invalidated-before-move");
+            plugin.Emit(state, "rejected", moveRefused?"selected-cover-refused-by-native-mover":failure);
             state.VisibleEngine.NotifyNativeRefusal();
             plugin.YieldToSain(state, "selected-cover-no-longer-usable");
         }

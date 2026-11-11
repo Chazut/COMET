@@ -35,10 +35,19 @@ internal sealed class CombatReport
     private readonly Dictionary<string,(Row Row,double At,string Target)> last=new();
     private bool configured,combatEnabled,weaponEnabled,cleanup,closed;
     private long revision,invalid,omitted,capacity,lastSequence;
+    private long observationGaps;
+    private double unobservedSeconds,maxObservationGap;
+    private readonly List<object> gapExamples=new();
     private double end;
     internal CombatReport(string session){this.session=session;}
     static string S(JToken? v,int max=96)=>v?.Type==JTokenType.String?((string)v!).Substring(0,Math.Min(max,((string)v!).Length)):"";
-    static double N(JToken? v)=>v?.Type is JTokenType.Integer or JTokenType.Float&&double.TryParse(v.ToString(),System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var n)&&!double.IsNaN(n)&&!double.IsInfinity(n)?n:0;
+    static double N(JToken? v)
+    {
+        if(v?.Type is not (JTokenType.Integer or JTokenType.Float))return 0;
+        // JValue.ToString() follows the OS culture (e.g. 7,031 in French),
+        // while JSON numbers do not. Read the numeric token directly.
+        double n=(double)v;return double.IsNaN(n)||double.IsInfinity(n)?0:n;
+    }
     static string Key(params string[] values)=>string.Concat(values.Select(x=>x.Length+":"+x));
     internal void Observe(string json)
     {
@@ -80,7 +89,17 @@ internal sealed class CombatReport
                 case "context":
                     double now=N(e["realtime"]);string target=S(context["target"],128);
                     if(last.TryGetValue(bot,out var previous))
-                    {double dt=now-previous.At;if(dt>=0&&dt<=7)previous.Row.Seconds+=dt;else invalid++;if(target.Length>0&&target!=previous.Target)r.Contacts++;}
+                    {
+                        double dt=now-previous.At;
+                        if(dt>=0&&dt<=7)previous.Row.Seconds+=dt;
+                        else if(dt>7)
+                        {
+                            observationGaps++;unobservedSeconds+=dt;maxObservationGap=Math.Max(maxObservationGap,dt);
+                            if(gapExamples.Count<8)gapExamples.Add(new{botInstance=bot,name=r.Name,from=previous.At,to=now,seconds=dt});
+                        }
+                        else invalid++;
+                        if(target.Length>0&&target!=previous.Target)r.Contacts++;
+                    }
                     else if(target.Length>0)r.Contacts++;
                     r.Samples++;last[bot]=(r,now,target);break;
                 case "hit-dealt":r.HitsDealt++;r.DamageDealt+=damage;break;
@@ -142,7 +161,9 @@ internal sealed class CombatReport
             for(int part=0;part<parts;part++)
                 yield return new{schema=1,session,sequence=-(feature=="T01"?1001:feature=="T04"?3001:2001)-part,feature,stage="summary",decision=feature=="T01"?"CombatJournal":feature=="T04"?"ControlJournal":"WeaponJournal",reason="raid-ended",profileId="",realtime=end,configRevision=revision,
                     journalReport=new{version=1,part,parts,enabled=feature=="T04"?controlEnabled:configured&&(feature=="T01"?combatEnabled:weaponEnabled),configured=feature=="T04"?controlConfigured:configured,
-                        complete=cleanup&&dropped==0&&errors==0&&omitted==0&&capacityLoss==0,sawCleanup=cleanup,queueDropped=dropped,invalidEvents=errors,omittedEvents=omitted,capacitySkipped=capacityLoss,
+                        complete=cleanup&&dropped==0&&errors==0&&omitted==0&&capacityLoss==0&&(feature!="T01"||observationGaps==0),sawCleanup=cleanup,queueDropped=dropped,invalidEvents=errors,omittedEvents=omitted,capacitySkipped=capacityLoss,
+                        observationGaps=feature=="T01"?observationGaps:0,unobservedSeconds=feature=="T01"?unobservedSeconds:0,
+                        maxObservationGap=feature=="T01"?maxObservationGap:0,gapExamples=feature=="T01"&&part==0?gapExamples.ToArray():Array.Empty<object>(),
                         rows=part==0?Array.Empty<object>():values.Skip((part-1)*8).Take(8).ToArray()}};
         }
     }

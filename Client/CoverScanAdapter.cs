@@ -24,7 +24,8 @@ internal sealed class CoverScanRuntime
     internal int Frame = -1;
     internal string CheckedContact = "";
     internal bool ValidationFault;
-    internal readonly Dictionary<CoverPoint, bool> Checked = new();
+    internal Vector3 CheckedOrigin, CheckedTarget;
+    internal readonly Dictionary<CoverPoint, (bool Valid, string Reason)> Checked = new();
 }
 public sealed partial class Plugin
 {
@@ -88,37 +89,52 @@ public sealed partial class Plugin
         && p.coverScans.TryGetValue(f, out var r) && r.Runner.Retains(CoverContact(b)) && f.CoverPoints.Contains(point);
     private static bool ValidateScanCover(SAINMoverClass __instance, CoverPoint point, ref bool __result)
     {
-        var p = Instance; var b = __instance.Bot;
+        if (SelectionCoverUsable(__instance.Bot, point, out _)) return true;
+        __result = false; return false;
+    }
+    // The chooser and mover must use the same safety test. Otherwise a retained
+    // but exposed point repeatedly wins selection only to fail at handoff.
+    internal static bool SelectionCoverUsable(BotComponent b, CoverPoint point, out string reason)
+    {
+        reason = "cover-selected-rechecked";
+        var p = Instance;
         if (p == null || p.CoverScanMode(b) != 1 || !p.coverScans.TryGetValue(b.Cover.CoverFinder, out var r)) return true;
         try
         {
             if (r.ValidationFault) return true;
             r.Runner.CheckContext();
             string contact = CoverContact(b);
-            if (r.Frame != Time.frameCount || r.CheckedContact != contact) { r.Checked.Clear(); r.Frame = Time.frameCount; r.CheckedContact = contact; }
-            if (point == null) { __result = false; return false; }
-            bool valid; string why = "cover-selected-rechecked";
-            if (!r.Checked.TryGetValue(point, out valid))
+            var known = b.GoalEnemy?.LastKnownPosition;
+            var target = known.GetValueOrDefault();
+            if (r.Frame != Time.frameCount || r.CheckedContact != contact || !r.CheckedOrigin.Equals(b.NavMeshPosition) || !r.CheckedTarget.Equals(target))
+            { r.Checked.Clear(); r.Frame = Time.frameCount; r.CheckedContact = contact; r.CheckedOrigin = b.NavMeshPosition; r.CheckedTarget = target; }
+            if (point == null) { reason = "cover-selected-missing"; return false; }
+            if ((point.Spotted || point.Collider == null) && r.Checked.TryGetValue(point, out var cached) && cached.Valid)
+                r.Checked.Remove(point);
+            if (!r.Checked.TryGetValue(point, out var check))
             {
-                var known = b.GoalEnemy?.LastKnownPosition;
-                valid = known.HasValue && !point.Spotted && point.Collider != null;
+                bool valid = known.HasValue && !point.Spotted && point.Collider != null;
+                string why = !known.HasValue ? "no-known-target" : point.Spotted ? "spotted" : "missing-collider";
                 if (valid)
                 {
                     var analyzer = (CoverAnalyzer)(coverAnalyzerGetter.Invoke(b.Cover.CoverFinder, null) ?? throw new InvalidOperationException("SAIN cover analyzer unavailable"));
                     valid = analyzer.RecheckCoverPoint(point, known!.Value, (known.Value - b.NavMeshPosition).normalized, b.NavMeshPosition, out why);
                 }
-                point.CoverData.IsBad = !valid; r.Checked[point] = valid;
+                point.CoverData.IsBad = !valid;
+                check = (valid, valid ? "cover-selected-rechecked" : "cover-selected-invalid-" + why);
+                r.Checked[point] = check;
+                r.Runner.Selection(check.Valid, check.Reason, ProgressAdapter.CoverKey(point));
             }
-            r.Runner.Selection(valid, valid ? "cover-selected-rechecked" : "cover-selected-invalid-" + why, ProgressAdapter.CoverKey(point));
-            if (!valid) { __result = false; return false; }
-            return true;
+            reason = check.Reason;
+            return check.Valid;
         }
         catch (Exception ex)
         {
             r.ValidationFault = true;
             p.Logger.LogWarning("C07 selected cover check failed: " + ex.GetBaseException().Message);
-            r.Runner.Selection(false, "cover-selected-check-unavailable", ProgressAdapter.CoverKey(point));
-            __result = false; return false;
+            reason = "cover-selected-check-unavailable";
+            r.Runner.Selection(false, reason, ProgressAdapter.CoverKey(point));
+            return false;
         }
     }
     private void RecordCoverScan(BotComponent b, CoverScanRuntime r, CoverScanTrace t)

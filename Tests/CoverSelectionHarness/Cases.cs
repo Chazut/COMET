@@ -48,20 +48,33 @@ public static class Cases
    c.Valid=true;s.Progress.Fail("owned",10,"refused");Check(ReferenceEquals(VisibleAdapter.SelectCover(b,s.Progress),replacement),"temporarily blocked owned cover cannot mask alternative");
    s.Progress.Fail("replacement",10,"refused");Check(VisibleAdapter.SelectCover(b,s.Progress)==null,"all refused candidates unavailable");
   }
-  foreach(string feature in new[]{"A01","A02"})foreach(string failure in new[]{"invalid","stale-probe","native-refusal"})
+  foreach(string feature in new[]{"A01","A02"})foreach(string failure in new[]{"invalid","stale-probe","native-refusal","geometry"})
   {
    if(feature=="A01"&&failure=="stale-probe")continue;
    var(p,b,s,c)=Setup(feature);
    if(failure=="invalid")c.Valid=false;
    if(failure=="stale-probe")s.Probe.At=0;
    if(failure=="native-refusal")b.Mover.Accept=false;
+   if(failure=="geometry")c.Geometry=false;
    CoverPoint result=null;Check(p.Find(b.Cover,ref result),"failed COMET move yields native chooser");
    Check(s.Progress.Blocked(c.Key,Time.time),"failed cover remembered even before mover was called");
    Check(b.Mover.Calls==(failure=="native-refusal"?1:0),"mover called only for validated cover");
-   Check(p.Events.Contains(failure=="native-refusal"?"selected-cover-refused-by-native-mover":"selected-cover-invalidated-before-move"),"precise failure evidence");
+   Check(p.Events.Contains(failure=="native-refusal"?"selected-cover-refused-by-native-mover":failure=="geometry"?"cover-selected-invalid-pointVisibleToTarget":"selected-cover-invalidated-before-move"),"precise failure evidence");
    Check(p.Yields==1&&s.VisibleEngine.Refusals==1,"one failed plan release");
    var other=new CoverPoint("other",12);b.Cover.CoverPoints.Add(other);
    Check(ReferenceEquals(VisibleAdapter.SelectCover(b,s.Progress),other),"next choice can use other cover");
+  }
+  {
+   var(p,b,s,c)=Setup();var replacement=new CoverPoint("safe",12);b.Cover.CoverPoints.Add(replacement);c.Geometry=false;
+   Check(ReferenceEquals(VisibleAdapter.SelectCover(b,s.Progress),replacement),"raid 431 exposed retained cover cannot mask safe alternative");
+  }
+  foreach(string scope in new[]{"authority","inactive","self","squad","combat","non-pmc"})
+  {
+   var(p,b,s,c)=Setup();
+   if(scope=="authority")p.Authority=false;if(scope=="inactive")b.BotActive=false;if(scope=="self")b.Decision.CurrentSelfDecision=ESelfActionType.Reload;
+   if(scope=="squad")b.Decision.CurrentSquadDecision=ESquadDecision.Help;if(scope=="combat")b.Decision.CurrentCombatDecision=ECombatDecision.Shoot;if(scope=="non-pmc")b.Pmc=false;
+   CoverPoint result=null;Check(p.Find(b.Cover,ref result)&&b.Mover.Calls==0&&s.Progress.Failures.Count==0&&s.VisibleEngine.Refusals==0,"control interruption never poisons cover: "+scope);
+   Check(p.Events.Contains("selected-cover-control-changed"),"scope interruption trace: "+scope);
   }
   {
    var(p,b,s,c)=Setup();CoverPoint result=null;
@@ -77,11 +90,19 @@ public static class Cases
    for(int i=0;i<24;i++)b.Cover.CoverPoints.Add(new("bad"+i,1){Valid=false});
    b.Cover.CoverPoints.Add(new("late",1));Check(VisibleAdapter.SelectCover(b)==null,"candidate scan remains bounded");
   }
+  {
+   var(p,b,s,c)=Setup();b.Cover.CoverInUse=null;b.Cover.CoverPoints.Clear();
+   for(int i=24;i>0;i--)b.Cover.CoverPoints.Add(new("candidate"+i,i));
+   Plugin.GeometryCalls=0;
+   Check(VisibleAdapter.SelectCover(b)?.Key=="candidate1"&&Plugin.GeometryCalls==1,"unsorted list rechecks only cheapest candidate, not 24 improvements");
+   b.Cover.CoverPoints[23].Geometry=false;Plugin.GeometryCalls=0;
+   Check(VisibleAdapter.SelectCover(b)?.Key=="candidate2"&&Plugin.GeometryCalls==2,"refused cheapest candidate falls through to next with two rechecks");
+  }
   Console.WriteLine($"Cover selection: {checks} production adapter checks passed; native movement doubled, no raid.");
  }
 }
 static class Time{public static float time;}
-enum ESelfActionType{None,Reload}enum ESquadDecision{None,Help}enum ECombatDecision{SeekCover,Retreat}enum ESprintUrgency{High}
+enum ESelfActionType{None,Reload}enum ESquadDecision{None,Help}enum ECombatDecision{SeekCover,Retreat,Shoot}enum ESprintUrgency{High}
 class BotComponent{public string ProfileId="pmc";public bool BotActive=true,Pmc=true;public Decision Decision=new();public SAINCoverClass Cover=new();public Mover Mover=new();}
 class Decision{public ESelfActionType CurrentSelfDecision;public ESquadDecision CurrentSquadDecision;public ECombatDecision CurrentCombatDecision;}
 class SAINCoverClass{public BotComponent Bot;public CoverPoint CoverInUse,CoverPoint_MovingTo;public List<CoverPoint> CoverPoints=new();public void StopSeekingCover(){CoverInUse=CoverPoint_MovingTo=null;}}
@@ -89,7 +110,7 @@ class Mover{public bool Accept=true;public int Calls;public bool GoToCoverPoint(
 enum NavMeshPathStatus{PathComplete,PathPartial}
 class MeshPath{public NavMeshPathStatus status;}
 class CoverData{public bool IsBad;}
-class CoverPoint{public string Key;public bool Valid=true;public PathData PathData=new();public MeshPath PathToPoint=new();public CoverData CoverData=new();public CoverPoint(string key,float length){Key=key;PathData.PathLength=length;}}
+class CoverPoint{public string Key;public bool Valid=true,Geometry=true;public PathData PathData=new();public MeshPath PathToPoint=new();public CoverData CoverData=new();public CoverPoint(string key,float length){Key=key;PathData.PathLength=length;}}
 class PathData{public float PathLength,TimeSinceLastUpdated;}
 enum Tactic{FallBack}
 class Snapshot{public double Now=10;public Dictionary<Tactic,string> Unavailable=new();}
@@ -107,6 +128,8 @@ partial class Plugin
  public static Plugin Instance;public Config config=new();public Dictionary<BotComponent,BotState> states=new();public bool Authority=true;public int Yields;public List<string> Events=new();Log Logger=new();
  bool Ghost(string id)=>false;bool FindRelocationCover(SAINCoverClass c,BotState s,ref CoverPoint point)=>false;
  internal static bool RetainedCover(BotComponent b,CoverPoint c)=>ReferenceEquals(b.Cover.CoverInUse,c);
+ internal static int GeometryCalls;
+ internal static bool SelectionCoverUsable(BotComponent b,CoverPoint c,out string reason){GeometryCalls++;reason=c.Geometry?"cover-selected-rechecked":"cover-selected-invalid-pointVisibleToTarget";return c.Geometry;}
  void Emit(BotState s,string stage,string reason)=>Events.Add(reason);
  void YieldToSain(BotState s,string reason,string stage="ended"){Yields++;s.ActiveLabel="";}
  public bool Find(SAINCoverClass c,ref CoverPoint point)=>FindCover(c,ref point);

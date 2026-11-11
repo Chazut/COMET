@@ -24,8 +24,14 @@ Tick(e,20.2);b.GoalEnemy!.EnemyProfileId="new-contact";plugin.Sweep();Check(f.Co
 Tick(e,21);Tick(e,22);Tick(e,23);Tick(e,24);
 var selected=f.CoverPoints[0];Check(plugin.Validate(b,selected)&&f.Analyzer.Calls==1,"validate before mover");
 Check(plugin.Validate(b,selected)&&f.Analyzer.Calls==1,"same-frame repeated movement request shares check");
-b.GoalEnemy.EnemyProfileId="different";Check(plugin.Validate(b,selected)&&f.Analyzer.Calls==2,"same frame new enemy rechecked");
+Check(Plugin.SelectionCoverUsable(b,selected,out var why)&&f.Analyzer.Calls==1,"selection and mover share same-frame geometry check");
+b.NavMeshPosition=new Vector3(1,0,0);Check(plugin.Validate(b,selected)&&f.Analyzer.Calls==2,"same-frame moved bot invalidates geometry cache");
+b.GoalEnemy!.LastKnownPosition=new Vector3(11,0,0);Check(plugin.Validate(b,selected)&&f.Analyzer.Calls==3,"same-frame updated known target invalidates geometry cache");
+b.GoalEnemy.EnemyProfileId="different";Check(plugin.Validate(b,selected)&&f.Analyzer.Calls==4,"same frame new enemy rechecked");
 selected.Pass=false;Time.frameCount++;Check(!plugin.Validate(b,selected)&&selected.CoverData.IsBad,"blocked cover refused");
+Check(!Plugin.SelectionCoverUsable(b,selected,out why)&&why=="cover-selected-invalid-path-blocked","cached refusal preserves exact geometry reason");
+selected.Pass=true;Time.frameCount++;Check(plugin.Validate(b,selected),"fresh valid cover");selected.Spotted=true;
+Check(!plugin.Validate(b,selected),"same-frame spotted cover invalidates previously safe selection");
 selected.Pass=true;selected.Spotted=true;Time.frameCount++;Check(!plugin.Validate(b,selected),"spotted cover refused");
 selected.Spotted=false;selected.Collider=null;Time.frameCount++;Check(!plugin.Validate(b,selected),"destroyed collider refused");
 plugin.IsGhost=true;plugin.Sweep();int calls=f.Iterations;Tick(e,25);Check(calls==f.Iterations&&f.CoverPoints.Count==0,"ghost no scan or retained cover");
