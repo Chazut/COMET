@@ -13,7 +13,7 @@ public sealed class GasExposureConfig
 }
 public sealed class GasExposureTrace
 {
- public string State="exposed",Reason="gas-exposure",Provider="Manimal-CSGas 2.0.0",Cloud="",Protection="None";
+ public string State="exposed",Reason="gas-exposure",Provider="Manimal-CSGas",Variant="",Cloud="",Protection="None";
  public double Intensity,X,Y,Z,GoalX,GoalY,GoalZ,ValidFor=1;
  public int Clouds;
  public bool Inside,HasGoal,Cough;

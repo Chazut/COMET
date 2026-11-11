@@ -7,15 +7,20 @@ using UnityEngine;
 using UnityEngine.AI;
 int checks=0;void C(bool v,string why){checks++;if(!v)throw new Exception(why);}
 var streams=new List<string>();
-(Plugin,BotComponent,BotDecisionManager,CsGasCloud) Setup(){Time.Set(10);Physics.Wall=false;NavMesh.Sample=true;NavMesh.Status=NavMeshPathStatus.PathComplete;NavMesh.Route=null;NavMesh.Calls=0;Chainloader.PluginInfos.Clear();Chainloader.PluginInfos.Add(ManimalGasBridge.Guid,new());var p=new Plugin();var b=new BotComponent();var c=new CsGasCloud();Plugin.GasCloudCreated(c);return(p,b,new(b),c);}
+(Plugin,BotComponent,BotDecisionManager,CsGasCloud) Setup(Version? version=null){Time.Set(10);Physics.Wall=false;NavMesh.Sample=true;NavMesh.Status=NavMeshPathStatus.PathComplete;NavMesh.Route=null;NavMesh.Calls=0;Chainloader.PluginInfos.Clear();Chainloader.PluginInfos.Add(ManimalGasBridge.Guid,new(){Metadata=new(){Version=version??new(2,0,0)}});var p=new Plugin();var b=new BotComponent();var c=new CsGasCloud();Plugin.GasCloudCreated(c);return(p,b,new(b),c);}
 void Step(Plugin p,BotComponent b,BotDecisionManager m,float t){Time.Set(t);p.Tick(b);p.Decide(m);p.Act(b);}
 Chainloader.PluginInfos.Clear();var absent=new Plugin();C(!absent.Ready,"absent dormant");var x=new BotComponent();absent.Tick(x);C(absent.states.Count==0,"absent no bot bookkeeping");
 Chainloader.PluginInfos[ManimalGasBridge.Guid]=new(){Metadata=new(){Version=new(2,1,0)}};C(!new Plugin().Ready,"unknown future version inactive");
 Chainloader.PluginInfos[ManimalGasBridge.Guid]=new(){Instance=null!};C(!new Plugin().Ready,"provider failed to load stays inactive");
 var broken=new ManimalGasBridge();C(!broken.Bind(typeof(string).Assembly,new(2,0,0)),"wrong contract inactive");
+foreach(var v in new[]{new Version(2,0,0),new Version(2,0,1)}){
+ C(broken.Bind(typeof(CsGasCloud).Assembly,v),"audited version binds "+v);
+ C(!broken.Bind(typeof(CsGasCloud).Assembly,new(2,0,2))&&!broken.Ready,"unsupported rebind clears old readiness");
+ C(!broken.Inside(new(),out _,out _,out _),"unsupported rebind cannot expose stale clouds");
+}
 {
  var(idle,bot,decision,cloud)=Setup();int probes=0;var volume=new VolumetricGasEmitter{Test=_=>{probes++;return false;}};
- cloud._emitter=volume;Plugin.GasEmitterCreated(volume);CsGasCloud.ProtectionCalls=0;
+ cloud._emitter=volume;Plugin.GasEmitterCreated(volume,cloud._smoke);CsGasCloud.ProtectionCalls=0;
  for(int i=0;i<600;i++)Step(idle,bot,decision,10+i/60f);
  C(probes<=41,"idle gas checks retain configured .25s interval over 600 frames");
  C(CsGasCloud.ProtectionCalls==0,"unexposed bots do not scan inventory");
@@ -35,7 +40,7 @@ for(int i=1;i<40;i++)Step(p,b,m,11+i*.25f);C(p.State(b).Intensity==0&&b.BotOwner
 (p,b,m,c)=Setup();Physics.Wall=true;Step(p,b,m,10);C(!p.State(b).Inside,"sphere wall blocked");
 (p,b,m,c)=Setup();c._exploded=false;Step(p,b,m,10);C(!p.State(b).Inside,"not emitted yet");
 (p,b,m,c)=Setup();c.gameObject.activeInHierarchy=false;Step(p,b,m,10);C(!p.State(b).Inside,"inactive cloud ignored");
-(p,b,m,c)=Setup();var emitter=new VolumetricGasEmitter{Test=v=>v.x<3};c._emitter=emitter;Plugin.GasEmitterCreated(emitter);Physics.Wall=true;Step(p,b,m,10);C(p.State(b).Inside,"provider volumetric shape authoritative");c.Dead=true;Step(p,b,m,10.25f);C(p.State(b).Inside,"lingering emitter survives canister");emitter._finished=true;emitter._emitUntil=10;emitter._particleLifetime=.5f;Step(p,b,m,10.75f);C(!p.State(b).Inside&&!p.State(b).Owned,"actual expiry");
+(p,b,m,c)=Setup();var emitter=new VolumetricGasEmitter{Test=v=>v.x<3};c._emitter=emitter;Plugin.GasEmitterCreated(emitter,c._smoke);Physics.Wall=true;Step(p,b,m,10);C(p.State(b).Inside,"provider volumetric shape authoritative");c.Dead=true;Step(p,b,m,10.25f);C(p.State(b).Inside,"lingering emitter survives canister");emitter._finished=true;emitter._emitUntil=10;emitter._particleLifetime=.5f;Step(p,b,m,10.75f);C(!p.State(b).Inside&&!p.State(b).Owned,"actual expiry");
 (p,b,m,c)=Setup();Step(p,b,m,10);b.Grenade.GrenadeReactionClass.Danger=true;Step(p,b,m,10.25f);C(!p.State(b).Owned&&p.State(b).Path==null,"frag wins independently");C(p.Decide(m),"native grenade retains decision");b.Grenade.GrenadeReactionClass.Danger=false;Step(p,b,m,10.5f);C(p.State(b).Owned,"gas resumes after frag");
 (p,b,m,c)=Setup();Step(p,b,m,10);Step(p,b,m,15.1f);C(!p.State(b).Owned&&p.State(b).Trace?.State=="retry","bounded attempt");Step(p,b,m,16);C(!p.State(b).Owned,"retry delay");Step(p,b,m,17.2f);C(p.State(b).Owned,"persistent gas retry");
 (p,b,m,c)=Setup();NavMesh.Sample=false;for(int i=0;i<13;i++)Step(p,b,m,10+i*.25f);C(!p.State(b).Owned&&p.diagnostics!.Lines.Any(x=>x.Contains("gas-no-reachable-exit")),"no route bounded");streams.AddRange(p.diagnostics!.Lines);
@@ -56,4 +61,24 @@ foreach(string mode in new[]{"ghost","scav","disabled","client","inactive","dead
 var frag=new SAIN.SAINComponent.SubComponents.GrenadeTrackerClass{Grenade=new EFT.Grenade(),DangerPoint=new(6,0,0)};native.EnemyGrenadesList[2]=frag;native.Select(gasTrack);p.Filter(b);C(ReferenceEquals(native.DangerGrenade,frag),"nearby detected frag selected independently of CS");
 frag.CanReact=false;native.Select(gasTrack);p.Filter(b);C(native.DangerGrenade==null,"unperceived frag not invented");frag.CanReact=true;frag.DangerPoint=new(50,0,0);native.Select(gasTrack);p.Filter(b);C(native.DangerGrenade==null,"native 18m selection retained");
 p.config!.GasExposure.Enabled=false;native.Select(gasTrack);p.Filter(b);C(ReferenceEquals(native.DangerGrenade,gasTrack),"disabled feature leaves native reaction unchanged");
+// All 2.0.1 variants use the same audited geometry/protection contract, not their item ThrowType.
+foreach(var kind in new[]{("CS",Manimal.CSGas.GasVariant.Cs),("RDA-68",Manimal.CSGas.GasVariant.Rda68),("RDA-78",Manimal.CSGas.GasVariant.Rda78)})
+foreach(bool volume in new[]{false,true}){
+ (p,b,m,c)=Setup(new(2,0,1));c.Variant=kind.Item2;VolumetricGasEmitter? v=null;
+ if(volume){v=new(){Test=pos=>pos.x<3};c._emitter=v;Plugin.GasEmitterCreated(v,c._smoke);}
+ Step(p,b,m,10);Step(p,b,m,10.25f);
+ C(p.Ready&&p.State(b).Inside&&p.State(b).Owned,"2.0.1 "+kind.Item1+" escape "+volume);
+ C(p.State(b).Trace!.Provider=="Manimal-CSGas 2.0.1"&&p.State(b).Trace!.Variant==kind.Item1,"actual provider and variant in trace");
+ var tracked=new SAIN.SAINComponent.SubComponents.GrenadeTrackerClass{Grenade=c._smoke};b.Grenade.GrenadeReactionClass.Select(tracked);p.Filter(b);
+ C(b.Grenade.GrenadeReactionClass.DangerGrenade==null,"RDA/CS canister is not a frag");
+ if(volume){
+  var other=new VolumetricGasEmitter{Test=_=>false};Plugin.GasEmitterCreated(other,c._smoke);other.Dead=true;c.Dead=true;
+  Step(p,b,m,10.5f);C(p.State(b).Inside&&p.State(b).Trace!.Variant==kind.Item1,"label survives dead canister and pruning another emitter");
+ }
+ b.Player.Protection="Full";Step(p,b,m,10.75f);C(!p.State(b).Owned,"mask protects each gas variant");
+ streams.AddRange(p.diagnostics!.Lines);p.End();Step(p,b,m,11);C(!p.State(b).Inside,"variant registry cleared at raid end");
+}
+// Ordinary smoke has no provider-created component and must never become gas.
+(p,b,m,c)=Setup(new(2,0,1));c.Dead=true;var ordinary=new EFT.SmokeGrenade();var smokeTrack=new SAIN.SAINComponent.SubComponents.GrenadeTrackerClass{Grenade=ordinary};b.Grenade.GrenadeReactionClass.Select(smokeTrack);p.Filter(b);
+C(ReferenceEquals(b.Grenade.GrenadeReactionClass.DangerGrenade,smokeTrack),"unregistered smoke left to native AI");Step(p,b,m,10);C(!p.State(b).Inside,"unregistered smoke has no exposure");
 var dir=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../artifacts"));File.WriteAllLines(Path.Combine(dir,"g08-adapter-events.jsonl"),streams);Console.WriteLine($"G08 production adapter + provider bridge: {checks} checks passed (controlled engine doubles, not a raid).");

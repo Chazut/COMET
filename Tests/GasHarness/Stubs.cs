@@ -7,6 +7,7 @@ namespace UnityEngine {
  public class Object{public bool Dead;public static bool operator==(Object? a,Object? b)=>ReferenceEquals(a,b)||(b is null&&a?.Dead==true)||(a is null&&b?.Dead==true);public static bool operator!=(Object? a,Object? b)=>!(a==b);public override bool Equals(object? o)=>ReferenceEquals(this,o);public override int GetHashCode()=>base.GetHashCode();}
  public class Component:Object{static int next;private int id=++next;public int GetInstanceID()=>id;public Transform transform=new();public GameObject gameObject=new();}
  public class GameObject{public bool activeInHierarchy=true;}
+ public struct Color{}
  public class Transform{public Vector3 position,lossyScale=new(1,1,1);}
  public class SphereCollider:Component{public float radius=4;}
  public struct Vector3(float x,float y,float z){public float x=x,y=y,z=z;public float sqrMagnitude=>x*x+y*y+z*z;public float magnitude=>(float)Math.Sqrt(sqrMagnitude);public Vector3 normalized=>magnitude>0?this*(1/magnitude):new();public static Vector3 operator+(Vector3 a,Vector3 b)=>new(a.x+b.x,a.y+b.y,a.z+b.z);public static Vector3 operator-(Vector3 a,Vector3 b)=>new(a.x-b.x,a.y-b.y,a.z-b.z);public static Vector3 operator*(Vector3 a,float b)=>new(a.x*b,a.y*b,a.z*b);public static float Distance(Vector3 a,Vector3 b)=>(a-b).magnitude;public static Vector3 Lerp(Vector3 a,Vector3 b,float t)=>a+(b-a)*t;}
@@ -52,15 +53,17 @@ namespace SAIN.Components{
  public class Bones{public Vector3 EyePosition=new(1,1.6f,0);}public class Grenades{public SAIN.SAINComponent.Classes.WeaponFunction.GrenadeReactionClass GrenadeReactionClass=new();}public class Reaction{public bool Danger;public bool ShallAvoidGrenade()=>Danger;}public class Flash{public bool IsFlashed;}public class Talk{public int Count;public void Say(EFT.EPhraseTrigger t,EFT.ETagStatus s,bool a,bool b)=>Count++;}
 }
 namespace Comet.Core{public class CometConfig{public bool Enabled=true;public int Revision;public GasExposureConfig GasExposure=new();public static void Range(double v,double lo,double hi,string n){if(!double.IsFinite(v)||v<lo||v>hi)throw new ArgumentException(n);}}}
-namespace Manimal.CSGas{public class Plugin{public static BepInEx.Configuration.ConfigEntry<float> GasPointRadiusM=new(1.8f);public static BepInEx.Configuration.ConfigEntry<bool> GasRequiresLineOfSight=new(true);}}
+namespace Manimal.CSGas{public class Plugin{public static BepInEx.Configuration.ConfigEntry<float> GasPointRadiusM=new(1.8f);public static BepInEx.Configuration.ConfigEntry<bool> GasRequiresLineOfSight=new(true);}
+ public sealed class GasVariant{public static readonly GasVariant Cs=new(),Rda68=new(),Rda78=new();}}
 namespace Manimal.CSGas.Gas{
  public class CsGasCloud:Component{
   internal enum GasProtection{None,Respirator,Full}
   public bool _exploded=true;public VolumetricGasEmitter? _emitter;public EFT.SmokeGrenade _smoke=new();private void Start(){}
+  public Manimal.CSGas.GasVariant Variant=Manimal.CSGas.GasVariant.Cs;
   public static int ProtectionCalls;
   private static GasProtection GetProtection(EFT.Player p){ProtectionCalls++;return Enum.Parse<GasProtection>(p.Protection);}
  }
- public class VolumetricGasEmitter:Component{public Vector3 _origin;public bool _finished;public float _emitUntil=30,_particleLifetime=15;public Func<Vector3,bool> Test=p=>p.sqrMagnitude<25;public bool IsInside(Vector3 p,float radius)=>!(_finished&&Time.time>=_emitUntil+_particleLifetime)&&Test(p);public static VolumetricGasEmitter Create()=>new();}
+ public class VolumetricGasEmitter:Component{public Vector3 _origin;public bool _finished;public float _emitUntil=30,_particleLifetime=15;public Func<Vector3,bool> Test=p=>p.sqrMagnitude<25;public bool IsInside(Vector3 p,float radius)=>!(_finished&&Time.time>=_emitUntil+_particleLifetime)&&Test(p);public static VolumetricGasEmitter Create(EFT.SmokeGrenade smoke,GameObject templateSource)=>new();public static VolumetricGasEmitter Create(EFT.SmokeGrenade smoke,GameObject templateSource,Color tint)=>new();}
 }
 namespace Comet.Client{
  internal class BotState(BotComponent b){public GasRuntime Gas=new();public string ProfileId=b.ProfileId,Name=b.ProfileId,Id="instance";}

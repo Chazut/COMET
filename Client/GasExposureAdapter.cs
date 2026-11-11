@@ -51,7 +51,7 @@ public sealed partial class Plugin
   }catch(Exception ex){DisableGas(ex);}
  }
  internal static void GasCloudCreated(Component __instance){try{Instance?.gasBridge.Add(__instance,false);}catch(Exception e){Instance?.DisableGas(e);}}
- internal static void GasEmitterCreated(Component __result){try{Instance?.gasBridge.Add(__result,true);}catch(Exception e){Instance?.DisableGas(e);}}
+ internal static void GasEmitterCreated(Component __result,SmokeGrenade __0){try{Instance?.gasBridge.Add(__result,true,__0);}catch(Exception e){Instance?.DisableGas(e);}}
  private bool GasScope(BotComponent b)=>gasBridge.Ready&&world!=null&&config?.Enabled==true&&config.GasExposure.Enabled&&b!=null&&!b.IsDead
   &&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
  private void DisableGas(Exception ex)
@@ -84,12 +84,13 @@ public sealed partial class Plugin
  {
   var r=s.Gas;var c=config!.GasExposure;if(Time.time<r.Next)return;
   float dt=r.Last>0?Time.time-r.Last:0;r.Last=Time.time;r.Next=Time.time+(float)c.Refresh;
-  bool inside=gasBridge.Inside(b.Transform.EyePosition,out var cloud,out var center,out int active);
+  bool inside=gasBridge.Inside(b.Transform.EyePosition,out var cloud,out var center,out int active,out var variant);
   // Inventory inspection is only relevant to exposure/recovery. Most frames have
   // no gas at this bot, including when the optional provider is installed.
   r.Protection=inside||r.Intensity>0?gasBridge.Protection(b.Player):"None";r.Inside=inside;r.Center=center;
   r.Intensity=GasExposureRules.Exposure(r.Intensity,inside,r.Protection,dt,c);
-  // Manimal 2.0.0 affects MainPlayer only. Apply only reversible AI modifiers, no extra damage/buffs/flash state.
+  // Audited 2.0.0/2.0.1 irritation targets MainPlayer. The provider owns RDA infected buffs.
+  // Apply only reversible AI modifiers, no extra damage/buffs/flash state.
   int step=(int)Math.Ceiling(r.Intensity*10);
   if(step!=r.ModifierStep||r.Protection!=r.ModifierProtection){ClearGasModifier(b,r);r.ModifierStep=step;r.ModifierProtection=r.Protection;
    if(step>0){var f=b.BotOwner.Settings.FileSettings.Change;float t=step/10f;
@@ -102,7 +103,7 @@ public sealed partial class Plugin
   bool escape=GasExposureRules.Escape(inside,r.Protection);
   if(!escape){StopGasPath(b,r);r.Owned=false;r.Candidate=0;r.AttemptUntil=0;r.RetryAt=0;}
   if(!inside&&r.Intensity<=0){DropGas(b,s,"gas-recovered",false);return;}
-  r.Trace=new(){State=escape?"exposed":r.Intensity>0?"recovering":"protected",Reason=escape?"gas-exposure":inside?"gas-mask-protection":"gas-left-cloud",Cloud=cloud,Clouds=active,
+  r.Trace=new(){State=escape?"exposed":r.Intensity>0?"recovering":"protected",Reason=escape?"gas-exposure":inside?"gas-mask-protection":"gas-left-cloud",Cloud=cloud,Clouds=active,Provider=gasBridge.Provider,Variant=variant,
    Protection=r.Protection,Inside=inside,Intensity=r.Intensity,X=center.x,Y=center.y,Z=center.z,Cough=cough};
   RecordGas(s);
  }

@@ -170,9 +170,9 @@
     },
     "GasExposure": {
       "Title": "CS gas reactions - G08",
-      "Description": "Requires Manimal-CSGas 2.0.0 on the AI host. Inactive when absent or unsupported. Only awake PMC bots react. Uses the mod's real cloud shape and equipped gas masks; ordinary smoke is ignored. Explosive grenades take priority. These settings do not change gas damage, cloud size or the player's effects.",
+      "Description": "Requires Manimal-CSGas 2.0.0 or 2.0.1 on the AI host. Supports CS, RDA-68 and RDA-78 gas clouds. Inactive when absent or unsupported. Only awake PMCs and AI Player Scavs react. Uses the mod's real cloud shape and equipped gas masks; ordinary smoke is ignored. Explosive grenades take priority. These settings do not change gas damage, infected effects, cloud size or the player's effects.",
       "Category": "Grenades",
-      "Summary": "Requires Manimal-CSGas 2.0.0 on the AI host."
+      "Summary": "Requires Manimal-CSGas 2.0.0 or 2.0.1 on the AI host."
     },
     "GrenadeFilter": {
       "Title": "Offensive grenade types - G07",

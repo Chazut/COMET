@@ -12,6 +12,11 @@ internal static class GrenadeFilterTests
   C(GrenadeFilterRules.Classify("smoke_grenade",true,120,0,0,0,0)=="smoke","native dummy smoke");
   C(GrenadeFilterRules.Classify("frag_grenade",true,0,0,0,0,0)=="dummy","dummy");
   C(GrenadeFilterRules.Classify("frag_grenade",false,30,7,0,0,70)=="special","persistent modded effect");
+  // Manimal 2.0.1 RDA canisters inherit flash_grenade from their M18 base but emit for 30s.
+  foreach(bool dummy in new[]{false,true}){
+   string kind=GrenadeFilterRules.Classify("flash_grenade",dummy,30,0,20,0,0);
+   C(kind!="flash"&&GrenadeFilterRules.Reject(kind,true).Length>0,"RDA gas cannot inherit flash permission");
+  }
   C(GrenadeFilterRules.Classify("flash_grenade",false,0,7,20,0,70)=="unknown","mixed ambiguous flash");
   foreach(double invalid in new[]{double.NaN,double.PositiveInfinity,-1d})C(GrenadeFilterRules.Classify("frag_grenade",false,0,invalid,0,0,70)=="unknown","invalid property");
   foreach(string kind in new[]{"smoke","gas","special","unknown","dummy"})C(GrenadeFilterRules.Reject(kind,true).Length>0,"excluded "+kind);
