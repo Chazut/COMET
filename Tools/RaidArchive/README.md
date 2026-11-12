@@ -37,6 +37,24 @@ Raw files are gzip-compressed and stored by SHA-256 in `blobs`. A file that chan
 
 The dashboard listens only on localhost and does not require the SPT server to be running. Removing its Windows Startup shortcut disables automatic launch. The desktop shortcut can start it again. No game or server process is started or stopped by the tool.
 
+## Separate test collections
+
+An archived collection can be kept separately while the normal dashboard starts fresh.
+Stop the collector before moving its archive, checkpoint SQLite, and keep the whole
+directory (including blobs, raid manifests, general logs and analysis backups).
+Set `collectAfterUtc` in the new collection's settings to an ISO timestamp with a
+timezone. Import uses the raid's start time, not its file modification time, so old
+logs and late RR writes cannot refill the new dashboard. `excludedSessions` and
+`excludedRrRaids` can additionally pin the identities present at the boundary.
+General logs predating the boundary are retained in the old collection.
+
+For browsing old evidence, use separate settings pointing to the old archive with
+`readOnly: true` and a different local port. This mode neither collects nor
+re-analyzes data, and opens the database read-only. `collectionLabel` labels the
+dashboard; `archiveUrl` can link the active collection to the local archive viewer.
+Cross-collection comparison is done by opening the two dashboards side by side;
+the existing Compare raids button compares raids within its own collection.
+
 ## COMET journal changes
 
 COMET keeps its bounded asynchronous writer. Detailed files now rotate into `.part0001.jsonl`, `.part0002.jsonl`, etc. instead of discarding detail at 64 MiB. The final footer reports segment count and losses. New raid headers record version, assembly identity, map, authority and diagnostic mode. These changes take effect on the next game launch.

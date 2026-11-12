@@ -40,7 +40,27 @@ def pack(value):
 def unpack(value):
     return json.loads(zlib.decompress(value))
 
-def connect(root):
+def timestamp(value):
+    try:
+        stamp = dt.datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        return stamp.timestamp() if stamp.tzinfo is not None else None
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+def collection_start(settings):
+    value = settings.get('collectAfterUtc')
+    if value is None:return None
+    result = timestamp(value)
+    if result is None:raise ValueError('collectAfterUtc must be an ISO timestamp with a timezone')
+    return result
+
+def connect(root, read_only=False):
+    if read_only:
+        path = (pathlib.Path(root) / 'archive.sqlite').resolve()
+        c = sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=30)
+        c.row_factory = sqlite3.Row
+        c.execute('PRAGMA query_only=ON')
+        return c
     root = pathlib.Path(root); root.mkdir(parents=True, exist_ok=True)
     c = sqlite3.connect(root / 'archive.sqlite', timeout=30)
     c.row_factory = sqlite3.Row

@@ -196,6 +196,8 @@ def performance_report(c,root,raid):
     return result
 
 def collect(settings,force=False):
+    if settings.get('readOnly'):return {'state':'archived','imported':0}
+    cutoff=collection_start(settings)
     root=pathlib.Path(settings['archive']);game=pathlib.Path(settings['game']);root.mkdir(parents=True,exist_ok=True)
     if shutil.disk_usage(root).free < settings.get('minimumFreeBytes',1024**3):
         return {'state':'retrying','error':'Less than the configured free disk reserve; originals are untouched.'}
@@ -208,10 +210,14 @@ def collect(settings,force=False):
     if running and (not newest or not tail(newest[-1])):
         return {'state':'waiting-for-raid-end','imported':0}
     raids,links=rr_index(game);rrby={r['raidId']:r for r in raids};changed=set();errors=0
+    excluded_sessions=set(settings.get('excludedSessions',[]))
+    excluded_rr=set(settings.get('excludedRrRaids',[]))
+    excluded_rr.update(rid for session in excluded_sessions for rid in links.get(session,[]))
     with contextlib.closing(connect(root)) as c:
         stale=stale_analyses(c)
         if stale:backup_analysis(c,root,ANALYZER_VERSION)
         for session,paths in eligible.items():
+            if session in excluded_sessions:continue
             if active_raid(game):break
             mapped=links.get(session,[]);rrid=mapped[0] if len(mapped)==1 else None
             rid='comet-'+session
@@ -220,6 +226,14 @@ def collect(settings,force=False):
                 try:header=json.loads(f.readline())
                 except (ValueError,UnicodeError):header={}
             if not isinstance(header,dict) or header.get('stage')!='raid-start':header={}
+            if rrid in excluded_rr:continue
+            if cutoff is not None:
+                started=timestamp(header.get('utc')) or timestamp(rrmeta.get('time'))
+                if started is None:
+                    try:started=dt.datetime.strptime(paths[0].name[:15],'%Y%m%d-%H%M%S').replace(tzinfo=dt.timezone.utc).timestamp()
+                    except ValueError:pass
+                # Use raid start, never mtime: a copied log or late flush is still an old raid.
+                if started is None or started<cutoff:continue
             closing=tail(paths[-1]) or {}
             parts=[int(re.search(r'\.part(\d+)',p.name)[1]) if '.part' in p.name else 0 for p in paths]
             expected=closing.get('segments',max(parts)+1)
@@ -258,6 +272,10 @@ def collect(settings,force=False):
         # incremental and paused by the next pass when a live journal appears.
         associated={r[0] for r in c.execute("SELECT json_extract(metadata,'$.rrId') FROM raids WHERE id LIKE 'comet-%'")}
         for rr in raids:
+            if rr['raidId'] in excluded_rr:continue
+            if cutoff is not None:
+                started=timestamp(rr.get('time'))
+                if started is None or started<cutoff:continue
             if rr['raidId'] in associated:continue
             if not rr.get('exitStatus'):continue
             rid='rr-'+rr['raidId'];old=c.execute('SELECT 1 FROM raids WHERE id=?',(rid,)).fetchone()

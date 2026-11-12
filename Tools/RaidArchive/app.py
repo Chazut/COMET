@@ -12,6 +12,7 @@ def query_settings(path):
     if not isinstance(value,dict):raise ValueError('Missing settings file. Run setup.ps1 first.')
     value.setdefault('port',8791);value.setdefault('intervalSeconds',30);value.setdefault('settleSeconds',30)
     value.setdefault('rrUrl','http://127.0.0.1:7829')
+    collection_start(value)
     for key in ('game','archive'):value[key]=str(pathlib.Path(value[key]).resolve())
     if not pathlib.Path(value['game']).is_dir():raise ValueError('Game directory does not exist')
     if pathlib.Path(value['archive']).is_relative_to(pathlib.Path(value['game'])):raise ValueError('Archive must be outside the game directory')
@@ -22,17 +23,22 @@ class State:
         self.settings=settings;self.root=pathlib.Path(settings['archive']);self.stop=threading.Event()
         self.wake=threading.Event();self.lock=threading.Lock();self.status={'state':'starting'}
         self.thread=None
+        if settings.get('readOnly'):self.status={'state':'archived'}
     def preserve_logs(self):
+        if self.settings.get('readOnly'):return
         game=pathlib.Path(self.settings['game'])
+        cutoff=collection_start(self.settings)
         with contextlib.closing(connect(self.root)) as c:
             for p in [game/'BepInEx/LogOutput.log', * (game/'BepInEx/ORBIT/debug/last-raid').glob('*.log')]:
                 if not p.is_file():continue
+                if cutoff is not None and p.stat().st_mtime<cutoff:continue
                 try:
                     from collector import add_file,ensure
                     ensure(c,'general-logs',{'map':'General logs','time':utc(),'recording':'context'})
                     add_file(c,self.root,'general-logs','context',p,'launch-log');c.commit()
                 except (OSError,RuntimeError):c.rollback()
     def cycle(self,force=False):
+        if self.settings.get('readOnly'):return
         if not self.lock.acquire(blocking=False):return
         try:
             self.preserve_logs()
@@ -48,8 +54,10 @@ class State:
         while not self.stop.is_set():
             self.cycle();self.wake.wait(max(5,self.settings['intervalSeconds']));self.wake.clear()
     def start(self):
+        if self.settings.get('readOnly'):return
         self.thread=threading.Thread(target=self.run,name='raid-collector',daemon=True);self.thread.start()
     def reanalyze(self):
+        if self.settings.get('readOnly'):return
         if not self.lock.acquire(blocking=False):return
         try:
             if active_raid(self.settings['game']):
@@ -130,8 +138,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         url=urllib.parse.urlsplit(self.path);path=urllib.parse.unquote(url.path);q=urllib.parse.parse_qs(url.query)
         if path=='/':return self.send((HERE/'index.html').read_bytes(),mime='text/html; charset=utf-8')
         if path=='/evidence-view.js':return self.send((HERE/'evidence-view.js').read_bytes(),mime='text/javascript; charset=utf-8')
-        if path=='/api/status':return self.send(dict(self.state.status,archive=str(self.state.root),rrUrl=self.state.settings['rrUrl']))
-        with contextlib.closing(connect(self.state.root)) as c:
+        if path=='/api/status':return self.send(dict(self.state.status,archive=str(self.state.root),rrUrl=self.state.settings['rrUrl'],
+            readOnly=bool(self.state.settings.get('readOnly')),collectionLabel=self.state.settings.get('collectionLabel',''),
+            collectAfterUtc=self.state.settings.get('collectAfterUtc'),archiveUrl=self.state.settings.get('archiveUrl','')))
+        with contextlib.closing(connect(self.state.root,read_only=bool(self.state.settings.get('readOnly')))) as c:
             if path=='/api/overview':return self.send(totals(c,q))
             if path.startswith('/api/raid/'):
                 rid=path.removeprefix('/api/raid/');row=c.execute('SELECT * FROM raids WHERE id=?',(rid,)).fetchone()
@@ -201,6 +211,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         origin=self.headers.get('Origin','');expected={f'http://127.0.0.1:{self.server.server_port}',f'http://localhost:{self.server.server_port}'}
         if not self.allowed() or origin not in expected or self.headers.get('X-Raid-Local')!='1':return self.send({'error':'Local browser required'},403)
+        if self.state.settings.get('readOnly'):return self.send({'error':'Archived collection is read-only'},403)
         if self.path=='/api/collect':self.state.wake.set();return self.send({'queued':True},202)
         if self.path=='/api/reanalyze':
             threading.Thread(target=self.state.reanalyze,daemon=True).start();return self.send({'queued':True},202)
@@ -209,7 +220,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--settings',default=str(HERE/'settings.json'))
     parser.add_argument('--once',action='store_true');parser.add_argument('--reanalyze',action='store_true');parser.add_argument('--open',action='store_true')
-    args=parser.parse_args();settings=query_settings(args.settings);root=pathlib.Path(settings['archive']);root.mkdir(parents=True,exist_ok=True)
+    args=parser.parse_args();settings=query_settings(args.settings);root=pathlib.Path(settings['archive'])
+    if settings.get('readOnly'):
+        if args.once or args.reanalyze:raise ValueError('Archived collections are read-only')
+        with contextlib.closing(connect(root,read_only=True)) as c:c.execute('SELECT id FROM raids LIMIT 1').fetchone()
+        server=http.server.ThreadingHTTPServer(('127.0.0.1',settings['port']),Handler);server.state=State(settings)
+        if args.open:webbrowser.open(f'http://127.0.0.1:{settings["port"]}')
+        try:server.serve_forever(poll_interval=.5)
+        finally:server.server_close()
+        return
+    root.mkdir(parents=True,exist_ok=True)
     handler=logging.handlers.RotatingFileHandler(root/'collector.log',maxBytes=2*1024*1024,backupCount=3,encoding='utf-8')
     logging.basicConfig(handlers=[handler],level=logging.INFO,format='%(asctime)s %(levelname)s %(message)s')
     # Serialize all writers across auto-start, shortcut launches and CLI backfills.
