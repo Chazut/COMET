@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><NoWarn>CS0649</NoWarn></PropertyGroup><ItemGroup>
+<Compile Include="../../Shared/*.cs" Link="Core/%(Filename)%(Extension)"/>
+<Compile Include="../../Client/CoverFallbackAdapter.cs" Link="CoverFallbackAdapter.cs"/>
+<Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll"/>
+</ItemGroup></Project>

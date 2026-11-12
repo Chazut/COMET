@@ -1,13 +1,18 @@
 """Feature telemetry contracts. Commands and settings are not physical outcomes."""
 from common import at
 
-def extra_phases(feature,t):
+def extra_phases(feature,t,event=None):
     result=set()
     if feature in {'W04','H01'} and t.get('started') is True:result.add('started')
     if feature=='M04' and (t.get('tiltObserved') is True or t.get('headMotionObserved') is True):result.add('started')
     if feature=='D01':
         if t.get('moved') is True:result.add('started')
         if t.get('arrived') is True:result.add('completed')
+    # A firing angle acquired during the route completes positioning, not the
+    # firefight. Shared support members must not inherit the flanker outcome.
+    crossfire=(event or {}).get('crossfire') or {}
+    if feature in {'S01','S03'} and (event or {}).get('feature')==feature and crossfire.get('outcome')=='engaged-from-new-angle':
+        result.add('completed')
     # Confirmed means a measured angle/device state; not a completed combat plan.
     return result
 
@@ -36,6 +41,7 @@ def feature_identity(e,t,spec):
     return None
 
 def evidence_note(feature):
+    if feature in {'S01','S03'}:return 'A completed new-angle outcome means positioning reached a usable firing angle, not that shots hit or the firefight was won.'
     if feature in {'D02','D03','D04','D05','D06','D07','D08','D11','D12','D13','D14'}:
         return 'Requires a usable door plan. Check D01 and D09 first; no events do not prove this follow-up is broken.'
     if feature=='M06':return 'Requires an accepted corner chase (M05) and a safe prefire opportunity.'

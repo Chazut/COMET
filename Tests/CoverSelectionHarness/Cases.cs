@@ -125,6 +125,7 @@ static partial class VisibleAdapter{public static bool ValidCover(BotComponent b
 class Log{public void LogWarning(string text)=>throw new Exception(text);}
 partial class Plugin
 {
+ public static CoverPoint RequestCoverFallback(BotComponent b,PlanProgress progress)=>null;
  public static Plugin Instance;public Config config=new();public Dictionary<BotComponent,BotState> states=new();public bool Authority=true;public int Yields;public List<string> Events=new();Log Logger=new();
  bool Ghost(string id)=>false;bool FindRelocationCover(SAINCoverClass c,BotState s,ref CoverPoint point)=>false;
  internal static bool RetainedCover(BotComponent b,CoverPoint c)=>ReferenceEquals(b.Cover.CoverInUse,c);

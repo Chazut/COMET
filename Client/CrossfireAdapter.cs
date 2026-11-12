@@ -25,7 +25,9 @@ internal sealed class CrossfireRuntime
     internal readonly EntranceRuntime Entrance=new();
     internal float Next,LogAt,ContactAt,LastSafety,StartWait;
     internal int ProbeFrame=-1,Candidate,Sample,FinalizedEpisode,ContactInstance;
-    internal bool Layer,Fault,Indoor,TraceApplied;
+    internal bool Layer,Fault,Indoor,TraceApplied,FallbackPass;
+    internal float OldPose,AppliedPose;
+    internal bool OwnPose;
     internal string Key="",Support="",Contact="",Group="";
     internal Vector3 Known,Origin,Reference,Goal;
     internal readonly List<Vector3> Candidates=new(),Samples=new();
@@ -60,7 +62,7 @@ public sealed partial class Plugin
         bool supporting=supportCandidate||s.Crossfire.ManeuverRole?.Role=="support"
             ||maneuverCandidate&&b.Squad.Members!=null&&maneuverBoard.Get(ManeuverGroup(b)) is {Active:true} plan&&plan.Member(b.ProfileId)?.Role=="support";
         if(!supporting&&s.MovementRecovery.Policy.RepositionBlock(config.MovementRecovery) is string movementBlock&&movementBlock.Length>0)return "crossfire-"+movementBlock;
-        if(e.IsVisible&&!supporting)return "crossfire-enemy-visible";
+        if(e.IsVisible&&!supporting&&!s.Crossfire.Policy.Active)return "crossfire-enemy-visible";
         bool maneuver= maneuverCandidate||s.Crossfire.Maneuver?.Active==true;
         double contactAge=maneuver?config!.SquadManeuver.ContactAge:s.Crossfire.Policy.Active&&s.Crossfire.Policy.Trace?.Entrance!=null?config!.SecondaryEntrance.ContactAge:config!.Crossfire.ContactAge;
         bool continuing=s.Crossfire.Policy.CanContinueRememberedRoute(Time.time,config.Crossfire)
@@ -69,8 +71,8 @@ public sealed partial class Plugin
         if(!float.IsFinite(e.TimeSinceLastKnownUpdated)||e.TimeSinceLastKnownUpdated<0||e.TimeSinceLastKnownUpdated>contactAge&&!continuing)return "crossfire-contact-stale";
         if(Vector3.Distance(b.Position,known)>(maneuver?config.SquadManeuver.MaxDistance:config.Crossfire.EnemyDistance))return "crossfire-enemy-too-far";
         if(s.Crossfire.Policy.Active&&Time.time-s.Crossfire.ContactAt>contactAge&&!continuing)return "crossfire-snapshot-stale";
-        if(s.Crossfire.Policy.Active&&(System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e)!=s.Crossfire.ContactInstance||e.EnemyProfileId!=s.Crossfire.Contact||Vector3.Distance(known,s.Crossfire.Known)>4))return "crossfire-contact-changed";
-        return CrossfireCommonBlock(b,s,allowGoalVisible:supporting);
+        if(s.Crossfire.Policy.Active&&e.EnemyProfileId!=s.Crossfire.Contact)return "crossfire-contact-changed";
+        return CrossfireCommonBlock(b,s,allowGoalVisible:supporting||s.Crossfire.Policy.Active);
     }
     private string CrossfireCommonBlock(BotComponent b,BotState s,bool trade=false,bool allowGoalVisible=false)
     {
@@ -108,7 +110,7 @@ public sealed partial class Plugin
         if(!CrossfireTacticalDecision(b))return "crossfire-native-combat-priority";
         if((!trade&&!b.Squad.BotInGroup)||b.Squad.Members==null||b.Squad.Members.Count<(trade?1:2)||b.Squad.Members.Count>16)return "crossfire-no-bounded-squad";
         int count=0;foreach(var other in b.EnemyController.KnownEnemies)
-        {if(++count>16)return "crossfire-threat-list-over-budget";if(other?.IsVisible==true&&(!allowGoalVisible||!ReferenceEquals(other,b.GoalEnemy)))return "crossfire-visible-threat";}
+        {if(++count>16)return "crossfire-threat-list-over-budget";if(other?.IsVisible==true&&(!allowGoalVisible||other.EnemyProfileId!=b.GoalEnemy?.EnemyProfileId))return "crossfire-visible-threat";}
         return "";
     }
     private BotComponent? CrossfireSupport(BotComponent b,string id="")
@@ -161,16 +163,27 @@ public sealed partial class Plugin
         if(!r.Policy.Active&&mayStart&&TryBeginStorm(b,s))return RefreshStorm(b,s);
         var observed=b.GoalEnemy;
         if(r.Policy.Active&&observed?.EnemyKnown==true&&observed.EnemyProfileId==r.Contact
-            &&observed.KnownPlaces.LastKnownPosition is Vector3 remembered&&Vector3.Distance(remembered,r.Known)<.5f
+            &&observed.KnownPlaces.LastKnownPosition is Vector3 remembered
             &&float.IsFinite(observed.TimeSinceLastKnownUpdated)&&observed.TimeSinceLastKnownUpdated>=0)
             r.ContactAt=Math.Max(r.ContactAt,Time.time-observed.TimeSinceLastKnownUpdated);
         string block=CrossfireBlock(b,s,!r.Policy.Active&&mayStart&&config!.SquadManeuver.Enabled);
         if(block.Length>0){if(r.Policy.Active)EndCrossfire(b,s,block);else if(mayStart)RecordCrossfireGate(s,block);return false;}
+        if(r.Policy.Active&&r.Policy.Trace!.Entrance!=null&&observed!.IsVisible&&observed.CanShoot)
+        {r.Policy.Trace.Outcome="contact-engaged";EndCrossfire(b,s,"secondary-entrance-contact-engaged");return false;}
+        if(r.Maneuver!=null&&r.Policy.Active&&!ValidateManeuver(b,s))return false;
+        if(r.Policy.Active&&!RevalidateCrossfireContext(b,s))
+        {
+            if(r.Policy.Active&&!r.Policy.Check(Time.time,config!.Crossfire,"",true))EndCrossfire(b,s,r.Policy.Trace!.Reason);
+            return r.Policy.Active&&r.Policy.Trace!.State!="planning";
+        }
+        if(r.Policy.Active&&r.Policy.Trace!.Entrance==null&&r.ManeuverRole?.Role is not ("support" or "rear")
+            &&CrossfireGeometry.CanEngage(r.Policy.Trace.State,observed!.IsVisible,observed.CanShoot,
+                Vector3.Distance(b.Position,r.Origin),CrossfireAngle(r.Reference,b.Position,r.Known),CrossfireAngle(r.Reference,r.Origin,r.Known)))
+        {r.Policy.Trace.Outcome="engaged-from-new-angle";EndCrossfire(b,s,"crossfire-angle-engaged");return false;}
         var c=config!.Crossfire;
         if(!r.Policy.Active&&mayStart&&config.SquadManeuver.Enabled)TryBeginManeuver(b,s);
         // A declined S03 plan must not relax the separate S01 eligibility limits.
         if(!r.Policy.Active&&CrossfireBlock(b,s).Length>0)return false;
-        if(r.Maneuver!=null&&r.Policy.Active&&!ValidateManeuver(b,s))return false;
         var support=r.Maneuver!=null&&r.Policy.Active&&b.Squad.Members!.TryGetValue(r.Support,out var plannedSupport)?plannedSupport:CrossfireSupport(b,r.Policy.Active?r.Support:"");
         if(r.Policy.Active)
         {
@@ -180,7 +193,6 @@ public sealed partial class Plugin
             if(!r.Policy.Check(Time.time,c,"",support!=null||r.Policy.Trace.Entrance!=null,r.Policy.Trace.Entrance!=null?config.SecondaryEntrance.WatchMax+config.SecondaryEntrance.Extension+8:null)){EndCrossfire(b,s,r.Policy.Trace!.Reason);return false;}
             if(r.Policy.Trace!.Reserved&&!crossfireClaims.Renew(s.Id,Time.time)){EndCrossfire(b,s,"crossfire-reservation-expired");return false;}
             r.Policy.Trace.ContactAge=Math.Max(0,Time.time-r.ContactAt);
-            if(support!=null&&Vector3.Distance(support.Position,r.Reference)>4){EndCrossfire(b,s,"crossfire-support-moved");return false;}
         }
         else
         {
@@ -275,6 +287,8 @@ public sealed partial class Plugin
         EndManeuver(s,reason);EndCoverMate(s,reason);EndSquadTrade(s,reason);EndStorm(s,reason);
         if(r.Policy.Trace.Entrance!=null){r.Entrance.Policy.End(Time.time,r.ContactAt);ReleaseEntrance(s);}
         r.Policy.End(Time.time,config?.Crossfire??new(),reason);r.Layer=false;crossfireClaims.Release(s.Id);
+        if(r.OwnPose&&Math.Abs(b.Mover.Pose.PoseValue.TargetValue-r.AppliedPose)<.01)b.Mover.SetTargetPose(r.OldPose);
+        r.OwnPose=false;
         try{StopCrossfireRoute(b,r);}catch(Exception ex){Logger.LogWarning("S01 route release: "+ex.GetBaseException().Message);}
         finally{r.Route=null;r.HandoffPath=null;r.HandoffQueued=null;r.HandoffWait=-1;r.AirborneSince=-1;r.Samples.Clear();r.Candidates.Clear();RecordCrossfire(s,true);r.Entrance.Drop();r.Maneuver=null;r.ManeuverRole=null;r.Storm.Plan=null;r.Storm.Member=null;}
     }

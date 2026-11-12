@@ -49,6 +49,11 @@ public sealed class CrossfireConfig
 }
 public sealed class CrossfireTrace
 {
+    public string Outcome { get; set; }="";
+    public string SightPose { get; set; }="";
+    public string SearchPass { get; set; }="preferred-angle";
+    public int Revalidations { get; set; }
+    public string Revalidation { get; set; }="";
     public bool ContinuingRememberedRoute { get; set; }
     public double RequiredAngle { get; set; }
     public bool GroundPaused { get; set; }
@@ -185,6 +190,13 @@ public sealed class CrossfireClaims
 
 public static class CrossfireGeometry
 {
+    // A fallback still needs a distinct angle and a real route. It is not permission
+    // to move toward an arbitrary point when the preferred separation is unavailable.
+    public static double FallbackAngle(double initial) => initial + 3;
+    public static bool UsefulAngle(double angle,double initial,bool fallback) => MedicalChoice.Finite(angle)
+        && angle >= (fallback ? FallbackAngle(initial) : initial + 5);
+    public static bool CanEngage(string state,bool visible,bool canShoot,double travelled,double angle,double initial) =>
+        visible && canShoot && (state=="holding" || state=="moving" && travelled>=1.5 && UsefulAngle(angle,initial,true));
     public static double RequiredAngle(double preferred,double initial,double distance,double radius)
     {
         // A 35 degree separation cannot be reached by a 24 m local search 80 m

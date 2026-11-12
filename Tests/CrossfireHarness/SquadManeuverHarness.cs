@@ -39,6 +39,16 @@ internal static class SquadManeuverHarness
    for(int i=1;i<count;i++)C(p.states[bots[i]].Crossfire.Policy.Trace?.State=="moving","flanker actual route "+i+": "+p.states[bots[i]].Crossfire.Policy.Trace?.Reason+" / "+string.Join(",",p.states[bots[i]].Crossfire.Rejects));
    return(p,bots,actions);
   }
+  {
+   var(p,bots,actions)=Start();var b=bots[1];var r=p.states[b].Crossfire;var plan=r.Maneuver!;double until=plan.Until;
+   b.Position=r.Goal;b.GoalEnemy!.IsVisible=true;Step();actions[1].Update(new());
+   C(!r.Policy.Active&&r.Policy.Trace!.Outcome=="engaged-from-new-angle","coordinated flanker hands actual acquired angle to combat");
+   C(plan.Active&&plan.State=="converging"&&plan.Member(b.ProfileId)!.Status=="engaging","success is retained on shared plan");
+   C(!plan.MaySuppress&&plan.Until==until,"success stops blind suppression without shortening other flank routes");
+   Step();actions[0].Update(new());actions[0].OnSteeringTicked();actions[2].Update(new());
+   C(p.states[bots[2]].Crossfire.Policy.Active,"another flanker continues after first engages");
+   events.AddRange(p.diagnostics!.Lines);p.EndAll();
+  }
   foreach(float pause in new[]{.15f,.45f})
   {
    var(p,bots,actions)=Start();var b=bots[1];var r=p.states[b].Crossfire;var plan=r.Maneuver;var path=b.Mover.ActivePath;var walks=b.Mover.Walks;

@@ -74,9 +74,9 @@ internal static class SecondaryEntranceHarness
   for(int i=0;i<250&&p.states[b].Crossfire.Policy.Trace!.State=="planning"&&p.states[b].Crossfire.Policy.Trace!.Entrance!=null;i++){Step(.02f);Refresh(b);p.Sample(b);}
   var r=p.states[b].Crossfire;C(walls?r.Policy.Trace!.State=="ready"&&r.Entrance.Virtual&&r.Policy.Trace.Entrance!.Passage.StartsWith("passage:"):r.Policy.Trace!.Entrance==null,"doorless throat requires real geometric evidence "+walls);Save(p);
  }
- foreach(string mode in new[]{"human","scav","ghost","remote","disabled","contact-instance","squad-change","visible","support-not-covering","primary-blocked"}){
+ foreach(string mode in new[]{"human","scav","ghost","remote","disabled","contact-id","squad-change","visible","support-not-covering","primary-blocked"}){
   var(p,b,m)=Setup();Plan(p,b);var action=Start(p,b);Arrive(p,b,action);var r=p.states[b].Crossfire;
-  switch(mode){case"human":b.Player.IsAI=false;break;case"scav":b.Pmc=false;break;case"ghost":p.Ghosts.Add(b.ProfileId);break;case"remote":p.Authority=false;break;case"disabled":p.config!.SecondaryEntrance.Enabled=false;break;case"contact-instance":b.GoalEnemy=new();break;case"squad-change":b.Squad.Members.Add("new",new());break;case"visible":b.GoalEnemy!.IsVisible=true;break;case"support-not-covering":m.GoalEnemy!.IsVisible=false;m.Player.LookDirection=new(1,0,0);break;case"primary-blocked":b.BotOwner.VoxelesPersonalData.CurVoxel.DoorLinks[0].Door.DoorState=EDoorState.Shut;break;}
+  switch(mode){case"human":b.Player.IsAI=false;break;case"scav":b.Pmc=false;break;case"ghost":p.Ghosts.Add(b.ProfileId);break;case"remote":p.Authority=false;break;case"disabled":p.config!.SecondaryEntrance.Enabled=false;break;case"contact-id":b.GoalEnemy!.EnemyProfileId="different";break;case"squad-change":b.Squad.Members.Add("new",new());break;case"visible":b.GoalEnemy!.IsVisible=true;break;case"support-not-covering":m.GoalEnemy!.IsVisible=false;m.Player.LookDirection=new(1,0,0);break;case"primary-blocked":b.BotOwner.VoxelesPersonalData.CurVoxel.DoorLinks[0].Door.DoorState=EDoorState.Shut;break;}
   Wait(p,b,action,21);C(!r.Policy.Active&&p.Claims==0&&b.Mover.Walks==1,"S02 guards "+mode);Save(p);
  }
  {

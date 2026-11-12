@@ -85,7 +85,7 @@ def phases(e,t,spec):
         if t.get('started') is True:result.add('started')
         # W01 ends observation with state=ended, including unsuccessful reloads.
         if t.get('finished') is True and t.get('improved') is True:result.add('completed')
-    result.update(extra_phases(spec['id'],t))
+    result.update(extra_phases(spec['id'],t,e))
     if state=='completed': result.add('completed')
     if state=='interrupted': result.add('interrupted')
     # Attached context is not the parent tactic: an A01 start does not mean

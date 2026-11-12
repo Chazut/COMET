@@ -31,9 +31,9 @@ foreach(string scope in new[]{"scav","human","dead","inactive","ghost","remote",
  switch(scope){case"scav":b.Pmc=false;break;case"human":b.Player.IsAI=false;break;case"dead":b.IsDead=true;break;case"inactive":b.BotActive=false;break;case"ghost":p.Ghosts.Add(b.ProfileId);break;case"remote":p.Authority=false;break;case"world":p.world=null;break;case"enabled":p.config!.Enabled=false;break;case"feature":p.config!.Crossfire.Enabled=false;break;case"ending":b.GameEnding=true;break;}
  p.Sample(b);C(!p.states[b].Crossfire.Policy.Active&&p.Claims==0&&path.Stops==1,"scope releases owned route "+scope);Save(p);
 }
-foreach(string priority in new[]{"visible","under-fire","suppression","grenade","flash","self","squad","medicine","reload","throw","hands","ammo","airborne","injury","door","medical-guard","recovery","relocation","feint","door-plan","native-combat","contact-changed","position-changed","no-contact","unknown","support-dead","support-ghost","support-moved"}){
+foreach(string priority in new[]{"under-fire","suppression","grenade","flash","self","squad","medicine","reload","throw","hands","ammo","airborne","injury","door","medical-guard","recovery","relocation","feint","door-plan","native-combat","contact-changed","position-changed","no-contact","unknown","support-dead","support-ghost"}){
  var(p,b,m)=Setup();Plan(p,b);Start(p,b);var r=p.states[b].Crossfire;var path=(BotPathDataManual)b.Mover.ActivePath!;
- switch(priority){case"visible":b.GoalEnemy!.IsVisible=true;break;case"under-fire":b.BotOwner.Memory.IsUnderFire=true;break;case"suppression":b.Suppression.IsSuppressed=true;break;case"grenade":b.Grenade.GrenadeDangerPoint=new();break;case"flash":b.Flashed.IsFlashed=true;break;case"self":b.Decision.CurrentSelfDecision=ESelfActionType.Heal;break;case"squad":b.Decision.CurrentSquadDecision=ESquadDecision.Retreat;break;case"medicine":b.BotOwner.Medecine.Using=true;break;case"reload":b.BotOwner.WeaponManager.Reload.Reloading=true;break;case"throw":b.BotOwner.WeaponManager.Grenades.ThrowindNow=true;break;case"hands":((Player.FirearmController)b.Player.HandsController).Ready=false;break;case"ammo":b.BotOwner.WeaponManager.HaveBullets=false;break;case"airborne":b.Player.MovementContext.IsGrounded=false;break;case"sprint":b.Player.IsSprintEnabled=true;break;case"injury":b.Memory.Health.HealthStatus=ETagStatus.BadlyInjured;break;case"door":b.BotOwner.DoorOpener.Interacting=true;break;case"medical-guard":p.Guard=true;break;case"recovery":p.states[b].PostCombat.Policy.Active=true;break;case"relocation":p.states[b].Relocation.Policy.Active=true;break;case"feint":p.states[b].CoverFeint.Policy.Active=true;break;case"door-plan":p.states[b].Feature="D01";p.states[b].Decision="Hold";break;case"native-combat":b.Decision.CurrentCombatDecision=ECombatDecision.RushEnemy;break;case"contact-changed":b.GoalEnemy!.EnemyProfileId="new";break;case"position-changed":b.GoalEnemy!.KnownPlaces.LastKnownPosition=new(40,0,40);break;case"no-contact":b.GoalEnemy=null;break;case"unknown":b.GoalEnemy!.EnemyKnown=false;break;case"stale":b.GoalEnemy!.TimeSinceLastKnownUpdated=9;break;case"support-dead":m.IsDead=true;break;case"support-ghost":p.Ghosts.Add(m.ProfileId);break;case"support-moved":m.Position=new(5,0,0);break;}
+ switch(priority){case"visible":b.GoalEnemy!.IsVisible=true;break;case"under-fire":b.BotOwner.Memory.IsUnderFire=true;break;case"suppression":b.Suppression.IsSuppressed=true;break;case"grenade":b.Grenade.GrenadeDangerPoint=new();break;case"flash":b.Flashed.IsFlashed=true;break;case"self":b.Decision.CurrentSelfDecision=ESelfActionType.Heal;break;case"squad":b.Decision.CurrentSquadDecision=ESquadDecision.Retreat;break;case"medicine":b.BotOwner.Medecine.Using=true;break;case"reload":b.BotOwner.WeaponManager.Reload.Reloading=true;break;case"throw":b.BotOwner.WeaponManager.Grenades.ThrowindNow=true;break;case"hands":((Player.FirearmController)b.Player.HandsController).Ready=false;break;case"ammo":b.BotOwner.WeaponManager.HaveBullets=false;break;case"airborne":b.Player.MovementContext.IsGrounded=false;break;case"sprint":b.Player.IsSprintEnabled=true;break;case"injury":b.Memory.Health.HealthStatus=ETagStatus.BadlyInjured;break;case"door":b.BotOwner.DoorOpener.Interacting=true;break;case"medical-guard":p.Guard=true;break;case"recovery":p.states[b].PostCombat.Policy.Active=true;break;case"relocation":p.states[b].Relocation.Policy.Active=true;break;case"feint":p.states[b].CoverFeint.Policy.Active=true;break;case"door-plan":p.states[b].Feature="D01";p.states[b].Decision="Hold";break;case"native-combat":b.Decision.CurrentCombatDecision=ECombatDecision.RushEnemy;break;case"contact-changed":b.GoalEnemy!.EnemyProfileId="new";break;case"position-changed":b.GoalEnemy!.KnownPlaces.LastKnownPosition=new(40,0,40);Physics.Blocked=true;break;case"no-contact":b.GoalEnemy=null;break;case"unknown":b.GoalEnemy!.EnemyKnown=false;break;case"stale":b.GoalEnemy!.TimeSinceLastKnownUpdated=9;break;case"support-dead":m.IsDead=true;break;case"support-ghost":p.Ghosts.Add(m.ProfileId);break;case"support-moved":m.Position=new(5,0,0);break;}
  if(priority=="airborne"){p.Sample(b);C(r.Policy.Active,"short ground loss retains active plan");Step(.61f);}
  p.Sample(b);C(!r.Policy.Active&&p.Claims==0,"priority abort "+priority);C(path.Stops==(priority=="airborne"?0:1),"do not cancel airborne native movement "+priority);Save(p);
 }
@@ -188,6 +188,54 @@ foreach(string abort in new[]{"grenade","support","foreign","contact"}) {
  f.X+=.7;f.Now+=.5;s.MovementRecovery.Policy.Observe(f,p.config!.MovementRecovery);b.Position=new((float)f.X,0,0);
  Step(1);Plan(p,b);C(s.Crossfire.Policy.Active,"real progress restores flank eligibility");
 }
+// Raid436/history: visibility by itself is not a failed flank.
+{
+ var(p,b,m)=Setup();Plan(p,b,new(-12,0,10));var a=Start(p,b);var r=p.states[b].Crossfire;
+ var path=b.Mover.ActivePath;int episode=r.Policy.Trace!.Episode;double roll=r.Policy.Trace.Roll;
+ b.GoalEnemy!.IsVisible=true;b.GoalEnemy.CanShoot=false;
+ Step(.1f);a.Update(new());
+ C(r.Policy.Active&&ReferenceEquals(path,b.Mover.ActivePath)&&r.Policy.Trace.Episode==episode,"brief visible contact retains the actual route and episode");
+ b.GoalEnemy=new Enemy{IsVisible=false,CanShoot=false};Step(.1f);a.Update(new());
+ C(r.Policy.Active&&r.Policy.Trace.Roll==roll,"replacement contact wrapper with same profile does not reroll");
+ b.Position=r.Goal;b.GoalEnemy.IsVisible=true;Step();a.Update(new());
+ C(r.Policy.Trace.State=="holding","visible but unshootable contact can still reach the angle");
+ b.GoalEnemy.CanShoot=true;Step();a.Update(new());
+ C(!r.Policy.Active&&r.Policy.Trace.Reason=="crossfire-angle-engaged"&&r.Policy.Trace.Outcome=="engaged-from-new-angle","shootable arrival records successful handoff rather than failed flank");Save(p);
+}
+{
+ var(p,b,m)=Setup();Plan(p,b,new(-12,0,10));var a=Start(p,b);var r=p.states[b].Crossfire;
+ b.GoalEnemy!.IsVisible=true;Step();a.Update(new());
+ C(r.Policy.Active,"shootable contact at the original angle is not fabricated flank success");
+ b.Position=new(-7,0,4);Step();a.Update(new());
+ C(!r.Policy.Active&&r.Policy.Trace!.Outcome=="engaged-from-new-angle","useful shootable angle can hand over before reaching final waypoint");
+}
+foreach(bool changeTarget in new[]{true,false}){
+ var(p,b,m)=Setup();Plan(p,b,new(-12,0,10));var a=Start(p,b);var r=p.states[b].Crossfire;var path=b.Mover.ActivePath;
+ if(changeTarget)b.GoalEnemy!.KnownPlaces.LastKnownPosition=new(0,0,17);else m.Position=new(3,0,0);
+ Step();a.Update(new());
+ C(r.Policy.Active&&ReferenceEquals(path,b.Mover.ActivePath)&&r.Policy.Trace!.Revalidations==1,"useful route survives meaningful target/support movement "+changeTarget);
+ C(r.Policy.Trace!.Revalidation=="route-still-useful","revalidation evidence identifies preserved angle");Save(p);
+}
+{
+ var(p,b,m)=Setup();Plan(p,b,new(-5,0,0));var r=p.states[b].Crossfire;
+ C(r.FallbackPass&&r.Policy.Trace!.SearchPass=="smaller-useful-angle"&&r.Policy.Trace.Angle>=r.Policy.Trace.RequiredAngle,"small real angle used only after preferred search fails");
+ Start(p,b);Save(p);
+}
+{
+ var(p,b,m)=Setup();Physics.Cast=(from,to)=>from.y>1.1f;
+ try{Plan(p,b,new(-12,0,10));var a=Start(p,b);var r=p.states[b].Crossfire;b.Position=r.Goal;Step();a.Update(new());
+ C(r.Policy.Trace!.SightPose=="crouched"&&b.Mover.Pose.PoseValue.TargetValue==.5f,"low firing aperture produces actual crouched hold");
+ p.End(b);C(b.Mover.Pose.PoseValue.TargetValue==1,"owned crouch restored on exit");Save(p);
+ }finally{Physics.Cast=null;}
+}
+{
+ var(p,b,m)=Setup();var requested=new Vector3(-12,0,10);Physics.Cast=(from,to)=>Math.Abs(from.x-requested.x)<.1f&&Math.Abs(from.z-requested.z)<.1f;
+ try{Plan(p,b,requested);var r=p.states[b].Crossfire;
+ C(Vector3.Distance(r.Goal,requested)>.9f&&Vector3.Distance(r.Route!.corners[^1],r.Goal)<.01f,"sidestep is the actual checked route endpoint");
+ C(r.Policy.Trace!.SightPose.EndsWith("sidestep"),"sidestep firing posture recorded");Save(p);
+ }finally{Physics.Cast=null;}
+}
+C(!Comet.Core.CrossfireGeometry.UsefulAngle(180,180,true),"opposite angle still needs genuine gain");
 SecondaryEntranceHarness.Run();
 Raid397Harness.Run();
 SquadManeuverHarness.Run();

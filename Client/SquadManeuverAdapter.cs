@@ -60,7 +60,7 @@ public sealed partial class Plugin
             if(plan==null)RecordCrossfireGate(s,"maneuver-not-started: "+maneuverBoard.LastReason);
             if(plan==null&&maneuverBoard.LastAttempt is SquadManeuverPlan declined&&!ReferenceEquals(previous,declined)&&declined.Member(b.ProfileId)!=null)RecordManeuverDeclined(b,s,declined);
         }
-        if(plan==null||!plan.Active||plan.Enemy!=enemy.EnemyProfileId||plan.Member(b.ProfileId) is not ManeuverMember role||role.Status=="ended")return false;
+        if(plan==null||!plan.Active||plan.Enemy!=enemy.EnemyProfileId||plan.Member(b.ProfileId) is not ManeuverMember role||role.Status is "ended" or "engaging")return false;
         if(!b.Squad.Members.TryGetValue(plan.Support,out var support))return false;
         // A group must fit around the actual supporter, not just the bot that proposed it.
         if(Vector3.Distance(b.Position,support.Position)>c.SquadDistance){plan.Drop(b.ProfileId,"support-out-of-range");return false;}
@@ -111,9 +111,9 @@ public sealed partial class Plugin
         {double distance=Vector3.Distance(b.Position,r.Goal);if(distance<m.BestDistance-.4){m.BestDistance=distance;m.ProgressAt=Time.time;}
          if(Time.time-m.ProgressAt>=c.StallTimeout){EndCrossfire(b,s,"maneuver-route-stalled");return false;}}
         if(!b.Squad.Members.TryGetValue(p.Support,out var support)||!states.TryGetValue(support,out var ss)||!CrossfireScope(support)
-            ||support.GoalEnemy?.EnemyProfileId!=p.Enemy||support.GoalEnemy.KnownPlaces.LastKnownPosition is not Vector3 sk||Vector3.Distance(sk,r.Known)>4
+            ||support.GoalEnemy?.EnemyProfileId!=p.Enemy||support.GoalEnemy.KnownPlaces.LastKnownPosition is not Vector3 sk
             ||support.GoalEnemy.TimeSinceLastKnownUpdated>c.ContactAge&&!p.HasProgressingFlanker(Time.time,c)||CrossfireBlock(support,ss,true).Length>0
-            ||Vector3.Distance(b.Position,support.Position)>c.SquadDistance||Vector3.Distance(support.Position,r.Reference)>2)
+            ||Vector3.Distance(b.Position,support.Position)>c.SquadDistance)
         {p.End("maneuver-support-unavailable");EndCrossfire(b,s,p.Reason);return false;}
         if(m.Role=="flank"&&ManeuverAmmo(b)<c.MinimumAmmo){EndCrossfire(b,s,"maneuver-flanker-low-ammo");return false;}
         if(m.Role=="rear"&&ManeuverRearContact(b,r.Known,out r.Watch)!=m.RearContact){EndCrossfire(b,s,"maneuver-rear-contact-stale");return false;}
@@ -151,7 +151,8 @@ public sealed partial class Plugin
     private void EndManeuver(BotState s,string why)
     {
         var r=s.Crossfire;if(r.Maneuver==null||r.ManeuverRole==null)return;
-        var p=r.Maneuver;p.Evidence=Math.Max(p.Evidence,r.ContactAt);p.Drop(s.ProfileId,why);
+        var p=r.Maneuver;p.Evidence=Math.Max(p.Evidence,r.ContactAt);
+        if(why=="crossfire-angle-engaged")p.Engage(s.ProfileId,Time.time);else p.Drop(s.ProfileId,why);
         if(!p.Active)maneuverBoard.Finish(p,Time.time,config?.SquadManeuver??new(),p.Reason);
         if(r.Policy.Trace!=null)r.Policy.Trace.Maneuver=p.Trace(s.ProfileId,Time.time,config?.SquadManeuver??new());
         if(r.ManeuverFire)EndDiscipline(s,"suppression-support-plan-ended");r.ManeuverFire=false;

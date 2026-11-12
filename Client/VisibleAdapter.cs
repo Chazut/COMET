@@ -50,6 +50,7 @@ internal static class VisibleAdapter
     internal static bool ValidCover(BotComponent bot, CoverPoint? p)
     {
         if (p == null || p.CoverData.IsBad || p.Spotted) return false;
+        if (Plugin.TryFallbackCover(bot,p,out bool fallbackUsable)) return fallbackUsable;
         if (ReferenceEquals(p, bot.Cover.CoverInUse) && (p.Position - bot.Position).sqrMagnitude <= 4) return true;
         return (p.PathData.TimeSinceLastUpdated <= 3 || Plugin.RetainedCover(bot, p)) && ValidPath(p.PathToPoint, bot.Position, p.Position);
     }
@@ -82,11 +83,11 @@ internal static class VisibleAdapter
                     || progress?.Blocked(ProgressAdapter.CoverKey(p),Time.time)==true || p.PathData.PathLength >= length) continue;
                 best = p; length = p.PathData.PathLength; bestIndex = index;
             }
-            if (best == null) return null;
+            if (best == null) return Plugin.RequestCoverFallback(bot,progress);
             if (Plugin.SelectionCoverUsable(bot, best, out _)) return best;
             rejected |= 1u << bestIndex;
         }
-        return null;
+        return Plugin.RequestCoverFallback(bot,progress);
     }
     internal static VisibleSituation Capture(BotComponent bot, Enemy enemy, Situation contact, BotState state, CometConfig config)
     {

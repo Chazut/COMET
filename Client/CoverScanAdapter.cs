@@ -29,6 +29,9 @@ internal sealed class CoverScanRuntime
 }
 public sealed partial class Plugin
 {
+    partial void TickCoverFallbacks();
+    partial void ClearCoverFallbacks();
+    partial void CheckFallbackCover(BotComponent b,CoverPoint point,ref bool handled,ref bool usable,ref string reason);
     partial void CoverScanFailure(BotComponent b, Exception ex, ref bool handled);
     partial void ConfigureCoverRetry(BotComponent b, ref Func<bool>? retry);
     private readonly Dictionary<CoverFinderComponent, CoverScanRuntime> coverScans = new();
@@ -83,8 +86,8 @@ public sealed partial class Plugin
         var p = Instance;
         if (p != null && p.coverScans.TryGetValue(__instance, out var r)) { p.coverScans.Remove(__instance); r.Runner.Dispose(); }
     }
-    private void CheckCoverScans() { foreach (var r in coverScans.Values) r.Runner.CheckContext(); }
-    private void EndCoverScans() { foreach (var r in coverScans.Values) r.Runner.Dispose(); coverScans.Clear(); }
+    private void CheckCoverScans() { foreach (var r in coverScans.Values) r.Runner.CheckContext(); TickCoverFallbacks(); }
+    private void EndCoverScans() { foreach (var r in coverScans.Values) r.Runner.Dispose(); coverScans.Clear();ClearCoverFallbacks(); }
     internal static bool RetainedCover(BotComponent b, CoverPoint point) => Instance is Plugin p && b.Cover?.CoverFinder is CoverFinderComponent f
         && p.coverScans.TryGetValue(f, out var r) && r.Runner.Retains(CoverContact(b)) && f.CoverPoints.Contains(point);
     private static bool ValidateScanCover(SAINMoverClass __instance, CoverPoint point, ref bool __result)
@@ -98,6 +101,7 @@ public sealed partial class Plugin
     {
         reason = "cover-selected-rechecked";
         var p = Instance;
+        bool handled=false,usable=false;p?.CheckFallbackCover(b,point,ref handled,ref usable,ref reason);if(handled)return usable;
         if (p == null || p.CoverScanMode(b) != 1 || !p.coverScans.TryGetValue(b.Cover.CoverFinder, out var r)) return true;
         try
         {

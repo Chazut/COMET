@@ -13,6 +13,18 @@ class EvidenceRegression(unittest.TestCase):
     add=fixtures.ArchiveTests.add
     finish=fixtures.ArchiveTests.finish
     m=fixtures.ArchiveTests.m
+    def test_crossfire_positioning_outcome_is_explicit_and_deduplicated(self):
+        for n in range(1,4):
+            self.add(event(n,feature='S01',crossfire={'episode':1,'state':'ended','outcome':'engaged-from-new-angle'}),
+                     event(n+10,feature='S03',crossfire={'episode':2,'outcome':'engaged-from-new-angle','maneuver':{'plan':'one','state':'converging'}}))
+        self.add(event(20,feature='S01',crossfire={'episode':3,'state':'ended','reason':'crossfire-enemy-visible'}),
+                 event(21,feature='S03',crossfire={'episode':4,'maneuver':{'plan':'one','state':'converging'}}),
+                 event(22,feature='C07',coverScan={'state':'published','published':1,'fallback':'full'}))
+        self.finish();analyze(self.c,'r')
+        self.assertEqual(self.m('S01')['completed'],1)
+        self.assertEqual(self.m('S03')['completed'],1)
+        self.assertEqual(self.m('C07')['completed'],0)
+        self.assertEqual(self.m('C07')['started'],0)
     def test_fragments_preserve_full_config_and_nested_values(self):
         self.add(event(1,'configuration','U01',configRevision=2,config={'enabled':True,'recoilRecovery':{'enabled':False},'threatSelection':{'enabled':True,'memory':12}}),
                  event(2,feature='A07',configRevision=2,config={'enabled':True,'threatSelection':{'enabled':True}}))

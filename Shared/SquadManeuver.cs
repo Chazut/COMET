@@ -55,7 +55,7 @@ public sealed class SquadManeuverPlan
     public readonly List<ManeuverMember> Members=new();
     public bool Active=>State!="ended";
     public ManeuverMember? Member(string id)=>Members.Find(x=>x.Id==id);
-    public bool MaySuppress=>Active&&State=="active"&&Members.Any(x=>x.Role=="flank"&&x.Status=="moving")&&!Members.Any(x=>x.Role=="flank"&&(x.Status=="holding"||x.Reason.Contains("enemy-visible")));
+    public bool MaySuppress=>Active&&State=="active"&&Members.Any(x=>x.Role=="flank"&&x.Status=="moving")&&!Members.Any(x=>x.Role=="flank"&&(x.Status is "holding" or "engaging"||x.Reason.Contains("enemy-visible")));
     public bool SupportReady(double now)=>Member(Support) is {Confirmed:true,Applied:true} s&&s.Status!="ended"&&now-s.LastSeen<1;
     public bool HasProgressingFlanker(double now,SquadManeuverConfig c)=>Active&&now>=Started&&now<Until
         &&Members.Any(m=>m.Role=="flank"&&m.Status=="moving"&&m.Confirmed&&m.Applied
@@ -67,18 +67,27 @@ public sealed class SquadManeuverPlan
         if(id==Support)End("maneuver-support-lost: "+why);
         else if(!Members.Any(x=>x.Role=="flank"&&x.Status!="ended"))End("maneuver-no-flanker: "+why);
     }
+    public void Engage(string id,double now)
+    {
+        var m=Member(id);if(!Active||m?.Role!="flank")return;
+        m.Status="engaging";m.Reason="crossfire-angle-engaged";m.Applied=false;m.LastSeen=now;
+        // The route has done its job. Hand combat back without reporting a failed
+        // flanker, and let other flankers finish within the original plan deadline.
+        State="converging";Reason="maneuver-angle-engaged";
+        if(!Members.Any(x=>x.Role=="flank"&&x.Status is not ("ended" or "engaging")))Until=Math.Min(Until,now+3);
+    }
     public bool Tick(double now,SquadManeuverConfig c)
     {
         if(!Active)return false;
         if(!MedicalChoice.Finite(now)||now<Started||!c.Enabled){End("maneuver-disabled-or-clock-reset");return false;}
-        if(now>=Until){End("maneuver-timeout");return false;}
+        if(now>=Until){End(State=="converging"?"maneuver-engagement-complete":"maneuver-timeout");return false;}
         foreach(var m in Members)
         {
-            if(m.Status=="ended")continue;
+            if(m.Status is "ended" or "engaging")continue;
             if(now-m.LastSeen>=1&&m.Confirmed){Drop(m.Id,"role-callback-lost");continue;}
             if(!m.Confirmed&&now-(m.ReadyAt>=0?m.ReadyAt:Started)>=c.ConfirmTimeout&&m.Status!="planning")Drop(m.Id,"role-not-confirmed");
         }
-        if(Active&&SupportReady(now)&&Members.Any(x=>x.Role=="flank"&&x.Confirmed&&x.Status!="ended"))State="active";
+        if(Active&&State!="converging"&&SupportReady(now)&&Members.Any(x=>x.Role=="flank"&&x.Confirmed&&x.Status!="ended"))State="active";
         return Active;
     }
     public ManeuverTrace Trace(string id,double now,SquadManeuverConfig c)

@@ -9,7 +9,8 @@ public sealed partial class Plugin
 {
     private void BuildCrossfireCandidates(BotComponent b,CrossfireRuntime r)
     {
-        r.Candidates.Clear();r.Samples.Clear();
+        r.Candidates.Clear();r.Samples.Clear();r.FallbackPass=false;r.Candidate=0;
+        if(r.Policy.Trace!=null)r.Policy.Trace.SearchPass="preferred-angle";
         var forward=r.Known-r.Origin;forward.y=0;forward=forward.normalized;
         var side=new Vector3(-forward.z,0,forward.x);float sign=jumpRandom.Next(2)==0?1:-1;
         // Local, bounded search; short routes first. No global cover scan or hidden enemy transform.
@@ -54,7 +55,63 @@ public sealed partial class Plugin
         return "";
     }
     private static bool CrossfireSight(Vector3 point,Vector3 known)=>
-        !Physics.Linecast(point+Vector3.up*1.4f,known+Vector3.up*1.2f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore);
+        CrossfireSightPose(point,known).Length>0;
+    private static string CrossfireSightPose(Vector3 point,Vector3 known)
+    {
+        if(!Physics.Linecast(point+Vector3.up*1.5f,known+Vector3.up*1.3f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))return "standing";
+        return !Physics.Linecast(point+Vector3.up*.95f,known+Vector3.up*1.3f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore)?"crouched":"";
+    }
+    private bool CrossfireFiringPoint(BotComponent b,BotState s)
+    {
+        var r=s.Crossfire;var t=r.Policy.Trace!;t.SightPose=CrossfireSightPose(r.Goal,r.Known);
+        if(t.SightPose.Length>0)return true;
+        var direction=r.Known-r.Goal;direction.y=0;direction=direction.normalized;
+        var side=new Vector3(-direction.z,0,direction.x);var original=r.Goal;
+        // A side step is an actual destination, never a ray from a position the
+        // bot cannot reach. Its route and squad spacing are checked below too.
+        for(int sign=-1;sign<=1;sign+=2)
+        {
+            var candidate=original+side*sign;
+            if(!NavMesh.SamplePosition(candidate,out var nav,.3f,NavMesh.AllAreas)||Math.Abs(nav.position.y-r.Origin.y)>2.5)continue;
+            float angle=CrossfireAngle(r.Reference,nav.position,r.Known);
+            if(angle<t.RequiredAngle||CrossfireSpace(b,s,nav.position,true).Length>0)continue;
+            string pose=CrossfireSightPose(nav.position,r.Known);if(pose.Length==0)continue;
+            r.Goal=nav.position;r.Angle=angle;t.SightPose=pose+"-sidestep";return true;
+        }
+        return false;
+    }
+    private bool RevalidateCrossfireContext(BotComponent b,BotState s)
+    {
+        var r=s.Crossfire;var t=r.Policy.Trace!;
+        if(t.Entrance!=null||r.ManeuverRole?.Role is "support" or "rear")return true;
+        var known=b.GoalEnemy!.KnownPlaces.LastKnownPosition!.Value;
+        var support=b.Squad.Members.TryGetValue(r.Support,out var mate)?mate:null;
+        if(support==null)return true; // The ordinary support gate supplies the exact reason.
+        if(Vector3.Distance(known,r.Known)<=4&&Vector3.Distance(support.Position,r.Reference)<=2)return true;
+        if(!doorBudget.TryBegin(Time.frameCount))return false;
+        doorClock.Restart();
+        try
+        {
+            t.Revalidations++;r.Known=known;r.Reference=support.Position;
+            t.X=known.x;t.Y=known.y;t.Z=known.z;
+            if(t.State=="planning")
+            {
+                r.Route=null;r.Sample=0;BuildCrossfireCandidates(b,r);
+                t.Revalidation="search-refreshed-without-new-roll";RecordCrossfire(s,true);return true;
+            }
+            var initial=CrossfireAngle(r.Reference,r.Origin,known);
+            var angle=CrossfireAngle(r.Reference,r.Goal,known);
+            string deny=CrossfireSpace(b,s,r.Goal,true);
+            if(deny.Length==0&&!CrossfireGeometry.UsefulAngle(angle,initial,true))deny="angle-no-longer-useful";
+            if(deny.Length==0)
+            {t.SightPose=CrossfireSightPose(r.Goal,known);if(t.SightPose.Length==0)deny="firing-angle-now-blocked";}
+            if(deny.Length==0)deny=CrossfireThreatSafety(b,r,r.Goal);
+            t.Revalidation=deny.Length==0?"route-still-useful":deny;
+            if(deny.Length>0){EndCrossfire(b,s,"crossfire-context-invalidated: "+deny);return false;}
+            t.Angle=r.Angle=angle;RecordCrossfire(s,true);return true;
+        }
+        finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
+    }
     private void RejectCrossfire(CrossfireRuntime r,string why)
     {
         var trace=r.Policy.Trace!;
@@ -68,8 +125,14 @@ public sealed partial class Plugin
         var r=s.Crossfire;var c=config!.Crossfire;
         if(r.Route==null)
         {
-            if(r.Candidate>=r.Candidates.Count){EndCrossfire(b,s,"crossfire-no-safe-angle");return;}
-            var candidate=r.Candidates[r.Candidate++];r.Policy.Trace!.Candidates=r.Candidate;
+            if(r.Policy.Trace!.Candidates>=72){EndCrossfire(b,s,"crossfire-search-budget-exhausted");return;}
+            if(r.Candidate>=r.Candidates.Count)
+            {
+                if(!r.FallbackPass&&r.Policy.Trace!.RejectionCounts.ContainsKey("angle gain too small"))
+                {r.FallbackPass=true;r.Candidate=0;r.Policy.Trace.SearchPass="smaller-useful-angle";RecordCrossfire(s,true);return;}
+                EndCrossfire(b,s,"crossfire-no-safe-angle");return;
+            }
+            var candidate=r.Candidates[r.Candidate++];r.Policy.Trace!.Candidates++;
             var trace=r.Policy.Trace;trace.CandidateX=candidate.x;trace.CandidateY=candidate.y;trace.CandidateZ=candidate.z;trace.CandidateAngle=null;trace.CandidateHeightDelta=null;
             if(!NavMesh.SamplePosition(candidate,out var nav,.75f,NavMesh.AllAreas))
             {RejectCrossfire(r,"no nearby navigation");return;}
@@ -78,12 +141,12 @@ public sealed partial class Plugin
             r.Goal=nav.position;r.Angle=CrossfireAngle(r.Reference,r.Goal,r.Known);
             trace.CandidateAngle=r.Angle;
             var initialAngle=CrossfireAngle(r.Reference,r.Origin,r.Known);
-            r.Policy.Trace!.RequiredAngle=CrossfireGeometry.RequiredAngle(r.Indoor?c.IndoorAngle:c.OutdoorAngle,
+            r.Policy.Trace!.RequiredAngle=r.FallbackPass?CrossfireGeometry.FallbackAngle(initialAngle):CrossfireGeometry.RequiredAngle(r.Indoor?c.IndoorAngle:c.OutdoorAngle,
                 initialAngle,Vector3.Distance(r.Origin,r.Known),Math.Min(24,c.MaxPath*.7));
             if(r.Angle<r.Policy.Trace.RequiredAngle)
             {RejectCrossfire(r,"angle gain too small");return;}
             string deny=CrossfireSpace(b,s,r.Goal,true);if(deny.Length>0){RejectCrossfire(r,deny);return;}
-            if(!CrossfireSight(r.Goal,r.Known)){RejectCrossfire(r,"no firing angle to known position");return;}
+            if(!CrossfireFiringPoint(b,s)){RejectCrossfire(r,"no firing angle to known position (standing, crouched, sidesteps)");return;}
             if(!b.Mover.CanGoToPoint(r.Goal,out var route,true,.2f)||route.status!=NavMeshPathStatus.PathComplete||route.corners.Length<2||route.corners.Length>32)
             {RejectCrossfire(r,"no complete bounded route");return;}
             var corners=route.corners;float length=0;
@@ -140,7 +203,13 @@ public sealed partial class Plugin
             // A completed route can disappear on arrival; a replaced route belongs to its new owner.
             if(b.Mover.ActivePath!=null&&!OwnCrossfirePath(b,r)){r.Path=null;EndCrossfire(b,s,"crossfire-route-replaced");return;}
             if(!r.Policy.Progress(Time.time,Vector3.Distance(b.Position,r.Goal),r.Maneuver!=null?new CrossfireConfig{StallTimeout=config!.SquadManeuver.StallTimeout,Retry=c.Retry}:c)){EndCrossfire(b,s,t.Reason);return;}
-            if(t.State=="holding"){StopCrossfireRoute(b,r);if(t.Entrance!=null){r.Entrance.Policy.Arrived(Time.time);t.Reason="secondary-entrance-watch-position-reached";t.Execution="watching verified secondary entrance";}}
+            if(t.State=="holding")
+            {
+                StopCrossfireRoute(b,r);
+                if(t.Entrance!=null){r.Entrance.Policy.Arrived(Time.time);t.Reason="secondary-entrance-watch-position-reached";t.Execution="watching verified secondary entrance";}
+                else if(t.SightPose.StartsWith("crouched",StringComparison.Ordinal))
+                {r.OldPose=b.Mover.Pose.PoseValue.TargetValue;r.AppliedPose=.5f;r.OwnPose=true;b.Mover.SetTargetPose(r.AppliedPose);}
+            }
             else if(b.Mover.ActivePath==null){EndCrossfire(b,s,"crossfire-route-ended-early");return;}
         }
         if(Time.time-r.LastSafety>=c.Interval&&doorBudget.TryBegin(Time.frameCount))
