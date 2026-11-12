@@ -104,12 +104,13 @@ internal static class DoorJumpTests
             List<string> Calls(string method)=>FloorHearingTests.ReadIl(pe.GetMethodBody(md.TypeDefinitions.Select(md.GetTypeDefinition).Single(x=>md.GetString(x.Name)=="Plugin").GetMethods().Select(md.GetMethodDefinition).Single(x=>md.GetString(x.Name)==method).RelativeVirtualAddress).GetILBytes()!)
                 .Where(x=>x.op==OpCodes.Call||x.op==OpCodes.Callvirt).Select(x=>FloorHearingTests.Name(md,(int)x.operand!)).ToList();
             foreach(var required in new[]{"IsSupportedAi","get_Authority","Ghost","get_IsVisible","get_CurrentSelfDecision","get_CurrentSquadDecision","get_IsUnderFire","get_EnemyKnown","SameContact"})Check(Calls("JumpGate").Contains(required),"compiled scope contract "+required);
-            foreach(var required in new[]{"CapsuleCastNonAlloc","OverlapCapsuleNonAlloc","Raycast","Clear"})Check(Calls("JumpLane").Contains(required),"compiled swept clearance "+required);
+            Check(Calls("JumpLane").Contains("TacticalVolume"),"jump uses shared self-filtered clearance");
+            foreach(var required in new[]{"CapsuleCastNonAlloc","OverlapCapsuleNonAlloc","Raycast","Clear"})Check(Calls("TacticalVolume").Contains(required),"compiled swept clearance "+required);
             foreach(var required in new[]{"get_Velocity","get_IsGrounded","ControlledJump","Observe","WalkToPointByWay","LookToPoint"})Check(Calls("StepDoorJump").Contains(required),"compiled native observation "+required);
             foreach(var required in new[]{"Interact","ExecuteInteraction","InRangeToInteract","ShallInteract"})Check(Calls("RequestJumpDoorOpen").Contains(required),"native opening "+required);
             Check(Calls("StepDoor").Contains("TryStartDoorJump")&&Calls("Release").Contains("EndDoorJump")&&Calls("Update").Contains("RefreshDoorJump"),"D01 handoff and lifecycle integration");
             Check(Calls("StepDoorJump").Contains("OnJumpLane")&&Calls("OnJumpLane").Contains("ContainsMotion"),"actual runtime motion checked by tested geometry");
-            Check(Calls("EndDoorJump").Contains("get_EnemyProfileId")&&Calls("EndDoorJump").Contains("GetHashCode"),"acquisition on release restricted to the original contact instance");
+            Check(Calls("EndDoorJump").Contains("get_EnemyProfileId"),"acquisition on release restricted to the original profile, including a refreshed wrapper");
             foreach(var method in new[]{"JumpGate","StepDoorJump","PrepareJumpRoutes","JumpLane","RequestJumpDoorOpen","FinishDoorJump"})foreach(var banned in new[]{"get_EnemyPosition","get_EnemyPlayer","FindObjectsOfType","Teleport","set_DoorState","set_IsGrounded","SetEnemyVisible"})Check(!Calls(method).Contains(banned),"no hidden position or forced game state "+method+":"+banned);
         }
         Console.WriteLine($"D02: {n} checks passed (chance, route geometry, native scope, opening, actual jump/landing, interruptions, cooldown, persistence). No Unity raid simulated.");return n;

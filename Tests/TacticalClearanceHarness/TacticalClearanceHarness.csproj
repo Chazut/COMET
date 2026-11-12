@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+ <ItemGroup><Compile Include="../../Shared/*.cs" Link="Core/%(Filename)%(Extension)"/><Compile Include="../../Client/TacticalClearance.cs" Link="TacticalClearance.cs"/><Compile Include="../../Client/TacticalContact.cs" Link="TacticalContact.cs"/><Compile Include="../../Client/LocalDoorIndex.cs" Link="LocalDoorIndex.cs"/></ItemGroup>
+</Project>

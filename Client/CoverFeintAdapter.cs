@@ -84,7 +84,7 @@ public sealed partial class Plugin
         if(MedicalPostureGuard(b))f.Block="medical-posture-protected";
         else if(!FeintScope(b,s))f.Block="feint-out-of-scope";
         else if(e==null||seen==null||!e.Seen||!e.EnemyKnown)f.Block="feint-no-personally-seen-contact";
-        else if(r.Policy.Active&&(!ReferenceEquals(e,r.Enemy)||!ReferenceEquals(b.Player.HandsController,r.Firearm)))f.Block="feint-contact-or-weapon-changed";
+        else if(r.Policy.Active&&(!SameTacticalContact(e,r.Enemy)||!ReferenceEquals(b.Player.HandsController,r.Firearm)))f.Block="feint-contact-or-weapon-changed";
         else if(b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None||FakeMedicalPriority(b)
             ||b.Grenade.GrenadeDangerPoint!=null||b.Flashed.IsFlashed||b.Suppression.IsHeavySuppressed||s.Fear.Current.Panic
             ||b.DoorOpener.Interacting||b.BotOwner.DoorOpener.Interacting||b.Player.IsInPronePose
@@ -97,7 +97,7 @@ public sealed partial class Plugin
             f.RouteValid=!QueuedCombatMovement(b)&&(path==null||OwnFeintRoute(r,path));
             if(r.Policy.Moving&&!CornerPeek.Lane(DP(r.From),r.Policy.Goal,DP(b.Position),r.Policy.Trace!.JumpsAccepted>0))f.RouteValid=false;}
         count=0;foreach(var other in b.EnemyController.KnownEnemies){if(++count>32){f.Block="feint-threat-list-truncated";break;}
-            if(other!=null&&!ReferenceEquals(other,e)&&(other.IsVisible||other.Status.ShotAtMeRecently)){f.Block="feint-other-immediate-threat";break;}}
+            if(other!=null&&!SameTacticalContact(other,e)&&(other.IsVisible||other.Status.ShotAtMeRecently)){f.Block="feint-other-immediate-threat";break;}}
         return f;
     }
     private bool ChooseFeint(BotComponent b,Enemy e,BotState s,ref ECombatDecision result,ref bool succeeded)
@@ -144,9 +144,9 @@ public sealed partial class Plugin
         var f=FeintFrame(b,s);
         if(f.Block.Length>0||!f.RouteValid){EndFeint(s,f.Block.Length>0?f.Block:"feint-native-route-taken-over");return;}
         if(Time.time>=r.NextSafety){
-            if(doorBudget.TryBegin(Time.frameCount)){doorClock.Restart();try{
-                r.Protected=CombatProtection(b.Position,VP(p.Known))==7;r.Exposed=CornerOpen(b,b.Position,VP(p.Known));
-                bool safe=CombatProtection(VP(p.Home),VP(p.Known))==7&&CornerOtherThreats(b,VP(p.Home),p.Moving?VP(p.Goal):b.Position).Length==0;
+            if(doorBudget.TryBegin(Time.frameCount,b)){doorClock.Restart();try{
+                r.Protected=CombatStep.UsefulCover(CombatProtection(b.Position,VP(p.Known)));r.Exposed=CornerOpen(b,b.Position,VP(p.Known));
+                bool safe=CombatStep.UsefulCover(CombatProtection(VP(p.Home),VP(p.Known)))&&CornerOtherThreats(b,VP(p.Home),p.Moving?VP(p.Goal):b.Position).Length==0;
                 if(p.Moving){safe&=RunVolume(b,VP(p.Home),r.Out).Length==0;
                     var active=b.Mover.ActivePath;
                     if(active!=null&&OwnFeintRoute(r,active)&&Vector3.Distance(b.Position,VP(p.Goal))>.2f)
@@ -156,6 +156,7 @@ public sealed partial class Plugin
             else {
                 // A newly selected plan has no safety proof yet. Wait stationary for a
                 // bounded first probe; never interpret the sentinel as an expired proof.
+                if(p.Trace!.State=="planning")p.Preparation.Defer(Time.time,Time.deltaTime);
                 p.DeferSafety(f,config.CoverFeint,r.LastSafety);
                 if(!p.Active)FinishFeint(s);else RecordFeint(s);
                 return; // No movement, magazine check or jump without fresh validation.
@@ -167,9 +168,10 @@ public sealed partial class Plugin
         if(!p.Active){FinishFeint(s);return;}
         // Native Freeze owns steering and shooting. Only its accepted action callback executes the tactic.
         if(execute&&p.Trace.Accepted&&b.Decision.CurrentCombatDecision==ECombatDecision.Freeze){
-            if(p.Trace.State=="planning"&&r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount)){
+            if(p.Trace.State=="planning"&&r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount,b)){
                 r.ProbeFrame=Time.frameCount;doorClock.Restart();try{PlanFeint(b,s);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}}
-            if(p.WantsRoute&&doorBudget.TryBegin(Time.frameCount)){doorClock.Restart();try{MoveFeint(b,s);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}}
+            else if(p.Trace.State=="planning")p.Preparation.Defer(Time.time,Time.deltaTime);
+            if(p.WantsRoute&&doorBudget.TryBegin(Time.frameCount,b)){doorClock.Restart();try{MoveFeint(b,s);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}}
             if(p.Trace.State=="mag-pending"){
                 if(!r.Protected||!f.Ready||r.Firearm==null||!MagazineSoundAvailable(b,f.Distance)){EndFeint(s,"feint-magazine-no-longer-safe");return;}
                 bool accepted=r.Firearm.CheckAmmo();p.MagazineResult(accepted,MagazineOperation(r.Firearm),Time.time);
@@ -177,7 +179,7 @@ public sealed partial class Plugin
             if(p.Moving&&config.CoverFeint.Jump&&p.Trace.CompletedPeeks==0){int leg=p.Trace.State=="out"?0:1;
                 var dir=VP(p.Goal)-b.Position;dir.y=0;var v=b.Player.Velocity;v.y=0;
                 if(r.JumpLeg!=leg&&dir.magnitude>.45f&&Vector3.Dot(v,dir.normalized)>=1.2f&&b.Player.MovementContext.IsGrounded
-                    &&b.Player.MovementContext.CanJump&&b.Player.Physical.Stamina.NormalValue*100>=30&&doorBudget.TryBegin(Time.frameCount)){
+                    &&b.Player.MovementContext.CanJump&&b.Player.Physical.Stamina.NormalValue*100>=30&&doorBudget.TryBegin(Time.frameCount,b)){
                     r.JumpLeg=leg;doorClock.Restart();try{if(RunVolume(b,r.From,VP(p.Goal),true).Length==0)
                         p.Jump(ControlledJump(b,s,"M14",leg==0?"bait-out":"bait-back",dir,VP(p.Goal),1.2,30,true));}
                     finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}}
@@ -259,7 +261,7 @@ public sealed partial class Plugin
         var r=s.CoverFeint;var t=r.Policy.Trace;if(t==null)return;string key=t.Episode+":"+t.State+":"+t.Reason+":"+t.Accepted+":"+t.SoundEvents;
         if(!force&&key==r.LogKey&&(!r.Policy.Active||Time.time-r.LogAt<.1f))return;r.LogKey=key;r.LogAt=Time.time;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="M14",stage="evaluated",decision="CoverFeint",reason=t.Reason,
-            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
+            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,planningWaitSeconds=r.Policy.Preparation.Seconds,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
             coverFeint=t,coverFeintConfig=config?.CoverFeint});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }

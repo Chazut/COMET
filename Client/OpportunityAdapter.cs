@@ -57,7 +57,7 @@ public sealed partial class Plugin
             var own = bot.Player.MovementContext;
             OpportunityModel.Assess(t, s, new OpportunityTravel {
                 Ready = v.ProbeReady, Complete = v.PushReachable, WeaponReady = v.WeaponReady,
-                ThreatCount = v.ThreatCount, ThreatsTruncated = v.ThreatsTruncated, Risk = v.PushRouteRisk, RiskLimit = config.VisibleCombat.RiskTolerance,
+                ThreatCount = v.ThreatCount, ImmediateThreats = OpportunityImmediateThreats(bot,enemy), ThreatsTruncated = v.ThreatsTruncated, Risk = v.PushRouteRisk, RiskLimit = config.VisibleCombat.RiskTolerance,
                 PathLength = length, Corners = count, VerticalTravel = vertical,
                 PositionError = Vector3.Distance(new Vector3((float)s.KnownX, (float)s.KnownY, (float)s.KnownZ), new Vector3((float)t.X, (float)t.Y, (float)t.Z)),
                 WalkSpeed = own.MaxSpeed, SprintSpeed = own.SprintSpeed, Stamina = bot.Player.Physical.Stamina.NormalValue,
@@ -67,6 +67,14 @@ public sealed partial class Plugin
             return t;
         }
         catch (Exception ex) { OpportunityError(bot, ex); return null; }
+    }
+    private static int OpportunityImmediateThreats(BotComponent bot,Enemy target)
+    {
+        int scanned=0;
+        foreach(var other in bot.EnemyController.KnownEnemies){if(++scanned>32)return 1;
+            if(other!=null&&other.EnemyProfileId!=target.EnemyProfileId&&other.EnemyKnown
+                &&(other.IsVisible||other.Status.ShotAtMeRecently))return 1;}
+        return 0;
     }
     private void OpportunityError(BotComponent bot, Exception ex)
     {

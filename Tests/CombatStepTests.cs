@@ -35,7 +35,7 @@ internal static class CombatStepTests
         var f1=Frame(10.1);f1.Position=new(.15,0,0);Check(a.Observe(f1,c)&&a.Trace.MovementObserved&&Math.Abs(a.Trace.ActualDistance-.15)<.0001,"actual position proves travel");
         f1=Frame(10.2);f1.Position=new(.15,0,0);f1.Action="DogFight";Check(a.Observe(f1,c)&&a.Trace.Requests==1,"compatible action context does not reset roll");
         Check(!a.Request(new(1.51,0,0),"right",10.4,0,c),"target outside radius rejected");
-        Check(!a.Request(new(0,.31,0),"upstairs",10.4,0,c),"different floor rejected");
+        Check(!a.Request(new(0,.61,0),"upstairs",10.4,0,c),"different floor rejected");
         Check(a.Request(new(-.4,0,0),"left",10.4,.999,c)&&a.StepDeadline>11.09&&a.StepDeadline<11.1,"maximum held direction");
         for(int i=3;i<=15;i++){var f=Frame(10+i*.1);f.Position=new(.15+i*.02,0,0);a.Observe(f,c);}
         Check(!a.Active&&a.Trace.Reason=="movement-sequence-finished"&&a.Trace.ValidFor==0,"sequence completes by clock, not by claimed hits");
@@ -55,13 +55,13 @@ internal static class CombatStepTests
         a=Start();a.Request(new(.8,0,0),"right",10,0,c);
         for(int i=1;i<=10;i++)a.Observe(Frame(10+i*.1),c);
         Check(!a.Active&&a.Trace!.Reason=="movement-stalled"&&!a.Trace.MovementObserved,"stalled actor ends without false progress");
-        a=Start();for(int i=1;i<=6;i++)a.Observe(Frame(10+i*.1),c);Check(!a.Active&&a.Trace!.Reason=="movement-planning-timeout","planning cannot wait indefinitely");
+        a=Start();for(int i=1;i<=20;i++)a.Observe(Frame(10+i*.1),c);Check(!a.Active,"planning cannot wait beyond the sequence or preparation limit");
         var origin=new DoorPoint(0,0,0);var end=new DoorPoint(.8,0,0);
         Check(CombatStep.Route(origin,origin,end,new[]{origin,end},true,1.5),"short straight route");
         Check(!CombatStep.Route(origin,origin,end,new[]{origin,new DoorPoint(0,0,1),end},true,1.5),"detour cannot masquerade as local step");
         Check(!CombatStep.Route(origin,origin,end,new[]{origin,end},false,1.5),"partial route rejected");
-        Check(!CombatStep.Route(origin,origin,end,new[]{new DoorPoint(.3,0,0),end},true,1.5),"route from stale location rejected");
-        Check(!CombatStep.Route(origin,origin,end,new[]{origin,new DoorPoint(.8,.4,0)},true,1.5),"height mismatch");
+        Check(!CombatStep.Route(origin,origin,end,new[]{new DoorPoint(.41,0,0),end},true,1.5),"route from stale location rejected");
+        Check(!CombatStep.Route(origin,origin,end,new[]{origin,new DoorPoint(.8,.61,0)},true,1.5),"height mismatch");
         Check(!CombatStep.Route(origin,origin,end,new[]{origin,new DoorPoint(double.NaN,0,0),end},true,1.5),"invalid route geometry");
         for(int before=0;before<=7;before++)for(int mid=0;mid<=7;mid++)for(int after=0;after<=7;after++)
             Check(CombatStep.PreservesProtection(before,mid,after)==((mid&before)==before&&(after&before)==before),"each protected body sample stays protected");

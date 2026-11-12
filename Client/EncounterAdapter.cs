@@ -71,7 +71,7 @@ public sealed partial class Plugin
         var eye=b.Player.PlayerBones.Head.position;
         bool changed=r.ProbeInstance!=f.Instance||Vector3.Distance(seen,r.ProbeSeen)>.25f||Vector3.Distance(eye,r.ProbeEye)>.25f;
         if(changed)r.Geometry=false;
-        if((changed||Time.time-r.ProbeAt>=.25f)&&doorBudget.TryBegin(Time.frameCount))
+        if((changed||Time.time-r.ProbeAt>=.25f)&&doorBudget.TryBegin(Time.frameCount,b))
         {
             var watch=System.Diagnostics.Stopwatch.StartNew();
             try

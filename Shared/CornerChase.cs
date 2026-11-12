@@ -8,7 +8,7 @@ public sealed class CornerChaseConfig
 {
     public bool Enabled { get; set; }=true;
     public double LostSightMin { get; set; }=.3;
-    public double ObservationMaxAge { get; set; }=4;
+    public double ObservationMaxAge { get; set; }=6;
     public double PathLimit { get; set; }=15;
     public double SequenceLimit { get; set; }=4;
     public double WideOffset { get; set; }=1.8;

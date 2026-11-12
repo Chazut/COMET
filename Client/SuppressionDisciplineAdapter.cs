@@ -114,7 +114,7 @@ public sealed partial class Plugin
         }
         if(r.SafetyFrame==Time.frameCount&&r.Safety!=null)
         {f.FreshGeometry=r.Safety.FreshGeometry;f.Clear=r.Safety.Clear;f.AllySafe=r.Safety.AllySafe;f.Aligned=r.Safety.Aligned;return f.FreshGeometry;}
-        if(!doorBudget.TryBegin(Time.frameCount))return false;
+        if(!doorBudget.TryBegin(Time.frameCount,b))return false;
         var watch=System.Diagnostics.Stopwatch.StartNew();
         try {
             var aim=VP(r.Policy.Aim);var muzzle=b.Transform.WeaponData.FirePort;var ray=aim-muzzle;float length=ray.magnitude;

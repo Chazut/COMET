@@ -115,15 +115,15 @@ public static class DoorPolicy
             double da=(a-g.Center).Dot(g.Normal),db=(b-g.Center).Dot(g.Normal);
             if(da*side<=0||db*side>0||Math.Abs(da-db)<.001)continue;
             var crossing=a+(b-a)*(da/(da-db));
-            if(Math.Abs((crossing-g.Center).Dot(g.Axis))<=g.HalfWidth+.25&&Math.Abs(crossing.Y-g.Center.Y)<=1)return "";
+            if(Math.Abs((crossing-g.Center).Dot(g.Axis))<=g.HalfWidth+.65&&Math.Abs(crossing.Y-g.Center.Y)<=1.3)return "";
         }
         return "door-not-on-known-route";
     }
     public static DoorPoint Stack(DoorGeometry g,DoorPoint bot,int side,int variant=0)
-        =>g.Center+g.Normal*(Math.Sign((bot-g.Center).Dot(g.Normal))*(variant==0?.9:1.3))+g.Axis*(side*(g.HalfWidth+(variant==0?.7:.4)));
+        =>g.Center+g.Normal*(Math.Sign((bot-g.Center).Dot(g.Normal))*(variant switch{0=>.9,1=>1.3,2=>.65,_=>1.8}))+g.Axis*(side*(g.HalfWidth+(variant switch{0=>.7,1=>.4,2=>1.1,_=>.8})));
     public static string Placement(DoorGeometry g,DoorPoint bot,DoorPoint raw,DoorPoint sampled,IReadOnlyList<DoorPoint> path,bool complete)
     {
-        if(!sampled.Finite||(sampled-raw).Length>.35||Math.Abs(sampled.Y-g.Center.Y)>.6)return "door-bad-navmesh-sample";
+        if(!sampled.Finite||(sampled-raw).Length>.65||Math.Abs(sampled.Y-g.Center.Y)>.6)return "door-bad-navmesh-sample";
         double sign=Math.Sign((bot-g.Center).Dot(g.Normal));
         if((sampled-g.Center).Dot(g.Normal)*sign<.45||Math.Abs((sampled-g.Center).Dot(g.Axis))<g.HalfWidth+.25)return "door-point-in-opening";
         if(!complete||path.Count<2||path.Count>128||(path[0]-bot).Length>.75||(path[path.Count-1]-sampled).Length>.3)return "door-incomplete-stack-route";
@@ -144,6 +144,8 @@ public static class DoorPolicy
 }
 public sealed class DoorApproach
 {
+    public readonly PreparationWait Preparation=new();
+
     public DoorApproachTrace? Trace { get; private set; }
     public bool Active=>Trace?.State=="approaching";
     public bool Planning=>Trace?.State=="planning";
@@ -152,11 +154,11 @@ public sealed class DoorApproach
     private string consumedTarget="";
     private DoorPoint consumedPoint;
     private double consumedAt;
-    public bool PlanningExpired(double now)=>Planning&&(!DoorPolicy.Finite(now)||now<started||now-started>1);
+    public bool PlanningExpired(double now)=>Planning&&(!DoorPolicy.Finite(now)||now<started||now-started>3+Preparation.Seconds);
     public bool CanPlan(string target,DoorPoint point,double now)=>DoorPolicy.Finite(now)&&point.Finite&&now>=blockedUntil
         &&!(target==consumedTarget&&now-consumedAt<60&&(point-consumedPoint).Length<2);
     public void Begin(string target,string source,DoorPoint point,double age,double now)
-    {known=point;started=last=now;Trace=new(){Target=target,Source=source,KnownX=point.X,KnownY=point.Y,KnownZ=point.Z,ContactAge=age};}
+    {Preparation.Clear();known=point;started=last=now;Trace=new(){Target=target,Source=source,KnownX=point.X,KnownY=point.Y,KnownZ=point.Z,ContactAge=age};}
     public void Request(DoorCandidate c,DoorPoint bot,double now)
     {
         if(!Planning||!c.Eligible)throw new InvalidOperationException("No verified door preparation");
@@ -201,8 +203,27 @@ public sealed class DoorApproach
 public sealed class DoorWorkBudget
 {
     private int frame=-1,count;private double elapsed;
-    public bool TryBegin(int current)
-    {if(frame!=current){frame=current;count=0;elapsed=0;}if(count>=2||elapsed>=.5)return false;count++;return true;}
+    private readonly System.Collections.Generic.List<Pending> pending=new();
+    private sealed class Pending { public object? Owner; public string Site=""; public int Line,Seen; }
+    public long Deferred { get; private set; }
+    public int PendingCount=>pending.Count;
+    // FIFO per actor and call site. A busy early callback cannot consume every frame.
+    // Expire abandoned requests; never hold a destroyed raid actor indefinitely.
+    public bool TryBegin(int current,object? owner=null,
+        [System.Runtime.CompilerServices.CallerFilePath]string site="",
+        [System.Runtime.CompilerServices.CallerLineNumber]int line=0)
+    {
+        if(frame!=current){frame=current;count=0;elapsed=0;
+            for(int i=pending.Count-1;i>=0;i--)if(current<pending[i].Seen||current-pending[i].Seen>2)pending.RemoveAt(i);}
+        // No request object or closure on the uncontended path.
+        if(pending.Count==0&&count<2&&elapsed<.5){count++;return true;}
+        int index=-1;
+        for(int i=0;i<pending.Count;i++)if(ReferenceEquals(pending[i].Owner,owner)&&pending[i].Site==site&&pending[i].Line==line){index=i;break;}
+        if(index<0){if(pending.Count>=256){Deferred++;return false;}pending.Add(new(){Owner=owner,Site=site,Line=line,Seen=current});index=pending.Count-1;}
+        else pending[index].Seen=current;
+        if(count>=2||elapsed>=.5||index!=0){Deferred++;return false;}
+        pending.RemoveAt(0);count++;return true;
+    }
     public void Charge(double ms){if(!DoorPolicy.Finite(ms)||ms<0)elapsed=double.PositiveInfinity;else elapsed+=ms;}
-    public void Clear(){frame=-1;count=0;elapsed=0;}
+    public void Clear(){frame=-1;count=0;elapsed=0;pending.Clear();Deferred=0;}
 }

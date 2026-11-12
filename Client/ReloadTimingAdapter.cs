@@ -89,7 +89,7 @@ public sealed partial class Plugin
             var weapon=firearm.Item;var id=weapon.Id.ToString();int loaded=ReloadLoaded(weapon);
             string key=id+":"+loaded;
             if(Time.time<r.Next&&key==r.Key)return false;
-            if(!p.doorBudget.TryBegin(Time.frameCount))return false;
+            if(!p.doorBudget.TryBegin(Time.frameCount,bot))return false;
             p.doorClock.Restart();
             ReloadTimingFrame f;
             try{f=p.ReloadFrame(bot,enemy,s,weapon);}

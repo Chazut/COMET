@@ -52,13 +52,15 @@ public sealed partial class Plugin
             ??throw new MissingMethodException("D01 Search(bool, Enemy)");
         h.Patch(m,prefix:new HarmonyMethod(typeof(Plugin),nameof(DoorSearchStep)){priority=Priority.First});
     }
+    private static bool TacticalDoorSearch(BotComponent b,BotState s)=>b.SAINLayersActive
+        &&b.Decision.CurrentCombatDecision==ECombatDecision.Search&&b.CurrentAction?.GetType().Name=="SearchAction"
+        &&(s.ActiveLabel.Length==0||s.ActiveLabel=="COMET:Search")&&!s.Handoff.Blocked(Time.time,HandoffContact(s.Situation));
     private string DoorGate(BotComponent b,Enemy? e,BotState s)
     {
         if(!ContactSafety.Allows(b,e))return "door-no-hostile-contact";
         if(MedicalPostureGuard(b))return "medical-posture-protected";
         var c=config!;bool scope=c.Enabled&&!s.Door.Fault&&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
-        bool search=s.ActiveLabel=="COMET:Search"&&s.Feature=="A01"&&s.Decision=="Search"&&b.Decision.CurrentCombatDecision==ECombatDecision.Search
-            &&b.SAINLayersActive&&b.CurrentAction?.GetType().Name=="SearchAction"&&ReferenceEquals(e,b.GoalEnemy);
+        bool search=TacticalDoorSearch(b,s)&&SameTacticalContact(e,b.GoalEnemy);
         bool unsafeNow=b.Flashed.IsFlashed||b.EnemyController.VisibleEnemies.Count>0||b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed
             ||s.Fear.Current.Panic||b.Medical.TimeSinceShot<3||b.BotOwner.DoorOpener.Interacting||b.DoorOpener.Interacting
             ||b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None||!VisibleAdapter.WeaponReady(b);
@@ -83,7 +85,7 @@ public sealed partial class Plugin
         var known=e.KnownPlaces.LastKnownPosition!.Value;var c=config!.DoorApproach;
         if(r.Policy.Active)
         {
-            if(System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e)!=r.TargetInstance){EndDoor(s,"door-contact-instance-changed");return true;}
+            if(e.EnemyProfileId!=r.Target){EndDoor(s,"door-contact-instance-changed");return true;}
             var t=r.Policy.Trace!;
             bool owns=OwnsDoorPath(r)||(b.Mover.ActivePath==null&&r.OwnedPath?.Status==SAIN.Models.Enums.EBotMoveStatus.Complete
                 &&Vector3.Distance(b.Position,new Vector3((float)t.X,(float)t.Y,(float)t.Z))<=.6f);
@@ -93,7 +95,7 @@ public sealed partial class Plugin
                 if(reached&&work!=null&&!TryStartDoorClear(b,e,s,work)&&!TryStartDoorFake(b,e,s,work))TryStartDoorJump(b,e,s,work);return !s.RoomClear.Policy.Active&&!s.Fake.Policy.Active&&!s.Jump.Policy.Active&&!s.RunBy.Policy.Active;}
             if(Time.time>=r.NextCheck)
             {
-                if(!doorBudget.TryBegin(Time.frameCount))
+                if(!doorBudget.TryBegin(Time.frameCount,b))
                 {
                     // Briefly wait for validation; never keep walking indefinitely on stale geometry.
                     if(Time.time-r.NextCheck>.5){EndDoor(s,"door-validation-budget-expired");return true;}
@@ -116,14 +118,14 @@ public sealed partial class Plugin
             StartDoorPlan(b,e,s,known);
             if(!r.Policy.Planning)return true;
         }
-        if(r.Target!=e.EnemyProfileId||r.TargetInstance!=System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e)
+        if(r.Target!=e.EnemyProfileId
             ||Vector3.Distance(r.Contact,known)>2||r.Policy.PlanningExpired(Time.time))
         {EndDoor(s,"door-plan-became-stale");return true;}
-        if(!doorBudget.TryBegin(Time.frameCount))return true;
+        if(!doorBudget.TryBegin(Time.frameCount,b)){r.Policy.Preparation.Defer(Time.time,Time.deltaTime);return true;}
         doorClock.Restart();
         try
         {
-            if(r.Work.Count>0)
+            if(r.Work.Count>0&&r.Chosen==null)
             {
                 var work=r.Work[0];r.Work.RemoveAt(0);
                 if(DoorBusy(b,s,work.Geometry.Id)){r.Policy.Trace!.Candidates.Add(new(){Door=work.Geometry.Id,Reason="reservation-door-busy"});return true;}
@@ -139,7 +141,7 @@ public sealed partial class Plugin
                 }
                 r.Policy.Trace!.Candidates.Add(candidate);
                 var best=DoorPolicy.Best(r.Policy.Trace.Candidates);
-                if(ReferenceEquals(best,candidate))r.Chosen=work;
+                if(ReferenceEquals(best,candidate)){r.Chosen=work;r.Work.Clear();}
                 // One candidate work unit. Other bots/frames share the same bounded allowance.
                 return true;
             }
@@ -163,16 +165,11 @@ public sealed partial class Plugin
     }
     private void StartDoorPlan(BotComponent b,Enemy e,BotState s,Vector3 known)
     {
-        var r=s.Door;var native=e.Path.PathToEnemy;
-        if(native==null||native.status!=NavMeshPathStatus.PathComplete)return;
-        var corners=native.corners;if(corners.Length<2||corners.Length>128)return;
-        var route=corners.Select(DP).ToArray();
-        // Native current voxel only. No FindObjectsOfType/global door scan and no mutation of SAIN's cache.
-        var voxel=b.BotOwner.VoxelesPersonalData.CurVoxel;if(voxel?.DoorLinks==null)return;
+        var r=s.Door;var route=RememberedDoorRoute(b,known);
         r.DropReferences();r.Policy.Begin(e.EnemyProfileId,s.Situation?.ContactSource??"sain-last-known",DP(known),e.TimeSinceLastKnownUpdated,Time.time);
         r.Target=e.EnemyProfileId;r.TargetInstance=System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e);r.Contact=known;r.Started=Time.time;r.EvidenceAt=Time.time-e.TimeSinceLastKnownUpdated;
         var candidates=new List<DoorWork>();int visited=0;
-        foreach(var link in voxel.DoorLinks)
+        foreach(var link in NearbyDoors(b))
         {
             if(++visited>48){r.Policy.Trace!.ScanLimitReached=true;break;}
             r.Policy.Trace!.DoorsScanned++;
@@ -191,8 +188,9 @@ public sealed partial class Plugin
                     r.Policy.Trace.Candidates.Add(new(){Door=g.Id,Reason=why});
             }
         }
+        r.Policy.Trace!.ScanLimitReached=visited>=48;
         foreach(var d in candidates.OrderBy(x=>(x.Geometry.Center-DP(b.Position)).Length).ThenBy(x=>x.Geometry.Id,StringComparer.Ordinal).Take(3))
-            foreach(int variant in new[]{0,1})foreach(int side in new[]{-1,1})r.Work.Add(new(){Data=d.Data,Geometry=d.Geometry,Side=side,Variant=variant});
+            foreach(int variant in new[]{0,1,2,3})foreach(int side in new[]{-1,1})r.Work.Add(new(){Data=d.Data,Geometry=d.Geometry,Side=side,Variant=variant});
         if(r.Work.Count==0){EndDoor(s,"door-no-relevant-local-door");return;}
         RecordDoor(s,true);
     }
@@ -209,11 +207,9 @@ public sealed partial class Plugin
         if(e==null||known==null)return "door-contact-ended";
         if(calculate)
         {
-            var route=e.Path.PathToEnemy;
-            if(route==null||route.status!=NavMeshPathStatus.PathComplete)return "door-no-current-contact-route";
-            string relevant=DoorPolicy.Geometry(g,DP(b.Position),DP(known.Value),route.corners.Select(DP).ToArray(),approach??config!.DoorApproach);
+            string relevant=DoorPolicy.Geometry(g,DP(b.Position),DP(known.Value),RememberedDoorRoute(b,known.Value),approach??config!.DoorApproach);
             if(relevant.Length>0)return relevant;
-            if(!NavMesh.SamplePosition(point,out var sample,.3f,NavMesh.AllAreas))return "door-no-local-navmesh";
+            if(!NavMesh.SamplePosition(point,out var sample,.6f,NavMesh.AllAreas))return "door-no-local-navmesh";
             point=sample.position;
             if(Physics.Linecast(VP(raw)+Vector3.up*.8f,point+Vector3.up*.8f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))return "door-sample-through-wall";
             if(!b.Mover.CanGoToPoint(point,out path,true,.1f))return "door-incomplete-stack-route";
@@ -222,18 +218,8 @@ public sealed partial class Plugin
         }
         else if(!stationary&&b.Mover.ActivePath?.PathStatus!=NavMeshPathStatus.PathComplete)return "door-route-invalidated";
         string panels=ValidateDoorPanels(b,w,g,point);if(panels.Length>0)return panels;
-        int hits=0;
-        try
-        {
-            hits=Physics.OverlapCapsuleNonAlloc(point+Vector3.up*.4f,point+Vector3.up*1.45f,.25f,doorOccupants,~0,QueryTriggerInteraction.Ignore);
-            if(hits>=doorOccupants.Length)return "door-clearance-uncertain";
-            for(int i=0;i<hits;i++)
-            {
-                var col=doorOccupants[i];if(col==null||ReferenceEquals(col.GetComponentInParent<Player>(),b.Player))continue;
-                return col.GetComponentInParent<Player>()!=null?"door-point-occupied":"door-standing-volume-blocked";
-            }
-        }
-        finally{Array.Clear(doorOccupants,0,doorOccupants.Length);}
+        string volume=TacticalVolume(b,point,point,false,1);
+        if(volume.Length>0)return "door-"+volume;
         var origin=point+Vector3.up*1.2f;var toward=known.Value+Vector3.up*1.2f-origin;
         if(!Physics.Raycast(origin,toward.normalized,out var cover,Math.Min(2,toward.magnitude),LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore)
             ||cover.collider==null||cover.collider.attachedRigidbody!=null||cover.collider.GetComponentInParent<Door>()!=null)
@@ -275,7 +261,7 @@ public sealed partial class Plugin
         if(!force&&key==r.LogKey&&Time.time-r.LogAt<1)return;
         r.LogAt=Time.time;r.LogKey=key;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="D01",stage="evaluated",decision="DoorApproach",
-            reason=t.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,
+            reason=t.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,planningWaitSeconds=r.Policy.Preparation.Seconds,
             doorApproachConfig=config?.DoorApproach,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,doorApproach=t});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }

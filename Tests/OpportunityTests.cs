@@ -58,12 +58,13 @@ static class OpportunityTests
         OpportunityTrace Trace(Situation s, OpportunityTravel v,string cue="surgery") {var t=Memory(cue).Snapshot("e",1,s.Now,c);OpportunityModel.Assess(t,s,v,c);return t;}
         var s=S();var v=V();var t=Trace(s,v);Check(t.State=="usable"&&t.Eta>0,"safe surgery opportunity");
         double eta=t.Eta!.Value;
+        v=V();v.ThreatCount=3;Check(Trace(s,v).State=="usable","older hidden contacts do not veto an otherwise safe observed opening");
         v=V();v.CanSprint=false;Check(Trace(s,v).Eta>eta,"walking slower than limited sprint");
         v=V();v.Stamina=.2;Check(Trace(s,v).TravelMode=="walk","low stamina avoids sprint estimate");
         v=V();v.Visible=true;Check(Trace(s,v).TravelMode=="walk","visible SAIN dogfight does not sprint");
         v=V();v.Corners=6;v.VerticalTravel=4;Check(Trace(s,v).Eta>eta,"corners and vertical route cost time");
         v=V();v.WalkSpeed=1;v.CanSprint=false;Check(Trace(s,v).Eta>eta,"own impaired mobility changes ETA");
-        foreach(var mutate in new Action<OpportunityTravel>[] {v=>v.Ready=false,v=>v.Complete=false,v=>v.WeaponReady=false,v=>v.ThreatCount=2,v=>v.ThreatCount=0,
+        foreach(var mutate in new Action<OpportunityTravel>[] {v=>v.Ready=false,v=>v.Complete=false,v=>v.WeaponReady=false,v=>v.ImmediateThreats=1,v=>v.ThreatCount=0,
             v=>v.ThreatsTruncated=true,v=>v.PathLength=26,v=>v.Risk=.9,v=>v.DoorBusy=true,v=>v.UnderFire=true,v=>v.PositionError=4,
             v=>v.WalkSpeed=0,v=>v.Stamina=double.NaN,v=>v.SprintSpeed=double.NaN,v=>v.Corners=0,v=>v.PathLength=double.NaN,v=>v.Risk=-1,v=>v.VerticalTravel=double.NaN}) {
             v=V();mutate(v);Check(Trace(S(),v).State=="rejected","unsafe/unknown travel refused");

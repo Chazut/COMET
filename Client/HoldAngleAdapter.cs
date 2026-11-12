@@ -47,7 +47,7 @@ public sealed partial class Plugin
         if(config?.Enabled!=true||!config.HoldAngle.Enabled||b.IsDead||!b.BotActive||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsSupportedAi(b))
         {EndHoldAngle(s,"hold-angle-ineligible");r.Enemy=null;r.SeenAt=-1000;return;}
         var e=b.GoalEnemy;
-        if(!ReferenceEquals(r.Enemy,e)){EndHoldAngle(s,"hold-angle-contact-changed");r.Enemy=e;r.SeenAt=-1000;}
+        if(!SameTacticalContact(r.Enemy,e)){EndHoldAngle(s,"hold-angle-contact-changed");r.Enemy=e;r.SeenAt=-1000;}
         if(e?.IsVisible==true&&Time.time-r.SampleAt>=.1f&&e.KnownPlaces.LastSeenPlace is {} seen)
         {r.Seen=seen.Position;r.SeenAt=Time.time;r.SampleAt=Time.time;}
         if(r.Policy.Active) {
@@ -87,7 +87,7 @@ public sealed partial class Plugin
         if(f.Block.Length==0) {
             int scanned=0;
             foreach(var other in b.EnemyController.KnownEnemies)
-                if(++scanned>32||other!=null&&!ReferenceEquals(other,e)&&(other.IsVisible||other.Status.ShotAtMeRecently))
+                if(++scanned>32||other!=null&&!SameTacticalContact(other,e)&&(other.IsVisible||other.Status.ShotAtMeRecently))
                 {f.Block="hold-angle-other-immediate-threat";break;}
         }
         r.LastFrame=f;
@@ -125,12 +125,12 @@ public sealed partial class Plugin
         if(HoldAngle.Gate(f,c).Length>0){EndHoldAngle(s,HoldAngle.Gate(f,c));return;}
         if(!r.Policy.Observe(f,c)){FinishHoldAngle(s,r.Policy.Trace!.Reason!="hold-angle-context-changed");return;}
         if(r.Policy.Trace!.State=="planning") {
-            if((b.Position-VP(r.Policy.Origin)).magnitude>.15){EndHoldAngle(s,"hold-angle-planning-origin-moved",true);return;}
-            if(mayPlan&&r.PlanFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount)) {
+            if((b.Position-VP(r.Policy.Origin)).magnitude>.4){EndHoldAngle(s,"hold-angle-planning-origin-moved",true);return;}
+            if(mayPlan&&r.PlanFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount,b)) {
                 r.PlanFrame=Time.frameCount;var clock=System.Diagnostics.Stopwatch.StartNew();
                 try {PlanHoldAngle(b,s,f);}finally{clock.Stop();doorBudget.Charge(clock.Elapsed.TotalMilliseconds);}
-            }
-        }else if(Time.time>=r.NextGeometry&&doorBudget.TryBegin(Time.frameCount)) {
+            }else if(mayPlan)r.Policy.Preparation.Defer(Time.time,Time.deltaTime);
+        }else if(Time.time>=r.NextGeometry&&doorBudget.TryBegin(Time.frameCount,b)) {
             var clock=System.Diagnostics.Stopwatch.StartNew();
             try {
                 var why=HoldSafety(b,s,b.Position,r.Goal,(float)r.Policy.Pose,true);
@@ -148,13 +148,14 @@ public sealed partial class Plugin
     {
         var r=s.HoldAngle;var c=config!.HoldAngle;var origin=VP(r.Policy.Origin);
         if(!r.Baseline) {
-            var route=new NavMeshPath();
-            if(Vector3.Distance(origin,r.Known)>40||!NavMesh.SamplePosition(r.Known,out var end,.5f,NavMesh.AllAreas)
-                ||!NavMesh.CalculatePath(origin,end.position,NavMesh.AllAreas,route)||route.status!=NavMeshPathStatus.PathComplete)
-            {EndHoldAngle(s,"hold-angle-no-known-approach",true);return;}
-            r.Aim=r.Known+Vector3.up*1.3f;var pts=route.corners;
-            if(pts.Length>=3&&Vector3.Distance(origin,pts[1])<=6&&(pts[2]-pts[1]).magnitude>.5f)
-                r.Aim=pts[1]+Vector3.up*1.3f+(pts[2]-pts[1]).normalized*.4f;
+            // This is a local aim correction, not a journey to the contact.
+            // A target behind a wall/on another platform need not be navigable.
+            r.Aim=r.Known+Vector3.up*1.3f;
+            // Preserve a useful nearby corner from an already available remembered route.
+            // Missing/partial routes simply fall back to the known sector; never veto a local correction.
+            var approach=RememberedDoorRoute(b,r.Known);
+            if(approach.Length>=3&&Vector3.Distance(origin,VP(approach[1]))<=6&&(approach[2]-approach[1]).Length>.5)
+                r.Aim=VP(approach[1])+Vector3.up*1.3f+(VP(approach[2])-VP(approach[1])).normalized*.4f;
             r.ClearEyes=AngleLane(b.Transform.EyePosition,r.Aim,.03f);r.ClearMuzzle=AngleLane(b.Transform.WeaponData.FirePort,r.Aim,.04f);
             r.Baseline=true;
             if(r.ClearEyes&&r.ClearMuzzle){EndHoldAngle(s,"hold-angle-already-clear");return;}
@@ -163,7 +164,7 @@ public sealed partial class Plugin
         float[] postures=!c.AdjustPose||r.BasePose>=.95f?new[]{r.BasePose}
             :r.BasePose>=.6f?new[]{r.BasePose,1f}:new[]{r.BasePose,.65f,1f};
         int poses=postures.Length;int rings=(int)Math.Floor(c.MaxStep/c.Spacing+1e-6);int index=r.Candidate++;
-        if(index>=(1+rings*5)*poses) {
+        if(r.Best!=null||index>=(1+rings*5)*poses) {
             if(r.Best==null){EndHoldAngle(s,"hold-angle-no-safe-correction",true);return;}
             var best=r.Best;var goal=VP(best.Position);
             // Revalidate the selected candidate after the incremental search, before requesting anything.
@@ -173,9 +174,12 @@ public sealed partial class Plugin
             if(!r.Policy.Choose(best,DP(r.Aim),HoldFrame(b,s),c)){EndHoldAngle(s,"hold-angle-choice-expired",true);return;}
             r.Policy.Trace!.Alternatives=r.Alternatives.ToArray();r.Goal=goal;
             if(Vector3.Distance(origin,goal)>.1f) {
-                if(!CornerRoute(b,b.Position,goal,c.MaxStep,out var endpoint,out var path,out _)
-                    ||Vector3.Distance(endpoint,goal)>.02f||QueuedCombatMovement(b)||b.Mover.ActivePath!=null
+                if(!CornerRoute(b,b.Position,goal,c.MaxStep,out var endpoint,out var path,out _,(float)best.Pose)
+                    ||Vector3.Distance(endpoint,goal)>.3f||QueuedCombatMovement(b)||b.Mover.ActivePath!=null
+                    ||HoldSafety(b,s,b.Position,endpoint,(float)best.Pose,true).Length>0
                     ||!b.Mover.WalkToPointByWay(path,true,.1f,false)) {EndHoldAngle(s,"hold-angle-route-refused",true);return;}
+                r.Goal=endpoint;best.Position=DP(endpoint);r.Policy.Trace!.X=endpoint.x;r.Policy.Trace.Y=endpoint.y;r.Policy.Trace.Z=endpoint.z;
+                r.Policy.AcceptEndpoint(DP(endpoint));
                 r.Path=b.Mover.ActivePath;r.PathAt=r.Path?.TimeStarted??-1;
                 if(!OwnHoldPath(r)){EndHoldAngle(s,"hold-angle-route-unconfirmed",true);return;}
                 r.Policy.Requested(false,true);
@@ -192,7 +196,7 @@ public sealed partial class Plugin
             raw+=Quaternion.AngleAxis(yaw,Vector3.up)*dir.normalized*(float)(ring*c.Spacing);
         }
         Vector3 point=raw;string reason="";
-        if(cell>0&&!CornerRoute(b,origin,raw,c.MaxStep,out point,out _,out reason)) {AddHoldAlternative(r,"step-"+cell,reason);return;}
+        if(cell>0&&!CornerRoute(b,origin,raw,c.MaxStep,out point,out _,out reason,pose)) {AddHoldAlternative(r,"step-"+cell,reason);return;}
         if(Vector3.Distance(origin,point)>c.MaxStep+.001){AddHoldAlternative(r,"step-"+cell,"origin limit after navmesh snap");return;}
         reason=HoldSafety(b,s,origin,point,pose,true);
         string id=(cell==0?"posture":"step-"+cell)+"-"+poseIndex;
@@ -209,12 +213,12 @@ public sealed partial class Plugin
     {
         var r=s.HoldAngle;var origin=VP(r.Policy.Origin);
         if(Vector3.Distance(origin,to)>config!.HoldAngle.MaxStep+.001f)return "hold-angle-origin-limit";
-        string body=RunVolume(b,from,to);if(body.Length>0)return "hold-angle-"+body;
-        // Conservative standing capsule checks headroom even for the lower candidate pose.
+        string body=RunVolume(b,from,to,false,pose);if(body.Length>0)return "hold-angle-"+body;
+        // Match the capsule to the candidate pose; actual eye/muzzle rays confirm arrival.
         int seen=0,count=0;
         foreach(var e in b.EnemyController.KnownEnemies) {
             if(++seen>32)return "hold-angle-threat-list-truncated";
-            if(e==null||ReferenceEquals(e,b.GoalEnemy)||!e.EnemyKnown||e.TimeSinceLastKnownUpdated>3||e.KnownPlaces.LastKnownPosition is not Vector3 known)continue;
+            if(e==null||SameTacticalContact(e,b.GoalEnemy)||!e.EnemyKnown||e.TimeSinceLastKnownUpdated>3||e.KnownPlaces.LastKnownPosition is not Vector3 known)continue;
             if(++count>4)return "hold-angle-threat-budget-exceeded";
             int before=HoldProtection(origin,known,r.BasePose);
             if(!CombatStep.PreservesProtection(before,HoldProtection(from,known,pose),HoldProtection(to,known,pose)))return "hold-angle-exposes-other-threat";
@@ -276,7 +280,7 @@ public sealed partial class Plugin
         if(!force&&key==r.LogKey&&(!r.Policy.Active||Time.time-r.LogAt<.1f))return;
         r.LogKey=key;r.LogAt=Time.time;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="M08",stage="evaluated",decision="HoldAngle",reason=t.Reason,
-            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
+            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,planningWaitSeconds=r.Policy.Preparation.Seconds,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
             holdAngle=t,holdAngleConfig=config?.HoldAngle});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }

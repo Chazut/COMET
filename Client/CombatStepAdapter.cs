@@ -146,7 +146,7 @@ public sealed partial class Plugin
         var r=s.CombatStep;if(!r.Policy.Active)return;
         if(config==null||b==null||b.IsDead){EndCombatStep(s,"movement-bot-ended");return;}
         var f=CombatStepFrame(b,s);
-        if(b.GoalEnemy==null||System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(b.GoalEnemy)!=r.TargetInstance)
+        if(b.GoalEnemy==null||b.GoalEnemy.EnemyProfileId!=r.Policy.Trace!.Target)
         {EndCombatStep(s,"movement-contact-instance-changed");return;}
         if(Time.time-r.LastCallback>.4f){EndCombatStep(s,"movement-action-callback-expired");return;}
         if(QueuedCombatMovement(b)&&r.Path!=null){EndCombatStep(s,"movement-native-route-queued");return;}
@@ -161,7 +161,7 @@ public sealed partial class Plugin
         }
         if((r.Path!=null||r.Pause.Pausing)&&Time.time>=r.NextSafety)
         {
-            if(!doorBudget.TryBegin(Time.frameCount))
+            if(!doorBudget.TryBegin(Time.frameCount,b))
             {if(Time.time-r.LastSafety>.2f)EndCombatStep(s,"movement-safety-budget-expired");return;}
             doorClock.Restart();
             try {
@@ -180,7 +180,7 @@ public sealed partial class Plugin
         }
         if(mayPlan&&Time.time>=r.Policy.StepDeadline)
         {
-            if(!doorBudget.TryBegin(Time.frameCount))return;
+            if(!doorBudget.TryBegin(Time.frameCount,b))return;
             doorClock.Restart();
             try {
                 if(!TryFirePause(b,s,f))PlanCombatStep(b,s);
@@ -238,6 +238,9 @@ public sealed partial class Plugin
             if(++scanned>32)return "movement-threat-list-truncated";
             if(e==null||!e.EnemyKnown||e.TimeSinceLastKnownUpdated>3||e.KnownPlaces.LastKnownPosition is not Vector3 known)continue;
             if(++count>4)return "movement-threat-budget-exceeded";
+            // Deliberate exposure to the selected visible opponent is the purpose of a combat step.
+            // Secondary threats still must not gain a new firing lane.
+            if(e.EnemyProfileId==b.GoalEnemy?.EnemyProfileId&&e.IsVisible)continue;
             int before=CombatProtection(VP(anchor),known)|CombatProtection(from,known);
             if(!CombatStep.PreservesProtection(before,CombatProtection((from+to)*.5f,known),CombatProtection(to,known)))return "movement-would-leave-protection";
         }

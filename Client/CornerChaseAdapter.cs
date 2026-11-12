@@ -50,7 +50,8 @@ public sealed partial class Plugin
         if(config?.CornerChase.Enabled!=true||r.Fault||b==null||b.IsDead||!b.BotActive||!Authority||Ghost(b.ProfileId)||!NativeAdapter.IsSupportedAi(b)) {r.Memory.Clear();return;}
         if(Time.time-r.SampleAt<.1f)return;r.SampleAt=Time.time;
         var e=b.GoalEnemy;int instance=e==null?0:System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e);
-        if(instance!=r.ObservationInstance){r.Memory.Clear();r.ObservationInstance=instance;}
+        // The observation memory is already keyed by profile ID, not wrapper instance.
+        r.ObservationInstance=instance;
         var seen=e?.KnownPlaces.LastSeenPlace;
         bool visible=e?.IsVisible==true&&seen!=null;
         // Never read EnemyPlayer.Velocity / Position, nor any hidden shared or heard update.
@@ -66,7 +67,7 @@ public sealed partial class Plugin
         int scanned=0;
         foreach(var e in b.EnemyController.KnownEnemies) {
             if(++scanned>32){f.Urgent=true;break;}
-            if(e!=null&&!ReferenceEquals(e,b.GoalEnemy)&&(e.IsVisible||e.Status.ShotAtMeRecently)){f.Urgent=true;break;}
+            if(e!=null&&!SameTacticalContact(e,b.GoalEnemy)&&(e.IsVisible||e.Status.ShotAtMeRecently)){f.Urgent=true;break;}
         }
         f.Urgent|=b.Medical.TimeSinceShot<.5;
         var velocity=b.Player.Velocity;velocity.y=0;
@@ -88,7 +89,7 @@ public sealed partial class Plugin
             if(!r.Policy.Active) {
                 var f=p.ChaseFrame(b,s);
                 if(!r.Policy.Eligible(f,p.config.CornerChase)||QueuedCombatMovement(b))return true;
-                if(!p.doorBudget.TryBegin(Time.frameCount))return true;
+                if(!p.doorBudget.TryBegin(Time.frameCount,b))return true;
                 p.doorClock.Restart();
                 try {
                     f.RealCorner=p.PlanChase(b,s,out f.GeometryReason);f.PathLength=r.PathLength;f.CanJump=ChaseCanJump(b)&&r.JumpSafe&&f.Stamina>=p.config.CornerChase.JumpMinStamina;
@@ -127,14 +128,20 @@ public sealed partial class Plugin
         }
         reason="chase-route-has-no-bend";
         var pts=route.corners;if(pts.Length<3)return false;
-        var incoming=pts[1]-pts[0];incoming.y=0;var outgoing=pts[2]-pts[1];outgoing.y=0;
-        reason="chase-first-bend-segments-too-short";
-        if(incoming.magnitude<.6||outgoing.magnitude<.5)return false;
-        reason="chase-bend-angle-outside-range";
-        float angle=Vector3.Angle(incoming,outgoing);if(angle<25||angle>145)return false;
-        r.Corner=pts[1];r.Side=Vector3.Dot(Vector3.Cross(Vector3.up,incoming.normalized),outgoing)>0?1:-1;
-        r.Exit=pts[1]+outgoing.normalized*Mathf.Min(1.5f,outgoing.magnitude);
-        var before=pts[1]-incoming.normalized*Mathf.Min(1.2f,incoming.magnitude);
+        Vector3 incoming=default,outgoing=default,before=default;bool found=false;
+        // Skip tiny tessellation corners; use the first useful physical turn, not necessarily index 1.
+        for(int i=1;i<pts.Length-1;i++) {
+            int a=i-1,z=i+1;
+            while(a>0&&Vector3.Distance(pts[a],pts[i])<.4f)a--;
+            while(z<pts.Length-1&&Vector3.Distance(pts[z],pts[i])<.4f)z++;
+            incoming=pts[i]-pts[a];incoming.y=0;outgoing=pts[z]-pts[i];outgoing.y=0;
+            if(incoming.magnitude<.3f||outgoing.magnitude<.3f)continue;
+            float angle=Vector3.Angle(incoming,outgoing);if(angle<15||angle>165)continue;
+            r.Corner=pts[i];r.Side=Vector3.Dot(Vector3.Cross(Vector3.up,incoming.normalized),outgoing)>0?1:-1;
+            r.Exit=pts[i]+outgoing.normalized*Mathf.Min(1.5f,outgoing.magnitude);
+            before=pts[i]-incoming.normalized*Mathf.Min(1.2f,incoming.magnitude);found=true;break;
+        }
+        if(!found){reason="chase-no-useful-bend-after-short-segments";return false;}
         // Solid, vertical obstruction + navigation bend. Foliage-only loss does not qualify.
         reason="chase-bend-has-no-vertical-obstruction";
         if(!Physics.Linecast(before+Vector3.up*1.2f,r.Exit+Vector3.up*1.2f,out var hit,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore)
@@ -185,13 +192,13 @@ public sealed partial class Plugin
         var f=ChaseFrame(b,s);
         bool arrived=Vector3.Distance(b.Position,r.Goal)<=.25f;
         f.RouteValid=OwnChase(r)||b.Mover.ActivePath==null&&r.Path?.Status==EBotMoveStatus.Complete&&arrived;
-        if(b.GoalEnemy==null||System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(b.GoalEnemy)!=r.TargetInstance||!ReferenceEquals(b.CurrentAction,r.Action)
+        if(b.GoalEnemy==null||b.GoalEnemy.EnemyProfileId!=r.Policy.Trace!.Target||!ReferenceEquals(b.CurrentAction,r.Action)
             ||QueuedCombatMovement(b)||Time.time-r.CallbackAt>.4f){EndChase(s,"chase-owner-or-callback-changed");return;}
         // Priorities, contact reacquisition and hard duration are checked before expensive geometry.
         string gate=CornerChase.Gate(f,config.CornerChase,false);
         if(gate.Length>0||Time.time>=r.Policy.Deadline){EndChase(s,gate.Length>0?gate:"chase-time-limit");return;}
         if(Time.time-r.SafetyAt>=.1f) {
-            if(!doorBudget.TryBegin(Time.frameCount)){if(Time.time-r.SafetyAt>.2f)EndChase(s,"chase-safety-budget-expired");return;}
+            if(!doorBudget.TryBegin(Time.frameCount,b)){if(Time.time-r.SafetyAt>.75f)EndChase(s,"chase-safety-budget-expired");return;}
             doorClock.Restart();try {
                 bool onLane=false;
                 for(int i=1;i<r.Lane.Length;i++) {
@@ -215,7 +222,7 @@ public sealed partial class Plugin
         if(fromAction&&t.Style=="jump"&&!t.JumpRequested) {
             var toward=r.Corner-b.Position;toward.y=0;var velocity=b.Player.Velocity;velocity.y=0;
             if(r.Policy.MayJump(Time.time,Vector3.Dot(velocity,toward.normalized),toward.magnitude,f.Combat.Grounded,ChaseCanJump(b),f.Stamina,config.CornerChase)) {
-                if(doorBudget.TryBegin(Time.frameCount)) {
+                if(doorBudget.TryBegin(Time.frameCount,b)) {
                     doorClock.Restart();try {
                         if(RunVolume(b,b.Position,r.Corner,true).Length==0&&RunVolume(b,r.Corner,r.Exit,true).Length==0)r.Policy.JumpResult(ControlledJump(b,s,"M05","corner-chase",toward,r.Exit,config.CornerChase.JumpMinSpeed,config.CornerChase.JumpMinStamina,true),Time.time);
                         else r.Policy.Fallback("Jump headroom or landing corridor blocked");

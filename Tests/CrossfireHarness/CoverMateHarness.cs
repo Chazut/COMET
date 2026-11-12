@@ -45,7 +45,11 @@ internal static class CoverMateHarness
    C(!p.states[g].Crossfire.Policy.Active&&p.states[g].Crossfire.Policy.Trace!.Reason.Contains("stalled"),"native duration plus margin detects stuck surgery");
    Step(5);p.Observe(g);C(!p.states[g].Crossfire.Policy.Active,"stuck operation cannot re-recruit");C(m.BotOwner.Medecine.Using,"does not cancel patient medicine");events.AddRange(p.diagnostics!.Lines);
   }
-  foreach(var mode in new[]{"visible","heal-self","reload-self","ghost-self","ghost-mate","remote","mate-moved","mate-dead","under-fire","callbacks","foreign-route","config-off"})
+  {
+   var(p,g,m)=Setup();g.GoalEnemy!.IsVisible=true;var a=Start(p,g);Step();a.Update(new());
+   C(p.states[g].Crossfire.Policy.Active,"visible enemy does not cancel covering a busy teammate");p.EndAll();events.AddRange(p.diagnostics!.Lines);
+  }
+  foreach(var mode in new[]{"heal-self","reload-self","ghost-self","ghost-mate","remote","mate-moved","mate-dead","under-fire","callbacks","foreign-route","config-off"})
   {
    var(p,g,m)=Setup();var a=Start(p,g);var foreign=new BotPathDataManual{Destination=new(90,0,0)};
    switch(mode){case "visible":g.GoalEnemy!.IsVisible=true;break;case "heal-self":g.BotOwner.Medecine.Using=true;break;case "reload-self":g.BotOwner.WeaponManager.Reload.Reloading=true;break;case "ghost-self":p.Ghosts.Add(g.ProfileId);break;case "ghost-mate":p.Ghosts.Add(m.ProfileId);break;case "remote":p.Authority=false;break;case "mate-moved":m.Position=new(2,0,0);break;case "mate-dead":m.IsDead=true;break;case "under-fire":g.BotOwner.Memory.IsUnderFire=true;break;case "callbacks":Step(1.1f);break;case "foreign-route":g.Mover.ActivePath=foreign;break;case "config-off":p.config!.CoverMate.Enabled=false;break;}

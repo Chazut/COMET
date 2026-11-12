@@ -53,6 +53,8 @@ public sealed class CornerPeekTrace
 // M03 replaces a successfully rolled M01 opportunity; one bounded sequence, never an unbounded A/D loop.
 public sealed class CornerPeek
 {
+    public readonly PreparationWait Preparation=new();
+
     public CornerPeekTrace? Trace { get; private set; }
     public bool Active=>Trace!=null&&Trace.Selected&&Trace.State!="ended";
     public bool Moving=>Trace?.State is "retreat" or "peek" or "crossing";
@@ -77,7 +79,7 @@ public sealed class CornerPeek
         if(!c.Enabled||roll*100>=c.Chance){End(!c.Enabled?"corner-disabled":"corner-roll-declined",f.Now);return false;}
         if(Scope(f).Length>0||!f.Visible||f.Source!="personal-vision"||!Point(f.Known)||!Point(f.Position)||!Distance(f,c)) {End("corner-no-visible-opportunity",f.Now);return false;}
         Trace.Selected=true;Trace.Style=Trace.RequestedStyle=bold?(styleRoll*100<c.JumpShare?"jump":styleRoll*100<c.JumpShare+c.RunShare?"run-by":"step"):"step";
-        Exposed=previous=progress=selectionOrigin=f.Position;originSettled=false;Known=f.Known;last=started=lastVisible=progressAt=f.Now;Deadline=f.Now+c.SequenceLimit;
+        Preparation.Clear();Exposed=previous=progress=selectionOrigin=f.Position;originSettled=false;Known=f.Known;last=started=lastVisible=progressAt=f.Now;Deadline=f.Now+c.SequenceLimit;
         exposedDuration=Mix(c.ExposedMin,c.ExposedMax,durationRoll);hiddenDuration=Mix(c.HiddenMin,c.HiddenMax,1-durationRoll);
         Trace.ExposedX=Exposed.X;Trace.ExposedY=Exposed.Y;Trace.ExposedZ=Exposed.Z;Update(f.Now);return true;
     }
@@ -88,16 +90,16 @@ public sealed class CornerPeek
         if(!Active||Trace!.State!="planning")return false;
         if(!Point(position)||!Finite(speed)||speed<0||!Finite(now)||now<last)
         {End("corner-invalid-planning-origin",now);return false;}
-        if((position-selectionOrigin).Length>.6||Math.Abs(position.Y-selectionOrigin.Y)>.2)
+        if((position-selectionOrigin).Length>1||Math.Abs(position.Y-selectionOrigin.Y)>.5)
         {End("corner-planning-origin-displaced",now);return false;}
-        if(now-started>=.5){End("corner-planning-timeout",now);return false;}
+        if(now-started>=2+Preparation.Seconds){End("corner-planning-timeout",now);return false;}
         if(originSettled)
         {
-            if((position-Exposed).Length>.15||speed>.35||!grounded)
+            if((position-Exposed).Length>.4||speed>.7||!grounded)
             {End("corner-planning-origin-moved",now);return false;}
             return true;
         }
-        if(speed>.35||!grounded){Trace.Reason="corner-waiting-for-stop";return false;}
+        if(speed>.7||!grounded){Trace.Reason="corner-waiting-for-stop";return false;}
         originSettled=true;Exposed=position;
         Trace.ExposedX=position.X;Trace.ExposedY=position.Y;Trace.ExposedZ=position.Z;
         Trace.Reason="corner-planning-origin-settled";return true;
@@ -137,15 +139,15 @@ public sealed class CornerPeek
         if(Moving)Trace.Travel+=delta;
         if((b.Position-progress).Length>=.06){progress=b.Position;progressAt=now;}
         previous=b.Position;last=now;Trace.Grace=!b.Visible;
-        if(Trace.State=="planning") {if(now-started>=.5)End("corner-planning-timeout",now);Update(now);return Active;}
+        if(Trace.State=="planning") {if(now-started>=2+Preparation.Seconds)End("corner-planning-timeout",now);Update(now);return Active;}
         if(!f.GeometryFresh||!f.LaneSafe){End("corner-geometry-invalidated",now);return false;}
-        if(Holding&&((b.Position-(Trace.State=="exposed"?Exposed:HiddenPoint)).Length>.2||f.Speed>.35))
+        if(Holding&&((b.Position-(Trace.State=="exposed"?Exposed:HiddenPoint)).Length>.4||f.Speed>.7))
         {End("corner-hold-position-lost",now);return false;}
         if(Trace.State=="peek"&&Trace.Jumps>0&&!f.Grounded)Trace.AirborneObserved=true;
         if(Trace.AirborneObserved&&f.Grounded)Trace.LandedObserved=true;
         if(Moving)
         {
-            if(f.AtGoal&&f.Grounded&&f.Speed<=.35)
+            if(f.AtGoal&&f.Grounded&&f.Speed<=.7)
             {
                 Trace.Arrived=true;
                 if(Trace.State=="peek") {

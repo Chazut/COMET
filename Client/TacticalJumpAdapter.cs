@@ -97,7 +97,7 @@ public sealed partial class Plugin
                 r.Policy.Request(f,p.config.TacticalJump,p.jumpRandom.NextDouble);p.RecordTacticalJump(s);return false;
             }
             string clearanceDetail="geometry-budget-deferred";
-            if(p.doorBudget.TryBegin(Time.frameCount)) {
+            if(p.doorBudget.TryBegin(Time.frameCount,b)) {
                 var watch=System.Diagnostics.Stopwatch.StartNew();
                 try{clearanceDetail=p.WeaveLaneBlock(b,direction,length,true);}finally{watch.Stop();p.doorBudget.Charge(watch.Elapsed.TotalMilliseconds);}
             }

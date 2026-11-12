@@ -91,7 +91,7 @@ public sealed partial class Plugin
             ||b.Grenade.GrenadeDangerPoint!=null||b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None
             ||b.BotOwner.DoorOpener.Interacting||b.DoorOpener.Interacting||b.Player.IsInPronePose||!b.Player.MovementContext.IsGrounded)return "ambush-native-priority";
         if(!s.Fake.Policy.Active&&!FakeWeaponReady(b))return "ambush-weapon-unavailable";
-        if(s.Ambush.Policy.Active&&(e.EnemyProfileId!=s.Ambush.Policy.Trace!.Target||System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e)!=s.Ambush.TargetInstance))return "ambush-target-changed";
+        if(s.Ambush.Policy.Active&&(e.EnemyProfileId!=s.Ambush.Policy.Trace!.Target))return "ambush-target-changed";
         return "";
     }
     private bool KeepDoorAmbush(BotComponent b,BotState s,ref ECombatDecision decision,ref bool result)
@@ -140,7 +140,7 @@ public sealed partial class Plugin
         }
         if(Time.time>=r.NextCheck)
         {
-            if(!doorBudget.TryBegin(Time.frameCount))
+            if(!doorBudget.TryBegin(Time.frameCount,b))
             {if(Time.time-r.LastCheck>.5){EndDoorAmbush(s,"ambush-validation-budget-expired");return true;}}
             else
             {
@@ -189,37 +189,34 @@ public sealed partial class Plugin
     }
     private void PlanAmbush(BotComponent b,BotState s,Vector3 known)
     {
-        var r=s.Ambush;var path=b.GoalEnemy.Path.PathToEnemy;var voxel=b.BotOwner.VoxelesPersonalData.CurVoxel;var t=r.Policy.Trace!;
-        if(path?.status!=NavMeshPathStatus.PathComplete){t.PlanningInput="no complete path to remembered contact";return;}
-        if(path.corners.Length>128){t.PlanningInput="contact route exceeds corner budget";return;}
-        if(voxel?.DoorLinks==null){t.PlanningInput="no local door links";return;}
-        var route=path.corners.Select(DP).ToArray();var options=new List<DoorWork>();int visited=0;
-        foreach(var link in voxel.DoorLinks)
+        var r=s.Ambush;var t=r.Policy.Trace!;
+        var route=RememberedDoorRoute(b,known);var options=new List<DoorWork>();int visited=0;
+        foreach(var link in NearbyDoors(b))
         {
             if(++visited>48)break;t.DoorsScanned++;if(link?.Door==null)continue;
             var w=new DoorWork{Data=new(link)};if(!TryDoorGeometry(w.Data,out var g)){t.Candidates.Add(new(){Reason="door geometry unavailable"});continue;}w.Geometry=g;
             string gate=DoorPolicy.Geometry(g,DP(b.Position),DP(known),route,AmbushApproach());
             if(gate.Length==0)options.Add(w);else t.Candidates.Add(new(){Door=g.Id,Reason=gate});
         }
-        t.DoorsEligible=options.Count;t.PlanningInput=options.Count>0?"eligible local doors":visited>48?"no eligible door within scan budget":"no eligible local door on contact route";
+        t.DoorsEligible=options.Count;t.PlanningInput=options.Count>0?"eligible local doors":visited>=48?"no eligible door within scan budget":"no eligible local door on contact route";
         var relevant=options.OrderBy(w=>(w.Geometry.Center-DP(b.Position)).Length).ThenBy(w=>w.Geometry.Id,StringComparer.Ordinal).Take(3).ToArray();
         // Check the actual position first, once per relevant door. Do not request a fake zero-length move.
         foreach(var w in relevant)r.Work.Add(new(){Data=w.Data,Geometry=w.Geometry,Side=0,Variant=-1});
         foreach(var w in relevant)
-            foreach(int variant in new[]{0,1})foreach(int side in new[]{-1,1})r.Work.Add(new(){Data=w.Data,Geometry=w.Geometry,Side=side,Variant=variant});
+            foreach(int variant in new[]{0,1,2,3})foreach(int side in new[]{-1,1})r.Work.Add(new(){Data=w.Data,Geometry=w.Geometry,Side=side,Variant=variant});
     }
     private bool PlanAmbushStep(BotComponent b,BotState s)
     {
         var r=s.Ambush;var t=r.Policy.Trace!;
-        if(!doorBudget.TryBegin(Time.frameCount))return true;
+        if(!doorBudget.TryBegin(Time.frameCount,b)){r.Policy.Preparation.Defer(Time.time,Time.deltaTime);return true;}
         doorClock.Restart();
         try
         {
             if(!r.CurrentChecked)
             {r.CurrentProtection=HoldProtection(b.Position,b.GoalEnemy.KnownPlaces.LastKnownPosition!.Value);r.CurrentChecked=true;}
-            if(Vector3.Distance(r.PlanningOrigin,b.Position)>.15f)
+            if(Vector3.Distance(r.PlanningOrigin,b.Position)>.5f)
             {EndDoorAmbush(s,"hold-door-origin-moved-reconsider");return true;}
-            if(r.Work.Count>0)
+            if(r.Work.Count>0&&r.Best==null)
             {
                 var w=r.Work[0];r.Work.RemoveAt(0);
                 if(DoorBusy(b,s,w.Geometry.Id)){t.Candidates.Add(new(){Door=w.Geometry.Id,Reason="reservation-door-busy"});return true;}
@@ -235,7 +232,7 @@ public sealed partial class Plugin
                     candidate.Eligible=selection.Outcome=="move";candidate.Reason=selection.Reason;
                     if(!s.ProgressUnavailable&&s.Progress.Blocked(ProgressAdapter.Destination(point),Time.time)){candidate.Eligible=false;candidate.Reason="ambush-progress-retry-blocked";}
                     if(candidate.Eligible&&(r.Best==null||candidate.Score<r.Best.Score))
-                    {r.Best=candidate;r.Chosen=w;r.Aim=aim;r.Pose=pose;r.Selection=selection;}
+                    {r.Best=candidate;r.Chosen=w;r.Aim=aim;r.Pose=pose;r.Selection=selection;r.Work.Clear();}
                     else if(r.Selection==null)r.Selection=selection;
                 }
                 t.Candidates.Add(candidate);return true;
@@ -295,7 +292,7 @@ public sealed partial class Plugin
         var r=s.Ambush;var t=r.Policy.Trace;if(t==null)return;string key=t.State+":"+t.Reason+":"+t.Feint+":"+t.FeintResult+":"+t.AngleVerified;
         if(!force&&key==r.LogKey&&(!r.Policy.Active||Time.time-r.LogAt<.5f))return;r.LogKey=key;r.LogAt=Time.time;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="D09",stage="evaluated",decision="DoorAmbush",reason=t.Reason,
-            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
+            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,planningWaitSeconds=r.Policy.Preparation.Seconds,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
             doorAmbush=t,doorHold=r.Selection,doorAmbushConfig=config?.DoorAmbush});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }

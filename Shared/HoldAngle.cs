@@ -51,6 +51,8 @@ public sealed class HoldAngleTrace
 // One correction per Hold opportunity. No random rolls, hidden transforms or Unity dependencies.
 public sealed class HoldAngle
 {
+    public readonly PreparationWait Preparation=new();
+
     public HoldAngleTrace? Trace { get; private set; }
     public bool Active=>Trace?.State is "planning" or "adjusting" or "watching";
     public DoorPoint Origin { get; private set; }
@@ -78,7 +80,7 @@ public sealed class HoldAngle
         if(Active||Gate(f,c).Length>0||f.Speed>.35||f.Now-f.HoldStarted<c.Delay||f.Now<NextAttempt
             ||lastTarget==f.Target&&lastHold==f.HoldStarted)return false;
         if(failedTarget==f.Target&&(f.Position-failedPosition).Length<1&&(f.Known-failedKnown).Length<2)return false;
-        Origin=Goal=f.Position;Pose=basePose=f.Pose;hold=lastHold=f.HoldStarted;lastTarget=f.Target;last=f.Now;deadline=f.Now+c.Limit;
+        Preparation.Clear();Origin=Goal=f.Position;Pose=basePose=f.Pose;hold=lastHold=f.HoldStarted;lastTarget=f.Target;last=f.Now;deadline=f.Now+c.Limit;
         Trace=new(){Episode=++episode,Target=f.Target,Source=f.Source,OriginX=Origin.X,OriginY=Origin.Y,OriginZ=Origin.Z,
             X=Origin.X,Y=Origin.Y,Z=Origin.Z,RequestedPose=Pose};
         UpdateTrace(f);return true;
@@ -91,7 +93,7 @@ public sealed class HoldAngle
         if(reason.Length==0&&(f.Position-Origin).Length>c.MaxStep+.05)reason="hold-angle-origin-limit";
         if(reason.Length==0&&!f.RouteOwned)reason="hold-angle-native-route-taken-over";
         if(reason.Length==0&&!c.AdjustPose&&Math.Abs(Pose-basePose)>.01)reason="hold-angle-posture-disabled";
-        if(reason.Length==0&&Trace!.State!="watching"&&f.Now>=deadline)reason="hold-angle-correction-timeout";
+        if(reason.Length==0&&Trace!.State!="watching"&&f.Now>=deadline+Preparation.Seconds)reason="hold-angle-correction-timeout";
         if(reason.Length==0&&Trace!.State!="planning"&&(!DoorPolicy.Finite(f.GeometryAt)||f.GeometryAt>f.Now||f.Now-f.GeometryAt>c.Refresh+.1))reason="hold-angle-safety-expired";
         if(reason.Length>0){End(reason,f,c,true);return false;}
         last=f.Now;UpdateTrace(f);
@@ -111,6 +113,9 @@ public sealed class HoldAngle
         Trace.Candidate=candidate.Id;Trace.X=Goal.X;Trace.Y=Goal.Y;Trace.Z=Goal.Z;Trace.AimX=aim.X;Trace.AimY=aim.Y;Trace.AimZ=aim.Z;
         Trace.RequestedPose=Pose;return true;
     }
+    // The mover can snap a checked local destination by a few centimetres.
+    public void AcceptEndpoint(DoorPoint endpoint)
+    {if(Active&&endpoint.Finite&&(endpoint-Goal).Length<=.3){Goal=endpoint;Trace!.X=endpoint.X;Trace.Y=endpoint.Y;Trace.Z=endpoint.Z;}}
     public void Requested(bool pose,bool move){if(!Active)return;Trace!.PoseRequested|=pose;Trace.MoveRequested|=move;}
     public void End(string reason,HoldAngleFrame f,HoldAngleConfig c,bool failed)
     {

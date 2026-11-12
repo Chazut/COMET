@@ -115,7 +115,7 @@ internal static class DoorRunTests
             var md=pe.GetMetadataReader();List<string> Calls(string method)=>FloorHearingTests.ReadIl(pe.GetMethodBody(md.TypeDefinitions.Select(md.GetTypeDefinition).Single(x=>md.GetString(x.Name)=="Plugin").GetMethods().Select(md.GetMethodDefinition).Single(x=>md.GetString(x.Name)==method).RelativeVirtualAddress).GetILBytes()!)
                 .Where(x=>x.op==OpCodes.Call||x.op==OpCodes.Callvirt).Select(x=>FloorHearingTests.Name(md,(int)x.operand!)).ToList();
             foreach(var name in new[]{"IsSupportedAi","get_Authority","Ghost","get_IsVisible","get_CurrentSelfDecision","get_CurrentSquadDecision","get_IsUnderFire","SameContact"})Check(Calls("RunGate").Contains(name),"scope "+name);
-            foreach(var name in new[]{"CapsuleCastNonAlloc","OverlapCapsuleNonAlloc","Raycast","Clear"})Check(Calls("RunVolume").Contains(name),"swept volume "+name);
+            foreach(var name in new[]{"CapsuleCastNonAlloc","OverlapCapsuleNonAlloc","Raycast","Clear"})Check(Calls("TacticalVolume").Contains(name),"swept volume "+name);
             foreach(var name in new[]{"Observe","get_Velocity","get_IsSprintEnabled","get_IsGrounded","WalkToPointByWay","Contains","RunVolume"})Check(Calls("StepDoorRun").Contains(name),"actual execution "+name);
             Check(Calls("PrepareDoorRecon").Contains("RunToPointByWay")&&Calls("PrepareDoorRecon").Contains("BeginSelected"),"native sprint and single-roll handoff");
             Check(Calls("Release").Contains("EndDoorRun")&&Calls("Update").Contains("RefreshDoorRun")&&Calls("TryStartDoorJump").Contains("TryStartDoorRecon"),"lifecycle and shared handoff");

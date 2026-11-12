@@ -193,7 +193,7 @@ public sealed partial class Plugin
         if(!WeaponSyncScope(b)){EndWeaponSync(s,"sync-out-of-scope");return;}
         r.WasInScope=true;
         if(r.Applying||Time.time<r.RetryAt||!r.Schedule.Due(Time.time)||weaponSyncFrame==Time.frameCount)return;
-        if(!doorBudget.TryBegin(Time.frameCount))return;
+        if(!doorBudget.TryBegin(Time.frameCount,b))return;
         weaponSyncFrame=Time.frameCount;doorClock.Restart();r.Applying=true;
         try {
             var blocked=SyncBlock(b,s);

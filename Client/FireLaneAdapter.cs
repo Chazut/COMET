@@ -141,7 +141,7 @@ public sealed partial class Plugin
             &&Vector3.Distance(r.From,VP(threat!.From))<.1&&Vector3.Distance(r.To,VP(threat.To))<.2;
         if(same&&Time.time-r.GeometryAt<=c.Refresh){if(r.Checked!=null)r.Checked.Age=rays.First(x=>x.Shooter==r.Checked.Shooter).Age;threat=r.Checked;return r.Fresh;}
         r.Fresh=false;r.LeftSafe=r.RightSafe=false;
-        if(!doorBudget.TryBegin(Time.frameCount))return false;
+        if(!doorBudget.TryBegin(Time.frameCount,b))return false;
         doorClock.Restart();try{
             r.GeometryAt=Time.time;r.GeometryKey=key;r.At=b.Position;r.Input=input;r.From=VP(threat!.From);r.To=VP(threat.To);
             // Trim every actual firing ray at static cover, so walls do not reserve the space behind them.

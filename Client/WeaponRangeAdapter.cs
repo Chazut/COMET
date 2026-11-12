@@ -64,7 +64,7 @@ public sealed partial class Plugin
     }
     private WeaponRangeFrame? WeaponRangeFrameFor(BotComponent b,BotState s,WeaponReturnFrame f)
     {
-        if(!doorBudget.TryBegin(Time.frameCount))return null;
+        if(!doorBudget.TryBegin(Time.frameCount,b))return null;
         doorClock.Restart();
         try {
         var first=SlotGun(b,EquipmentSlot.FirstPrimaryWeapon);var second=SlotGun(b,EquipmentSlot.SecondPrimaryWeapon);

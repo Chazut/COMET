@@ -52,7 +52,7 @@ public sealed partial class Plugin
     {
         var r=s.CornerPeek;var t=r.Policy.Trace!;
         if(config==null||!config.CornerPeek.Enabled||!config.CombatStep.Enabled||!f.Enabled||!f.Pmc||!f.Authority||!f.Active||f.Ghost)return "corner-out-of-scope";
-        if(b.GoalEnemy==null||System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(b.GoalEnemy)!=r.TargetInstance||f.Target!=t.Target||f.Action!=t.Action)return "corner-native-action-or-contact-changed";
+        if(b.GoalEnemy==null||f.Target!=t.Target||f.Action!=t.Action)return "corner-native-action-or-contact-changed";
         if(f.Busy||f.Urgent||!f.Ready||f.Immobile||f.ProtectedCover)return "corner-native-priority";
         if(!f.Grounded&&!(t.State=="peek"&&t.Jumps==1))return "corner-unexpected-airborne";
         if(f.Sprinting&&t.State!="crossing")return "corner-unexpected-sprint";
@@ -61,7 +61,7 @@ public sealed partial class Plugin
         int scanned=0;
         foreach(var e in b.EnemyController.KnownEnemies) {
             if(++scanned>32)return "corner-threat-list-truncated";
-            if(e!=null&&!ReferenceEquals(e,b.GoalEnemy)&&(e.IsVisible||e.Status.ShotAtMeRecently))return "corner-new-immediate-threat";
+            if(e!=null&&!SameTacticalContact(e,b.GoalEnemy)&&(e.IsVisible||e.Status.ShotAtMeRecently))return "corner-new-immediate-threat";
         }
         return "";
     }
@@ -77,7 +77,7 @@ public sealed partial class Plugin
         var r=s.CornerPeek;if(!r.Policy.Active||enemy.IsVisible)return false;
         try {
             RefreshCornerPeek(b,s,false);
-            if(!r.Policy.MayKeep(Time.time,config!.CornerPeek)||!r.LaneSafe||Time.time-r.LastSafety>.2f)return false;
+            if(!r.Policy.MayKeep(Time.time,config!.CornerPeek)||!r.LaneSafe||Time.time-r.LastSafety>.75f)return false;
             // Only the intentional short occlusion retains the existing native shooting action.
             // Self/squad decisions are still selected by SAIN's decision manager, outside this hook.
             result=r.Policy.Trace!.Action=="DogFight"?ECombatDecision.DogFight:ECombatDecision.StandAndShoot;succeeded=true;
@@ -99,7 +99,7 @@ public sealed partial class Plugin
         if(r.Policy.Moving&&!CornerPeek.Lane(DP(r.RouteFrom),DP(r.Goal),DP(b.Position),r.Policy.Trace!.Jumps>0))
         {EndCornerPeek(s,"corner-left-verified-lane");return;}
         if(r.Policy.Trace!.State!="planning"&&Time.time>=r.NextSafety) {
-            if(!doorBudget.TryBegin(Time.frameCount)){if(Time.time-r.LastSafety>.2f)EndCornerPeek(s,"corner-safety-budget-expired");return;}
+            if(!doorBudget.TryBegin(Time.frameCount,b)){if(Time.time-r.LastSafety>.75f)EndCornerPeek(s,"corner-safety-budget-expired");return;}
             doorClock.Restart();
             try {why=CornerSafety(b,s);r.LaneSafe=why.Length==0;r.LastSafety=Time.time;r.NextSafety=Time.time+.1f;
                 if(why.Length>0){EndCornerPeek(s,why);return;}}
@@ -107,18 +107,18 @@ public sealed partial class Plugin
         }
         var before=r.Policy.Trace.State;
         if(!r.Policy.Observe(new(){Combat=f,RouteValid=valid,AtGoal=arrived,Speed=r.Speed,Grounded=f.Grounded,SinceHit=b.Medical.TimeSinceShot,
-            GeometryFresh=Time.time-r.LastSafety<=.2f,LaneSafe=r.LaneSafe,Hidden=r.Hidden,Open=r.Open},config.CornerPeek,""))
+            GeometryFresh=Time.time-r.LastSafety<=.75f,LaneSafe=r.LaneSafe,Hidden=r.Hidden,Open=r.Open},config.CornerPeek,""))
         {FinishCornerPeek(s);return;}
         if(r.Policy.Trace.State=="planning") {
-            if(mayPlan&&doorBudget.TryBegin(Time.frameCount)) {
+            if(mayPlan&&doorBudget.TryBegin(Time.frameCount,b)) {
                 doorClock.Restart();try{PlanCornerPeek(b,s);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
-            }
+            }else if(mayPlan)r.Policy.Preparation.Defer(Time.time,Time.deltaTime);
             RecordCornerPeek(s);return;
         }
         if(r.Policy.Holding){if(!StopCornerRoute(s)){EndCornerPeek(s,"corner-route-taken-over");return;}if(r.OwnEmpty)b.Player.Move(Vector2.zero);}
         if(!f.Visible)b.Steering.LookToPoint(VP(r.Policy.Known)+Vector3.up*1.3f);
         if(mayPlan&&r.Policy.WantsRoute) {
-            if(!doorBudget.TryBegin(Time.frameCount)){RecordCornerPeek(s);return;}
+            if(!doorBudget.TryBegin(Time.frameCount,b)){RecordCornerPeek(s);return;}
             doorClock.Restart();try{RequestCornerRoute(b,s);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
         }
         // Only a real outward speed can launch the one permitted jump. SAIN retains all firing rules.
@@ -126,7 +126,7 @@ public sealed partial class Plugin
             var direction=r.Goal-b.Position;direction.y=0;
             var velocity=b.Player.Velocity;velocity.y=0;
             if(r.Policy.MayJump(Time.time,Vector3.Dot(velocity,direction.normalized),direction.magnitude,f.Grounded,b.Player.MovementContext.CanJump,b.Player.Physical.Stamina.NormalValue*100)) {
-                if(doorBudget.TryBegin(Time.frameCount)) {
+                if(doorBudget.TryBegin(Time.frameCount,b)) {
                     doorClock.Restart();try {
                         var lane=RunVolume(b,r.RouteFrom,r.Goal,true);
                         if(lane.Length==0)r.Policy.JumpAccepted(ControlledJump(b,s,"M03","corner-peek",direction,r.Goal,1.1,30,true));else r.Policy.Fallback(lane);
@@ -152,7 +152,7 @@ public sealed partial class Plugin
             int i=r.Candidate++;float distance=(float)c.MaxStep*(.5f+.25f*(i/2));
             var direction=Vector3.Cross(Vector3.up,forward.normalized)*(i%2==0?1:-1);
             var raw=r.Origin+direction*distance;
-            if(!CornerRoute(b,r.Origin,raw,c.MaxStep,out var end,out _,out var why)||CombatProtection(end,known)!=7
+            if(!CornerRoute(b,r.Origin,raw,c.MaxStep,out var end,out _,out var why)||!CombatStep.UsefulCover(CombatProtection(end,known))
                 ||(why=CornerOtherThreats(b,r.Origin,end)).Length>0) {
                 p.Alternative("cover "+i+": "+(why.Length>0?why:"body not protected"));RecordCornerPeek(s);return;
             }
@@ -163,7 +163,7 @@ public sealed partial class Plugin
             if(r.Candidate<3) {
                 float distance=2.5f+r.Candidate++;var raw=r.Origin-r.Direction*distance;
                 if(b.Player.MovementContext.CanSprint&&b.BotOwner.CanSprintPlayer&&b.Player.Physical.Stamina.NormalValue*100>=40
-                    &&CornerRoute(b,r.Origin,raw,4.7,out var far,out _,out var why)&&CombatProtection(far,known)==7
+                    &&CornerRoute(b,r.Origin,raw,4.7,out var far,out _,out var why)&&CombatStep.UsefulCover(CombatProtection(far,known))
                     &&CornerOpen(b,(r.Origin+far)*.5f,known)&&CornerOtherThreats(b,r.Origin,far).Length==0) {
                     hidden=r.Far=far;r.PlanStage=2;
                 }else {p.Alternative("run-by candidate "+r.Candidate+": no safe covered crossing");return;}
@@ -179,14 +179,14 @@ public sealed partial class Plugin
         if(!p.Plan(DP(hidden),style,Time.time)){EndCornerPeek(s,"corner-plan-expired");return;}
         r.LaneSafe=true;r.Open=true;r.Hidden=false;r.LastSafety=Time.time;r.NextSafety=Time.time;RecordCornerPeek(s,true);
     }
-    private bool CornerRoute(BotComponent b,Vector3 start,Vector3 raw,double radius,out Vector3 end,out NavMeshPath path,out string why)
+    private bool CornerRoute(BotComponent b,Vector3 start,Vector3 raw,double radius,out Vector3 end,out NavMeshPath path,out string why,float pose=1)
     {
         end=raw;path=new();why="corner-no-local-navmesh";
-        if(!NavMesh.SamplePosition(raw,out var sample,.1f,NavMesh.AllAreas))return false;end=sample.position;
+        if(!NavMesh.SamplePosition(raw,out var sample,.4f,NavMesh.AllAreas))return false;end=sample.position;
         NavMesh.CalculatePath(start,end,NavMesh.AllAreas,path);
         if(!CombatStep.Route(DP(start),DP(start),DP(end),path.corners.Select(DP).ToArray(),path.status==NavMeshPathStatus.PathComplete,radius))
         {why="corner-no-short-complete-route";return false;}
-        why=RunVolume(b,start,end);if(why.Length>0)return false;
+        why=RunVolume(b,start,end,false,pose);if(why.Length>0)return false;
         // Reverse route is checked too; navmesh links can be directional.
         var back=new NavMeshPath();NavMesh.CalculatePath(end,start,NavMesh.AllAreas,back);
         if(!CombatStep.Route(DP(end),DP(end),DP(start),back.corners.Select(DP).ToArray(),back.status==NavMeshPathStatus.PathComplete,radius))
@@ -203,7 +203,7 @@ public sealed partial class Plugin
         int scanned=0,count=0;
         foreach(var e in b.EnemyController.KnownEnemies) {
             if(++scanned>32)return "corner-threat-list-truncated";
-            if(e==null||ReferenceEquals(e,b.GoalEnemy)||!e.EnemyKnown||e.TimeSinceLastKnownUpdated>3||e.KnownPlaces.LastKnownPosition is not Vector3 known)continue;
+            if(e==null||SameTacticalContact(e,b.GoalEnemy)||!e.EnemyKnown||e.TimeSinceLastKnownUpdated>3||e.KnownPlaces.LastKnownPosition is not Vector3 known)continue;
             if(++count>4)return "corner-threat-budget-exceeded";
             if(!CombatStep.PreservesProtection(CombatProtection(from,known),CombatProtection((from+to)*.5f,known),CombatProtection(to,known)))return "corner-exposes-other-known-threat";
         }
@@ -214,16 +214,16 @@ public sealed partial class Plugin
         var r=s.CornerPeek;var p=r.Policy;var hidden=VP(p.HiddenPoint);var exposed=VP(p.Exposed);var known=VP(p.Known);
         // Full ground corridor remains checked during flight; actual motion has its separate vertical leash.
         string why=RunVolume(b,exposed,hidden,p.Trace!.Style=="jump");if(why.Length>0)return why;
-        if(CombatProtection(hidden,known)!=7||!CornerOpen(b,exposed,known))return "corner-protection-or-firing-angle-lost";
+        if(!CombatStep.UsefulCover(CombatProtection(hidden,known))||!CornerOpen(b,exposed,known))return "corner-protection-or-firing-angle-lost";
         why=CornerOtherThreats(b,exposed,hidden);if(why.Length>0)return why;
-        r.Hidden=CombatProtection(b.Position,known)==7;r.Open=CornerOpen(b,b.Position,known);return "";
+        r.Hidden=CombatStep.UsefulCover(CombatProtection(b.Position,known));r.Open=CornerOpen(b,b.Position,known);return "";
     }
     private void RequestCornerRoute(BotComponent b,BotState s)
     {
         var r=s.CornerPeek;var p=r.Policy;bool outward=p.Trace!.State=="peek-pending";bool run=p.Trace.State=="crossing-pending";
         var goal=VP(outward?p.Exposed:p.HiddenPoint);
         if(!CornerRoute(b,b.Position,goal,run?4.7:config!.CornerPeek.MaxStep+.25,out var endpoint,out var route,out var why)
-            ||Vector3.Distance(endpoint,goal)>.1f||CornerSafety(b,s).Length>0) {EndCornerPeek(s,why.Length>0?why:"corner-route-no-longer-safe");return;}
+            ||Vector3.Distance(endpoint,goal)>.3f||CornerSafety(b,s).Length>0) {EndCornerPeek(s,why.Length>0?why:"corner-route-no-longer-safe");return;}
         if(run&&(!b.Player.MovementContext.CanSprint||!b.BotOwner.CanSprintPlayer||b.Player.Physical.Stamina.NormalValue*100<40))
         {EndCornerPeek(s,"corner-sprint-resources-lost");return;}
         if(!StopCornerRoute(s)){EndCornerPeek(s,"corner-native-route-taken-over");return;}
@@ -275,7 +275,7 @@ public sealed partial class Plugin
         if(!force&&key==r.LogKey&&(!r.Policy.Active||Time.time-r.LogAt<.1f))return;
         r.LogKey=key;r.LogAt=Time.time;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="M03",stage="evaluated",decision="CornerPeek",reason=t.Reason,
-            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
+            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,planningWaitSeconds=r.Policy.Preparation.Seconds,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
             cornerPeek=t,cornerPeekConfig=config?.CornerPeek});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }

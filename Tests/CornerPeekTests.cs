@@ -27,12 +27,12 @@ internal static class CornerPeekTests
         Check(p.Deadline==initialDeadline&&p.Plan(new(-.45,0,0),"step",10.25),"settling never extends sequence and allows local geometry plan");
         Check(p.Observe(F(10.3,.3),c,""),"rebased exposed hold remains valid");
         p=Begin();Check(!p.SettleOrigin(new(0,0,0),1,true,10)&&p.Active,"first callback with native velocity cannot settle");
-        foreach(var bad in new[]{new DoorPoint(.61,0,0),new DoorPoint(0,.21,0),new DoorPoint(double.NaN,0,0)})
+        foreach(var bad in new[]{new DoorPoint(1.01,0,0),new DoorPoint(0,.51,0),new DoorPoint(double.NaN,0,0)})
         {p=Begin();Check(!p.SettleOrigin(bad,0,true,10.1)&&!p.Active,"displacement/height/invalid sample still rejected");}
-        p=Begin();Check(!p.SettleOrigin(new(.2,0,0),1,true,10.5)&&!p.Active&&p.Trace!.Reason=="corner-planning-timeout","inertia cannot prolong planning indefinitely");
+        p=Begin();Check(!p.SettleOrigin(new(.2,0,0),1,true,12)&&!p.Active&&p.Trace!.Reason=="corner-planning-timeout","inertia cannot prolong planning indefinitely");
         p=Begin();Check(!p.SettleOrigin(new(0,0,0),0,false,10.1)&&p.Active,"airborne sample never becomes geometry origin");
         p=Begin();Check(p.SettleOrigin(new(.2,0,0),0,true,10.1),"initial stop accepted");
-        Check(!p.SettleOrigin(new(.36,0,0),0,true,10.2)&&!p.Active,"movement after geometry began invalidates it");
+        Check(!p.SettleOrigin(new(.61,0,0),0,true,10.2)&&!p.Active,"movement after geometry began invalidates it");
         p=new CornerPeek();Check(!p.Begin(C(),1,c,.5,0,0,0,true)&&p.Trace!.Reason=="corner-roll-declined","50 boundary declines");
         Check(!p.Begin(C(10.1),2,c,0,0,0,0,true),"decline cooldown prevents reroll");
         foreach(var pair in new[]{(0d,"jump"),(.24999,"jump"),(.25,"run-by"),(.39999,"run-by"),(.4,"step"),(.999,"step")})
@@ -83,9 +83,9 @@ internal static class CornerPeekTests
             p=Hidden();f=F(10.7,-.75,false);mutate(f);Check(!p.Observe(f,c,"")&&!p.Active,"safety interruption in hidden phase");}
         p=Planned();Check(!p.Observe(F(11),c,"")&&p.Trace!.Reason=="corner-invalid-or-stale-observation","callback gap ends");
         p=Planned();Check(!p.Observe(F(9),c,""),"backward clock ends");
-        p=Planned();var drift=F(10.1,.21);Check(!p.Observe(drift,c,"")&&p.Trace!.Reason=="corner-hold-position-lost","exposed hold cannot drift away");
-        p=Hidden();drift=F(10.7,-.75,false);drift.Speed=.36;Check(!p.Observe(drift,c,"")&&p.Trace!.Reason=="corner-hold-position-lost","hidden pause needs a real stable stop");
-        p=Begin();for(int i=1;i<=5;i++)p.Observe(F(10+i*.1),c,"");Check(!p.Active&&p.Trace!.Reason=="corner-planning-timeout","bounded planning");
+        p=Planned();var drift=F(10.1,.41);Check(!p.Observe(drift,c,"")&&p.Trace!.Reason=="corner-hold-position-lost","exposed hold cannot drift away");
+        p=Hidden();drift=F(10.7,-.75,false);drift.Speed=.71;Check(!p.Observe(drift,c,"")&&p.Trace!.Reason=="corner-hold-position-lost","hidden pause needs a real stable stop");
+        p=Begin();for(int i=1;i<=20;i++)p.Observe(F(10+i*.1),c,"");Check(!p.Active&&p.Trace!.Reason=="corner-planning-timeout","bounded planning");
         p=Planned();var expiry=F(14);Check(!p.Observe(expiry,c,"native emergency"),"emergency always wins");
         p=Hidden();p.Fallback("unsafe jump");Check(p.Trace!.Style=="step"&&p.Trace.Alternatives.Length==1,"record fallback");
         // A jump is requested only with lateral momentum, then flight/landing require separate observations.

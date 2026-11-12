@@ -75,10 +75,12 @@ public sealed partial class Plugin
             Step("close-summary",()=>FlushCloseCounters(true));
             Step("impact-summary",()=>FlushImpactCounters(true));
             Step("movement-summary",FlushMovementSummary);
+            Step("tactical-probe-summary",()=>FlushTacticalProbes(true));
 
             // These steps only release COMET-owned references. They still run if
             // native cleanup failed, and never dispose another mod's world/bots.
             Step("door-caches",()=>{
+                ClearLocalDoors();
                 doorSwings.Clear();motionWatches.Clear();pushContexts.Clear();
                 closingSelected.Clear();closingPending.Clear();closingHistory=new();closingLogs=new();
                 recoveryEpochs=new();transitControllers=new();medicalConsumption=new();

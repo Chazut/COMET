@@ -14,7 +14,7 @@ internal static class CornerChaseTests
         CornerChaseFrame Frame(double now=10)=>new(){Combat=new(){Now=Math.Round(now,6),Action="RushEnemy",Target="enemy",Visible=false,Known=new(4,0,4),Position=new(0,0,0),Personality="Chad"},
             SeenAt=9.5,ObservationEpisode=1,RealCorner=true,PathLength=8,Speed=3,CanJump=true,Fleeing=true};
         CornerChase Begin(double style=.5){var p=new CornerChase();Check(p.Begin(Frame(),c,0,style,1),"eligible personal pursuit");return p;}
-        Check(c.LostSightMin==.3&&c.ObservationMaxAge==4&&c.PathLimit==15&&c.SequenceLimit==4&&c.WideOffset==1.8&&c.Cooldown==6,"agreed limits");
+        Check(c.LostSightMin==.3&&c.ObservationMaxAge==6&&c.PathLimit==15&&c.SequenceLimit==4&&c.WideOffset==1.8&&c.Cooldown==6,"agreed limits");
         Check(c.JumpMinSpeed==2.2&&c.JumpMinStamina==35&&c.Chances["GigaChad"]==90&&c.Chances["Wreckless"]==85&&c.Chances["Chad"]==75&&c.Chances["Normal"]==40,"agreed chances and jump limits");
         foreach(var pair in c.Chances) {
             var f=Frame();f.Combat.Personality=pair.Key;var p=new CornerChase();
@@ -65,7 +65,7 @@ internal static class CornerChaseTests
             frame=Frame();change(frame);Check(!new CornerChase().Begin(frame,c,0,0,1),"invalid start or higher priority");
             chase=Begin();frame=Frame(10.1);change(frame);Check(!chase.Observe(frame,c)&&chase.Trace!.ValidFor==0,"immediate cancellation with no stale badge");
         }
-        foreach(double seen in new[]{9.71,5.99,-1d}){frame=Frame();frame.SeenAt=seen;Check(!new CornerChase().Begin(frame,c,0,0,1),"outside personal sight window");}
+        foreach(double seen in new[]{9.71,3.99,-1d}){frame=Frame();frame.SeenAt=seen;Check(!new CornerChase().Begin(frame,c,0,0,1),"outside personal sight window");}
         foreach(double seen in new[]{9.7,6d}){frame=Frame();frame.SeenAt=seen;Check(new CornerChase().Begin(frame,c,0,0,1),"personal sight window boundary");}
         foreach(var change in new Action<CornerChaseFrame>[] { f=>f.RealCorner=false,f=>f.PathLength=15.01,f=>f.PathLength=0,f=>f.PathLength=double.NaN }) {
             frame=Frame();change(frame);chase=new();Check(!chase.Begin(frame,c,0,0,1)&&!chase.Begin(Frame(10.1),c,0,0,1),"geometry failure consumes one episode, no repeated expensive trials");

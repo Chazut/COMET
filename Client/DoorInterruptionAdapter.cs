@@ -130,7 +130,6 @@ public sealed partial class Plugin
     {
         var e=b.GoalEnemy;
         return e!=null&&e.EnemyKnown&&e.EnemyProfileId==r.Policy.Trace?.Target&&e.KnownPlaces.LastKnownPosition.HasValue
-            &&System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e)==r.TargetInstance
             &&Time.time-r.EvidenceAt>=0&&Time.time-r.EvidenceAt<r.ContactLimit
             &&(DP(e.KnownPlaces.LastKnownPosition.Value)-r.Known).Length<=2
             &&Math.Abs(Time.time-e.TimeSinceLastKnownUpdated-r.EvidenceAt)<=.25;
@@ -179,7 +178,7 @@ public sealed partial class Plugin
         {AbandonDoorResume(s,"resume-native-ownership-lost");return true;}
         if(!OriginalDoorContact(b,r)||ClearResources(b).Length>0)
         {AbandonDoorResume(s,"resume-contact-or-resources-changed");return true;}
-        if(!doorBudget.TryBegin(Time.frameCount))return true;
+        if(!doorBudget.TryBegin(Time.frameCount,b))return true;
         doorClock.Restart();
         try
         {

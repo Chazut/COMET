@@ -109,7 +109,7 @@ public sealed partial class Plugin
             if(!ValidPoint(start)||!ValidPoint(direction)||direction.sqrMagnitude<.5f||!float.IsFinite(distance)||distance<.05||distance>500)
                 return TickSquadFire(s,frame);
             direction.Normalize();var end=start+direction*distance;frame.Muzzle=DP(start);frame.End=DP(end);
-            if(!doorBudget.TryBegin(Time.frameCount))return TickSquadFire(s,frame);
+            if(!doorBudget.TryBegin(Time.frameCount,b))return TickSquadFire(s,frame);
             doorClock.Restart();try {
                 var members=new Dictionary<string,BotComponent>();bool complete=true;
                 foreach(var mate in b.Squad.Members.Values)

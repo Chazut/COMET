@@ -88,6 +88,8 @@ public sealed class DoorAmbushTrace
 // Detached execution evidence. Histories survive release and door/target changes, not raid disposal.
 public sealed class DoorAmbush
 {
+    public readonly PreparationWait Preparation=new();
+
     private readonly Dictionary<string,(double at,double evidence)> history=new();
     private double start,deadline,holdAt=-1,memoryUntil,last;
     private DoorPoint origin;
@@ -102,7 +104,7 @@ public sealed class DoorAmbush
         if(!c.Enabled||!known.Finite||!Valid(roll)||roll<0||roll>=1||!Valid(memoryLimit)||memoryLimit<=age
             ||!Valid(sharedHeld)||sharedHeld<0||!Valid(sharedLimit)||sharedLimit<=sharedHeld
             ||!c.Waits.TryGetValue(personality,out var wait)||!CanBegin(target,age,now,c))return false;
-        history[target]=(now,now-age);start=last=now;holdAt=-1;deadline=now+sharedLimit-sharedHeld;memoryUntil=now-age+memoryLimit;
+        Preparation.Clear();history[target]=(now,now-age);start=last=now;holdAt=-1;deadline=now+sharedLimit-sharedHeld;memoryUntil=now-age+memoryLimit;
         Trace=new(){Target=target,Source=source,Personality=personality,KnownX=known.X,KnownY=known.Y,KnownZ=known.Z,
             EvidenceAt=now-age,ContactAge=age,WaitDuration=wait.Min+(wait.Max-wait.Min)*roll,SharedRemaining=sharedLimit-sharedHeld,
             Remaining=Math.Min(deadline,memoryUntil)-now};Active=true;return true;
@@ -162,7 +164,7 @@ public sealed class DoorAmbush
         else if((place-new DoorPoint(t.KnownX,t.KnownY,t.KnownZ)).Length>2||Math.Abs(now-age-t.EvidenceAt)>.25)End("ambush-new-evidence-reconsider");
         else if(t.SharedRemaining<=0)End("ambush-shared-hold-limit");
         else if(holdAt>=0&&t.HoldElapsed>=t.WaitDuration)End("ambush-wait-complete-reconsider");
-        else if(t.State=="planning"&&now-start>1)End("ambush-planning-expired");
+        else if(t.State=="planning"&&now-start>3+Preparation.Seconds)End("ambush-planning-expired");
         else if(t.State=="approaching"&&now-start>approachLimit)End("ambush-approach-timeout");
         return Active;
     }

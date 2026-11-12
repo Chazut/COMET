@@ -124,7 +124,7 @@ public sealed partial class Plugin
         var r=s.CombatLean;var right=b.Player.Transform.right;
         bool moved=Vector3.Distance(b.Position,r.SafetyPosition)>.15f||Vector3.Angle(right,r.SafetyRight)>15;
         if(Time.time-r.SafetyAt>=.1f||moved) {
-            if(doorBudget.TryBegin(Time.frameCount)) {
+            if(doorBudget.TryBegin(Time.frameCount,b)) {
                 doorClock.Restart();
                 try {
                     var head=b.Player.PlayerBones.Head.position;

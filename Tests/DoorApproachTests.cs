@@ -48,7 +48,7 @@ internal static class DoorApproachTests
             var point=DoorPolicy.Stack(g,bot,side,variant);var path=new[]{bot,point};
             Check(DoorPolicy.Placement(g,bot,point,point,path,true)=="","both frame sides and narrow-corridor fallback");
             Check(DoorPolicy.Placement(g,bot,point,point,path,false)!="","partial path refused");
-            Check(DoorPolicy.Placement(g,bot,point,point+new DoorPoint(.4,0,0),path,true)=="door-bad-navmesh-sample","sample cannot jump wall gap");
+            Check(DoorPolicy.Placement(g,bot,point,point+new DoorPoint(.7,0,0),path,true)=="door-bad-navmesh-sample","sample cannot jump wall gap");
             Check(DoorPolicy.Placement(g,bot,point,point+new DoorPoint(0,3,0),path,true)!="","sample cannot jump floor");
             Check(DoorPolicy.Placement(g,bot,point,point,new[]{bot,new DoorPoint(0,0,1),point},true)=="door-route-crosses-room-or-floor","stack route cannot enter room first");
             Check(DoorPolicy.Placement(g,bot,point,point,new[]{bot,new DoorPoint(20,0,-3),point},true)=="door-route-detour","long detour refused");
@@ -71,7 +71,7 @@ internal static class DoorApproachTests
         Check(DoorPolicy.Best(new[]{new DoorCandidate{Eligible=true,Score=double.NaN},bad})==null,"invalid score not eligible");
         DoorApproach Active(){var r=new DoorApproach();r.Begin("enemy","heard",contact,2,10);r.Trace!.Candidates.Add(good);r.Request(good,bot,10);r.Accept(true,10);return r;}
         var runtime=new DoorApproach();runtime.Begin("enemy","heard",contact,2,10);runtime.Request(good,bot,10);
-        Check(!runtime.PlanningExpired(11)&&runtime.PlanningExpired(11.01),"pending work expires even if Search stops invoking its callback");
+        Check(!runtime.PlanningExpired(13)&&runtime.PlanningExpired(13.01),"pending work expires even if Search stops invoking its callback");
         Check(runtime.PlanningExpired(9)&&runtime.PlanningExpired(double.NaN),"pending work rejects invalid clocks");
         Check(runtime.Trace!.Requested&&!runtime.Trace.MovementAccepted&&!runtime.Active,"request is not movement");runtime.Accept(false,10);Check(!runtime.Active&&!runtime.Trace.Arrived,"mover refusal cannot fabricate arrival");
         runtime=Active();Check(runtime.Observe("enemy",contact,bot,2,10.5,12,true,false)&&!runtime.Trace!.Moved,"accepted stationary path not reported as movement");
@@ -90,8 +90,9 @@ internal static class DoorApproachTests
         var progress=new PlanProgress(new());
         bool failed=false;for(int i=0;i<28;i++)failed|=progress.Observe(new(){Now=10+i*.25,Owned=true,HasThreat=true,Action="Search",Attempt="frame",Intent="known",Route="verified",Remaining=4,Target="enemy"});
         Check(failed&&progress.Blocked("frame",17)&&progress.Blocked("known",17),"A12 interrupts stuck Search and blocks frame/intent");
-        var budget=new DoorWorkBudget();Check(budget.TryBegin(1)&&budget.TryBegin(1)&&!budget.TryBegin(1),"shared two-unit cap");
-        Check(budget.TryBegin(2),"next frame renews budget");budget.Charge(.5);Check(!budget.TryBegin(2),"soft time cap");budget.Clear();Check(budget.TryBegin(2),"raid resets budget");budget.Charge(double.NaN);Check(!budget.TryBegin(2),"unknown timing fails closed");
+        var budget=new DoorWorkBudget();bool Begin(int frame)=>budget.TryBegin(frame);
+        Check(Begin(1)&&Begin(1)&&!Begin(1),"shared two-unit cap");
+        Check(Begin(2),"queued caller gets next frame budget");budget.Charge(.5);Check(!Begin(2),"soft time cap");budget.Clear();Check(Begin(2),"raid resets budget");budget.Charge(double.NaN);Check(!Begin(2),"unknown timing fails closed");
         runtime=Active();using(var doc=JsonDocument.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(new{doorApproach=runtime.Trace},Comet.Client.Diagnostics.Json)))
             Check(doc.RootElement.GetProperty("doorApproach").GetProperty("movementAccepted").GetBoolean(),"camel case telemetry contract");
         using(var pe=new PEReader(File.OpenRead("Client/bin/Release/netstandard2.1/COMET.dll")))
@@ -100,7 +101,8 @@ internal static class DoorApproachTests
             List<string> Calls(string method)=>FloorHearingTests.ReadIl(pe.GetMethodBody(md.TypeDefinitions.Select(md.GetTypeDefinition).Single(x=>md.GetString(x.Name)=="Plugin").GetMethods().Select(md.GetMethodDefinition).Single(x=>md.GetString(x.Name)==method).RelativeVirtualAddress).GetILBytes()!)
                 .Where(x=>x.op==OpCodes.Call||x.op==OpCodes.Callvirt).Select(x=>FloorHearingTests.Name(md,(int)x.operand!)).ToList();
             foreach(var required in new[]{"IsSupportedAi","get_Authority","Ghost","get_BotActive","get_CurrentSelfDecision","get_CurrentSquadDecision","get_EnemyKnown","Gate"})Check(Calls("DoorGate").Contains(required),"actual scope contract: "+required);
-            foreach(var required in new[]{"CanGoToPoint","Placement","OverlapCapsuleNonAlloc","Raycast","Clear"})Check(Calls("ValidateDoor").Contains(required),"native validation contract: "+required);
+            foreach(var required in new[]{"CanGoToPoint","Placement","TacticalVolume"})Check(Calls("ValidateDoor").Contains(required),"native validation contract: "+required);
+            foreach(var required in new[]{"OverlapCapsuleNonAlloc","CapsuleCastNonAlloc","Raycast","Clear"})Check(Calls("TacticalVolume").Contains(required),"shared body validation contract: "+required);
             Check(Calls("StepDoor").Contains("WalkToPointByWay")&&Calls("FinishDoor").Contains("OwnsDoorPath")&&Calls("FinishDoor").Contains("Cancel"),"native movement and scoped cancellation wired");
             Check(Calls("Release").Contains("EndDoor")&&Calls("Update").Contains("RefreshDoor"),"release and sweep lifecycle wired");
             foreach(var method in new[]{"DoorGate","StartDoorPlan","ValidateDoor","StepDoor"})foreach(var banned in new[]{"get_EnemyPosition","get_EnemyPlayer","FindObjectsOfType","Teleport","DoThrow","set_DoorState"})Check(!Calls(method).Contains(banned),"no live position / global scene / forced door: "+method+":"+banned);

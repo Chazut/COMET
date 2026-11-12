@@ -119,7 +119,7 @@ public sealed class CombatStep
         Trace.ValidFor=Math.Min(.4,Trace.Remaining);
         if(f.Now>=Deadline){End(Trace.MovementObserved?"movement-sequence-finished":"movement-no-motion-observed",f.Now);return false;}
         if(Trace.Requested&&!firingPause&&f.Now-progressAt>=.9){End("movement-stalled",f.Now);return false;}
-        if(!Trace.Requested&&f.Now-started>=.5){End("movement-planning-timeout",f.Now);return false;}
+        if(!Trace.Requested&&f.Now-started>=2){End("movement-planning-timeout",f.Now);return false;}
         return true;
     }
     public bool Request(DoorPoint goal,string direction,double now,double durationRoll,CombatStepConfig c)
@@ -145,15 +145,16 @@ public sealed class CombatStep
         progressAt=now;progress=previous;StepDeadline=now;stepTravel=0;stepCounted=true;
     }
     public static bool Inside(DoorPoint anchor,DoorPoint p,double radius)=>Finite(anchor)&&Finite(p)&&DoorPolicy.Finite(radius)&&radius>0
-        &&Math.Abs(p.Y-anchor.Y)<=.3&&(p-anchor).Length<=radius;
+        &&Math.Abs(p.Y-anchor.Y)<=.6&&(p-anchor).Length<=radius;
     public static bool Route(DoorPoint anchor,DoorPoint start,DoorPoint end,DoorPoint[] route,bool complete,double radius)
     {
-        if(!complete||route==null||route.Length<2||route.Length>4||!Inside(anchor,start,radius)||!Inside(anchor,end,radius)
-            ||(route[0]-start).Length>.12||(route[route.Length-1]-end).Length>.12||(end-start).Length<.25)return false;
+        if(!complete||route==null||route.Length<2||route.Length>12||!Inside(anchor,start,radius)||!Inside(anchor,end,radius)
+            ||(route[0]-start).Length>.4||(route[route.Length-1]-end).Length>.4||(end-start).Length<.25)return false;
         double length=0;
         for(int i=0;i<route.Length;i++) {if(!Inside(anchor,route[i],radius))return false;if(i>0)length+=(route[i]-route[i-1]).Length;}
-        return length<=(end-start).Length*1.15+.05;
+        return length<=(end-start).Length*1.75+.3;
     }
+    public static bool UsefulCover(int mask)=>mask>=0&&mask<=7&&(mask&3)!=0;
     public static bool PreservesProtection(int before,int middle,int after)=>before>=0&&before<=7&&middle>=0&&middle<=7&&after>=0&&after<=7
         &&(middle&before)==before&&(after&before)==before;
     private static bool Finite(DoorPoint p)=>DoorPolicy.Finite(p.X)&&DoorPolicy.Finite(p.Y)&&DoorPolicy.Finite(p.Z);

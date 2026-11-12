@@ -69,8 +69,8 @@ public sealed partial class Plugin
             var line=aim-muzzle;float distance=line.magnitude;
             if(!CornerChase.Point(DP(muzzle))||!CornerChase.Point(DP(aim))||!CornerChase.Point(DP(direction))||distance<.1f||distance>500||direction.sqrMagnitude<.5f)
             {r.Trace=new(){State="blocked",Reason="geometry-invalid-ray",Fresh=true};CompleteGeometry(b,s,muzzle,aim,direction,key,consumer,target,weapon,ammo,false);return r.Trace;}
-            if(!doorBudget.TryBegin(Time.frameCount))
-            {r.Trace=new();CompleteGeometry(b,s,muzzle,aim,direction,key,consumer,target,weapon,ammo,false);return r.Trace;}
+            if(!doorBudget.TryBegin(Time.frameCount,b))
+            {r.Trace=new(){Reason="geometry-budget-pending"};CompleteGeometry(b,s,muzzle,aim,direction,key,consumer,target,weapon,ammo,false);return r.Trace;}
             var watch=System.Diagnostics.Stopwatch.StartNew();
             try {
                 int mask=BallisticsCalculatorConstants.StaticObjectsHitMask | (1<<LayerMask.NameToLayer("Deadbody"));

@@ -134,7 +134,7 @@ public sealed partial class Plugin
         if(EmergencyPriority(b,s)){EndDoorEmergency(s,"emergency-native-priority");return false;}
         if(!r.Planned)
         {
-            if(!doorBudget.TryBegin(Time.frameCount))return false;
+            if(!doorBudget.TryBegin(Time.frameCount,b))return false;
             doorClock.Restart();try{PlanDoorEmergency(b,s);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
             if(!r.Planned||!r.Policy.Active)return false;
         }
@@ -265,7 +265,7 @@ public sealed partial class Plugin
             {EndDoorEmergency(s,"emergency-path-ownership-lost");return true;}
             if(!complete&&(r.Path==null||Time.time>=r.NextCheck))
             {
-                if(!doorBudget.TryBegin(Time.frameCount))
+                if(!doorBudget.TryBegin(Time.frameCount,b))
                 {if(Time.time-r.NextCheck>.5)EndDoorEmergency(s,"emergency-validation-budget-expired");return false;}
                 doorClock.Restart();string why;
                 try{why=EmergencyRoute(b,r,r.Destination,out var refreshed);if(r.Path==null&&why.Length==0)r.Route=refreshed;}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
@@ -284,7 +284,7 @@ public sealed partial class Plugin
         {
             if(t.SafePosition&&Time.time>=r.NextCheck)
             {
-                if(!doorBudget.TryBegin(Time.frameCount)){if(Time.time-r.NextCheck>.5)EndDoorEmergency(s,"emergency-validation-budget-expired");return false;}
+                if(!doorBudget.TryBegin(Time.frameCount,b)){if(Time.time-r.NextCheck>.5)EndDoorEmergency(s,"emergency-validation-budget-expired");return false;}
                 doorClock.Restart();int protection;
                 try{protection=EmergencyProtection(b.Position,r.Threat);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
                 r.NextCheck=Time.time+.25f;

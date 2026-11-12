@@ -20,8 +20,7 @@ public sealed partial class Plugin
     {
         if(!CrossfireScope(b)||!config!.SquadTrade.Enabled)return "trade-out-of-scope";
         if(TradeGroup(b)!=s.Crossfire.Trade.GroupStamp)return "trade-squad-changed";
-        if(b.GoalEnemy?.IsVisible==true)return "trade-enemy-visible";
-        return CrossfireCommonBlock(b,s,true);
+        return CrossfireCommonBlock(b,s,true,allowGoalVisible:true);
     }
     private CrossfireConfig TradeMotionConfig()=>new(){Enabled=config!.Enabled&&config.SquadTrade.Enabled,Participation=100,Spacing=3,
         MaxPath=config.SquadTrade.MaxPath,StallTimeout=config.SquadTrade.StallTimeout,MoveTimeout=config.SquadTrade.Duration,HoldTimeout=config.SquadTrade.Duration,Retry=1};
@@ -29,8 +28,10 @@ public sealed partial class Plugin
     {
         var r=s.Crossfire;var a=r.Trade;var c=config!.SquadTrade;
         if(!c.Enabled||r.Policy.Active||Time.time<r.Policy.RetryAt)return false;
-        var loss=a.Memory.Take(Time.time,c);if(loss==null)return DeclineSquad(s,"S05","trade-no-ready-observed-teammate-loss");
+        var loss=a.Memory.Peek(Time.time,c);if(loss==null)return DeclineSquad(s,"S05","trade-no-ready-observed-teammate-loss");
         a.GroupStamp=loss.Group;
+        string temporary=SquadTradeBlock(b,s);
+        if(temporary.Length>0)return DeclineSquad(s,"S05","trade-memory-retained: "+temporary);
         if(!r.Policy.Begin(Time.time,TradeMotionConfig(),0))return false;
         RememberCrossfireHandoff(b,r);
         r.Maneuver=null;r.ManeuverRole=null;r.Entrance.Drop();a.DeathAt=(float)loss.At;a.Started=a.LastCallback=Time.time;a.FaceAt=-1;a.Confirmed=false;
@@ -45,11 +46,12 @@ public sealed partial class Plugin
         Enemy? chosen=null;
         foreach(var e in contacts)
         {
-            if(!e.EnemyKnown||e.IsVisible||!float.IsFinite(e.TimeSinceLastKnownUpdated)||e.TimeSinceLastKnownUpdated<0||e.TimeSinceLastKnownUpdated>c.ContactAge
+            if(!e.EnemyKnown||!float.IsFinite(e.TimeSinceLastKnownUpdated)||e.TimeSinceLastKnownUpdated<0||e.TimeSinceLastKnownUpdated>c.ContactAge
                 ||e.KnownPlaces.LastKnownPosition is not Vector3 k||!ValidPoint(k)||Vector3.Distance(b.Position,k)>c.MaxDistance)continue;
             if(chosen==null||e.EnemyProfileId==loss.AssociatedContact||chosen.EnemyProfileId!=loss.AssociatedContact&&e.TimeSinceLastKnownUpdated<chosen.TimeSinceLastKnownUpdated)chosen=e;
         }
         if(chosen==null){EndCrossfire(b,s,"trade-no-fresh-known-sector");return false;}
+        a.Memory.Consume(loss);
         bool associated=loss.AssociatedContact.Length>0&&chosen.EnemyProfileId==loss.AssociatedContact;
         RefreshFear(b,s);bool aggressive=b.Info.PersonalitySettings.Rush.CanRushEnemyReloadHeal;
         d.Roll=jumpRandom.NextDouble()*100;d.Chance=aggressive?c.AggressiveChance:c.OtherChance;
@@ -136,7 +138,7 @@ public sealed partial class Plugin
         if(t.State=="planning"&&b.Player.MovementContext.IsGrounded)
         {
             if(Vector3.Distance(b.Position,r.Origin)>1){EndCrossfire(b,s,"trade-origin-moved");return false;}
-            if(r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount))
+            if(r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount,b))
             {r.ProbeFrame=Time.frameCount;doorClock.Restart();try{ProbeSquadTrade(b,s);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}}
         }
         if(!r.Policy.Active)return false;

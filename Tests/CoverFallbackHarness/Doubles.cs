@@ -56,7 +56,7 @@ namespace Comet.Client {
  internal class Sink {public void Write(string s){}}
  internal static class Diagnostics {public static string Serialize(object o)=>Newtonsoft.Json.JsonConvert.SerializeObject(o,new Newtonsoft.Json.JsonSerializerSettings{ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()});}
  internal class BotState {public string Id="instance";public PlanProgress Progress=new(new());}
- internal class Budget {public bool Available=true;private int frame=-1,used;public bool TryBegin(int f){if(f!=frame){frame=f;used=0;}if(!Available||used>=2)return false;used++;return true;}public void Charge(double ms){}}
+ internal class Budget {public bool Available=true;private int frame=-1,used;public bool TryBegin(int f,object? owner=null){if(f!=frame){frame=f;used=0;}if(!Available||used>=2)return false;used++;return true;}public void Charge(double ms){}}
  public sealed partial class Plugin {
   internal static Plugin? Instance;internal CometConfig config=new();internal bool Authority=true,IsGhost;internal string session="fallback-test";internal long sequence;
   internal Sink? diagnostics=new();internal Dictionary<BotComponent,BotState> states=new();internal Budget doorBudget=new();private System.Diagnostics.Stopwatch doorClock=new();

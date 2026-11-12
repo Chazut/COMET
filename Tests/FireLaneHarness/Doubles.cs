@@ -40,7 +40,7 @@ namespace Comet.Client {
  internal class Toggle{public bool Active;}internal class OtherMove{public Toggle Policy=new();}internal class Reservation{public object? Lease;}
  internal class BotState{public string ProfileId="pmc-1",Name="Mover",Id="s07-instance";public FireLaneRuntime FireLane=new();public OtherMove CombatStep=new(),CornerPeek=new(),CornerChase=new(),CornerPrefire=new(),RetreatWeave=new(),Entry=new(),RoomClear=new(),Ambush=new();public Reservation Reservation=new();}
  internal static class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.IsSupportedBot;}
- internal class Budget{public bool Allow=true;public int Calls;public bool TryBegin(int frame){Calls++;return Allow;}public void Charge(double n){}}
+ internal class Budget{public bool Allow=true;public int Calls;public bool TryBegin(int frame,object? owner=null){Calls++;return Allow;}public void Charge(double n){}}
  internal class Log{public List<string> Warnings=new();public void LogWarning(string s)=>Warnings.Add(s);}
  internal class Sink{public List<string> Events=new();public void Write(string s)=>Events.Add(s);}
  internal static class Diagnostics{ internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}

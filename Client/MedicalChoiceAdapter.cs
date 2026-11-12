@@ -104,7 +104,7 @@ public sealed partial class Plugin
             if(r.Policy.Active){Decision=MedicalAction(r.Policy.Trace!.Choice);__result=true;return false;}
             if(Time.time<r.Next)return false;
             r.Next=Time.time+(float)p.config!.MedicalChoice.Interval;
-            if(!p.doorBudget.TryBegin(Time.frameCount))return false;
+            if(!p.doorBudget.TryBegin(Time.frameCount,b))return false;
             p.doorClock.Restart();
             try
             {

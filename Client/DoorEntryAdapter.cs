@@ -108,7 +108,7 @@ public sealed partial class Plugin
             if(r.Policy.Trace!.State!="interacting"&&(JumpInteractionState(b)||b.Player.CurrentState.Name==EPlayerState.BreachDoor))return "entry-foreign-interaction";
             var interacting=b.Player.MovementContext.InteractionInfo.WorldInteractiveObject;
             if(r.Policy.Trace.State=="interacting"&&interacting!=null&&!ReferenceEquals(interacting,r.Door?.Data.Door))return "entry-foreign-interaction";
-            if(e.EnemyProfileId!=r.Policy.Trace!.Target||System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e)!=r.EnemyInstance
+            if(e.EnemyProfileId!=r.Policy.Trace!.Target
                 ||Vector3.Distance(e.KnownPlaces.LastKnownPosition.Value,r.Contact)>2)return "entry-contact-changed";
             if(b.Decision.CurrentCombatDecision!=r.Decision)return "entry-action-replaced";
             context=r.Policy.Trace.Context;
@@ -129,7 +129,7 @@ public sealed partial class Plugin
         if(b.DoorOpener.Interacting||b.BotOwner.DoorOpener.Interacting||JumpInteractionState(b)||!NativeEntryAllowed(door.Data.Door,door.Data.Door.GetBreakInParameters(b.Position).InteractionPosition)
             ||fikaPresent&&door.Data.Door.ForceLocalInteraction
             ||b.Player.Physical.Stamina.NormalValue*100<config!.DoorEntry.MinimumStamina)return RefuseDoorEntry(b,s,door,context,"entry-door-or-resources-unavailable");
-        if(!doorBudget.TryBegin(Time.frameCount))return false;
+        if(!doorBudget.TryBegin(Time.frameCount,b))return false;
         doorClock.Restart();
         try
         {
@@ -187,7 +187,6 @@ public sealed partial class Plugin
         var door=r.Door!.Data.Door;
         if(door==null||!TryDoorGeometry(r.Door.Data,out var g)||(g.Center-r.Door.Geometry.Center).Length>.1)return "entry-door-frame-changed";
         if(door.DoorState!=EDoorState.Shut&&door.DoorState!=EDoorState.Open&&door.DoorState!=EDoorState.Breaching&&door.DoorState!=EDoorState.Interacting)return "entry-door-unavailable";
-        bool Ignore(Collider col)=>col==null||ReferenceEquals(col.GetComponentInParent<Player>(),b.Player)||ReferenceEquals(col.GetComponentInParent<Door>(),door);
         try
         {
             foreach(var path in new[]{r.Approach!,r.Through!})
@@ -195,13 +194,11 @@ public sealed partial class Plugin
                 var corners=path.corners;
                 for(int n=0;n<corners.Length;n++)
                 {
-                    var point=corners[n];int count=Physics.OverlapCapsuleNonAlloc(point+Vector3.up*.4f,point+Vector3.up*1.45f,.25f,doorOccupants,~0,QueryTriggerInteraction.Ignore);
-                    if(count>=doorOccupants.Length)return "entry-occupied-uncertain";
-                    for(int i=0;i<count;i++)if(!Ignore(doorOccupants[i]))return "entry-approach-or-exit-blocked";
+                    var point=corners[n];var check=TacticalDoorClearance(b,point+Vector3.up*.4f,point+Vector3.up*1.45f,.25f,door,default);
+                    if(check.Length>0)return "entry-approach-or-exit-"+check;
                     if(n==0)continue;var delta=point-corners[n-1];
-                    count=Physics.CapsuleCastNonAlloc(corners[n-1]+Vector3.up*.4f,corners[n-1]+Vector3.up*1.45f,.25f,delta.normalized,jumpHits,delta.magnitude,~0,QueryTriggerInteraction.Ignore);
-                    if(count>=jumpHits.Length)return "entry-clearance-uncertain";
-                    for(int i=0;i<count;i++)if(!Ignore(jumpHits[i].collider))return "entry-corridor-blocked";
+                    check=TacticalDoorClearance(b,corners[n-1]+Vector3.up*.4f,corners[n-1]+Vector3.up*1.45f,.25f,door,delta);
+                    if(check.Length>0)return "entry-corridor-"+check;
                 }
             }
             // Check the native leaf arc; do not reject the
@@ -212,9 +209,8 @@ public sealed partial class Plugin
                 var rotation=door.GetDoorRotation(Mathf.Lerp(door.CloseAngle,door.OpenAngle*swing,sample/6f));
                 var edge=rotation*WorldInteractiveObject.GetRotationAxis(door.DoorForward,door.transform);
                 var hinge=door.transform.position;hinge.y=(float)g.Center.Y+1;
-                int countSwing=Physics.OverlapCapsuleNonAlloc(hinge+edge*.25f,hinge+edge*(float)(g.HalfWidth*1.8),.08f,doorOccupants,~0,QueryTriggerInteraction.Ignore);
-                if(countSwing>=doorOccupants.Length)return "entry-swing-uncertain";
-                for(int i=0;i<countSwing;i++)if(!Ignore(doorOccupants[i]))return "entry-swing-blocked";
+                var check=TacticalDoorClearance(b,hinge+edge*.25f,hinge+edge*(float)(g.HalfWidth*1.8),.08f,door,default);
+                if(check.Length>0)return "entry-swing-"+check;
             }
             return "";
         }
@@ -240,7 +236,7 @@ public sealed partial class Plugin
                 ||b.Mover.ActivePath==null&&r.OwnedPath.Status!=EBotMoveStatus.Complete)){EndDoorEntry(s,"entry-route-replaced");return;}
             if(Time.time-r.LastSafety>=.2f)
             {
-                if(!doorBudget.TryBegin(Time.frameCount)){if(Time.time-r.LastSafety>.5f)EndDoorEntry(s,"entry-safety-budget-expired");return;}
+                if(!doorBudget.TryBegin(Time.frameCount,b)){if(Time.time-r.LastSafety>.5f)EndDoorEntry(s,"entry-safety-budget-expired");return;}
                 doorClock.Restart();try{gate=EntrySafety(b,r);r.LastSafety=Time.time;}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
                 if(gate.Length>0){EndDoorEntry(s,gate);return;}
             }

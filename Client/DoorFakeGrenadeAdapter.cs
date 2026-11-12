@@ -94,9 +94,8 @@ public sealed partial class Plugin
         if(config?.Enabled!=true||config.DoorApproach.Enabled!=true||c==null||(t.Kind=="grenade"?!c.Enabled:!config.DoorFakeMedical.Enabled||(t.Kind=="stim"&&!config.DoorFakeMedical.Stimulators))||!FakeScope(b))return "fake-out-of-scope";
         if(r.AmbushParent)
         {if(!s.Ambush.Policy.Active)return "fake-ambush-ended";string gate=AmbushGate(b,s);if(gate.Length>0)return gate;}
-        else if(s.ActiveLabel!="COMET:Search"||s.Feature!="A01"||s.Decision!="Search"||!b.SAINLayersActive||b.CurrentAction?.GetType().Name!="SearchAction"
-            ||b.Decision.CurrentCombatDecision!=ECombatDecision.Search)return "fake-search-not-owned";
-        if(e==null||!e.EnemyKnown||e.EnemyProfileId!=t.Target||System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e)!=r.TargetInstance
+        else if(!TacticalDoorSearch(b,s))return "fake-search-not-owned";
+        if(e==null||!e.EnemyKnown||e.EnemyProfileId!=t.Target
             ||e.KnownPlaces.LastKnownPosition is not Vector3 known||e.TimeSinceLastKnownUpdated>c.ContactLifetime
             ||(DP(known)-new DoorPoint(t.KnownX,t.KnownY,t.KnownZ)).Length>2)return "fake-contact-changed-or-expired";
         t.ContactAge=e.TimeSinceLastKnownUpdated;
@@ -176,7 +175,7 @@ public sealed partial class Plugin
             if(gate.Length>0)r.Policy.Abort(gate,Time.time);
             else if(Time.time>=r.NextSafety)
             {
-                if(doorBudget.TryBegin(Time.frameCount))
+                if(doorBudget.TryBegin(Time.frameCount,b))
                 {
                     doorClock.Restart();bool covered;
                     try{covered=FakeCover(b,s);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}

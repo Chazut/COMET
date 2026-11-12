@@ -133,7 +133,7 @@ public sealed partial class Plugin
         try
         {
             if(r.Door!=null||r.Fault||p.config?.DoorRecovery.Enabled!=true||Time.time<r.Next||!p.TransitScoped(___Bot,s,__instance,true))return;
-            if(!p.doorBudget.TryBegin(Time.frameCount))return;
+            if(!p.doorBudget.TryBegin(Time.frameCount,___Bot))return;
             var timer=System.Diagnostics.Stopwatch.StartNew();
             try
             {
@@ -192,7 +192,7 @@ public sealed partial class Plugin
             {EndDoorRecovery(s,"recovery-ownership-ended");return;}
             if(r.Epoch!.Generation!=r.Generation||!ReferenceEquals(r.Interaction,recoveryInteraction.GetValue(r.Door)))
             {EndDoorRecovery(s,"recovery-newer-interaction");return;}
-            if(Time.time<r.Next||!doorBudget.TryBegin(Time.frameCount))return;
+            if(Time.time<r.Next||!doorBudget.TryBegin(Time.frameCount,b))return;
             var timer=System.Diagnostics.Stopwatch.StartNew();
             try{SampleDoorRecovery(b,s);r.Next=Time.time+(float)config.DoorRecovery.SampleInterval;}
             finally{timer.Stop();doorBudget.Charge(timer.Elapsed.TotalMilliseconds);}

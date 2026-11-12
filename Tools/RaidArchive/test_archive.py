@@ -152,6 +152,14 @@ class ArchiveTests(unittest.TestCase):
     def test_summary_is_evidence_not_execution(self):
         self.add(event(1,'summary',feature='T02'));self.finish();analyze(self.c,'r')
         self.assertEqual(self.m('T02')['events'],1);self.assertEqual(self.m('T02')['started'],0)
+    def test_tactical_probe_counters_are_retained_without_inventing_actions(self):
+        self.add(event(1,'summary',kind='tactical-probes',probes={'clearanceRetries':12,'deferred':24},indexedDoorLinks=80,doorIndexComplete=True))
+        self.finish();report=analyze(self.c,'r')
+        summary=next(x for x in report['summaries'] if x.get('kind')=='tactical-probes')
+        self.assertEqual(summary['probes']['clearanceRetries'],12)
+        self.assertEqual(summary['probes']['deferred'],24)
+        self.assertEqual(report['attempts'],0)
+        self.assertEqual(self.m('D01')['started'],0)
     def test_blob_roundtrip_and_integrity(self):
         p=self.root/'original';p.write_bytes(b'abc\x00'*100);sha,n=store_file(self.archive,p)
         with read_blob(self.archive,sha) as f:self.assertEqual(f.read(),p.read_bytes())

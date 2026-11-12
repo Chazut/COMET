@@ -152,8 +152,7 @@ public sealed partial class Plugin
     {
         var r=s.RoomClear;var t=r.Policy.Trace!;var e=b.GoalEnemy;
         if(config?.Enabled!=true||!config.DoorRoomClear.Enabled||!config.DoorApproach.Enabled||!FakeScope(b))return "clear-out-of-scope";
-        if(s.ActiveLabel!="COMET:Search"||s.Feature!="A01"||s.Decision!="Search"||!b.SAINLayersActive
-            ||b.CurrentAction?.GetType().Name!="SearchAction"||b.Decision.CurrentCombatDecision!=ECombatDecision.Search)return "clear-search-not-owned";
+        if(!TacticalDoorSearch(b,s))return "clear-search-not-owned";
         if(t.Mode=="search")
         {
             if(!config.DoorSearchClear.Enabled)return "search-clear-disabled";
@@ -161,7 +160,7 @@ public sealed partial class Plugin
             string search=r.Policy.SearchContact(e?.TimeSinceLastKnownUpdated??-1,Time.time,e?.EnemyKnown==true,config.ContactLifetime,config.DoorApproach.ContactLifetime);
             if(search.Length>0)return search;
         }
-        if(e==null||!e.EnemyKnown||e.EnemyProfileId!=t.Target||System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e)!=r.TargetInstance
+        if(e==null||!e.EnemyKnown||e.EnemyProfileId!=t.Target
             ||e.KnownPlaces.LastKnownPosition is not Vector3 known||(DP(known)-new DoorPoint(t.KnownX,t.KnownY,t.KnownZ)).Length>2)return "clear-contact-changed";
         t.ContactAge=e.TimeSinceLastKnownUpdated;
         if(e.IsVisible||b.EnemyController.VisibleEnemies.Count>0)return "clear-visible-contact-native-combat";
@@ -237,7 +236,7 @@ public sealed partial class Plugin
             if(!r.Policy.Active){FinishDoorClear(s);return true;}
         }
         if(Time.time<r.NextCheck){b.Steering.LookToPoint(VP(new(t.KnownX,t.KnownY,t.KnownZ))+Vector3.up*1.2f);return false;}
-        if(!doorBudget.TryBegin(Time.frameCount))
+        if(!doorBudget.TryBegin(Time.frameCount,b))
         {if(Time.time-r.LastCheck>.5f){EndDoorClear(s,"clear-safety-budget-expired");return true;}return false;}
         doorClock.Restart();
         try

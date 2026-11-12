@@ -66,7 +66,7 @@ public sealed partial class Plugin
                 var r=s.QuickReload;
                 // Another caller cannot start an overlapping native operation, even before animation observation.
                 if(r.Policy.Active){callback?.Fail("COMET quick reload already pending");return;}
-                if(!r.Fault&&p.doorBudget.TryBegin(Time.frameCount))
+                if(!r.Fault&&p.doorBudget.TryBegin(Time.frameCount,b))
                 {
                     p.doorClock.Restart();
                     try{quick=r.Policy.Evaluate(p.QuickReloadFrameFor(b,s,firearm,magazine),p.config!.QuickReload);}

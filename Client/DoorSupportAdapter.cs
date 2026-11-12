@@ -60,9 +60,7 @@ public sealed partial class Plugin
         if(!leader.Squad.Members.Values.Any(m=>ReferenceEquals(m,b)))return "support-squad-changed";
         var e=b.GoalEnemy;var le=leader.GoalEnemy;
         if(e==null||le==null||e.EnemyProfileId!=o.Target||le.EnemyProfileId!=o.Target||!e.EnemyKnown||!e.KnownPlaces.LastKnownPosition.HasValue
-            ||e.TimeSinceLastKnownUpdated>Math.Min(config.ContactLifetime,config.DoorApproach.ContactLifetime)
-            ||System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(le)!=o.TargetInstance)return "support-contact-not-shared";
-        if(s.Support!=null&&System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e)!=s.Support.TargetInstance)return "support-target-instance-changed";
+            ||e.TimeSinceLastKnownUpdated>Math.Min(config.ContactLifetime,config.DoorApproach.ContactLifetime))return "support-contact-not-shared";
         if(e.IsVisible||b.EnemyController.VisibleEnemies.Count>0)return "support-visible-threat";
         if(Vector3.Distance(b.Position,VP(o.Door.Geometry.Center))>config.DoorSupport.MaxDistance)return "support-too-far";
         if(b.Flashed.IsFlashed||b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed||s.Fear.Current.Panic||b.Medical.TimeSinceShot<3
@@ -117,7 +115,7 @@ public sealed partial class Plugin
         if(!states.TryGetValue(b,out var s)){s=new BotState(b,config,session);states.Add(b,s);}
         string gate=SupportGate(b,s,o);if(gate.Length>0){SupportRefusal(o,s,role,gate);return;}
         if(s.Support!=null)return;
-        if(!doorBudget.TryBegin(Time.frameCount))return;
+        if(!doorBudget.TryBegin(Time.frameCount,b))return;
         doorClock.Restart();
         try
         {
@@ -230,7 +228,7 @@ public sealed partial class Plugin
         var r=s.Support;if(r==null)return true;r.LastCallback=Time.time;RefreshDoorSupport(b,s);if(s.Support==null)return true;
         var t=r.Trace;if(!t.Accepted)return true;
         if(Time.time<r.NextCheck)return false;
-        if(!doorBudget.TryBegin(Time.frameCount))
+        if(!doorBudget.TryBegin(Time.frameCount,b))
         {if(Time.time-r.LastCheck>.5)EndDoorSupport(s,"support-validation-budget-expired");return s.Support==null;}
         doorClock.Restart();
         try

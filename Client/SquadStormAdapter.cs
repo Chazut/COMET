@@ -25,12 +25,11 @@ public sealed partial class Plugin
         if(!CrossfireScope(b)||!config!.SquadStorm.Enabled)return "storm-out-of-scope";
         var e=b.GoalEnemy;var r=s.Crossfire;
         if(e==null||!e.EnemyKnown||e.KnownPlaces.LastKnownPosition is not Vector3 k||!ValidPoint(k))return "storm-no-known-contact";
-        if(e.IsVisible)return "storm-visible-native-combat";
         if(!float.IsFinite(e.TimeSinceLastKnownUpdated)||e.TimeSinceLastKnownUpdated<0||e.TimeSinceLastKnownUpdated>config.SquadStorm.ContactAge)return "storm-stale-contact";
-        if(r.Storm.Plan!=null&&r.Policy.Active&&(e.EnemyProfileId!=r.Contact||RuntimeHelpers.GetHashCode(e)!=r.ContactInstance||Vector3.Distance(k,r.Known)>3))return "storm-contact-changed";
+        if(r.Storm.Plan!=null&&r.Policy.Active&&(e.EnemyProfileId!=r.Contact||Vector3.Distance(k,r.Known)>3))return "storm-contact-changed";
         if(ManeuverAmmo(b)<config.SquadStorm.MinimumAmmo)return "storm-low-ammo";
         RefreshFear(b,s);if(s.Fear.Current.Panic)return "storm-fear-veto";
-        return CrossfireCommonBlock(b,s);
+        return CrossfireCommonBlock(b,s,allowGoalVisible:true);
     }
     private bool TryBeginStorm(BotComponent b,BotState s)
     {
@@ -59,6 +58,9 @@ public sealed partial class Plugin
             }
             if(blocked)return DeclineSquad(s,"S06","storm-competing-tactic-or-perceived-danger");
             if(evidence==null)return DeclineSquad(s,"S06","storm-no-observed-vulnerability");
+            // Numbers matter only alongside an actually observed opening, never hidden health.
+            evidence.ApplyNumbers(candidates.Count,c.Weakness);
+            if(evidence.Score<c.Weakness)return DeclineSquad(s,"S06","storm-observed-score-below-threshold: "+evidence.Score.ToString("F2",System.Globalization.CultureInfo.InvariantCulture)+" / "+c.Weakness.ToString("F2",System.Globalization.CultureInfo.InvariantCulture));
             var previous=stormBoard.LastAttempt;plan=stormBoard.Start(group,e.EnemyProfileId,Time.time,evidence,candidates,c);
             if(plan==null&&!ReferenceEquals(previous,stormBoard.LastAttempt)&&stormBoard.LastAttempt is SquadStormPlan declined)
                 foreach(var member in declined.Members)if(b.Squad.Members.TryGetValue(member.Id,out var mate)&&states.TryGetValue(mate,out var ms))RecordStormDeclined(mate,ms,declined);
@@ -144,13 +146,14 @@ public sealed partial class Plugin
             {p.Drop(member.Id,"storm-teammate-unavailable");continue;}
             if(ReadStormEvidence(mate,ms).Danger){p.End("storm-teammate-perceived-danger");break;}
         }
+        evidence.ApplyNumbers(p.Members.Count(m=>m.Status is not ("ended" or "declined")),c.Weakness);
         if(!p.Tick(Time.time,c)||m.Status=="ended"){EndCrossfire(b,s,m.Reason.Length>0?m.Reason:p.Reason);return false;}
         r.ContactAt=Time.time-b.GoalEnemy!.TimeSinceLastKnownUpdated;t.ContactAge=b.GoalEnemy.TimeSinceLastKnownUpdated;
         if(t.Reserved&&!crossfireClaims.Renew(s.Id,Time.time)){EndCrossfire(b,s,"storm-position-expired");return false;}
         if(t.State=="planning"&&b.Player.MovementContext.IsGrounded)
         {
             if(Vector3.Distance(b.Position,r.Origin)>1){EndCrossfire(b,s,"storm-origin-moved");return false;}
-            if(r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount))
+            if(r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount,b))
             {r.ProbeFrame=Time.frameCount;doorClock.Restart();try{ProbeStorm(b,s);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}}
         }
         if(!r.Policy.Active)return false;

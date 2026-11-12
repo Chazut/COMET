@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
+  <ItemGroup><Compile Include="../Shared/PreparationWait.cs" Link="Core/PreparationWait.cs" /></ItemGroup>
   <ItemGroup><Compile Include="../Shared/PerformanceConfig.cs" Link="Core/PerformanceConfig.cs" /></ItemGroup>
   <ItemGroup><Compile Include="../Shared/CombatJournalConfig.cs" Link="Core/CombatJournalConfig.cs" />
     <Compile Include="../Shared/TacticCountersConfig.cs" Link="Core/TacticCountersConfig.cs" /></ItemGroup>

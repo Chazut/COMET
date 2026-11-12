@@ -55,6 +55,8 @@ public sealed class CoverFeintTrace
 }
 public sealed class CoverFeintPolicy
 {
+    public readonly PreparationWait Preparation=new();
+
     private sealed class History { public double At,Fire,Heard; public DoorPoint Known; }
     private readonly Dictionary<string,History> history=new(StringComparer.Ordinal);
     private int episode;private double started,phaseAt,lastTime,progressAt,best,fireAt,heardAt;
@@ -88,7 +90,7 @@ public sealed class CoverFeintPolicy
         double pw=1+(f.Fire>=0&&f.Now-f.Fire<=10?1:0)+(f.Mates?.7:0),mw=1+(f.Coming?1.5:0)+(f.Distance<20?.5:0);
         bool peekFirst=order*(pw+mw)<pw;bool p=peek&&pr*100<c.PeekChance,m=mag&&mr*100<c.MagazineChance;
         string kind=peekFirst?(p?"peek":m?"magazine":""):(m?"magazine":p?"peek":"");
-        Home=Goal=f.Position;Known=f.Known;started=phaseAt=lastTime=f.Now;fireAt=f.Fire;heardAt=f.Heard;
+        Preparation.Clear();Home=Goal=f.Position;Known=f.Known;started=phaseAt=lastTime=f.Now;fireAt=f.Fire;heardAt=f.Heard;
         Trace=new(){Episode=++episode,Kind=kind,Target=f.Target,Requested=kind.Length>0,PeekChance=c.PeekChance,MagazineChance=c.MagazineChance,
             PeekRoll=pr*100,MagazineRoll=mr*100,OrderRoll=order*100,PeekWeight=pw,MagazineWeight=mw,Exposure=c.ExposureMin+ex*(c.ExposureMax-c.ExposureMin),
             Hold=c.HoldMin+hold*(c.HoldMax-c.HoldMin),Pause=.8+pause*1.4,ContactAge=f.Age,WeaponReady=f.Ready,
@@ -108,10 +110,10 @@ public sealed class CoverFeintPolicy
         {
             string gate=Gate(f,c);
             if(gate.Length>0||!f.RouteValid){End(gate.Length>0?gate:"feint-native-route-taken-over");return;}
-            if(Trace.State!="planning"||f.Now-started>=.75)
+            if(Trace.State!="planning"||f.Now-started>=2+Preparation.Seconds)
             {End("feint-initial-safety-budget-expired");return;}
         }
-        else if(f.Now<lastSafety||f.Now-lastSafety>.2)
+        else if(f.Now<lastSafety||f.Now-lastSafety>.75)
         {End("feint-safety-budget-expired");return;}
         Trace.Reason="feint-waiting-for-safety-budget";
     }
@@ -143,7 +145,7 @@ public sealed class CoverFeintPolicy
         if(t.Kind=="magazine") {
             if(f.Visible||t.DrewFire||!f.Protected||(f.Position-Home).Length>.4){End("feint-contact-or-cover-changed");return false;}
             if(t.State=="hold"&&f.Now-phaseAt>=t.Hold)End("feint-hold-finished");
-            if(t.State=="planning"&&f.Now-phaseAt>=1.5)End("feint-planning-time-limit");
+            if(t.State=="planning"&&f.Now-phaseAt>=3+Preparation.Seconds)End("feint-planning-time-limit");
             return Active;
         }
         if((f.Visible||t.DrewFire)&&t.State is "planning" or "out-pending"){End("feint-contact-changed-before-peek");return false;}
@@ -163,7 +165,7 @@ public sealed class CoverFeintPolicy
         if(t.State=="show"&&f.Now-phaseAt>=t.Exposure)Return(f.Now,"feint-short-exposure-complete");
         if(t.State=="pause") {if(!f.Protected||f.Visible||t.DrewFire){End("feint-covered-contact-changed");return false;}
             if(f.Now-phaseAt>=t.Pause){Set("planning","feint-compare-other-side",f.Now);t.ReturnedObserved=false;}}
-        if(t.State=="planning"&&f.Now-phaseAt>=1.5)End("feint-no-safe-peek");
+        if(t.State=="planning"&&f.Now-phaseAt>=3+Preparation.Seconds)End("feint-no-safe-peek");
         if(WantsRoute&&f.Now-phaseAt>=(f.Grounded?.5:1.5))End("feint-route-request-expired");
         return Active;
     }

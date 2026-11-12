@@ -33,8 +33,7 @@ public sealed partial class Plugin
     private string CoverMateBlock(BotComponent b,BotState s)
     {
         if(!CrossfireScope(b)||!config!.CoverMate.Enabled)return "cover-mate-out-of-scope";
-        if(b.GoalEnemy?.IsVisible==true)return "cover-mate-enemy-visible";
-        return CrossfireCommonBlock(b,s);
+        return CrossfireCommonBlock(b,s,allowGoalVisible:true);
     }
     private bool TryBeginCoverMate(BotComponent b,BotState s)
     {
@@ -58,7 +57,7 @@ public sealed partial class Plugin
         Enemy? threat=null;Vector3 known=default;
         foreach(var e in contacts)
         {
-            if(!e.EnemyKnown||e.IsVisible||!float.IsFinite(e.TimeSinceLastKnownUpdated)||e.TimeSinceLastKnownUpdated<0||e.TimeSinceLastKnownUpdated>30
+            if(!e.EnemyKnown||!float.IsFinite(e.TimeSinceLastKnownUpdated)||e.TimeSinceLastKnownUpdated<0||e.TimeSinceLastKnownUpdated>30
                 ||e.KnownPlaces.LastKnownPosition is not Vector3 k||!ValidPoint(k)||Vector3.Distance(k,selected.Position)<8||Vector3.Distance(k,selected.Position)>80)continue;
             var sector=k-selected.Position;
             if(!coverMateBoard.Available(s.Id,selected.ProfileId,operation.Id,e.EnemyProfileId,sector.x,sector.z,Time.time,c))continue;
@@ -109,7 +108,7 @@ public sealed partial class Plugin
         if(t.State=="planning"&&b.Player.MovementContext.IsGrounded)
         {
             if(Vector3.Distance(b.Position,r.Origin)>1){EndCrossfire(b,s,"cover-mate-origin-moved");return false;}
-            if(r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount))
+            if(r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount,b))
             {r.ProbeFrame=Time.frameCount;doorClock.Restart();try{ProbeCoverMate(b,s);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}}
         }
         if(!r.Policy.Active)return false;

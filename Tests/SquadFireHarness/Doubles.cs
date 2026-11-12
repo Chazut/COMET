@@ -36,7 +36,7 @@ namespace SAIN.Components {
 namespace Comet.Client {
  internal class BotState{public string ProfileId,Name,Id="s08-instance";public SquadFireRuntime SquadFire=new();public BotState(BotComponent b,CometConfig c,string session){ProfileId=b.ProfileId;Name=b.Player.Profile.Nickname;}}
  internal static class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.IsSupportedBot;}
- internal class Budget{public bool Allow=true;public int Calls;public bool TryBegin(int frame){Calls++;return Allow;}public void Charge(double n){}}
+ internal class Budget{public bool Allow=true;public int Calls;public bool TryBegin(int frame,object? owner=null){Calls++;return Allow;}public void Charge(double n){}}
  internal class Log{public List<string> Warnings=new();public void LogWarning(string s)=>Warnings.Add(s);}
  internal class Sink{public List<string> Events=new();public void Write(string s)=>Events.Add(s);}
  internal static class Diagnostics{ internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};}

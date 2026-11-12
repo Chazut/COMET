@@ -51,7 +51,7 @@ internal static class DoorAmbushTests
         Check(Begin(history,age:1,now:161),"cooldown AND fresh cue permits retry");history.End("done");
         var bounded=new DoorAmbush();for(int i=0;i<32;i++){Check(Begin(bounded,target:"enemy-"+i),"bounded attempt");bounded.End("done");}
         Check(!Begin(bounded,target:"overflow"),"bounded history refuses new key instead of evicting cooldown");bounded.Clear();Check(Begin(bounded,target:"overflow"),"disposal clears history");
-        var planning=Start();Check(!planning.Observe(101.1,3.1,true,new(0,0,5),0,20,12)&&planning.Trace!.Reason=="ambush-planning-expired","planning timeout");
+        var planning=Start();Check(!planning.Observe(103.1,5.1,true,new(0,0,5),0,20,12)&&planning.Trace!.Reason=="ambush-planning-expired","planning timeout");
         var request=Start();Prepare(request);request.Request(new(-2,0,-2),true);Check(request.Trace!.MovementAccepted&&!request.Trace.Arrived&&!request.Trace.AngleVerified,"request is not observed arrival");
         request.Movement(new(-1,0,-1),false,true,100.5);Check(!request.Trace.Arrived&&request.Trace.MovementObserved,"proximity needs native completion");
         request.Movement(new(-3,0,-3),true,true,100.6);Check(!request.Trace.Arrived,"native completion needs proximity");

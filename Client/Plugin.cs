@@ -288,6 +288,8 @@ public sealed partial class Plugin : BaseUnityPlugin
             if (loaded != null) { config = loaded; diagnostics?.ConfigureJournal(config.Enabled && config.CombatJournal.Enabled && Authority, config.Enabled && config.WeaponJournal.Enabled && Authority, config.Revision, session); diagnostics?.ConfigureControlJournal(config.Enabled && config.ControlJournal.Enabled && Authority, config.Revision, session); diagnostics?.ConfigureCounters(config.Enabled && config.TacticCounters.Enabled && Authority, config.TacticCounters.MaxOpportunities, config.Revision, session); Logger.LogInfo("COMET raid config revision " + config.Revision + ", enabled=" + config.Enabled); ReportDifficultyPreset(); }
             else Logger.LogError("COMET config unavailable. SAIN retains control for this raid. " + loadError?.Message);
         }
+        UpdateLocalDoors();
+        FlushTacticalProbes();
         SampleSainPreset();
         SampleControlHandoffs();
         SampleLifecycles();

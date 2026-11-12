@@ -85,7 +85,7 @@ public sealed partial class Plugin
         s.Relocation.Policy.History.Observe(key,e.Status.TimeLastShotMe,seen,Time.time);
         s.Relocation.Policy.History.Observe(key,e.Status.TimeLastShotAtMe,seen,Time.time);
     }
-    private static string RelocationKey(Enemy e)=>e.EnemyProfileId+":"+System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e);
+    private static string RelocationKey(Enemy e)=>e.EnemyProfileId;
     private RelocationFrame RelocationFrame(BotComponent b,BotState s)
     {
         var r=s.Relocation;var e=b.GoalEnemy;var known=e?.KnownPlaces.LastKnownPosition;
@@ -110,7 +110,7 @@ public sealed partial class Plugin
         }
         if(!RelocationScope(b,s))f.Block="relocate-ineligible";
         else if(e==null||!known.HasValue||!e.EnemyKnown)f.Block="relocate-contact-unavailable";
-        else if(r.Policy.Active&&!ReferenceEquals(e,r.Enemy))f.Block="relocate-contact-instance-changed";
+        else if(r.Policy.Active&&!SameTacticalContact(e,r.Enemy))f.Block="relocate-contact-instance-changed";
         else if(b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None
             ||FakeMedicalPriority(b)||b.Grenade.GrenadeDangerPoint!=null||b.Flashed.IsFlashed||b.Suppression.IsHeavySuppressed
             ||s.Fear.Current.Panic||b.DoorOpener.Interacting||b.BotOwner.DoorOpener.Interacting||b.Player.IsInPronePose)
@@ -124,7 +124,7 @@ public sealed partial class Plugin
         int count=0;
         foreach(var other in b.EnemyController.KnownEnemies) {
             if(++count>32){f.Block="relocate-threat-list-truncated";break;}
-            if(other!=null&&!ReferenceEquals(other,e)&&(other.IsVisible||other.Status.ShotAtMeRecently)){f.Block="relocate-other-immediate-threat";break;}
+            if(other!=null&&!SameTacticalContact(other,e)&&(other.IsVisible||other.Status.ShotAtMeRecently)){f.Block="relocate-other-immediate-threat";break;}
         }
         if(r.Policy.Trace?.State=="moving") {
             var path=b.Mover.ActivePath;var cover=b.Cover.CoverInUse;
@@ -188,13 +188,13 @@ public sealed partial class Plugin
         var f=RelocationFrame(b,s);
         if(!r.Policy.Observe(f,config.OutdoorRelocation)){FinishRelocation(s);return;}
         var t=r.Policy.Trace!;
-        if(t.State=="planning"&&r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount)) {
+        if(t.State=="planning"&&r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount,b)) {
             r.ProbeFrame=Time.frameCount;var clock=System.Diagnostics.Stopwatch.StartNew();
             try{PlanRelocation(b,s);}finally{clock.Stop();doorBudget.Charge(clock.Elapsed.TotalMilliseconds);}
         }
         if(!r.Policy.Active)return;
         // The chooser initiates a native throw only after a fresh complete destination check.
-        if(t.State=="ready"&&decisionTick&&Time.time>=r.NextProbe&&doorBudget.TryBegin(Time.frameCount)) {
+        if(t.State=="ready"&&decisionTick&&Time.time>=r.NextProbe&&doorBudget.TryBegin(Time.frameCount,b)) {
             var clock=System.Diagnostics.Stopwatch.StartNew();
             try {
                 if(!RecheckRelocation(b,s)){EndRelocation(s,"relocate-selected-cover-no-longer-safe");return;}
@@ -208,12 +208,12 @@ public sealed partial class Plugin
                 }else t.GrenadeOutcome=why;
                 if(t.State=="ready"){r.BlastRadius=0;StartRelocationMove(b,s);}
             }finally{clock.Stop();doorBudget.Charge(clock.Elapsed.TotalMilliseconds);}
-        }else if(t.State=="throwing"&&r.Policy.CanMove(f)&&decisionTick&&doorBudget.TryBegin(Time.frameCount)) {
+        }else if(t.State=="throwing"&&r.Policy.CanMove(f)&&decisionTick&&doorBudget.TryBegin(Time.frameCount,b)) {
             var clock=System.Diagnostics.Stopwatch.StartNew();
             try{if(RecheckRelocation(b,s)&&RelocationBlastSafe(b,s))StartRelocationMove(b,s);else EndRelocation(s,"relocate-post-throw-route-unsafe");}
             finally{clock.Stop();doorBudget.Charge(clock.Elapsed.TotalMilliseconds);}
         }else if(t.State=="moving"&&Time.time>=r.NextProbe) {
-            if(doorBudget.TryBegin(Time.frameCount)) {
+            if(doorBudget.TryBegin(Time.frameCount,b)) {
                 var clock=System.Diagnostics.Stopwatch.StartNew();
                 try{if(!RecheckRelocation(b,s)||!RelocationBlastSafe(b,s)){EndRelocation(s,"relocate-route-safety-lost");return;}}
                 finally{clock.Stop();doorBudget.Charge(clock.Elapsed.TotalMilliseconds);}
@@ -272,7 +272,7 @@ public sealed partial class Plugin
         r.Threats.Clear();int scanned=0;
         foreach(var enemy in b.EnemyController.KnownEnemies) {
             if(++scanned>32){why="relocate-threat-list-truncated";return false;}
-            if(enemy==null||ReferenceEquals(enemy,b.GoalEnemy)||!enemy.EnemyKnown||enemy.TimeSinceLastKnownUpdated>5||enemy.KnownPlaces.LastKnownPosition is not Vector3 other)continue;
+            if(enemy==null||SameTacticalContact(enemy,b.GoalEnemy)||!enemy.EnemyKnown||enemy.TimeSinceLastKnownUpdated>5||enemy.KnownPlaces.LastKnownPosition is not Vector3 other)continue;
             if(r.Threats.Count>=3){why="relocate-too-many-known-threats";return false;}r.Threats.Add(other);
         }
         float length=0;for(int i=1;i<corners.Length;i++)length+=Vector3.Distance(corners[i-1],corners[i]);

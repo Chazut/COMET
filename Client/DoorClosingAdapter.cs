@@ -107,7 +107,7 @@ public sealed partial class Plugin
         if(Time.time<h.Retry)return "closing-failed-retry";
         if(h.Opened.TryGetValue(ReservationSquad(b,s),out var opened)&&Time.time-opened<config.DoorClosing.OpenGrace)return "closing-squad-open-grace";
         if(!checkGeometry)return ""; // Pay for the sweep once, at the actual request, within the shared work budget.
-        if(!doorBudget.TryBegin(Time.frameCount))return "closing-budget-deferred";
+        if(!doorBudget.TryBegin(Time.frameCount,b))return "closing-budget-deferred";
         var watch=System.Diagnostics.Stopwatch.StartNew();
         try
         {

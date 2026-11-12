@@ -9,11 +9,11 @@ public sealed class SquadStormConfig
     public double Weakness {get;set;}=.5;
     public double SquadDistance {get;set;}=35;
     public double MaxPath {get;set;}=40;
-    public double ContactAge {get;set;}=5;
+    public double ContactAge {get;set;}=12;
     public int MinimumAttackers {get;set;}=2;
-    public double PrepareTimeout {get;set;}=1.5;
+    public double PrepareTimeout {get;set;}=4;
     public double Duration {get;set;}=10;
-    public double MinimumAmmo {get;set;}=50;
+    public double MinimumAmmo {get;set;}=40;
     public double Retry {get;set;}=20;
     public double GigaChad {get;set;}=100;
     public double Chad {get;set;}=100;
@@ -27,8 +27,8 @@ public sealed class SquadStormConfig
     public void Validate()
     {
         CometConfig.Range(Weakness,.1,1,nameof(Weakness));CometConfig.Range(SquadDistance,5,80,nameof(SquadDistance));
-        CometConfig.Range(MaxPath,3,60,nameof(MaxPath));CometConfig.Range(ContactAge,1,10,nameof(ContactAge));
-        CometConfig.Range(MinimumAttackers,2,16,nameof(MinimumAttackers));CometConfig.Range(PrepareTimeout,.25,3,nameof(PrepareTimeout));
+        CometConfig.Range(MaxPath,3,60,nameof(MaxPath));CometConfig.Range(ContactAge,1,15,nameof(ContactAge));
+        CometConfig.Range(MinimumAttackers,2,16,nameof(MinimumAttackers));CometConfig.Range(PrepareTimeout,.25,6,nameof(PrepareTimeout));
         CometConfig.Range(Duration,2,20,nameof(Duration));CometConfig.Range(MinimumAmmo,1,100,nameof(MinimumAmmo));CometConfig.Range(Retry,5,120,nameof(Retry));
         foreach(var p in new[]{"GigaChad","Chad","Wreckless","Normal","Timmy","Rat","SnappingTurtle","Coward"})CometConfig.Range(Chance(p),0,100,p);
     }
@@ -36,6 +36,8 @@ public sealed class SquadStormConfig
 // Values are observed external categories, never live health, armor class or a hidden transform.
 public sealed class StormEvidence
 {
+    private bool numbersApplied;
+    public void ApplyNumbers(int count,double threshold){if(!numbersApplied&&count>=3&&Score>0){numbersApplied=true;Score=Math.Min(1,Score+.15);Details=Details.Concat(new[]{"three or more eligible squad members"}).ToArray();Reason=Danger?"perceived-danger-or-opening-closed":Score>=threshold?"perceived-weakness":"insufficient-observed-weakness";}}
     public string Source="",Reason="",Cue="";
     public double At,Score,Until=double.MaxValue;
     public bool Danger;
@@ -55,7 +57,7 @@ public sealed class StormEvidence
         e.Danger=interrupted;
         if(!interrupted&&MedicalChoice.Finite(cueAt)&&cueAt<=now&&MedicalChoice.Finite(cueRemaining)&&cueRemaining>0
             &&cue is "reload" or "heal" or "surgery" or "looting" or "dry-fire")
-        {e.Score+=.15;e.Cue=cue;e.At=Math.Max(e.At,cueAt);e.Until=Math.Min(e.Until,now+cueRemaining);details.Add("personally heard "+cue);}
+        {e.Score+=.4;e.Cue=cue;e.At=Math.Max(e.At,cueAt);e.Until=Math.Min(e.Until,now+cueRemaining);details.Add("personally heard "+cue);}
         if(e.Score>0&&apparentlyAlone){e.Score+=.1;details.Add("no other fresh known threat nearby");}
         e.Score=Math.Min(1,e.Score);e.Details=details.ToArray();e.Reason=interrupted?"perceived-danger-or-opening-closed":e.Score>=c.Weakness?"perceived-weakness":"insufficient-observed-weakness";
         return e;
@@ -97,7 +99,7 @@ public sealed class SquadStormPlan
         if(!Active)return false;
         if(State=="preparing")
         {
-            if(now-Started>=c.PrepareTimeout){End("storm-preparation-timeout");return false;}
+            if(now-Started>c.PrepareTimeout){End("storm-preparation-timeout");return false;}
             var ready=Members.Where(m=>m.Ready&&m.LastCallback>=0&&now-m.LastCallback<1).ToArray();
             if(ready.Length>=c.MinimumAttackers)
             {
@@ -107,7 +109,7 @@ public sealed class SquadStormPlan
 
             }
             else if(now-Started>=c.PrepareTimeout||Members.Count(m=>m.Status is not ("ended" or "declined"))<c.MinimumAttackers)
-            {End("storm-not-enough-ready-attackers");return false;}
+            {End(now-Started>=c.PrepareTimeout?"storm-preparation-timeout":"storm-not-enough-ready-attackers");return false;}
         }
         if(State=="active"&&now-Started>=c.PrepareTimeout)foreach(var m in Members.Where(m=>!m.Ready&&m.Status is not ("ended" or "declined")).ToArray())Drop(m.Id,"storm-preparation-timeout");
         return Active;

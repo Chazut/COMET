@@ -55,17 +55,19 @@ public sealed class SquadTradeMemory
         var loss=new TradeLoss{Id="loss-"+(++serial),Mate=mate,Name=name,At=now,ReadyAt=now+c.DelayMin+roll*(c.DelayMax-c.DelayMin),AssociatedContact=associated,Group=group};
         losses.Add(mate,loss);return loss;
     }
-    public TradeLoss? Take(double now,SquadTradeConfig c)
+    public TradeLoss? Peek(double now,SquadTradeConfig c)
     {
         if(!Clock(now)||!c.Enabled)return null;
         foreach(var loss in losses.Values)
         {
             if(loss.Attempted||now<loss.ReadyAt)continue;
-            loss.Attempted=true;
             if(now-loss.At<=c.Window)return loss;
+            loss.Attempted=true;
         }
         return null;
     }
+    public void Consume(TradeLoss loss){if(losses.TryGetValue(loss.Mate,out var own)&&ReferenceEquals(own,loss))own.Attempted=true;}
+    public TradeLoss? Take(double now,SquadTradeConfig c){var loss=Peek(now,c);if(loss!=null)Consume(loss);return loss;}
     public static string Choose(bool associated,bool aggressive,double ammo,bool panic,double roll,SquadTradeConfig c,out string why)
     {
         why=!associated?"killer not identified by this observer":panic?"fear veto":!MedicalChoice.Finite(ammo)||ammo<c.MinimumAmmo?"insufficient loaded magazine":"personality roll";

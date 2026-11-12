@@ -17,7 +17,7 @@ public sealed partial class Plugin
         var r=s.PostCombat;
         if(!config!.MedicalChoice.Enabled||r.MedicalDisabled||s.Medical.Fault){r.MedicalUseful=false;return;}
         if(s.Medical.Policy.Active||b.BotOwner.Medecine.Using||b.Player.HandsController is IMedsController)return;
-        if(Time.time<r.MedicalNext||!doorBudget.TryBegin(Time.frameCount))return;
+        if(Time.time<r.MedicalNext||!doorBudget.TryBegin(Time.frameCount,b))return;
         r.MedicalNext=Time.time+(float)config.MedicalChoice.Interval;doorClock.Restart();
         try
         {
@@ -52,7 +52,7 @@ public sealed partial class Plugin
         }
         if(t.State=="cover")
         {
-            if(!doorBudget.TryBegin(Time.frameCount))return;doorClock.Restart();
+            if(!doorBudget.TryBegin(Time.frameCount,b))return;doorClock.Restart();
             try
             {
                 if(!r.Threat.HasValue||CombatProtection(b.Position,r.Threat.Value)==7)
@@ -82,7 +82,7 @@ public sealed partial class Plugin
             if(s.Medical.Policy.Active||b.BotOwner.Medecine.Using||b.Player.HandsController is IMedsController)
             {t.Execution="observing native medicine and callbacks";return;}
             if(t.Elapsed>=c.MedicalDuration){r.MedicalUseful=false;return;}
-            if(!doorBudget.TryBegin(Time.frameCount))return;doorClock.Restart();
+            if(!doorBudget.TryBegin(Time.frameCount,b))return;doorClock.Restart();
             try
             {
                 var f=MedicalFrame(b,s);var items=new Dictionary<string,(Meds item,EBodyPart part)>();
@@ -104,7 +104,7 @@ public sealed partial class Plugin
         if(t.State=="reload")
         {
             if(b.BotOwner.WeaponManager.Reload.Reloading){t.Execution="observing native reload";return;}
-            if(!doorBudget.TryBegin(Time.frameCount))return;doorClock.Restart();
+            if(!doorBudget.TryBegin(Time.frameCount,b))return;doorClock.Restart();
             try
             {
                 var wm=b.BotOwner.WeaponManager;var firearm=b.Player.HandsController as Player.FirearmController;
@@ -120,7 +120,7 @@ public sealed partial class Plugin
         }
         if(t.State is "regroup" or "check")
         {
-            if(!doorBudget.TryBegin(Time.frameCount))return;doorClock.Restart();
+            if(!doorBudget.TryBegin(Time.frameCount,b))return;doorClock.Restart();
             try
             {
                 var leader=b.Squad.LeaderComponent;var target=t.State=="check"?r.Threat:leader!=null&&!leader.IsDead?(Vector3?)leader.Position:null;

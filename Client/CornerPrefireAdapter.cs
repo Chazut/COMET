@@ -72,7 +72,7 @@ public sealed partial class Plugin
             f.Aligned=Vector3.Angle(b.Transform.WeaponData.PointDirection,r.Aim-b.Transform.WeaponData.FirePort)<=8&&b.Steering.AngleToPointFromLookDir(r.Aim)<=8;
             return f;
         }
-        if(!doorBudget.TryBegin(Time.frameCount))return f;
+        if(!doorBudget.TryBegin(Time.frameCount,b))return f;
         var watch=System.Diagnostics.Stopwatch.StartNew();
         try {
             var muzzle=b.Transform.WeaponData.FirePort;var ray=r.Aim-muzzle;float length=ray.magnitude;

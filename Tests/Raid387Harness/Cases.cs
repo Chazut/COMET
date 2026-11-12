@@ -32,7 +32,7 @@ namespace Comet.Client {
  public sealed class ResourceRuntime{public object LastFrame=new(),Frame=new();public float Next=10;public string Key="old",ReturnId="held";}
  public sealed class BotState { public Runtime WeaponSync=new();public LoadoutRuntime Loadout=new();public ResourceRuntime ReloadTiming=new(),WeaponReturn=new(),WeaponRange=new(); }
  public sealed class WeaponSyncSnapshot { public WeaponSyncFrame Frame;public string[] Contents=new string[3];public object[] Guns=new object[3]; }
- public sealed class Budget { public bool Allowed=true;public bool TryBegin(int f)=>Allowed;public void Charge(double ms){} }
+ public sealed class Budget { public bool Allowed=true;public bool TryBegin(int f,object? owner=null)=>Allowed;public void Charge(double ms){} }
  public partial class Plugin {
   public int Reads,Applies,Records,Ends;public bool Scope=true,Work,ApplySucceeds=true;public string Block="";
   private int weaponSyncFrame=-1;public Budget doorBudget=new();private Stopwatch doorClock=new();private CometConfig config=new();

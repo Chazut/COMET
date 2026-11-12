@@ -58,7 +58,7 @@ public sealed partial class Plugin
         if(config?.Enabled!=true||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsSupportedAi(b)||b.IsDead||!b.BotActive||b.GameEnding)
         {EndWeave(s,"weave-ineligible");r.Enemy=null;r.SeenAt=r.FireAt=-1000;return;}
         var e=b.GoalEnemy;
-        if(!ReferenceEquals(r.Enemy,e)){EndWeave(s,"weave-contact-changed");r.Enemy=e;r.SeenAt=r.FireAt=r.SampleAt=r.ShotStamp=-1000;r.Context="";}
+        if(!SameTacticalContact(r.Enemy,e)){EndWeave(s,"weave-contact-changed");r.Enemy=e;r.SeenAt=r.FireAt=r.SampleAt=r.ShotStamp=-1000;r.Context="";}
         if(e?.IsVisible==true&&Time.time-r.SampleAt>=.05f&&e.KnownPlaces.LastSeenPlace is {} seen)
         {r.Seen=seen.Position;r.SeenAt=Time.time;r.SampleAt=Time.time;}
         // ShotAtMe is a personal threat signal; its location must also come from personal perception.
@@ -135,7 +135,7 @@ public sealed partial class Plugin
         if(moved)r.GeometryAt=-1000;
         if(!force&&!moved&&Time.time<r.NextGeometry)return false;
         if(force&&r.GeometryAt==Time.time)return true;
-        if(!doorBudget.TryBegin(Time.frameCount))return false;
+        if(!doorBudget.TryBegin(Time.frameCount,b))return false;
         var clock=System.Diagnostics.Stopwatch.StartNew();
         try {
             r.GeometryAt=-1000;r.Left=r.Right=r.Straight=r.JumpSafe=r.LandingSafe=false;

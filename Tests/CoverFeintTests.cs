@@ -26,12 +26,12 @@ internal static class CoverFeintTests
         deferred.DeferSafety(F(10.1),c,-1000);
         Check(deferred.Active&&!deferred.Moving&&!deferred.WantsRoute&&deferred.Trace!.MoveRequests==0
             &&deferred.Trace.Reason=="feint-waiting-for-safety-budget","first probe waits without inventing safety or moving");
-        deferred.DeferSafety(F(10.74),c,-1000);Check(deferred.Active,"bounded first-probe grace");
-        deferred.DeferSafety(F(10.75),c,-1000);Check(!deferred.Active&&deferred.Trace!.Reason=="feint-initial-safety-budget-expired","starvation remains bounded");
+        deferred.DeferSafety(F(11.99),c,-1000);Check(deferred.Active,"bounded first-probe grace");
+        deferred.DeferSafety(F(12),c,-1000);Check(!deferred.Active&&deferred.Trace!.Reason=="feint-initial-safety-budget-expired","starvation remains bounded");
         deferred=new();deferred.Begin(F(),c,Low);var danger=F(10.1);danger.Visible=true;
         deferred.DeferSafety(danger,c,-1000);Check(!deferred.Active,"reacquired contact interrupts initial wait");
         deferred=new();deferred.Begin(F(),c,Low);deferred.DeferSafety(F(10.1),c,10);
-        Check(deferred.Active,"brief deferral with recent proof");deferred.DeferSafety(F(10.21),c,10);
+        Check(deferred.Active,"brief deferral with recent proof");deferred.DeferSafety(F(10.76),c,10);
         Check(!deferred.Active&&deferred.Trace!.Reason=="feint-safety-budget-expired","existing proof keeps strict expiry");
         deferred=new();deferred.Begin(F(),c,Low);deferred.DeferSafety(F(9),c,-1000);Check(!deferred.Active,"reversed clock fails closed");
         deferred=new();deferred.Begin(F(),c,Low);deferred.DeferSafety(F(10.1),c,-1000);

@@ -88,7 +88,7 @@ public sealed partial class Plugin
         var support=b.Squad.Members.TryGetValue(r.Support,out var mate)?mate:null;
         if(support==null)return true; // The ordinary support gate supplies the exact reason.
         if(Vector3.Distance(known,r.Known)<=4&&Vector3.Distance(support.Position,r.Reference)<=2)return true;
-        if(!doorBudget.TryBegin(Time.frameCount))return false;
+        if(!doorBudget.TryBegin(Time.frameCount,b))return false;
         doorClock.Restart();
         try
         {
@@ -185,7 +185,7 @@ public sealed partial class Plugin
         {
             if(b.Mover.ActivePath!=null||QueuedCombatMovement(b))
             {if(Time.time-r.StartWait>=1)EndCrossfire(b,s,"crossfire-native-route-busy");return;}
-            if(!doorBudget.TryBegin(Time.frameCount))return;doorClock.Restart();
+            if(!doorBudget.TryBegin(Time.frameCount,b))return;doorClock.Restart();
             try
             {
                 if(r.Route==null||Vector3.Distance(b.Position,r.Origin)>1||CrossfireSpace(b,s,r.Goal,true).Length>0||(t.Trade!=null?!TradeUseful(r,r.Goal):t.CoverMate!=null?!CoverMateUseful(r.Goal,r.Known):t.Entrance==null?!CrossfireSight(r.Goal,r.Known):EntranceApproachSafety(b,s,r.Goal).Length>0))
@@ -212,7 +212,7 @@ public sealed partial class Plugin
             }
             else if(b.Mover.ActivePath==null){EndCrossfire(b,s,"crossfire-route-ended-early");return;}
         }
-        if(Time.time-r.LastSafety>=c.Interval&&doorBudget.TryBegin(Time.frameCount))
+        if(Time.time-r.LastSafety>=c.Interval&&doorBudget.TryBegin(Time.frameCount,b))
         {
             r.LastSafety=Time.time;doorClock.Restart();
             try

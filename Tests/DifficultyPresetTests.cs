@@ -15,6 +15,9 @@ internal static class DifficultyPresetTests
         var currentDefaults=JsonSerializer.SerializeToNode(hard)!.AsObject(); currentDefaults.Remove("DifficultyPreset");
         currentDefaults.Remove("CombatJournal");currentDefaults.Remove("ControlJournal");currentDefaults.Remove("WeaponJournal");currentDefaults.Remove("TacticCounters");currentDefaults.Remove("Performance"); // Diagnostics do not change gameplay defaults.
         currentDefaults.Remove("PresetSource"); // U07 adds provenance, not a gameplay setting.
+        // Deliberate strictness-audit tuning; all unrelated gameplay defaults stay pinned.
+        oldDefaults!["SquadStorm"]!["ContactAge"]=12d; oldDefaults["SquadStorm"]!["MinimumAmmo"]=40d;
+        oldDefaults["SquadStorm"]!["PrepareTimeout"]=4d; oldDefaults["CornerChase"]!["ObservationMaxAge"]=6d;
         Check(JsonNode.DeepEquals(oldDefaults,currentDefaults),"Hard matches pre-U01 configuration snapshot, field for field");
         var original=DifficultyPresets.Values(hard);
         string[] families={"DoorJumpPeek","DoorFakeGrenade","DoorRoomClear","DoorAmbush","CornerChase","CornerPrefire","CornerPeek","CombatLean","CoverFeint","OutdoorRelocation","TacticalJump","GrenadeJudgment","SquadManeuver","SquadStorm","SecondaryEntrance"};

@@ -63,7 +63,7 @@ public sealed partial class Plugin
         // Validation is reused by selection and movement, never bypassed because
         // the native chooser has no alternative. Limit repeated geometry to 4 Hz.
         if(Time.time-r.CheckedAt<.25f)return !point.CoverData.IsBad;
-        if(!doorBudget.TryBegin(Time.frameCount))return !point.CoverData.IsBad&&Time.time-r.CheckedAt<1;
+        if(!doorBudget.TryBegin(Time.frameCount,b))return !point.CoverData.IsBad&&Time.time-r.CheckedAt<1;
         doorClock.Restart();
         try
         {
@@ -122,7 +122,7 @@ public sealed partial class Plugin
             ||!ContactSafety.AllowsGoal(b)||e?.EnemyKnown!=true||e.TimeSinceLastKnownUpdated>config.ContactLifetime||e.KnownPlaces.LastKnownPosition is not Vector3 known||!FiniteFallback(known)||!FiniteFallback(b.Position))
         {DiscardFallback(r);r.Path=null;r.Obstacle=null;r.Count=0;r.Requested=false;Array.Clear(r.Colliders,0,r.Colliders.Length);return;}
         if(r.Point!=null&&ValidateFallback(b,r.Point,out _)){r.Requested=false;return;}
-        if(!doorBudget.TryBegin(Time.frameCount))return;
+        if(!doorBudget.TryBegin(Time.frameCount,b))return;
         doorClock.Restart();
         try
         {

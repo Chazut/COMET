@@ -26,6 +26,9 @@ internal static class HoldAngleTests
         Check(p.Begin(F(),c),"begin after original delay");
         Check(p.Trace!.State=="planning"&&!p.Trace.MoveRequested&&!p.Trace.PoseRequested&&!p.Trace.Arrived,"planning claims no native action");
         Check(p.Choose(C(),aim,F(10.1),c),"select bounded safe correction");
+        var snapped=new HoldAngle();snapped.Begin(F(),c);snapped.Choose(C(),aim,F(10.1),c);var endpoint=snapped.Goal+new DoorPoint(.1,0,0);
+        snapped.AcceptEndpoint(endpoint);Check(snapped.Goal.X==endpoint.X&&snapped.Trace!.X==endpoint.X,"checked mover snap updates policy and telemetry together");
+        snapped.AcceptEndpoint(endpoint+new DoorPoint(1,0,0));Check(snapped.Goal.X==endpoint.X,"large unchecked correction cannot move policy endpoint");
         Check(!p.Trace.MoveRequested&&!p.Trace.PoseRequested,"selection is not native acceptance");
         p.Requested(true,true);
         f=F(10.2);f.Position=C().Position;f.EyesClear=f.MuzzleClear=true;

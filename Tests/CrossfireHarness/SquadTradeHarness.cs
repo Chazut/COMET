@@ -36,8 +36,9 @@ internal static class SquadTradeHarness
    C(p.states[b].Crossfire.Policy.Trace!.Trade!.Choice==(push?"push":"watch"),"chosen role");C(b.Mover.Walks==(push?1:0),"actual movement only when needed");
    if(push){b.Position=p.states[b].Crossfire.Goal;b.Player.LookDirection=(p.states[b].Crossfire.Known-b.Position).normalized;Step();a.Update(new());a.OnSteeringTicked();Step();a.Update(new());}
    C(Api.Decisions.Labels[b.ProfileId]=="COMET:CrossfireTradeWatching","observed watching");C(b.ManualShoot.Requests==0,"never shoots hidden enemy");
-   b.GoalEnemy!.IsVisible=true;Step();a.Update(new());C(!p.states[b].Crossfire.Policy.Active,"visible native combat priority");
-   b.GoalEnemy.IsVisible=false;Step(5);p.Death(m,b,k);p.Observe(b);C(!p.states[b].Crossfire.Policy.Active,"no repeated roll");events.AddRange(p.diagnostics!.Lines);
+   b.GoalEnemy!.IsVisible=true;Step();a.Update(new());C(p.states[b].Crossfire.Policy.Active,"visible target does not cancel an established retaliation angle");
+   b.GoalEnemy.IsVisible=false;b.BotOwner.Memory.IsUnderFire=true;Step();a.Update(new());C(!p.states[b].Crossfire.Policy.Active,"incoming fire still interrupts retaliation");
+   b.BotOwner.Memory.IsUnderFire=false;Step(5);p.Death(m,b,k);p.Observe(b);C(!p.states[b].Crossfire.Policy.Active,"no repeated roll");events.AddRange(p.diagnostics!.Lines);
   }
   foreach(var mode in new[]{"alive","human-dead","downed","not-witnessed","remote","ghost-mate","ghost-self","non-pmc","disabled","group-disappearance"})
   {
@@ -59,7 +60,7 @@ internal static class SquadTradeHarness
    switch(mode){case "stale":b.GoalEnemy!.TimeSinceLastKnownUpdated=6;break;case "unknown":b.GoalEnemy!.EnemyKnown=false;break;case "far":b.GoalEnemy!.KnownPlaces.LastKnownPosition=new(0,0,90);break;case "injury":b.Memory.Health.HealthStatus=ETagStatus.BadlyInjured;break;case "heal":b.BotOwner.Medecine.Using=true;break;case "under-fire":b.BotOwner.Memory.IsUnderFire=true;break;case "group-change":b.Squad.Members=new(b.Squad.Members);break;}
    Step(1);p.Observe(b);C(!p.states[b].Crossfire.Policy.Active,"reject opportunity "+mode);C(b.Mover.Walks==0,"reject before movement "+mode);events.AddRange(p.diagnostics!.Lines);
   }
-  foreach(var mode in new[]{"stalled","replaced","unsafe-volume","panic","ammo","stale","moved-contact","lost-contact","visible-goal-only","authority","disabled"})
+  foreach(var mode in new[]{"stalled","replaced","unsafe-volume","panic","ammo","stale","moved-contact","lost-contact","authority","disabled"})
   {
    var(p,b,m,k)=Setup(true);Notify(p,b,m,k);var a=Start(p,b);var old=(BotPathDataManual)b.Mover.ActivePath!;var foreign=new BotPathDataManual{Destination=new(99,0,0)};
    switch(mode){case "replaced":b.Mover.ActivePath=foreign;break;case "unsafe-volume":p.Volume="new obstruction";break;case "panic":p.states[b].Fear.Current.Panic=true;break;case "ammo":b.BotOwner.WeaponManager.CurrentWeapon.Mag.Count=1;break;case "stale":b.GoalEnemy!.TimeSinceLastKnownUpdated=9;Step(5);break;case "moved-contact":b.GoalEnemy!.KnownPlaces.LastKnownPosition=new(15,0,12);break;case "lost-contact":b.GoalEnemy!.EnemyKnown=false;break;case "visible-goal-only":b.GoalEnemy!.IsVisible=true;b.EnemyController.KnownEnemies.Clear();break;case "authority":p.Authority=false;break;case "disabled":p.config!.SquadTrade.Enabled=false;break;}
@@ -79,6 +80,11 @@ internal static class SquadTradeHarness
    var(p,b,m,k)=Setup();Notify(p,b,m,k);var a=Start(p,b);
    for(int i=0;i<32&&p.states[b].Crossfire.Policy.Active;i++){Step(.5f);a.OnSteeringTicked();a.Update(new());}
    C(p.states[b].Crossfire.Policy.Trace!.Reason=="trade-timeout","15s total watchdog");events.AddRange(p.diagnostics!.Lines);
+  }
+  {
+   var(p,b,m,k)=Setup(true);Notify(p,b,m,k);b.BotOwner.Medecine.Using=true;Step(1);p.Observe(b);
+   C(!p.states[b].Crossfire.Policy.Active&&p.states[b].Crossfire.Trade.Memory.Count>0,"temporary medicine block retains witnessed death");
+   b.BotOwner.Medecine.Using=false;Start(p,b);C(p.states[b].Crossfire.Policy.Active,"trade can start after temporary block without new death");p.EndAll();
   }
   Directory.CreateDirectory("artifacts");File.WriteAllLines("artifacts/s05-adapter-events.jsonl",events);Console.WriteLine($"{n} S05 native-adapter checks passed; {events.Count} events");
  }

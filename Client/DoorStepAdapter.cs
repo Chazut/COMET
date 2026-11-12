@@ -51,11 +51,9 @@ public sealed partial class Plugin
             ||!NativeAdapter.IsSupportedAi(b)||!b.BotActive||b.IsDead||b.GameEnding||!Authority||Ghost(b.ProfileId))return "step-out-of-scope";
         if(MedicalPostureGuard(b))return "medical-posture-protected";
         if(e==null||!ReferenceEquals(e,b.GoalEnemy)||!e.EnemyKnown||e.KnownPlaces.LastKnownPosition is not Vector3 known
-            ||!r.Policy.SameContact(e.EnemyProfileId,DP(known))||e.TimeSinceLastKnownUpdated>config.DoorApproach.ContactLifetime
-            ||System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e)!=r.TargetInstance)return "step-contact-changed-or-expired";
+            ||!r.Policy.SameContact(e.EnemyProfileId,DP(known))||e.TimeSinceLastKnownUpdated>config.DoorApproach.ContactLifetime)return "step-contact-changed-or-expired";
         if(e.IsVisible){t.VisualAcquired=true;return "step-native-visual-acquired";}
-        if(s.ActiveLabel!="COMET:Search"||s.Feature!="A01"||s.Decision!="Search"||!b.SAINLayersActive
-            ||b.Decision.CurrentCombatDecision!=ECombatDecision.Search||b.CurrentAction?.GetType().Name!="SearchAction")return "step-search-not-owned";
+        if(!TacticalDoorSearch(b,s))return "step-search-not-owned";
         if(b.EnemyController.VisibleEnemies.Count>0||b.Flashed.IsFlashed||b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed
             ||s.Fear.Current.Panic||b.Medical.TimeSinceShot<3||!VisibleAdapter.WeaponReady(b)
             ||b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None
@@ -95,12 +93,12 @@ public sealed partial class Plugin
         if(t.State=="planning")
         {
             if(r.PreparedPeek!=t.Peek){r.Candidate=0;r.PreparedPeek=t.Peek;r.OwnedPath=null;r.Outward=null;}
-            if(!doorBudget.TryBegin(Time.frameCount))return false;
+            if(!doorBudget.TryBegin(Time.frameCount,b))return false;
             doorClock.Restart();try{return PrepareDoorStep(b,s);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
         }
         if(Time.time>=r.NextCheck||t.State is "outward-pending" or "return-pending")
         {
-            if(!doorBudget.TryBegin(Time.frameCount))
+            if(!doorBudget.TryBegin(Time.frameCount,b))
             {if(Time.time-r.LastCheck>.4f){EndDoorStep(s,"step-validation-budget-expired");return true;}return false;}
             doorClock.Restart();
             try
@@ -174,26 +172,20 @@ public sealed partial class Plugin
     }
     private bool StepSight(BotComponent b,Vector3 eye,Vector3 look)
     {
-        var delta=look-eye;if(delta.sqrMagnitude<.01f)return false;
-        try{
-            int n=Physics.RaycastNonAlloc(eye,delta.normalized,jumpHits,delta.magnitude,~0,QueryTriggerInteraction.Ignore);
-            if(n>=jumpHits.Length)return false;
-            for(int i=0;i<n;i++)if(JumpObstacle(jumpHits[i].collider,b))return false;
-            return true;
-        }finally{Array.Clear(jumpHits,0,jumpHits.Length);}
+        return (look-eye).sqrMagnitude>=.01f&&TacticalSightline(b,eye,look);
     }
     private static bool OwnsStepPath(DoorStepRuntime r)=>r.Owner!=null&&r.OwnedPath!=null&&ReferenceEquals(r.Owner.Mover.ActivePath,r.OwnedPath)
         &&Vector3.Distance(r.OwnedPath.Destination,r.Policy.Trace?.ReturnAccepted==true?r.Stack:r.Point)<.15f;
     private void EndDoorStep(BotState s,string reason)
     {
         var r=s.StepPeek;if(!r.Policy.Active)return;var e=r.Owner?.GoalEnemy;
-        if(e?.IsVisible==true&&e.EnemyProfileId==r.Policy.Trace!.Target&&System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e)==r.TargetInstance)r.Policy.Trace.VisualAcquired=true;
+        if(e?.IsVisible==true&&e.EnemyProfileId==r.Policy.Trace!.Target)r.Policy.Trace.VisualAcquired=true;
         r.Policy.End(reason,Time.time);FinishDoorStep(s);
     }
     private void FinishDoorStep(BotState s)
     {
         var r=s.StepPeek;var b=r.Owner;
-        bool ownSearch=b!=null&&b.CurrentAction?.GetType().Name=="SearchAction"&&s.ActiveLabel=="COMET:Search";
+        bool ownSearch=b!=null&&TacticalDoorSearch(b,s);
         if(b!=null&&r.OwnedPath!=null&&ReferenceEquals(b.Mover.ActivePath,r.OwnedPath))
         {r.OwnedPath.Cancel();if(ownSearch)b.Search.Reset();}
         // Do not overwrite a pose already selected by a new SAIN action.

@@ -14,14 +14,14 @@ int checks=0;void Check(bool ok,string why){checks++;if(!ok)throw new Exception(
  Check(s.CornerPeek.Policy.Deadline==14,"original deadline retained");
 }
 {
- var(p,b,s)=Setup();b.Position=new(.2f,0,0);p.Tick(b,s,10.1f);b.Position=new(.4f,0,0);p.Tick(b,s,10.2f);
+ var(p,b,s)=Setup();b.Position=new(.2f,0,0);p.Tick(b,s,10.1f);b.Position=new(.7f,0,0);p.Tick(b,s,10.2f);
  Check(s.CornerPeek.Policy.Trace!.Reason=="corner-planning-origin-moved"&&!s.CornerPeek.Policy.Active,"later drift invalidates already checked geometry");
 }
 {
  var(p,b,s)=Setup();p.Open=false;p.Tick(b,s,10.1f);Check(s.CornerPeek.Policy.Trace!.Reason=="corner-initial-angle-blocked","real occlusion still rejects peek");
 }
 {
- var(p,b,s)=Setup();b.Player.Velocity=new(1,0,0);p.Tick(b,s,10.1f);p.Tick(b,s,10.5f);
+ var(p,b,s)=Setup();b.Player.Velocity=new(1,0,0);p.Tick(b,s,10.1f);p.Tick(b,s,12f);
  Check(!s.CornerPeek.Policy.Active&&s.CornerPeek.Policy.Trace!.Reason=="corner-planning-timeout","inertia cannot extend planning deadline");
 }
 Console.WriteLine($"PASS {checks} production corner planning checks");

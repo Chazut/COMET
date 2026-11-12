@@ -264,7 +264,7 @@ public sealed partial class Plugin
             if(choice=="end"){EndCrossfire(b,s,"secondary-entrance-"+t.EntryReason.Replace(' ','-'));return;}
             if(choice!="ready")return;a.Preparing=true;t.State="preparing-entry";
         }
-        if(!a.Preparing||!doorBudget.TryBegin(Time.frameCount))return;
+        if(!a.Preparing||!doorBudget.TryBegin(Time.frameCount,b))return;
         doorClock.Restart();try
         {
             if(!a.Virtual&&a.Chosen!.Data.Door.DoorState==EDoorState.Shut)

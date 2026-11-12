@@ -53,7 +53,7 @@ public sealed partial class Plugin
         if(config?.Enabled!=true||!config.CoverTravel.Enabled||b.IsDead||!b.BotActive||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsSupportedAi(b))
         {EndCoverTravel(s,"travel-ineligible");r.Enemy=null;r.SeenAt=-1000;return;}
         var e=b.GoalEnemy;
-        if(!ReferenceEquals(e,r.Enemy)){EndCoverTravel(s,"travel-contact-changed");r.Enemy=e;r.SeenAt=r.GeometryAt=-1000;r.SampleAt=-1000;}
+        if(!SameTacticalContact(e,r.Enemy)){EndCoverTravel(s,"travel-contact-changed");r.Enemy=e;r.SeenAt=r.GeometryAt=-1000;r.SampleAt=-1000;}
         if(e?.IsVisible==true&&Time.time-r.SampleAt>=.1f&&e.KnownPlaces.LastSeenPlace is {} seen)
         {r.Seen=seen.Position;r.SeenAt=Time.time;r.SampleAt=Time.time;}
         if(r.Owned&&(Time.time-r.CallbackAt>.3f||CoverTravelBlock(b,s).Length>0))EndCoverTravel(s,"travel-native-priority-or-callback-expired");
@@ -71,10 +71,10 @@ public sealed partial class Plugin
         if(combat.Urgent||combat.Busy||!combat.Grounded||combat.Immobile||b.Cover.CoverInUse!=null
             ||s.HoldAngle.Policy.Active||s.CornerChase.Policy.Active||s.CornerPeek.Policy.Active||s.CombatStep.Policy.Active
             ||s.CornerPrefire.Policy.Active||s.Ambush.Policy.Active||s.Reservation.Lease!=null)return "travel-other-tactic-or-urgency";
-        if(b.GoalEnemy==null||!ReferenceEquals(b.GoalEnemy,s.CoverTravel.Enemy))return "travel-contact-changed";
+        if(b.GoalEnemy==null||!SameTacticalContact(b.GoalEnemy,s.CoverTravel.Enemy))return "travel-contact-changed";
         int count=0;
         foreach(var other in b.EnemyController.KnownEnemies)
-            if(++count>32||other!=null&&!ReferenceEquals(other,b.GoalEnemy)&&(other.IsVisible||other.Status.ShotAtMeRecently||other.Seen&&other.TimeSinceSeen<config!.CoverTravel.VisionAge))
+            if(++count>32||other!=null&&!SameTacticalContact(other,b.GoalEnemy)&&(other.IsVisible||other.Status.ShotAtMeRecently||other.Seen&&other.TimeSinceSeen<config!.CoverTravel.VisionAge))
                 return "travel-other-immediate-threat";
         return "";
     }
@@ -125,7 +125,7 @@ public sealed partial class Plugin
             ||Vector3.Distance(b.Position,r.ProbePosition)>.75f||Vector3.Distance(r.Seen,r.ProbeKnown)>.5f||Vector3.Distance(goal,r.ProbeGoal)>.05f;
         if(changed)r.GeometryAt=-1000;
         if(!changed&&Time.time<r.NextGeometry)return;
-        if(!doorBudget.TryBegin(Time.frameCount))return;
+        if(!doorBudget.TryBegin(Time.frameCount,b))return;
         var clock=System.Diagnostics.Stopwatch.StartNew();
         try {
             r.NextGeometry=Time.time+(float)config!.CoverTravel.Refresh;r.GeometryAt=-1000;

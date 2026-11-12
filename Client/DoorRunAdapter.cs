@@ -56,11 +56,9 @@ public sealed partial class Plugin
             ||t.Style=="run-by"&&!config.DoorRunBy.Enabled||r.Fault||!NativeAdapter.IsSupportedAi(b)||!b.BotActive||b.IsDead||b.GameEnding||!Authority||Ghost(b.ProfileId))return "run-by-out-of-scope";
         if(MedicalPostureGuard(b))return "medical-posture-protected";
         if(e==null||!ReferenceEquals(e,b.GoalEnemy)||!e.EnemyKnown||e.KnownPlaces.LastKnownPosition is not Vector3 known
-            ||!r.Policy.SameContact(e.EnemyProfileId,DP(known))||e.TimeSinceLastKnownUpdated>config.DoorApproach.ContactLifetime
-            ||System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e)!=r.TargetInstance)return "run-by-contact-changed-or-expired";
+            ||!r.Policy.SameContact(e.EnemyProfileId,DP(known))||e.TimeSinceLastKnownUpdated>config.DoorApproach.ContactLifetime)return "run-by-contact-changed-or-expired";
         if(e.IsVisible){t.VisualAcquired=true;return "run-by-native-visual-acquired";}
-        if(s.ActiveLabel!="COMET:Search"||s.Feature!="A01"||s.Decision!="Search"||!b.SAINLayersActive
-            ||b.Decision.CurrentCombatDecision!=ECombatDecision.Search||b.CurrentAction?.GetType().Name!="SearchAction")return "run-by-search-not-owned";
+        if(!TacticalDoorSearch(b,s))return "run-by-search-not-owned";
         if(b.EnemyController.VisibleEnemies.Count>0||b.Flashed.IsFlashed||b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed
             ||s.Fear.Current.Panic||b.Medical.TimeSinceShot<3||(!VisibleAdapter.WeaponReady(b)&&!RunOwnOpening(b,s))
             ||b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None)return "run-by-native-priority";
@@ -107,7 +105,7 @@ public sealed partial class Plugin
         }
         if(t.State=="validating")
         {
-            if(!doorBudget.TryBegin(Time.frameCount))return false;
+            if(!doorBudget.TryBegin(Time.frameCount,b))return false;
             doorClock.Restart();
             try{return PrepareDoorRecon(b,e,s);}
             finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
@@ -116,7 +114,7 @@ public sealed partial class Plugin
         if(t.State=="turning")r.OwnedPath?.RequestEndSprint(ESprintUrgency.None,"COMET run-by walking return");
         if(Time.time>=r.NextCheck||t.State=="return-pending")
         {
-            if(!doorBudget.TryBegin(Time.frameCount))
+            if(!doorBudget.TryBegin(Time.frameCount,b))
             {if(Time.time-r.LastCheck>.4){EndDoorRun(s,"run-by-validation-budget-expired");return true;}return false;}
             doorClock.Restart();
             try
@@ -213,13 +211,7 @@ public sealed partial class Plugin
     {
         var g=r.Door!.Geometry;
         var mouth=VP(g.Center+g.Normal*(-Math.Sign((DP(r.Stack)-g.Center).Dot(g.Normal))*.4))+Vector3.up*1.3f;
-        var start=r.Angle+Vector3.up*1.4f;var delta=mouth-start;
-        try {
-            int count=Physics.RaycastNonAlloc(start,delta.normalized,jumpHits,delta.magnitude,~0,QueryTriggerInteraction.Ignore);
-            if(count>=jumpHits.Length)return false;
-            for(int i=0;i<count;i++)if(JumpObstacle(jumpHits[i].collider,b))return false;
-            return true;
-        } finally {Array.Clear(jumpHits,0,jumpHits.Length);}
+        return TacticalSightline(b,r.Angle+Vector3.up*1.4f,mouth);
     }
     private string RunLane(BotComponent b,DoorRunRuntime r,bool back)
     {
@@ -227,31 +219,14 @@ public sealed partial class Plugin
         if(back&&!RunAngleSight(b,r))return "run-by-angle-sightline-lost";
         return RunVolume(b,back?r.ReturnFrom:r.Stack,back?r.Angle:r.Far);
     }
-    private string RunVolume(BotComponent b,Vector3 start,Vector3 end,bool overhead=false)
-    {
-        var delta=end-start;
-        try
-        {
-            foreach(var point in new[]{start,end})
-            {
-                int count=Physics.OverlapCapsuleNonAlloc(point+Vector3.up*.35f,point+Vector3.up*(overhead?2.55f:1.55f),.25f,doorOccupants,~0,QueryTriggerInteraction.Ignore);
-                if(count>=doorOccupants.Length)return "run-by-clearance-uncertain";
-                for(int i=0;i<count;i++)if(JumpObstacle(doorOccupants[i],b))return "run-by-body-leaf-or-occupant-blocked";
-                Array.Clear(doorOccupants,0,doorOccupants.Length);
-            }
-            int hits=Physics.CapsuleCastNonAlloc(start+Vector3.up*.35f,start+Vector3.up*(overhead?2.55f:1.55f),.25f,delta.normalized,jumpHits,delta.magnitude,~0,QueryTriggerInteraction.Ignore);
-            if(hits>=jumpHits.Length)return "run-by-clearance-uncertain";
-            for(int i=0;i<hits;i++)if(JumpObstacle(jumpHits[i].collider,b))return "run-by-lane-obstructed";
-            return NavMesh.Raycast(start,end,out _,NavMesh.AllAreas)?"run-by-lane-navmesh-edge":"";
-        }
-        finally{Array.Clear(doorOccupants,0,doorOccupants.Length);Array.Clear(jumpHits,0,jumpHits.Length);}
-    }
+    private string RunVolume(BotComponent b,Vector3 start,Vector3 end,bool overhead=false,float pose=1)
+        =>TacticalVolume(b,start,end,overhead,pose);
     private static bool OwnsRunPath(DoorRunRuntime r)=>r.Owner!=null&&r.OwnedPath!=null&&ReferenceEquals(r.Owner.Mover.ActivePath,r.OwnedPath)
         &&Vector3.Distance(r.OwnedPath.Destination,r.Policy.Trace?.ReturnAccepted==true?r.Angle:r.Far)<.3f;
     private void EndDoorRun(BotState s,string reason)
     {
         var r=s.RunBy;if(!r.Policy.Active)return;var enemy=r.Owner?.GoalEnemy;
-        if(enemy?.IsVisible==true&&enemy.EnemyProfileId==r.Policy.Trace!.Target&&System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(enemy)==r.TargetInstance)r.Policy.Trace.VisualAcquired=true;
+        if(enemy?.IsVisible==true&&enemy.EnemyProfileId==r.Policy.Trace!.Target)r.Policy.Trace.VisualAcquired=true;
         r.Policy.End(reason,Time.time);FinishDoorRun(s);
     }
     private void FinishDoorRun(BotState s)

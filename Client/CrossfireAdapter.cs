@@ -216,7 +216,7 @@ public sealed partial class Plugin
         if(r.Policy.Trace!.State=="planning"&&b.Player.MovementContext.IsGrounded)
         {
             if(Vector3.Distance(b.Position,r.Origin)>2){EndCrossfire(b,s,"crossfire-origin-moved");return false;}
-            if(r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount))
+            if(r.ProbeFrame!=Time.frameCount&&doorBudget.TryBegin(Time.frameCount,b))
             {r.ProbeFrame=Time.frameCount;doorClock.Restart();try{if(r.Policy.Trace.Entrance!=null)ProbeEntrance(b,s);else ProbeCrossfire(b,s);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}}
         }
         r.Policy.Applied(r.Layer&&(r.ManeuverRole==null||r.ManeuverRole.Confirmed));RecordCrossfire(s,false);

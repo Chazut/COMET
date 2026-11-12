@@ -160,7 +160,7 @@ public sealed partial class Plugin
                 bool done;
                 if(swing.Action=="unjam")
                 {
-                    if(!doorBudget.TryBegin(Time.frameCount))continue;
+                    if(!doorBudget.TryBegin(Time.frameCount,swing.Bot))continue;
                     float angle=(float)DoorMotion.At(swing.From,swing.To,Time.time-swing.Start,config!.DoorMotion.SwingDuration);
                     var timer=System.Diagnostics.Stopwatch.StartNew();bool clear;
                     try{clear=SwingClear(door,door.CurrentAngle,angle,swing.Bot,true);}
@@ -191,7 +191,7 @@ public sealed partial class Plugin
             if(Vector3.Distance(watch.Anchor,b.Position)>.2f){watch.Anchor=b.Position;watch.Since=Time.time;}
             if(Time.time-watch.Since<config!.DoorMotion.StuckDelay||Time.time<watch.Next||Time.time<watch.Attempt)continue;
             watch.Next=Time.time+.25f;
-            if(!DoorSyncReady||doorSwings.Count>=16||!doorBudget.TryBegin(Time.frameCount))continue;
+            if(!DoorSyncReady||doorSwings.Count>=16||!doorBudget.TryBegin(Time.frameCount,b))continue;
             var clock=System.Diagnostics.Stopwatch.StartNew();
             try
             {

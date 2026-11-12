@@ -44,11 +44,9 @@ public sealed partial class Plugin
             ||!NativeAdapter.IsSupportedAi(b)||!b.BotActive||b.IsDead||b.GameEnding||!Authority||Ghost(b.ProfileId))return "peek-out-of-scope";
         if(MedicalPostureGuard(b))return "medical-posture-protected";
         if(e==null||!ReferenceEquals(e,b.GoalEnemy)||!e.EnemyKnown||e.KnownPlaces.LastKnownPosition is not Vector3 known
-            ||!s.Jump.Policy.SameContact(e.EnemyProfileId,DP(known))||e.TimeSinceLastKnownUpdated>config.DoorApproach.ContactLifetime
-            ||System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e)!=s.Jump.TargetInstance)return "peek-contact-changed-or-expired";
+            ||!s.Jump.Policy.SameContact(e.EnemyProfileId,DP(known))||e.TimeSinceLastKnownUpdated>config.DoorApproach.ContactLifetime)return "peek-contact-changed-or-expired";
         if(e.IsVisible){s.Jump.Policy.Trace!.VisualAcquired=true;return "peek-native-visual-acquired";}
-        if(s.ActiveLabel!="COMET:Search"||s.Feature!="A01"||s.Decision!="Search"||!b.SAINLayersActive
-            ||b.Decision.CurrentCombatDecision!=ECombatDecision.Search||b.CurrentAction?.GetType().Name!="SearchAction")return "peek-search-not-owned";
+        if(!TacticalDoorSearch(b,s))return "peek-search-not-owned";
         if(b.EnemyController.VisibleEnemies.Count>0||b.Flashed.IsFlashed||b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed
             ||s.Fear.Current.Panic||b.Medical.TimeSinceShot<3||(!VisibleAdapter.WeaponReady(b)&&!JumpOwnOpening(b,s))
             ||b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None)return "peek-native-priority";
@@ -84,7 +82,7 @@ public sealed partial class Plugin
         }
         if(t.State=="validating")
         {
-            if(!doorBudget.TryBegin(Time.frameCount))return false;
+            if(!doorBudget.TryBegin(Time.frameCount,b))return false;
             doorClock.Restart();
             try
             {
@@ -116,7 +114,7 @@ public sealed partial class Plugin
         bool needsCheck=Time.time>=r.NextCheck||wants||t.State=="return-pending";
         if(needsCheck)
         {
-            if(!doorBudget.TryBegin(Time.frameCount))
+            if(!doorBudget.TryBegin(Time.frameCount,b))
             {if(Time.time-r.LastCheck>.4){EndDoorJump(s,"peek-validation-budget-expired");return true;}return false;}
             doorClock.Restart();string invalid;
             try{invalid=JumpLane(b,r,t.State=="run-up"||t.State=="returning"&&c.ReturnJump||t.State=="return-pending"&&c.ReturnJump);}
@@ -184,24 +182,7 @@ public sealed partial class Plugin
         if(r.Door?.Data.Door==null||r.Door.Data.Door.DoorState!=EDoorState.Open)return "peek-door-not-open";
         // Conservative continuous volume: standing body plus 1 m of possible vertical travel,
         // along the entire corridor lane. Reject uncertainty; never infer clearance from P10's roof ray.
-        var start=r.Stack;var end=r.Landing;var delta=end-start;
-        float upper=overhead?2.55f:1.55f;
-        try
-        {
-            foreach(var point in new[]{start,end})
-            {
-                int count=Physics.OverlapCapsuleNonAlloc(point+Vector3.up*.35f,point+Vector3.up*upper,.25f,doorOccupants,~0,QueryTriggerInteraction.Ignore);
-                if(count>=doorOccupants.Length)return "peek-clearance-uncertain";
-                for(int i=0;i<count;i++)if(JumpObstacle(doorOccupants[i],b))return "peek-body-ceiling-leaf-or-occupant-blocked";
-                Array.Clear(doorOccupants,0,doorOccupants.Length);
-            }
-            int hits=Physics.CapsuleCastNonAlloc(start+Vector3.up*.35f,start+Vector3.up*upper,.25f,delta.normalized,jumpHits,delta.magnitude,~0,QueryTriggerInteraction.Ignore);
-            if(hits>=jumpHits.Length)return "peek-clearance-uncertain";
-            for(int i=0;i<hits;i++)if(JumpObstacle(jumpHits[i].collider,b))return "peek-lane-obstructed";
-            if(NavMesh.Raycast(start,end,out _,NavMesh.AllAreas))return "peek-lane-navmesh-edge";
-            return "";
-        }
-        finally{Array.Clear(doorOccupants,0,doorOccupants.Length);Array.Clear(jumpHits,0,jumpHits.Length);}
+        return TacticalVolume(b,r.Stack,r.Landing,overhead,1).Replace("run-by-","peek-");
     }
     private static bool JumpObstacle(Collider col,BotComponent b)=>col!=null&&!ReferenceEquals(col.GetComponentInParent<Player>(),b.Player);
     private static bool OnJumpLane(DoorJumpRuntime r,Vector3 position)
@@ -219,8 +200,7 @@ public sealed partial class Plugin
         if(!s.Jump.Policy.Active)return;
         // Capture a real acquisition even when the decision-manager release precedes the next Search tick.
         var enemy=s.Jump.Owner?.GoalEnemy;
-        if(enemy?.IsVisible==true&&enemy.EnemyProfileId==s.Jump.Policy.Trace!.Target
-            &&System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(enemy)==s.Jump.TargetInstance)
+        if(enemy?.IsVisible==true&&enemy.EnemyProfileId==s.Jump.Policy.Trace!.Target)
             s.Jump.Policy.Trace.VisualAcquired=true;
         s.Jump.Policy.End(reason,Time.time);FinishDoorJump(s);
     }

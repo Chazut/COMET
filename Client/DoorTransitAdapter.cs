@@ -92,7 +92,7 @@ public sealed partial class Plugin
         {EndDoorTransit(s,"transit-movement-changed");r.Owner=b;r.Path=path;r.Started=path.TimeStarted;r.Action=b.CurrentAction;r.Next=0;
             transitControllers.Remove(b.PlayerComponent.CharacterController);transitControllers.Add(b.PlayerComponent.CharacterController,s);}
         r.Tick=Time.time;
-        if(Time.time>=r.Next&&doorBudget.TryBegin(Time.frameCount))
+        if(Time.time>=r.Next&&doorBudget.TryBegin(Time.frameCount,b))
         {
             var timer=System.Diagnostics.Stopwatch.StartNew();
             try{ProbeTransit(b,s,path);r.Next=Time.time+.1f;}

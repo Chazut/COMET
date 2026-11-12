@@ -24,6 +24,7 @@ public sealed class OpportunityTrace
     public double? EstimatedSpeed { get; set; }
     public double? RouteRisk { get; set; }
     public int? KnownThreats { get; set; }
+    public int? ImmediateThreats { get; set; }
     public string TravelMode { get; set; } = "not-assessed";
     public double Bonus { get; set; }
     public double ScoreCap { get; set; }
@@ -93,7 +94,7 @@ public sealed class OpportunityMemory
 public sealed class OpportunityTravel
 {
     public bool Ready, Complete, WeaponReady, ThreatsTruncated, CanSprint, DoorBusy, Visible, UnderFire;
-    public int ThreatCount, Corners;
+    public int ThreatCount, ImmediateThreats, Corners;
     public double PathLength, Risk, RiskLimit, WalkSpeed, SprintSpeed, Stamina, PositionError, VerticalTravel;
 }
 
@@ -108,7 +109,7 @@ public static class OpportunityModel
         if (!c.Enabled || !s.IsAi || !s.IsSupportedBot || !s.IsAuthority || !s.IsActive || s.Ghost || !s.HasContact || t.Target != s.Target)
         { Reject("opportunity-ineligible-observer"); return; }
         if (!v.Ready) { Reject("opportunity-probe-pending"); return; }
-        t.KnownThreats = v.ThreatCount;
+        t.KnownThreats = v.ThreatCount;t.ImmediateThreats=v.ImmediateThreats;
         if (!OpportunityMemory.Finite(v.PathLength) || v.PathLength < 0 || !OpportunityMemory.Finite(v.Risk) || v.Risk < 0 || v.Risk > 1
             || !OpportunityMemory.Finite(v.RiskLimit) || v.RiskLimit < 0 || v.RiskLimit > 1 || !OpportunityMemory.Finite(v.PositionError)
             || v.PositionError < 0 || !OpportunityMemory.Finite(v.VerticalTravel) || v.VerticalTravel < 0 || v.Corners < 2)
@@ -118,7 +119,7 @@ public static class OpportunityModel
         if (v.PositionError > 3) { Reject("opportunity-contact-moved"); return; }
         if (v.PathLength > c.MaxPath) { Reject("opportunity-path-too-long"); return; }
         if (!v.WeaponReady || s.LowAmmo || s.Hurt || s.Suppressed || v.UnderFire || s.Fear?.Panic == true) { Reject("opportunity-own-safety"); return; }
-        if (v.ThreatsTruncated || v.ThreatCount != 1) { Reject("opportunity-other-known-threats"); return; }
+        if (v.ThreatsTruncated || v.ThreatCount < 1 || v.ImmediateThreats != 0) { Reject("opportunity-other-immediate-threats"); return; }
         if (v.Risk > v.RiskLimit) { Reject("opportunity-route-exposed"); return; }
         if (v.DoorBusy) { Reject("opportunity-door-busy"); return; }
         if (!OpportunityMemory.Finite(v.WalkSpeed) || v.WalkSpeed <= 0 || !OpportunityMemory.Finite(v.SprintSpeed) || v.SprintSpeed < 0

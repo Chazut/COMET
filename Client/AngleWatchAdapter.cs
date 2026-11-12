@@ -42,7 +42,7 @@ public sealed partial class Plugin
         if(config?.Enabled!=true||!config.AngleWatch.Enabled||b==null||b.IsDead||!b.BotActive||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsSupportedAi(b))
         {r.Enemy=null;r.SeenAt=-1000;EndAngle(s,"angle-ineligible");return;}
         var e=b.GoalEnemy;
-        if(!ReferenceEquals(r.Enemy,e)){EndAngle(s,"angle-contact-changed");r.Enemy=e;r.SeenAt=r.GeometryAt=-1000;r.NextGeometry=0;r.Candidates=Array.Empty<AngleCandidate>();}
+        if(!SameTacticalContact(r.Enemy,e)){EndAngle(s,"angle-contact-changed");r.Enemy=e;r.SeenAt=r.GeometryAt=-1000;r.NextGeometry=0;r.Candidates=Array.Empty<AngleCandidate>();}
         if(e?.IsVisible==true&&Time.time-r.SampleAt>=.1f&&e.KnownPlaces.LastSeenPlace is {} seen)
         {r.Seen=seen.Position;r.SeenAt=Time.time;r.SampleAt=Time.time;}
         if(r.Policy.Active&&Time.time-r.CallbackAt>.4f)EndAngle(s,"angle-steering-callback-expired");
@@ -70,7 +70,7 @@ public sealed partial class Plugin
             ||b.CurrentAction.GetType().FullName!="SAIN.Layers.Combat.Solo."+(f.Action=="HoldInCover"?"StandAndShoot":f.Action)+"Action")f.Block="angle-native-action-owner";
         int count=0;
         if(f.Block.Length==0)foreach(var other in b.EnemyController.KnownEnemies) {
-            if(++count>32||other!=null&&!ReferenceEquals(other,e)&&(other.IsVisible||other.Status.ShotAtMeRecently)){f.Block="angle-other-threat";break;}
+            if(++count>32||other!=null&&!SameTacticalContact(other,e)&&(other.IsVisible||other.Status.ShotAtMeRecently)){f.Block="angle-other-threat";break;}
         }
         return f;
     }
@@ -118,7 +118,7 @@ public sealed partial class Plugin
             ||Vector3.Distance(VP(f.Known),r.ProbeKnown)>.3f||r.ProbeSource!=f.Source;
         if(moved||Time.time-r.GeometryAt>=c.Refresh) {
             if(moved)r.GeometryAt=-1000;
-            if(Time.time>=r.NextGeometry&&doorBudget.TryBegin(Time.frameCount)) {
+            if(Time.time>=r.NextGeometry&&doorBudget.TryBegin(Time.frameCount,b)) {
                 r.NextGeometry=Time.time+(float)c.Refresh;
                 var watch=System.Diagnostics.Stopwatch.StartNew();
                 try {
