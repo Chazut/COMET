@@ -7,7 +7,7 @@ Do not add a defensive tactical veto merely because it seems reasonable.
 
 Reference: R_F's SAIN zzap snapshot
 `fbb86b838e0fa692b759b2c0b11fc30158a53876`.
-Configuration marker: `zzap-fbb86b83-1`.
+Configuration marker: `zzap-fbb86b83-2`.
 The host remains official SAIN 4.5.1; the fork DLL is not distributed or installed.
 
 ## Behavioral changes
@@ -38,7 +38,11 @@ three-second stalled-cover rule. Removing these too would not be a source port.
 ## Integration boundaries
 
 - COMET still scopes itself to standard PMCs and AI Player Scavs. Ordinary scavs,
-  bosses, custom roles and human players remain excluded.
+  bosses, custom roles and human players remain excluded from its tactics.
+  P07 is a narrow source exception: registered custom roles with BrainsToApply or
+  BaseBrain receive zzap's exact injury contact and under-fire update when hit.
+  Standard roles retain native SAIN hit handling; this exception does not enable
+  other COMET tactics for custom roles.
 - Only the authoritative AI host acts in Fika. Ghost bots and externally owned
   movement remain outside COMET control. Raid cleanup, object validity, fault
   isolation and compatibility checks remain.
@@ -54,6 +58,29 @@ three-second stalled-cover rule. Removing these too would not be a source port.
 This is a behavioral port through original SAIN hooks, not a byte-identical fork.
 Automated source and integration checks do not establish identical results in
 Unity, Fika or every raid situation.
+
+## Follow-up source alignment
+
+- D08 uses its full 120-second search contact window, constant source chance and
+  the same clear-session grenade preparation as D07. Native Search selects this
+  variant even with fresh information; D07 retains its 60-second window. No
+  ongoing search-only veto.
+- S01 starts from the supporting squadmate's visible enemy position and treats
+  either participant being indoors as the indoor layout.
+- P03 uses the native personality near-shot distance, a one-shot look command,
+  eight-second look and 60-second distant-search intervals. No extra age/lease gate.
+- P04 applies source height bands (2.5/5.5 m) indoors without line of sight,
+  multiplying the native range instead of crediting its existing attenuation.
+- P05 removes third-party/unknown modifiers within 6 m and caps the corrected
+  modifier at 1 within 3 m, before native repeat-contact bonuses.
+- G10 adds a nearby explosion owner contact and retains native position dispersion
+  and squad reporting. No throw-witness proof or anonymous-glance replacement.
+- G09 leaves real flashes to native SAIN (including live memory). Continuous gas
+  extends blindness without repeating the initial flash side effects.
+- G08 keeps initial scatter for five seconds, then exposure/blindness. The custom
+  escape path and retry lease are removed. Manimal 2.0.0/2.0.1 real volumes, variants
+  and protection remain the previously requested provider compatibility boundary,
+  rather than copying the old provider's fixed-radius cloud approximation.
 
 ## Saved settings
 

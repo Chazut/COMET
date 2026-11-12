@@ -123,8 +123,7 @@ public sealed partial class Plugin
         if(config?.DoorRoomClear.Enabled!=true||r.Fault||r.Policy.Active||DoorGate(b,e,s).Length>0
             ||e.KnownPlaces.LastKnownPosition is not Vector3 known)return false;
         if(Vector3.Distance(b.Position,VP(door.Geometry.Center))>3)return false;
-        bool searching=e.TimeSinceLastKnownUpdated>config.DoorRoomClear.ContactLifetime;
-        if(searching&&(!b.Info.PersonalitySettings.Search.WillSearchForEnemy||!e.Seen&&!b.Info.PersonalitySettings.Search.WillSearchFromAudio))return false;
+        bool searching=config.DoorSearchClear.Enabled&&b.Decision.CurrentCombatDecision==ECombatDecision.Search;
         var old=r.Policy.Trace;
         // Exactly one variant gets a roll. A declined D07 attempt cannot fall through into D08.
         bool selected=searching
@@ -135,7 +134,7 @@ public sealed partial class Plugin
         r.Owner=b;r.Door=door;r.Stack=b.Position;r.TargetInstance=System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e);
         r.EntryChecked=false;r.Route=null;r.OwnedPath=null;r.Projectile=null;r.Candidate=0;r.BestScore=double.MaxValue;r.FeintChecked=false;
         r.LastCallback=r.LastCheck=Time.time;r.NextCheck=0;r.ThrowGuardPassed=false;r.ThrowRefusal="";
-        if(!searching)EnsureClearEvents();StopQuiet(b,s,"quiet-room-clear");EndSilentSearch(s,"silent-search-room-clear");EndAbandonment(s,"search-check-room-clear");
+        EnsureClearEvents();StopQuiet(b,s,"quiet-room-clear");EndSilentSearch(s,"silent-search-room-clear");EndAbandonment(s,"search-check-room-clear");
         RecordDoorClear(s,true);return true;
     }
     private string ClearResources(BotComponent b)
@@ -152,7 +151,6 @@ public sealed partial class Plugin
         if(t.Mode=="search")
         {
             if(!config.DoorSearchClear.Enabled)return "search-clear-disabled";
-            if(!b.Info.PersonalitySettings.Search.WillSearchForEnemy||e?.Seen==false&&!b.Info.PersonalitySettings.Search.WillSearchFromAudio)return "search-clear-native-search-disabled";
             string search=r.Policy.SearchContact(e?.TimeSinceLastKnownUpdated??-1,Time.time,e?.EnemyKnown==true,config.ContactLifetime,config.DoorApproach.ContactLifetime);
             if(search.Length>0)return search;
         }
@@ -255,7 +253,7 @@ public sealed partial class Plugin
             {
                 string route=ValidateClearRoute(b,r,true);if(route.Length>0){EndDoorClear(s,route);return true;}
                 string direct=DirectClearSafety(b,r);
-                string nade=t.Mode=="search"?"search-clear-no-real-grenade":PrepareClearGrenade(b,e!,s);
+                string nade=PrepareClearGrenade(b,e!,s);
                 r.Policy.Choose(direct.Length==0,nade.Length==0,direct,nade,config!.GrenadeJudgment.Enabled?0:jumpRandom.NextDouble(),jumpRandom.NextDouble(),Time.time,config.DoorRoomClear,config.GrenadeJudgment.Enabled);
             }
             else if(t.State=="throw-ready")
@@ -333,7 +331,6 @@ public sealed partial class Plugin
     private static double ClearDangerRadius(ThrowWeap item)=>Math.Max(6,Math.Max(item.MaxExplosionDistance,Math.Max(item.Blindness.y,item.Contusion.y)))+1;
     private string PrepareClearGrenade(BotComponent b,Enemy e,BotState s)
     {
-        if(s.RoomClear.Policy.Trace?.Mode=="search")return "search-clear-no-real-grenade";
         string why=NativeAdapter.PrepareRoomGrenade(b,e,s,config!);if(why.Length>0)return why;
         var manager=b.BotOwner.WeaponManager.Grenades;var item=manager.grenade;
         if(item==null||item.ThrowType.ToString().IndexOf("smoke",StringComparison.OrdinalIgnoreCase)>=0||item.IsDummy)return "clear-no-suitable-grenade";
@@ -341,7 +338,6 @@ public sealed partial class Plugin
     }
     private string ClearThrowSafety(BotComponent b,BotState s,AIGreanageThrowData data,ThrowWeap item)
     {
-        if(s.RoomClear.Policy.Trace!.Mode=="search")return "search-clear-no-real-grenade";
         if(data==null||!data.CanThrow||!data.IsUpToDate())return "clear-throw-arc-invalid";
         if(item==null||item.GetExplDelay<2.5)return "clear-fuse-too-short";
         if(!ClearBlastProtected(b.Position,data.Target,6))return "clear-own-blast-exposure";

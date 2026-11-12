@@ -8,7 +8,7 @@ public sealed class DoorRoomClearConfig
     public bool Enabled { get; set; }=true;
     public Dictionary<string,double> Chances { get; set; }=new()
     { ["GigaChad"]=40,["Chad"]=30,["Wreckless"]=35,["Normal"]=15,["Rat"]=0,["SnappingTurtle"]=0,["Coward"]=0,["Timmy"]=0 };
-    public double ContactLifetime { get; set; }=10;
+    public double ContactLifetime { get; set; }=60;
     public double GrenadePreference { get; set; }=50;
     public bool AllowFeint { get; set; }=true;
     public double MinimumAmmo { get; set; }=50;
@@ -23,7 +23,7 @@ public sealed class DoorRoomClearConfig
         if(Chances==null||Chances.Count!=8)throw new ArgumentException("Missing room entry personality chances.");
         foreach(var p in new[]{"GigaChad","Chad","Wreckless","Normal","Rat","SnappingTurtle","Coward","Timmy"})
             if(!Chances.TryGetValue(p,out var v))throw new ArgumentException("Missing room entry chance: "+p);else CometConfig.Range(v,0,100,p);
-        CometConfig.Range(ContactLifetime,3,15,nameof(ContactLifetime));CometConfig.Range(GrenadePreference,0,100,nameof(GrenadePreference));
+        CometConfig.Range(ContactLifetime,3,120,nameof(ContactLifetime));CometConfig.Range(GrenadePreference,0,100,nameof(GrenadePreference));
         CometConfig.Range(MinimumAmmo,25,100,nameof(MinimumAmmo));CometConfig.Range(MinimumStamina,20,80,nameof(MinimumStamina));
         CometConfig.Range(DepthMin,1.5,3,nameof(DepthMin));CometConfig.Range(DepthMax,DepthMin,4,nameof(DepthMax));
         CometConfig.Range(BlastPauseMin,.2,1,nameof(BlastPauseMin));CometConfig.Range(BlastPauseMax,BlastPauseMin,1.5,nameof(BlastPauseMax));
@@ -129,11 +129,8 @@ public sealed class DoorRoomClear
     public string SearchContact(double age,double now,bool known,double memoryLimit,double approachLimit)
     {
         if(Trace?.Mode!="search")return "";
-        if(!known)return "search-clear-contact-forgotten";
-        if(!Valid(age)||!Valid(now)||now<last||!Valid(memoryLimit)||!Valid(approachLimit))return "search-clear-invalid-age";
         Trace.ContactAge=age;
-        double limit=Math.Min(Trace.ContactLimit,Math.Min(memoryLimit,approachLimit));
-        return age>=limit||now-Trace.EvidenceAt>=limit?"search-clear-contact-expired":"";
+        return ""; // The selected session uses its own phase/deadline, not the contact selection window.
     }
     public static bool Valid(double v)=>DoorPolicy.Finite(v)&&v>=0;
     private static bool Roll(double v)=>Valid(v)&&v<1;
@@ -149,11 +146,10 @@ public sealed class DoorRoomClear
     public bool Choose(bool direct,bool grenade,string directWhy,string grenadeWhy,double roll,double pauseRoll,double now,DoorRoomClearConfig c,bool sharedGrenadeJudgment=false)
     {
         if(!Active||Trace!.State!="ready"||!Roll(roll)||!Roll(pauseRoll))return false;
-        if(Trace.Mode=="search"){grenade=false;grenadeWhy="disabled for an old-contact search";}
         Trace.VariantRoll=roll*100;Trace.Alternatives=new[]{"Direct entry: "+(direct?"eligible":directWhy),"Grenade entry: "+(grenade?"eligible":grenadeWhy),"Resume native combat/search if the selected plan becomes invalid"};
         if(!direct&&!grenade){End("clear-no-safe-variant");return false;}
         Trace.Variant=grenade&&(sharedGrenadeJudgment||!direct||roll*100<c.GrenadePreference)?"grenade":"direct";
-        Trace.BlastPause=Trace.Mode=="search"?0:c.BlastPauseMin+(c.BlastPauseMax-c.BlastPauseMin)*pauseRoll;
+        Trace.BlastPause=c.BlastPauseMin+(c.BlastPauseMax-c.BlastPauseMin)*pauseRoll;
         Phase(Trace.Variant=="grenade"?"throw-ready":"entry-ready","clear-variant-selected",now);return true;
     }
     public void ThrowRequest(string item,double fuse,double radius,double now)

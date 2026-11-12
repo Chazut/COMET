@@ -85,37 +85,13 @@ public sealed partial class Plugin
         { CountFloor("native-out-of-range"); return nativeRange; }
         var enemy = sound.Enemy;
         if (enemy == null) return nativeRange;
-        bool supported = sound.SoundType is SAINSoundType.Shot or SAINSoundType.SuppressedShot
-            or SAINSoundType.FootStep or SAINSoundType.Sprint or SAINSoundType.Prone or SAINSoundType.Jump or SAINSoundType.Land
-            or SAINSoundType.TurnSound or SAINSoundType.Bush or SAINSoundType.GearSound or SAINSoundType.Looting
-            or SAINSoundType.Reload or SAINSoundType.Heal or SAINSoundType.Surgery or SAINSoundType.Food;
-        // Impacts, explosions, door breaches, pain and unknown/modded sound types remain native.
-        if (!supported) { CountFloor("sound-preserved"); return nativeRange; }
-        var emission = Point(sound.Sound.Position); // Immutable emission, never source.Player.Position.
-        var listener = Point(bot.Transform.EyePosition);
-        if (!emission.Finite || !listener.Finite || !FloorHearing.Finite(sound.Sound.TimeCreated)
-            || sound.Sound.TimeCreated > Time.time || Time.time-sound.Sound.TimeCreated > 2)
-        { CountFloor("stale-or-invalid-signal"); return nativeRange; }
-        if (Math.Abs(emission.Y-bot.Position.y) < config!.FloorHearing.MinimumHeight)
-        { CountFloor("same-level"); return nativeRange; }
-        bool priority = enemy.InLineOfSight || enemy.IsVisible || CachedThreatUsable(bot, enemy)
-            || bot.BotOwner.Memory.IsUnderFire || bot.Suppression.IsSuppressed
-            || GunfireReaction.Recent(Time.time, enemy.Status.TimeLastShotAtMe, 5)
-            || GunfireReaction.Recent(Time.time, enemy.Status.TimeLastShotMe, 5);
+        var source = sound.Sound.PlayerComponent;
+        if (source == null) return nativeRange;
+        double height = Math.Abs(source.Position.y-bot.Position.y);
+        bool priority = enemy.InLineOfSight || !(bot.Memory.Location.IsIndoors || bot.Player.Environment == EnvironmentType.Indoor);
+        var geometry = new FloorGeometry(priority || height < config!.FloorHearing.MinimumHeight ? 0 : height >= 5.5 ? 2 : 1,
+            priority ? "floor-visible-or-outdoors" : "floor-source-height");
         bool cached = false;
-        var geometry = new FloorGeometry(0, "floor-combat-priority");
-        if (!priority)
-        {
-            string key = bot.ProfileId + ":" + enemy.EnemyProfileId;
-            cached = floorCache.TryGet(key, Time.time, listener, emission, out geometry);
-            if (!cached)
-            {
-                floorPhysics.Begin(Time.frameCount);
-                try { geometry = floorProbe.Probe(floorPhysics, listener, emission); }
-                finally { floorPhysics.End(); }
-                floorCache.Put(key, Time.time, listener, emission, geometry);
-            }
-        }
         var t = FloorHearing.Evaluate(config.FloorHearing, new FloorHearingFrame { NativeRange = nativeRange,
             Distance = sound.PlayerDistance, Environment = environment, Occlusion = occlusion,
             Gunfire = sound.IsGunShot, Geometry = geometry, Priority = priority });

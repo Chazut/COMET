@@ -48,6 +48,7 @@ namespace Comet.Client {
   internal object? stormObservationConfig,stormOpportunityConfig,voiceSource,voiceRequest,voicePlayback,voiceEmission,movementInjection,movementReaction,gunfireCall,quietCaller,blastCall;
   internal float nextMovementCleanup,nextMovementSummary,movementFaultUntil,nextFloorSummary,floorFaultUntil,nextCloseSummary,closeFaultUntil,nextImpactSummary,ownSampleAt,nextSweep;
   internal int stormObservationFrame,movementSequence,impactProbeFrame,blastSequence,blastThrowRayFrame,blastThrowRays,recoveryFrame,recoverySamples;
+  private void ClearBlasts(){blastCall=null;blastWarned=false;}
   internal bool movementWarned,floorWarned,closeWarned,blastWarned,faultSinkWarned,subscriberWarned;
   internal static bool faultCleaning,faultCleanupFailed;internal static Exception? faultCleanupError;
   internal struct FaultScope {internal bool Cleanup;internal string Entry;}

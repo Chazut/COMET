@@ -26,7 +26,7 @@ public sealed class GunfireConfig
 // Only supplied AFTER SAIN's native audibility check. Nothing in this policy creates hearing.
 public sealed class GunfireFrame
 {
-    public double Now, EmittedAt, Distance;
+    public double Now, EmittedAt, Distance, NearDistance = double.NaN;
     public string Source = "", Personality = "", Owner = "", Unsafe = "";
     public bool Scoped = true, Audible = true, Incoming, Engaged, Busy, CanLook = true, CanSearch = true, PersonalityChases;
 }
@@ -64,7 +64,7 @@ public sealed class GunfireReaction
     public GunfireTrace? Look { get; private set; }
     public GunfireReaction(GunfireConfig config) { this.config = config; }
     private static bool Finite(double x) => !double.IsNaN(x) && !double.IsInfinity(x);
-    public static bool Recent(double now, double at, double window) => Finite(now) && Finite(at) && at > 0 && at <= now && now - at <= window;
+    public static bool Recent(double now, double at, double window) => Finite(now) && Finite(at) && at > 0 && at <= now && now - at < window;
 
     public GunfireTrace Evaluate(GunfireFrame f)
     {
@@ -78,22 +78,19 @@ public sealed class GunfireReaction
         if (last > f.Now) { Look = null; return Result("native", "gunfire-clock-reset", true); }
         last = f.Now;
         if (!f.Audible) return Result("ignored", "gunfire-inaudible");
-        // Danger and a real ongoing engagement never lose native updates to distance/cooldown filters.
-        if (f.Incoming || f.Engaged) return Result("native", f.Incoming ? "gunfire-directed-at-me" : "gunfire-engaged-contact", true);
-        if (f.Now - f.EmittedAt > 2) return Result("ignored", "gunfire-stale-signal");
-        if (f.Distance <= config.NearDistance) return Result("native", "gunfire-near-contact", true);
+        if (f.Distance <= (Finite(f.NearDistance) ? f.NearDistance : config.NearDistance)) return Result("native", "gunfire-near-contact", true);
+        if (f.Incoming) return Result("native", "gunfire-directed-at-me", true);
         if (f.Distance > config.InterestDistance) return Result("ignored", "gunfire-too-distant");
         if (f.Busy) return Result("ignored", f.Unsafe.Length > 0 ? f.Unsafe : "gunfire-priority");
-        if (Look != null && f.Now < end) return Result("ignored", "gunfire-look-already-active");
-        if (config.AllowDistantSearch && f.PersonalityChases && f.CanSearch && f.Now >= nextSearch)
+        if (config.AllowDistantSearch && f.PersonalityChases && f.Now >= nextSearch)
         {
             nextSearch = f.Now + config.SearchInterval; t.SearchCooldown = config.SearchInterval;
             return Result("search", "gunfire-search-allowed", true);
         }
         if (!f.CanLook) return Result("ignored", "gunfire-steering-unavailable");
         if (f.Now < nextLook) return Result("ignored", "gunfire-look-cooldown");
-        nextLook = f.Now + config.LookInterval; end = f.Now + config.LookDuration;
-        t.LookCooldown = config.LookInterval; t.Remaining = config.LookDuration;
+        nextLook = f.Now + config.LookInterval; end = f.Now;
+        t.LookCooldown = config.LookInterval; t.Remaining = 0;
         t.Reason = !f.CanSearch && f.Owner == "ORBIT" ? "gunfire-orbit-keeps-objective" : "gunfire-look-at-sound";
         t.State = "look"; Look = t.Copy(); return t;
     }

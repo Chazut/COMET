@@ -28,7 +28,7 @@ namespace SAIN.SAINComponent.Classes.Sense {
  // Emulates the inspected official 4.5.1 body; wrappers dispatch the production Harmony callbacks.
  public class BotFlashedClass(BotComponent bot){
   public BotComponent Bot=bot;private float _flashEndTime,_blindFireTime;private SAIN.Helpers.TemporaryStatModifiers? _firstStage,_secondStage;
-  private Vector3? memory;public Vector3? LastSeenEnemyPoint{get=>memory;private set{var point=value;Comet.Client.Plugin.Memory(this,ref point);memory=point;}}
+  private Vector3? memory;public Vector3? LastSeenEnemyPoint{get=>memory;private set{var point=value;memory=point;}}
   public bool IsFlashed=>_flashEndTime>Time.time;public float TimeRemaining=>Math.Max(0,_flashEndTime-Time.time);public bool BlindFireReady=>_blindFireTime<Time.time;
   public float End=>_flashEndTime;public float Delay=>_blindFireTime;public object? First=>_firstStage?.Modifiers;public object? Second=>_secondStage?.Modifiers;
   public void ApplyFlash(float baseTime,Vector3 position){
@@ -37,7 +37,7 @@ namespace SAIN.SAINComponent.Classes.Sense {
     if(d>0){LastSeenEnemyPoint=Bot.GoalEnemy==null?null:Bot.GoalEnemy.EnemyPosition+Vector3.up*1.2f;Bot.BotOwner.BotsGroup.AddPointToSearch(position,Bot);_flashEndTime=Time.time+d;_blindFireTime=Time.time+c.BlindFireDelay;ApplyModifiers(d,c.RecoveryPoint);}}
    Comet.Client.Plugin.After(this,call,run);
   }
-  private void ApplyModifiers(float duration,float recoveryPoint){Comet.Client.Plugin.Stages(this,ref duration,ref recoveryPoint);Dismiss();_firstStage=new();_secondStage=new();Bot.BotOwner.Settings.Current.Apply(_firstStage.Modifiers,duration);Bot.BotOwner.Settings.Current.Apply(_secondStage.Modifiers,duration*recoveryPoint);}
+  private void ApplyModifiers(float duration,float recoveryPoint){if(!Comet.Client.Plugin.ModifiersAllowed())return;Dismiss();_firstStage=new();_secondStage=new();Bot.BotOwner.Settings.Current.Apply(_firstStage.Modifiers,duration);Bot.BotOwner.Settings.Current.Apply(_secondStage.Modifiers,duration*recoveryPoint);}
   private void Dismiss(){if(_firstStage!=null)Bot.BotOwner.Settings.Current.Dismiss(_firstStage.Modifiers);if(_secondStage!=null)Bot.BotOwner.Settings.Current.Dismiss(_secondStage.Modifiers);_firstStage=_secondStage=null;}
   public void ManualUpdate(){Bot.BotOwner.Settings.Current.Sweep();if(_firstStage!=null&&!IsFlashed){Dismiss();LastSeenEnemyPoint=null;}Comet.Client.Plugin.Tick(this);}
   public void Dispose(){Dismiss();Comet.Client.Plugin.Disposed(this);}
@@ -56,7 +56,8 @@ namespace Comet.Client {
  public sealed partial class Plugin {
   internal static Plugin? Instance;internal Dictionary<BotComponent,BotState> states=new();internal Comet.Core.CometConfig? config=new();internal object? world=new();internal bool Authority=true;internal string session="g09-harness";internal long sequence;internal bool subscriberWarned;internal Sink? diagnostics=new();internal Log Logger=new();internal HashSet<string> ghosts=new();
   public Plugin(){Instance=this;PatchFlashContinuity(new());}private bool Ghost(string id)=>ghosts.Contains(id);internal BotState GrenadeState(BotComponent b){if(!states.TryGetValue(b,out var s))states.Add(b,s=new(b));return s;}
-  internal static bool Before(BotFlashedClass f,float d,Vector3 p,out FlashCall? c)=>BeforeRealFlash(f,d,p,out c);internal static void After(BotFlashedClass f,FlashCall? c,bool run)=>AfterRealFlash(f,c,run);internal static void Memory(BotFlashedClass f,ref Vector3? p)=>ProtectFlashMemory(f,ref p);internal static void Stages(BotFlashedClass f,ref float d,ref float r)=>ExtendFlashStages(f,ref d,ref r);internal static void Tick(BotFlashedClass f)=>ObserveFlash(f);internal static void Disposed(BotFlashedClass f)=>DisposedFlash(f);
+  internal static bool Before(BotFlashedClass f,float d,Vector3 p,out FlashCall? c)=>BeforeRealFlash(f,d,p,out c);internal static void After(BotFlashedClass f,FlashCall? c,bool run)=>AfterRealFlash(f,c,run);internal static bool ModifiersAllowed()=>FlashModifiersAllowed();internal static void Tick(BotFlashedClass f)=>ObserveFlash(f);internal static void Disposed(BotFlashedClass f)=>DisposedFlash(f);
+  internal bool GasScope(BotComponent b)=>GasEnabled && FlashScope(b);internal bool GasEnabled;internal void GasFlash(BotComponent b,Vector3 p)=>ApplyGasFlash(b,p);
   internal void End(){foreach(var pair in states)DropFlash(pair.Key,pair.Value,"flash-raid-ended",true);states.Clear();}
   internal void Sweep(BotComponent b){if(states.TryGetValue(b,out var s)&&!FlashScope(b))DropFlash(b,s,"flash-out-of-scope",DeadFlashOwner(b));}
  }

@@ -12,7 +12,7 @@ namespace UnityEngine {
  public class SphereCollider:Component{public float radius=4;}
  public struct Vector3(float x,float y,float z){public float x=x,y=y,z=z;public float sqrMagnitude=>x*x+y*y+z*z;public float magnitude=>(float)Math.Sqrt(sqrMagnitude);public Vector3 normalized=>magnitude>0?this*(1/magnitude):new();public static Vector3 operator+(Vector3 a,Vector3 b)=>new(a.x+b.x,a.y+b.y,a.z+b.z);public static Vector3 operator-(Vector3 a,Vector3 b)=>new(a.x-b.x,a.y-b.y,a.z-b.z);public static Vector3 operator*(Vector3 a,float b)=>new(a.x*b,a.y*b,a.z*b);public static float Distance(Vector3 a,Vector3 b)=>(a-b).magnitude;public static Vector3 Lerp(Vector3 a,Vector3 b,float t)=>a+(b-a)*t;}
  public struct Quaternion(float angle){float angle=angle;public static Quaternion Euler(float x,float y,float z)=>new(y);public static Vector3 operator*(Quaternion q,Vector3 v){double a=q.angle*Math.PI/180;return new((float)(v.x*Math.Cos(a)+v.z*Math.Sin(a)),v.y,(float)(-v.x*Math.Sin(a)+v.z*Math.Cos(a)));}}
- public static class Mathf{public static float Max(float a,float b)=>Math.Max(a,b);public static float Lerp(float a,float b,float t)=>a+(b-a)*Math.Clamp(t,0,1);}
+ public static class Mathf{public static int RoundToInt(float v)=>(int)Math.Round(v);public static float Max(float a,float b)=>Math.Max(a,b);public static float Lerp(float a,float b,float t)=>a+(b-a)*Math.Clamp(t,0,1);}
  public static class Physics{public static bool Wall;public static bool Linecast(Vector3 a,Vector3 b,int mask)=>Wall;}
  public static class Time{public static float time=10,realtimeSinceStartup=10;public static int frameCount;public static void Set(float t){time=realtimeSinceStartup=t;frameCount++;}}
 }
@@ -78,13 +78,13 @@ namespace Comet.Client{
   internal Plugin(){Instance=this;PatchGasExposure(new());}
   private bool Ghost(string id)=>ghosts.Contains(id);private BotState GrenadeState(BotComponent b){if(!states.TryGetValue(b,out var s))states.Add(b,s=new(b));return s;}private void Release(BotState s,string why){}
   internal void Filter(BotComponent b){b.Grenade.GrenadeReactionClass.Bot=b;FilterNativeGas(b.Grenade.GrenadeReactionClass);}
-  internal void Tick(BotComponent b){b.Grenade.GrenadeReactionClass.Bot=b;GasBotUpdate(b); }internal bool Decide(SAIN.SAINComponent.Classes.Decision.BotDecisionManager m)=>GasDecision(m);internal bool Act(BotComponent b)=>TryGasAction(b);
-  internal void StopAction(BotComponent b)=>GasActionStopped(new(b));
+  internal void Tick(BotComponent b){b.Grenade.GrenadeReactionClass.Bot=b;GasBotUpdate(b); }internal bool Decide(SAIN.SAINComponent.Classes.Decision.BotDecisionManager m){Filter(m.Bot);return true;}internal bool Act(BotComponent b)=>TryGasAction(b);
+  internal int FlashCalls; private void ApplyGasFlash(BotComponent b,Vector3 center){FlashCalls++;b.Flashed.IsFlashed=true;}
   internal bool Ready=>gasBridge.Ready;internal void End(){foreach(var pair in states)DropGas(pair.Key,pair.Value,"gas-raid-ended");gasBridge.Clear();}internal GasRuntime State(BotComponent b)=>states[b].Gas;
  }
 }
 
-namespace SAIN.SAINComponent.SubComponents{public class GrenadeTrackerClass{public EFT.Grenade? Grenade;public bool CanReact=true;public Vector3 DangerPoint;}}
+namespace SAIN.SAINComponent.SubComponents{public class GrenadeTrackerClass{public EFT.Grenade? Grenade;public bool CanReact=true;public float TimeSinceThrown;public Vector3 DangerPoint;}}
 namespace SAIN.SAINComponent.Classes.WeaponFunction{public class GrenadeReactionClass{
  public BotComponent Bot=null!;public bool Danger;public SAIN.SAINComponent.SubComponents.GrenadeTrackerClass? DangerGrenade{get;private set;}
  public SAIN.Models.Enums.EGrenadeReaction Reaction{get;private set;}

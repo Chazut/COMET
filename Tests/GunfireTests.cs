@@ -27,8 +27,8 @@ static class GunfireTests
         foreach(var pair in new[]{(99.9,"native"),(100.0,"native"),(100.1,"look"),(250.0,"look"),(250.1,"ignored")})
             Check(New().Evaluate(Frame(distance:pair.Item1)).State==pair.Item2,"exact distance boundary "+pair.Item1);
         foreach(double d in new[]{50,150,300,700})
-        {var f=Frame(distance:d);f.Incoming=true;Check(New().Evaluate(f).PassToSain,"incoming fire exception "+d);f.Incoming=false;f.Engaged=true;Check(New().Evaluate(f).PassToSain,"engaged target preserved "+d);}
-        foreach(var edit in new Action<GunfireFrame>[] {f=>f.Audible=false,f=>f.Busy=true,f=>f.CanLook=false,f=>f.EmittedAt=7})
+        {var f=Frame(distance:d);f.Incoming=true;Check(New().Evaluate(f).PassToSain,"incoming fire exception "+d);f.Incoming=false;f.Engaged=true;Check(New().Evaluate(f).PassToSain==(d<=100),"current target alone does not bypass distance gate "+d);}
+        foreach(var edit in new Action<GunfireFrame>[] {f=>f.Audible=false,f=>f.Busy=true,f=>f.CanLook=false})
         {var f=Frame();edit(f);Check(New().Evaluate(f).State=="ignored","sound/safety guard");}
         foreach(var edit in new Action<GunfireFrame>[] {f=>f.Scoped=false,f=>f.Distance=double.NaN,f=>f.Distance=-1,f=>f.Now=double.PositiveInfinity,f=>f.EmittedAt=11})
         {var f=Frame();edit(f);Check(New().Evaluate(f).PassToSain,"invalid/out-of-scope leaves native behavior available");}
@@ -52,14 +52,11 @@ static class GunfireTests
             Check(log.ShouldWrite(9,applied),"clock rollback does not suppress all later diagnostics");
         }
         {
-            var p=New();var f=Frame();var chosen=p.Evaluate(f);Check(chosen.State=="look"&&!chosen.Applied,"intent is not execution");
-            Check(p.Applied(10)==null,"no steering without a perceived position");p.Locate(1,2,3);
-            Check(p.Applied(10)!.Applied,"actual steering marks applied");
-            // Automatic fire, including several shooters, cannot refresh the timer or redirect the gaze.
-            for(int i=1;i<300;i++){f=Frame(10+i*.01);f.Source="shooter"+(i%5);Check(p.Evaluate(f).State=="ignored","burst coalesced");}
-            var current=p.Tick(12.99)!;Check(current.X==1&&current.Y==2&&current.Z==3&&current.Remaining<.011,"fixed estimate and absolute deadline");
-            Check(p.Tick(13)!.State=="ended"&&p.Look==null,"ends at three seconds");
-            Check(p.Evaluate(Frame(17.99)).State=="ignored","8-second look interval");Check(p.Evaluate(Frame(18)).State=="look","eligible at interval boundary");
+            var p=New();var t=p.Evaluate(Frame());Check(t.State=="look"&&t.Remaining==0,"one-shot look, no steering lease");
+            Check(p.Evaluate(Frame(17.99)).State=="ignored","source eight-second look interval");
+            Check(p.Evaluate(Frame(18)).State=="look","look at exact interval");
+            var f=Frame();f.NearDistance=160;Check(New().Evaluate(f).PassToSain,"native personality near threshold");
+            f=Frame();f.EmittedAt=1;Check(New().Evaluate(f).State=="look","no added queued sound age veto");
         }
         {
             var p=New();var f=Frame();f.PersonalityChases=true;Check(p.Evaluate(f).State=="search","native chaser may search");
@@ -69,18 +66,12 @@ static class GunfireTests
         }
         {
             var f=Frame();f.PersonalityChases=true;f.Owner="ORBIT";f.CanSearch=false;var t=New().Evaluate(f);
-            Check(t.State=="look"&&!t.PassToSain&&t.Reason=="gunfire-orbit-keeps-objective","ORBIT route retained");
+            Check(t.State=="search"&&t.PassToSain,"source chase decision does not borrow movement ownership veto");
             f.Busy=true;Check(New().Evaluate(f).State=="ignored","ORBIT priority also blocks glance");
             f.Busy=false;Check(new GunfireReaction(new(){AllowDistantSearch=false}).Evaluate(f).State=="look","search disabled still permits attention");
         }
-        foreach(string why in new[]{"gunfire-combat-priority","gunfire-incoming-fire","gunfire-sprinting","gunfire-out-of-scope","gunfire-priority","gunfire-steering-unavailable"})
-        {var p=New();p.Evaluate(Frame());p.Locate(1,2,3);p.Applied(10);var t=p.Tick(10.1,why)!;Check(t.State=="ended"&&!t.Applied&&t.ValidFor==0&&p.Look==null,"immediate release "+why);}
-        {
-            var p=New();p.Evaluate(Frame());p.Locate(1,2,3);p.Applied(10);Check(p.Tick(9)!.Reason=="gunfire-clock-reset"&&p.Look==null,"clock rollback cannot prolong glance");
-            var snapshot=New().Evaluate(Frame());Check(!snapshot.SearchObserved,"allowed is not observed");
-        }
         Check(!GunfireReaction.Recent(10,0,5)&&!GunfireReaction.Recent(10,11,5)&&!GunfireReaction.Recent(10,double.NaN,5),"invalid/sentinel/future threat timestamps");
-        Check(GunfireReaction.Recent(10,5,5)&&!GunfireReaction.Recent(10,4.99,5),"incoming memory boundary");
+        Check(!GunfireReaction.Recent(10,5,5)&&GunfireReaction.Recent(10,5.01,5),"incoming memory boundary");
         // Confirm hooks against the exact official DLL, including the native audibility -> gate -> dispersion sequence.
         using(var pe=new PEReader(File.OpenRead("references/sain-4.5.1/SAIN.dll")))
         {

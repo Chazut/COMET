@@ -65,6 +65,19 @@ internal static class DifficultyPresetTests
             string legacy=oldDefaults.ToJsonString();File.WriteAllText(path,legacy);
             var migrated=store.Read();Check(migrated.DifficultyPreset=="Hard"&&!DifficultyPresets.Describe(migrated).Customized,"legacy default loads as Hard");
             Check(Directory.GetFiles(dir,"*.before-zzap-*.bak").Any(p=>File.ReadAllText(p)==legacy),"migration preserves exact previous settings in backup");
+            var v1=JsonNode.Parse(legacy)!.AsObject();v1["BehaviorBaseline"]="zzap-fbb86b83-1";
+            v1["DoorSearchClear"]!["ContactLifetime"]=25;v1["CloseDetection"]!["ReductionPercent"]=50;
+            v1["GasExposure"]!["Enabled"]=false;v1["ImpactReaction"]!["Enabled"]=false;
+            string v1Path=Path.Combine(dir,"v1.json"),v1Bytes=v1.ToJsonString();File.WriteAllText(v1Path,v1Bytes);
+            var v1Store=new ConfigStore(v1Path);var v2=v1Store.Read();
+            Check(v2.BehaviorBaseline==CometConfig.SourceBaseline&&v2.DoorSearchClear.ContactLifetime==120&&v2.CloseDetection.ReductionPercent==100,"follow-up migration replaces v1 perception limits");
+            Check(!v2.GasExposure.Enabled&&!v2.ImpactReaction.Enabled,"follow-up migration keeps deliberate feature disables");
+            Check(Directory.GetFiles(dir,"*.before-zzap-*.bak").Any(p=>File.ReadAllText(p)==v1Bytes),"follow-up migration backs up exact v1 bytes");
+            int backups=Directory.GetFiles(dir,"*.before-zzap-*.bak").Length;v1Store.Read();
+            Check(Directory.GetFiles(dir,"*.before-zzap-*.bak").Length==backups,"follow-up migration runs once");
+            foreach(var retired in new[]{"ImpactReaction.Memory","ImpactReaction.MinimumInterval","ExplosionAwareness.LookDuration","ExplosionAwareness.LookInterval","GasExposure.AttemptDuration","GasExposure.RetryDelay","Gunfire.LookDuration","Gunfire.NearDistance"})
+                Check(SourceBaselineSettings.IsRetiredPath(retired),"obsolete behavior control hidden: "+retired);
+            Check(!SourceBaselineSettings.IsRetiredPath("ExplosionAwareness.Enabled"),"G10 enable toggle is functional");
             var legacyCustom=JsonNode.Parse(legacy)!.AsObject();legacyCustom["CornerPeek"]!["Chance"]=13;
             File.WriteAllText(path,legacyCustom.ToJsonString());migrated=store.Read();
             Check(migrated.CornerPeek.Chance==hard.CornerPeek.Chance&&!DifficultyPresets.Describe(migrated).Customized,"old behavioral limits replaced by source defaults");

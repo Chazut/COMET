@@ -53,8 +53,8 @@ public sealed partial class Plugin
             prefix: new HarmonyMethod(typeof(Plugin), nameof(BeforeRealFlash)) { priority = Priority.Last },
             postfix: new HarmonyMethod(typeof(Plugin), nameof(AfterRealFlash)),
             finalizer: new HarmonyMethod(typeof(Plugin), nameof(FlashException)));
-        h.Patch(flashMemorySetter, prefix: new HarmonyMethod(typeof(Plugin), nameof(ProtectFlashMemory)) { priority = Priority.Last });
-        h.Patch(flashApplyModifiers, prefix: new HarmonyMethod(typeof(Plugin), nameof(ExtendFlashStages)));
+
+        h.Patch(flashApplyModifiers, prefix: new HarmonyMethod(typeof(Plugin), nameof(FlashModifiersAllowed)));
         h.Patch(AccessTools.Method(t, nameof(BotFlashedClass.ManualUpdate)), postfix: new HarmonyMethod(typeof(Plugin), nameof(ObserveFlash)));
         h.Patch(AccessTools.Method(t, nameof(BotFlashedClass.Dispose)), postfix: new HarmonyMethod(typeof(Plugin), nameof(DisposedFlash)));
     }
@@ -70,71 +70,28 @@ public sealed partial class Plugin
     }
     private static bool BeforeRealFlash(BotFlashedClass __instance, float baseTime, Vector3 position, out FlashCall? __state)
     {
-        __state = null;
-        var p = Instance; var b = __instance.Bot;
-        if (p == null || !p.FlashScope(b)) return true;
-        var s = p.GrenadeState(b); var r = s.Flash;
-        if (r.Fault) return true;
-        try
-        {
-            float duration = FlashDuration(b, baseTime);
-            if (!FlashContinuityRules.Finite(baseTime) || !FlashContinuityRules.Finite(duration) || duration <= 0 || !ValidPoint(position)) return false;
-            // Native calls are real flash events. Never guess that two nearby explosions are one refresh.
-            var call = new FlashCall { Now = Time.time, Duration = duration, OldEnd = (float)flashEnd.GetValue(__instance)!,
-                OldStrong = r.Active ? r.StrongEnd : 0, WasBlind = __instance.IsFlashed };
-            if (call.WasBlind)
-            {
-                // A subsequent flash must not read the live target or refresh its remembered position.
-                if (r.Active) { call.Remembered = r.Remembered; call.Target = r.Target; }
-            }
-            else
-            {
-                var enemy = b.GoalEnemy;
-                var seen = enemy?.KnownPlaces.LastSeenPlace;
-                if (seen != null && ValidPoint(seen.Position))
-                { call.Remembered = seen.Position + Vector3.up * 1.2f; call.Target = enemy!.EnemyProfileId; }
-            }
-            r.Pending = call; __state = call;
-        }
-        catch (Exception ex) { p.FlashError(b, s, ex); }
-        return true;
+        __state = null; var p = Instance;
+        if (p == null || !(p.FlashScope(__instance.Bot) || p.gasFlashCall)) return true;
+        try { __state = new FlashCall { Now = Time.time, Duration = FlashDuration(__instance.Bot, baseTime), WasBlind = __instance.IsFlashed }; }
+        catch (Exception ex) { p.Logger.LogWarning("G09 observation: " + ex.Message); }
+        return true; // Real flashes keep native zzap memory, search point, delay and duration.
     }
     private static bool DeadFlashOwner(BotComponent? b) => b == null || b.IsDead;
-    private static void ProtectFlashMemory(BotFlashedClass __instance, ref Vector3? __0)
-    {
-        var p = Instance;
-        if (p != null && p.states.TryGetValue(__instance.Bot, out var s) && s.Flash.Pending is { } call) __0 = call.Remembered;
-    }
-    private static void ExtendFlashStages(BotFlashedClass __instance, ref float duration, ref float recoveryPoint)
-    {
-        var p = Instance;
-        if (p == null || !p.states.TryGetValue(__instance.Bot, out var s) || s.Flash.Pending is not { } c) return;
-        if (!FlashContinuityRules.Finite(duration) || duration <= 0 || !FlashContinuityRules.Finite(recoveryPoint)) return;
-        float end = (float)FlashContinuityRules.End(c.Now, duration, c.OldEnd);
-        float strong = (float)FlashContinuityRules.StrongEnd(c.Now, duration, recoveryPoint, c.OldStrong);
-        // Native owns both modifier sets. Preserve each deadline independently; do not restart a full old recovery phase.
-        duration = end - c.Now;
-        recoveryPoint = Math.Max(0, Math.Min(1, (strong - c.Now) / duration));
-        s.Flash.End = end; s.Flash.StrongEnd = c.Now + duration * recoveryPoint;
-        c.Applied = true;
-    }
+    private bool gasFlashCall;
+    private static bool FlashModifiersAllowed() => Instance?.gasFlashCall != true;
     private static void AfterRealFlash(BotFlashedClass __instance, FlashCall? __state, bool __runOriginal)
     {
-        var p = Instance;
-        if (p == null || __state == null || !p.states.TryGetValue(__instance.Bot, out var s)) return;
-        var r = s.Flash; r.Pending = null;
-        if (!__runOriginal || !__state.Applied) return;
-        try
-        {
-            flashEnd.SetValue(__instance, r.End);
-            flashMemorySetter.Invoke(__instance, new object?[] { __state.Remembered });
-            r.Native = __instance; r.First = (TemporaryStatModifiers?)flashFirst.GetValue(__instance); r.Second = (TemporaryStatModifiers?)flashSecond.GetValue(__instance);
-            r.Remembered = __state.Remembered; r.Target = __state.Target; r.Active = true;
-            r.Trace = new FlashContinuityTrace { Source = "native-flash", RequestedDuration = __state.Duration };
-            p.RecordFlash(__instance.Bot, s, __state.WasBlind ? "new-flash" : "started",
-                __state.WasBlind ? "flash-overlap-preserved" : "flash-personal-memory", true);
-        }
-        catch (Exception ex) { p.FlashError(__instance.Bot, s, ex); }
+        var p=Instance;
+        if(p==null || __state==null || !__runOriginal || __state.Duration<=0) return;
+        try {
+            var s=p.GrenadeState(__instance.Bot); var r=s.Flash;
+            r.Native=__instance; r.End=(float)flashEnd.GetValue(__instance)!;
+            r.StrongEnd=Time.time + __state.Duration * SAIN.SAINPlugin.LoadedPreset.GlobalSettings.Look.Flashbang.RecoveryPoint;
+            r.Remembered=__instance.LastSeenEnemyPoint; r.Target=__instance.Bot.GoalEnemy?.EnemyProfileId??"";
+            r.First=(TemporaryStatModifiers?)flashFirst.GetValue(__instance);r.Second=(TemporaryStatModifiers?)flashSecond.GetValue(__instance);
+            r.Active=true;r.Trace=new FlashContinuityTrace{Source=p.gasFlashCall?"gas-start":"native-flash",RequestedDuration=__state.Duration};
+            p.RecordFlash(__instance.Bot,s,__state.WasBlind?"new-flash":"started","flash-source-live-memory",true);
+        } catch(Exception ex) { p.Logger.LogWarning("G09 observation: "+ex.Message); }
     }
     private static Exception? FlashException(BotFlashedClass __instance, Exception? __exception)
     {
@@ -142,28 +99,24 @@ public sealed partial class Plugin
         if (__exception != null && p != null && p.states.TryGetValue(__instance.Bot, out var s)) p.FlashError(__instance.Bot, s, __exception);
         return __exception; // Never hide native errors.
     }
-    // Explicit continuation for a COMET-owned continuous source. G08 intentionally does NOT call this.
-    // Unlike a genuine ApplyFlash event, this cannot start blindness or reset its one-shot behavior.
+    // Port of zzap RefreshFlash: duration only. No memory/search/blind-fire restart.
     internal bool RefreshOngoingFlash(BotComponent b, float baseTime)
     {
-        if (!FlashScope(b) || !states.TryGetValue(b, out var s) || !s.Flash.Active || s.Flash.Fault || !b.Flashed.IsFlashed) return false;
-        var r = s.Flash;
-        try
-        {
-            float duration = FlashDuration(b, baseTime), old = (float)flashEnd.GetValue(b.Flashed)!;
-            if (!FlashContinuityRules.Finite(baseTime) || !FlashContinuityRules.Finite(duration) || duration <= 0 || Time.time + duration <= old) return false;
-            r.Pending = new FlashCall { Now = Time.time, Duration = duration, OldEnd = old, OldStrong = r.StrongEnd, Remembered = r.Remembered };
-            object[] args = { duration, SAIN.SAINPlugin.LoadedPreset.GlobalSettings.Look.Flashbang.RecoveryPoint };
-            flashApplyModifiers.Invoke(b.Flashed, args);
-            if (!r.Pending.Applied) return false;
-            flashEnd.SetValue(b.Flashed, r.End);
-            r.First = (TemporaryStatModifiers?)flashFirst.GetValue(b.Flashed); r.Second = (TemporaryStatModifiers?)flashSecond.GetValue(b.Flashed);
-            r.Trace = new FlashContinuityTrace { Source = "continuation", RequestedDuration = duration };
-            RecordFlash(b, s, "extended", "flash-duration-only-refresh", true);
-            return true;
-        }
-        catch (Exception ex) { FlashError(b, s, ex); return false; }
-        finally { r.Pending = null; }
+        if (!GasScope(b) && !FlashScope(b)) return false;
+        if (!b.Flashed.IsFlashed) return false;
+        float duration=FlashDuration(b,baseTime), old=(float)flashEnd.GetValue(b.Flashed)!;
+        if(duration<=0 || Time.time+duration<=old) return false;
+        flashEnd.SetValue(b.Flashed,Time.time+duration);
+        var s=GrenadeState(b);var r=s.Flash;r.Native=b.Flashed;r.End=Time.time+duration;
+        r.Remembered=b.Flashed.LastSeenEnemyPoint;r.Active=true;
+        r.Trace=new FlashContinuityTrace{Source="gas-continuation",RequestedDuration=duration};
+        RecordFlash(b,s,"extended","flash-duration-only-refresh",true);return true;
+    }
+    private void ApplyGasFlash(BotComponent b, Vector3 position)
+    {
+        if(b.Flashed.IsFlashed){RefreshOngoingFlash(b,3);return;}
+        gasFlashCall=true;
+        try{b.Flashed.ApplyFlash(3,position);}finally{gasFlashCall=false;}
     }
     private static void ObserveFlash(BotFlashedClass __instance)
     {
@@ -171,7 +124,7 @@ public sealed partial class Plugin
         if (p == null || !p.states.TryGetValue(__instance.Bot, out var s) || !s.Flash.Active) return;
         try
         {
-            if (!p.FlashScope(__instance.Bot)) { p.DropFlash(__instance.Bot, s, "flash-out-of-scope", false); return; }
+            if (!p.FlashScope(__instance.Bot) && !p.GasScope(__instance.Bot)) { p.DropFlash(__instance.Bot, s, "flash-out-of-scope", false); return; }
             if (!__instance.IsFlashed) { p.DropFlash(__instance.Bot, s, "flash-recovered", false); return; }
             p.RecordFlash(__instance.Bot, s, "active", "flash-in-progress", false);
         }
@@ -216,7 +169,7 @@ public sealed partial class Plugin
         t.HasRemembered = state != "ended" && r.Remembered.HasValue; t.Target = t.HasRemembered ? r.Target : "";
         t.X = t.HasRemembered ? r.Remembered!.Value.x : 0; t.Y = t.HasRemembered ? r.Remembered!.Value.y : 0; t.Z = t.HasRemembered ? r.Remembered!.Value.z : 0;
         t.GasActive = s.Gas.Intensity > 0;
-        t.Alternatives = new[] { "Keep each existing flash deadline", "Never update a blind bot from a live enemy position", "Gas modifiers stay separate" };
+        t.Alternatives = new[] { "Real flash: native live enemy memory and new duration", "Continuous gas: extend blindness without refreshing memory or blind-fire delay", "Gas modifiers stay separate" };
         var json = Diagnostics.Serialize(new { schema = 1, session, sequence = ++sequence, feature = "G09", stage = "evaluated", decision = "FlashContinuity", reason,
             realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"), configRevision = config?.Revision ?? 0, profileId = s.ProfileId, name = s.Name, botInstance = s.Id,
             flashContinuity = t, flashContinuityConfig = config?.FlashContinuity });

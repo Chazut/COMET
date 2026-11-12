@@ -23,6 +23,13 @@ void Save(Plugin p)=>events.AddRange(p.diagnostics!.Lines);
  a.OnSteeringTicked();C(b.Steering.Points>0,"hold steers to contact");
  Step(20.1f);p.Sample(b);C(!r.Policy.Active,"source angle hold has bounded lifetime");a.Stop();Save(p);
 }
+{
+ var(p,b,m)=Setup();b.GoalEnemy!.KnownPlaces.LastKnownPosition=new(0,0,12);m.GoalEnemy!.EnemyPosition=new(0,0,10);b.GoalEnemy.EnemyPlayer.Environment=EnvironmentType.Indoor;
+ Plan(p,b);var r=p.states[b].Crossfire;
+ C(Vector3.Distance(r.Known,m.GoalEnemy.EnemyPosition)<.001f,"source uses supporting bot's visible target, not own stale memory");
+ C(r.Indoor,"target indoors uses indoor candidates even when bot is outside");
+ C(r.Policy.Trace!.Source=="visible-squadmate-enemy-position","trace names actual source");
+}
 foreach(string scope in new[]{"scav","human","dead","inactive","ghost","remote","world","enabled","feature","ending"}){
  var(p,b,m)=Setup();Plan(p,b);Start(p,b);var path=(BotPathDataManual)b.Mover.ActivePath!;
  switch(scope){case"scav":b.Pmc=false;break;case"human":b.Player.IsAI=false;break;case"dead":b.IsDead=true;break;case"inactive":b.BotActive=false;break;case"ghost":p.Ghosts.Add(b.ProfileId);break;case"remote":p.Authority=false;break;case"world":p.world=null;break;case"enabled":p.config!.Enabled=false;break;case"feature":p.config!.Crossfire.Enabled=false;break;case"ending":b.GameEnding=true;break;}

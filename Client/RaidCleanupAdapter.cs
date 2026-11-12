@@ -104,7 +104,7 @@ public sealed partial class Plugin
                 ClearEnvironment();
             });
             Step("grenade-caches",()=>{
-                blastQueue.Clear();blastThrows.Clear();blastRecent.Clear();blastCall=null;blastSequence=0;blastWarned=false;blastThrowRayFrame=-1;blastThrowRays=0;
+                ClearBlasts();
                 ownProjectiles.Clear();ownSampleAt=0;gasBridge.Clear();grenadeArcBudget.Clear();grenadeArcClock.Reset();
             });
             Step("movement-caches",()=>{

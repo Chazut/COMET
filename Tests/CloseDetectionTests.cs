@@ -30,37 +30,23 @@ static class CloseDetectionTests
         }
         finally { if(Directory.Exists(dir))Directory.Delete(dir,true); }
         CloseDetectionFrame Frame(double distance=3)=>new(){MasterEnabled=true,SupportedAi=true,Active=true,Authority=true,ValidTarget=true,InFov=true,ClearRecentRay=true,Distance=distance,ThirdParty=1.5,Unknown=1.5,NativeModifier=9};
-        foreach(var (d,attention) in new[]{(0d,1d),(2.99,1),(3,1),(4.5,1.625),(5.999,2.2495833333333333),(6,2.25),(9,2.25)})
-        {var t=CloseDetection.Evaluate(c,Frame(d));Near(t.FinalModifier,4*attention,"distance ramp "+d);Check(!t.VisualAcquired,"correction is not acquisition");}
-        foreach(var edit in new Action<CloseDetectionFrame>[] {f=>f.MasterEnabled=false,f=>f.SupportedAi=false,f=>f.Active=false,f=>f.Authority=false,f=>f.Ghost=true,f=>f.ValidTarget=false,f=>f.Blind=true,f=>f.InFov=false,f=>f.ClearRecentRay=false})
-        {var f=Frame();edit(f);var t=CloseDetection.Evaluate(c,f);Near(t.FinalModifier,9,"excluded or obstructed target retains native");Check(t.State=="native","refusal never claims action");}
+        foreach(var (d,expected) in new[]{(0d,1d),(2.99,1),(3,4),(4.5,4),(5.999,4),(6,9),(9,9)})
+        {var t=CloseDetection.Evaluate(c,Frame(d));Near(t.FinalModifier,expected,"source distance boundary "+d);Check(!t.VisualAcquired,"correction not acquisition");}
+        foreach(var edit in new Action<CloseDetectionFrame>[] {f=>f.MasterEnabled=false,f=>f.SupportedAi=false,f=>f.Active=false,f=>f.Authority=false,f=>f.Ghost=true,f=>f.ValidTarget=false})
+        {var f=Frame();edit(f);Near(CloseDetection.Evaluate(c,f).FinalModifier,9,"integration scope");}
+        foreach(var edit in new Action<CloseDetectionFrame>[] {f=>f.Blind=true,f=>f.InFov=false,f=>f.ClearRecentRay=false})
+        {var f=Frame();edit(f);Near(CloseDetection.Evaluate(c,f).FinalModifier,4,"native vision owns visibility, no extra calculation veto");}
         foreach(var percent in new[]{0d,25,50,75,100})
-        {var t=CloseDetection.Evaluate(new(){ReductionPercent=percent},Frame(4.5));Near(t.FinalModifier,9-(5*.5*percent/100),"strength affects only extra penalty");}
-        Near(CloseDetection.Evaluate(new(){Enabled=false},Frame()).FinalModifier,9,"disabled leaves native");
-        // Vary native lighting/gear/pose/peripheral/repeat bonuses independently of attention.
-        foreach(double other in new[]{.01,.2,.66,1,5,30})foreach(double third in new[]{.5,1,1.5,2})foreach(double unknown in new[]{.7,1,1.5})foreach(double d in new[]{0d,3,4.5,6,30})
-        {
-            var f=Frame(d);f.ThirdParty=third;f.Unknown=unknown;f.NativeModifier=other*third*unknown;
-            var t=CloseDetection.Evaluate(c,f);
-            Check(t.FinalModifier>0&&t.FinalModifier<=f.NativeModifier,"never slows native gain or removes native bonuses");
-            if(d<=3)Near(t.FinalModifier,other*Math.Min(1,third)*Math.Min(1,unknown),"all other preset effects and attention bonuses preserved");
-            if(d>=6)Near(t.FinalModifier,f.NativeModifier,"native beyond boundary");
-        }
-        foreach(double bad in new[]{double.NaN,double.PositiveInfinity,-1,0})
-        {var f=Frame();f.ThirdParty=bad;Near(CloseDetection.Evaluate(c,f).FinalModifier,9,"invalid component falls back");}
-        Check(CloseDetection.FreshRay(10,9.75,9.75,false,true),"native cache inclusive limit");
-        Check(!CloseDetection.FreshRay(10,9.749,9.749,false,true),"stale ray rejected");
-        Check(!CloseDetection.FreshRay(10,9.8,9.9,false,true),"new failed obstruction check overrides old success");
-        Check(!CloseDetection.FreshRay(10,10,10,true,true),"same-frame new obstruction rejected");
-        Check(!CloseDetection.FreshRay(.1,0,0,false,false),"uninitialized native cache cannot see");
-        Check(!CloseDetection.FreshRay(10,10.01,10.01,false,true),"future evidence rejected");
-        Check(!CloseDetection.FreshRay(10,double.NaN,10,false,true),"invalid evidence rejected");
+        Near(CloseDetection.Evaluate(new(){ReductionPercent=percent},Frame(4.5)).FinalModifier,9-5*percent/100,"config strength");
+        foreach(double other in new[]{.01,.2,1,5,30})foreach(double third in new[]{.5,1,1.5,2})foreach(double unknown in new[]{.7,1,1.5})foreach(double d in new[]{0d,3,4.5,6,30})
+        {var f=Frame(d);f.ThirdParty=third;f.Unknown=unknown;f.NativeModifier=other*third*unknown;
+         Near(CloseDetection.Evaluate(c,f).FinalModifier,d>=6?f.NativeModifier:d<3?Math.Min(1,other):other,"source base modifier before repeat bonus");}
         var memory=new CloseDetectionEvidence();
         memory.Observe("a",10,CloseDetection.Evaluate(c,Frame()));Check(memory.Acquired("b",10.1)==null,"another target cannot use correction");
         var acquired=memory.Acquired("a",10.2)!;Check(acquired.VisualAcquired&&acquired.State=="acquired"&&memory.Acquired("a",10.3)==null,"only observed transition consumes matching evidence");
         Near(acquired.CorrectionAge!.Value,.2,"correlation age");
         foreach(double at in new[]{9d,11.01}) {memory.Observe("a",10,CloseDetection.Evaluate(c,Frame()));Check(memory.Acquired("a",at)==null,"expired or reversed correlation rejected");}
-        memory.Observe("a",10,CloseDetection.Evaluate(c,Frame()));var blocked=Frame();blocked.ClearRecentRay=false;memory.Observe("a",10.1,CloseDetection.Evaluate(c,blocked));Check(memory.Acquired("a",10.2)==null,"new refused check invalidates old correction");
+        memory.Observe("a",10,CloseDetection.Evaluate(c,Frame()));var blocked=Frame();blocked.ValidTarget=false;memory.Observe("a",10.1,CloseDetection.Evaluate(c,blocked));Check(memory.Acquired("a",10.2)==null,"new refused check invalidates old correction");
         for(int i=0;i<30;i++){memory.Observe(i.ToString(),10,CloseDetection.Evaluate(c,Frame()));Check(memory.Count<=8,"bounded targets without game references");}
         memory.Clear();Check(memory.Count==0,"raid cleanup");
         using(var doc=JsonDocument.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(new{feature="P05",stage="evaluated",closeDetection=acquired},Comet.Client.Diagnostics.Json)))
@@ -83,6 +69,6 @@ static class CloseDetectionTests
             Check(ray.GetFields().Select(md.GetFieldDefinition).Any(f=>md.GetString(f.Name)=="_raycastResults"),"native ray cache field exists");
             var rayCalls=Calls("EnemyPartDataClass","Update");Check(rayCalls.Contains("get_TimeLastSuccess"),"native part visibility uses success freshness");
         }
-        Console.WriteLine($"P05: {n} checks passed (range ramp, preset preservation, scope, native visibility cache, acquisition correlation, persistence and official IL).");return n;
+        Console.WriteLine($"P05: {n} checks passed (source distance bands, preset preservation, scope, native visibility cache, acquisition correlation, persistence and official IL).");return n;
     }
 }

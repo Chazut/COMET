@@ -163,13 +163,13 @@ public sealed partial class Plugin
             r.Maneuver=null;r.ManeuverRole=null;
             bool selected=r.Policy.Begin(Time.time,c,jumpRandom.NextDouble());
             var e=b.GoalEnemy!;var situation=NativeAdapter.Capture(b,e,true,false);
-            r.ContactInstance=System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e);r.Known=e.KnownPlaces.LastKnownPosition!.Value;r.Contact=e.EnemyProfileId;r.ContactAt=Time.time-e.TimeSinceLastKnownUpdated;
+            r.ContactInstance=System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e);r.Known=support.GoalEnemy!.EnemyPosition;r.Contact=e.EnemyProfileId;r.ContactAt=Time.time-e.TimeSinceLastKnownUpdated;
             r.Support=support.ProfileId;r.Reference=support.Position;r.Origin=b.Position;r.Candidate=r.Sample=0;r.Route=null;r.Rejects.Clear();
             RememberCrossfireHandoff(b,r);
             // Detached squad identity: reservations must not expose other groups' hidden positions.
             var memberIds=new List<string>(b.Squad.Members!.Keys);memberIds.Sort(StringComparer.Ordinal);r.Group=string.Join("|",memberIds);
-            r.Indoor=b.Player.Environment==EnvironmentType.Indoor;
-            var t=r.Policy.Trace!;t.Contact=r.Contact;t.Source=situation.ContactSource;t.Support=r.Support;t.SupportName=support.Player.Profile.Nickname;
+            r.Indoor=b.Player.Environment==EnvironmentType.Indoor||e.EnemyPlayer?.Environment==EnvironmentType.Indoor;
+            var t=r.Policy.Trace!;t.Contact=r.Contact;t.Source="visible-squadmate-enemy-position";t.Support=r.Support;t.SupportName=support.Player.Profile.Nickname;
             t.X=r.Known.x;t.Y=r.Known.y;t.Z=r.Known.z;t.ContactAge=e.TimeSinceLastKnownUpdated;
             if(!selected){RecordCrossfire(s,true);return false;}
             if(!BeginEntrance(b,s))BuildCrossfireCandidates(b,r);RecordCrossfire(s,true);

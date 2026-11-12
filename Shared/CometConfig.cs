@@ -21,7 +21,7 @@ public sealed class MovementHearingConfig
 
 public sealed class CometConfig
 {
-    public const string SourceBaseline = "zzap-fbb86b83-1";
+    public const string SourceBaseline = "zzap-fbb86b83-2";
     public string BehaviorBaseline { get; set; } = SourceBaseline;
     public PerformanceConfig Performance { get; set; } = new();
     public CombatJournalConfig CombatJournal { get; set; } = new();

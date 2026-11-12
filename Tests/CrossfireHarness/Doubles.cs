@@ -30,7 +30,7 @@ namespace EFT {
 }
 namespace SAIN.Preset.Shared.Enums{public enum ECombatDecision{None,Search,Freeze,RushEnemy,StandAndShoot,SeekCover,ShiftCover,MoveToEngage,ShootDistantEnemy,CreepOnEnemy,Retreat,RunAway,DogFight,ThrowGrenade,AvoidGrenade,MeleeAttack,FightZombies}public enum ESelfActionType{None,Reload,Heal,FirstAid,Surgery}public enum ESquadDecision{None,Regroup,Retreat}}
 namespace SAIN.SAINComponent.Classes.EnemyClasses{
- public class Enemy{public EFT.Player EnemyPlayer=new();public bool Seen=true;public PathData Path=new();public bool IsVisible,CanShoot=true,EnemyKnown=true;public string EnemyProfileId="enemy";public Places KnownPlaces=new();private float updated=Time.time;public float TimeSinceLastKnownUpdated{get=>Time.time-updated;set=>updated=Time.time-value;}}
+ public class Enemy{public EFT.Player EnemyPlayer=new();public Vector3 EnemyPosition=new(0,0,10);public bool Seen=true;public PathData Path=new();public bool IsVisible,CanShoot=true,EnemyKnown=true;public string EnemyProfileId="enemy";public Places KnownPlaces=new();private float updated=Time.time;public float TimeSinceLastKnownUpdated{get=>Time.time-updated;set=>updated=Time.time-value;}}
  public class Places{public Vector3? LastKnownPosition=new(0,0,12);}
 }
 namespace SAIN.SAINComponent.Classes.Decision{public class BotDecisionManager(BotComponent b){public BotComponent Bot=b;public void ManualUpdate(){}}}

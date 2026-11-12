@@ -158,19 +158,19 @@
     },
     "ExplosionAwareness": {
       "Title": "React to nearby explosions - G10",
-      "Description": "Notice nearby blasts without revealing a hidden thrower. A witnessed throw keeps its dated position. Combat, healing and grenade escape take priority; no automatic rush.",
+      "Description": "A nearby explosion can register its thrower as an enemy. SAIN then reports the thrower's position with its native distance-based dispersion and squad sharing. Already known throwers keep native explosion handling. No separate look lock or witnessed-throw requirement.",
       "Category": "Grenades",
-      "Summary": "Notice nearby blasts without revealing a hidden thrower."
+      "Summary": "A nearby explosion can register its thrower as an enemy."
     },
     "FlashContinuity": {
       "Title": "Preserve ongoing flash effects - G09",
-      "Description": "A new flash cannot shorten an existing effect or reveal an unseen enemy's current position. Each recovery phase keeps its own deadline. Durations and strength come from your SAIN preset; gas effects remain separate.",
+      "Description": "Real flashbangs keep SAIN's normal duration, live enemy memory and recovery stages. Continuous gas can refresh ongoing blindness without repeating the initial flash side effects or fixed stat modifiers. Durations and strength for real flashes come from your SAIN preset.",
       "Category": "Grenades",
-      "Summary": "A new flash cannot shorten an existing effect or reveal an unseen enemy's current position."
+      "Summary": "Real flashbangs keep SAIN's normal duration, live enemy memory and recovery stages."
     },
     "GasExposure": {
       "Title": "CS gas reactions - G08",
-      "Description": "Requires Manimal-CSGas 2.0.0 or 2.0.1 on the AI host. Supports CS, RDA-68 and RDA-78 gas clouds. Inactive when absent or unsupported. Only awake PMCs and AI Player Scavs react. Uses the mod's real cloud shape and equipped gas masks; ordinary smoke is ignored. Explosive grenades take priority. These settings do not change gas damage, infected effects, cloud size or the player's effects.",
+      "Description": "Requires Manimal-CSGas 2.0.0 or 2.0.1 on the AI host. Supports CS, RDA-68 and RDA-78 using their actual cloud shape and protection rules. Bots first scatter from the canister for five seconds, then build irritation. Sufficient exposure refreshes blindness; there is no extra custom escape path. Ordinary smoke is unchanged.",
       "Category": "Grenades",
       "Summary": "Requires Manimal-CSGas 2.0.0 or 2.0.1 on the AI host."
     },
@@ -410,9 +410,9 @@
     },
     "DoorSearchClear": {
       "Title": "Check a room while searching - D08",
-      "Description": "A PMC already searching for a lost contact can open the door from cover and walk into the room. The older the information, the less likely this extra preparation becomes. Silence is not proof that someone is still inside. No real grenade is thrown in this variant. The search chance falls to zero between the prepared-entry and search-entry contact age limits. More recent contacts use D07 only. The starting chance and contact age limits below determine that decline. This chance changes how a bot searches; it does not force any personality to search. Requires doorway approach and prepared room entries to be enabled above. Shares their entry depth, ammo/stamina limits, and opponent cooldown and requirement for newer information. A refused D07 roll is not retried through D08. The feint also needs the shared D07 and D05/D06 permissions and age limits. Existing contact memory can expire sooner (configured in Lost contact). D08 never extends it. New information, lost contact or danger ends this check and returns to normal decisions. Entering does not mark the whole room as searched.",
+      "Description": "Allow a prepared doorway entry using remembered search contact information up to 120 seconds old. The preparation chance stays constant within that window. Uses the same clear session, grenade preparation and feint options as prepared room entries. The search variant follows the bot's current search decision, including fresh contacts; it is not selected merely by contact age. Requires doorway approach and prepared room entries.",
       "Category": "Doors",
-      "Summary": "A PMC already searching for a lost contact can open the door from cover and walk into the room."
+      "Summary": "Allow a prepared doorway entry using remembered search contact information up to 120 seconds old."
     },
     "DoorJumpPeek": {
       "Title": "Doorway reconnaissance - D02 / D03",
@@ -464,27 +464,27 @@
     },
     "ImpactReaction": {
       "Title": "React when hit - P07",
-      "Description": "An awake PMC hit without a known enemy can seek nearby protection and look toward a rough incoming sector. If the direction is unclear, the danger stays unlocated. Existing combat, treatment and grenade avoidance keep priority. Friendly fire and non-bullet injuries keep native behavior. RR distinguishes danger, a requested reaction, actual execution and independently perceived contacts.",
+      "Description": "Source injury handling for registered custom bot roles only (a custom BaseBrain or BrainsToApply entry). A hit can create or refresh the shooter's exact contact and mark the bot under fire. Ordinary roles keep native SAIN hit handling. This exception does not enable COMET tactics for other bot types.",
       "Category": "Decisions",
-      "Summary": "An awake PMC hit without a known enemy can seek nearby protection and look toward a rough incoming sector."
+      "Summary": "Source injury handling for registered custom bot roles only (a custom BaseBrain or BrainsToApply entry)."
     },
     "CloseDetection": {
       "Title": "Notice close enemies - P05",
-      "Description": "An awake PMC distracted by another enemy can notice a nearby threat more readily. The target must still be in sight: darkness, gear, posture, obstacles and blindness keep their normal effects. The effect increases gradually between the two distances. It never makes a target instantly visible or orders a shot. RR distinguishes a calculation adjustment from an actual visual acquisition observed afterward.",
+      "Description": "Remove the third-party and unknown-target attention factors within 6 m. Within 3 m, also cap the corrected sight modifier at 1. This runs before SAIN's repeat-contact bonuses; native visibility, darkness, equipment and other perception processing remain. RR distinguishes a modifier change from an actual visual acquisition.",
       "Category": "Perception",
-      "Summary": "An awake PMC distracted by another enemy can notice a nearby threat more readily."
+      "Summary": "Remove the third-party and unknown-target attention factors within 6 m."
     },
     "FloorHearing": {
       "Title": "Hearing between floors - P04",
-      "Description": "For awake PMCs, check the geometry between a sound and the listener. Open or uncertain routes keep SAIN's hearing. Existing contacts and incoming fire keep priority. Player audio and Ghost hearing are unchanged. These are range factors, not chances to hear. SAIN's existing obstacle and bunker attenuation is credited; P04 only adds a reduction when needed. Bullet impacts and explosions keep their normal reactions.",
+      "Description": "Reduce native hearing range for vertical separation when the listener is under a roof and lacks line of sight. The source uses height bands (2.5 m and 5.5 m by default), not a count of physical floor slabs. Native obstacle and environment attenuation still apply. Player audio and Ghost hearing are unchanged.",
       "Category": "Perception",
-      "Summary": "For awake PMCs, check the geometry between a sound and the listener."
+      "Summary": "Reduce native hearing range for vertical separation when the listener is under a roof and lacks line of sight."
     },
     "Gunfire": {
       "Title": "Distant gunfire - P03",
-      "Description": "Nearby shots can trigger a normal search. Further away, a PMC may glance toward the sound and continue. Incoming fire and an ongoing fight keep priority. This does not increase hearing range or change Ghost hearing. ORBIT keeps its own travel and investigation objectives. COMET never orders a second distant search while ORBIT controls the bot.",
+      "Description": "React to audible shots using the native SAIN personality's nearby distance. Nearby or recent incoming shots keep native handling. Distant shots can prompt a single look or an occasional search, depending on personality. There is no sustained look lock or extra sound-age limit.",
       "Category": "Perception",
-      "Summary": "Decide whether distant shots justify a search or only a glance toward the sound."
+      "Summary": "React to audible shots using the native SAIN personality's nearby distance."
     },
     "QuietApproach": {
       "Title": "Quiet approach - P02",
@@ -2816,7 +2816,7 @@
       "Simple": false
     },
     "ExplosionAwareness.NearDistance": {
-      "Label": "Nearby attention radius",
+      "Label": "Unknown thrower registration radius",
       "Help": "",
       "Min": 5.0,
       "Max": 100.0,
@@ -4888,7 +4888,7 @@
     },
     "Gunfire.InterestDistance": {
       "Label": "Maximum distant interest",
-      "Help": "Farthest distance for interest in an audible shot. Must be at least the nearby distance. This cannot make an inaudible shot audible.",
+      "Help": "Farthest distance for interest in an audible shot. This cannot make an inaudible shot audible.",
       "Min": 10.0,
       "Max": 500.0,
       "Scale": 1,
@@ -4908,7 +4908,7 @@
     },
     "Gunfire.LookInterval": {
       "Label": "Minimum interval between looks",
-      "Help": "Minimum time between the starts of two glances. Higher values make glances less frequent. More bullets cannot extend a glance.",
+      "Help": "Minimum interval between one-shot look commands. No sustained steering lock.",
       "Min": 3.0,
       "Max": 60.0,
       "Scale": 1,
@@ -4938,7 +4938,7 @@
     },
     "Gunfire.AllowDistantSearch": {
       "Label": "Allow distant searches for SAIN personalities that chase gunfire",
-      "Help": "Allow occasional searches for distant, audible shots by SAIN personalities that chase gunfire. The search interval still applies. COMET does not add a second search while ORBIT controls the bot.",
+      "Help": "Allow native personalities that chase distant gunfire to register the shot, subject to the search interval.",
       "Min": null,
       "Max": null,
       "Scale": 1,
@@ -4946,7 +4946,7 @@
       "Simple": true
     },
     "FloorHearing.Enabled": {
-      "Label": "Muffle sounds through confirmed floors",
+      "Label": "Apply indoor height-based hearing reduction",
       "Help": "",
       "Min": null,
       "Max": null,
@@ -4997,7 +4997,7 @@
     },
     "FloorHearing.MinimumHeight": {
       "Label": "Minimum height difference",
-      "Help": "",
+      "Help": "Below this vertical separation, keep the native range. The second height band starts at 5.5 m.",
       "Min": 2.0,
       "Max": 5.0,
       "Scale": 1,
@@ -5025,8 +5025,8 @@
       "Unit": "m"
     },
     "CloseDetection.FullDistance": {
-      "Label": "Full reduction within",
-      "Help": "Apply the full configured reduction within this distance. Must be at least 0.1 m below the start distance.",
+      "Label": "Cap corrected sight modifier within",
+      "Help": "Also cap the corrected modifier at 1 within this distance, before repeat-contact bonuses.",
       "Min": 0.5,
       "Max": 11.9,
       "Scale": 1,
@@ -5035,8 +5035,8 @@
       "Unit": "m"
     },
     "CloseDetection.ReductionPercent": {
-      "Label": "Maximum attention penalty reduction",
-      "Help": "How much of the extra attention penalty to remove nearby. This does not remove the full detection delay. Set 0 to keep the normal calculation.",
+      "Label": "Attention factor removal",
+      "Help": "Remove this fraction of the third-party and unknown-target factors throughout the nearby range. No distance ramp.",
       "Min": 0.0,
       "Max": 100.0,
       "Scale": 1,
@@ -5606,9 +5606,9 @@
     },
     "DoorRoomClear.ContactLifetime": {
       "Label": "Maximum contact age",
-      "Help": "",
+      "Help": "Maximum contact age for the normal prepared-entry variant. Searches use their own window.",
       "Min": 3.0,
-      "Max": 15.0,
+      "Max": 120,
       "Scale": 1,
       "Section": "DoorRoomClear",
       "Simple": false,
@@ -5713,8 +5713,8 @@
       "Simple": false
     },
     "DoorSearchClear.Chance": {
-      "Label": "Starting preparation chance",
-      "Help": "",
+      "Label": "Preparation chance",
+      "Help": "Fixed chance while the search contact remains in its window.",
       "Min": 0.0,
       "Max": 100.0,
       "Scale": 1,
@@ -5723,9 +5723,9 @@
       "Unit": "%"
     },
     "DoorSearchClear.ContactLifetime": {
-      "Label": "Chance reaches zero at contact age",
-      "Help": "",
-      "Min": 3.1,
+      "Label": "Maximum search contact age",
+      "Help": "Contact window for this search entry; chance does not fade with age.",
+      "Min": 3,
       "Max": 120.0,
       "Scale": 1,
       "Section": "DoorSearchClear",
@@ -7622,7 +7622,7 @@
       "Unit": "s"
     },
     "ImpactReaction.Enabled": {
-      "Label": "React to bullet impacts without revealing the shooter",
+      "Label": "Use source injury handling for registered custom roles",
       "Help": "",
       "Min": null,
       "Max": null,

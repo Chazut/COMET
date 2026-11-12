@@ -124,3 +124,9 @@ public static class ImpactPolicy
         &&ImpactReaction.Finite(maxHeight)&&maxHeight<=.75
         &&(!directional||ImpactReaction.Finite(maxAdvance)&&maxAdvance<=.5);
 }
+
+// Same registry predicate as zzap BotTypeDefinitions. A role name or a high enum value is not enough.
+public static class ModdedImpactRules
+{
+    public static bool Registered(int brains, string? baseBrain) => brains > 0 || !string.IsNullOrEmpty(baseBrain);
+}

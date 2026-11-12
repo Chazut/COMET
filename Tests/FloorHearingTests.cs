@@ -15,9 +15,9 @@ static class FloorHearingTests
         void Check(bool ok,string why) { if(!ok) throw new Exception("P04: "+why);n++; }
         void Near(double a,double b,string why) => Check(Math.Abs(a-b)<1e-6,why);
         var config=new CometConfig(); config.Validate(); var c=config.FloorHearing;
-        Check(c.Enabled&&c.OneFloorOther==.6&&c.SeveralFloorsOther==.4&&c.OneFloorGunfire==1&&c.SeveralFloorsGunfire==.9&&c.MinimumHeight==2.5,"approved defaults");
+        Check(c.Enabled&&c.OneFloorOther==.5&&c.SeveralFloorsOther==.3&&c.OneFloorGunfire==1&&c.SeveralFloorsGunfire==.85&&c.MinimumHeight==2.5,"approved defaults");
         var old=JsonSerializer.Deserialize<CometConfig>("{\"Revision\":8,\"Enabled\":false}")!;old.Validate();
-        Check(old.Revision==8&&!old.Enabled&&old.FloorHearing.OneFloorOther==.6,"old configuration gains independent defaults");
+        Check(old.Revision==8&&!old.Enabled&&old.FloorHearing.OneFloorOther==.5,"old configuration gains independent defaults");
         foreach(var edit in new Action<FloorHearingConfig>[] {x=>x.OneFloorOther=double.NaN,x=>x.OneFloorGunfire=1.01,x=>x.SeveralFloorsGunfire=0,x=>x.SeveralFloorsOther=.7,x=>x.MinimumHeight=1,x=>{x.OneFloorGunfire=.5;x.SeveralFloorsGunfire=.6;}})
         {var bad=new FloorHearingConfig();edit(bad);try{bad.Validate();throw new Exception("Invalid P04 config accepted");}catch(ArgumentException){n++;}}
         try{new CometConfig{FloorHearing=null!}.Validate();throw new Exception("Null config accepted");}catch(ArgumentException){n++;}
@@ -30,18 +30,18 @@ static class FloorHearingTests
         }
         finally { if(Directory.Exists(dir))Directory.Delete(dir,true); }
         FloorHearingFrame Frame(int floors=1,bool gun=false)=>new(){Distance=20,NativeRange=40,Geometry=new(floors,"confirmed"),Gunfire=gun};
-        Near(FloorHearing.Evaluate(c,Frame()).FinalRange,24,"one floor movement");
-        Near(FloorHearing.Evaluate(c,Frame(2)).FinalRange,16,"several floors movement");
+        Near(FloorHearing.Evaluate(c,Frame()).FinalRange,20,"one floor movement");
+        Near(FloorHearing.Evaluate(c,Frame(2)).FinalRange,12,"several floors movement");
         Near(FloorHearing.Evaluate(c,Frame(1,true)).FinalRange,40,"one floor gunfire unchanged");
-        Near(FloorHearing.Evaluate(c,Frame(2,true)).FinalRange,36,"several floors gunfire");
-        foreach(double distance in new[]{23.99,24,24.01}){var f=Frame();f.Distance=distance;Check(FloorHearing.Evaluate(c,f).Allowed==(distance<=24),"range boundary "+distance);}
+        Near(FloorHearing.Evaluate(c,Frame(2,true)).FinalRange,34,"several floors gunfire");
+        foreach(double distance in new[]{19.99,20,20.01}){var f=Frame();f.Distance=distance;Check(FloorHearing.Evaluate(c,f).Allowed==(distance<=20),"range boundary "+distance);}
         foreach(var edit in new Action<FloorHearingFrame>[]{f=>f.Priority=true,f=>f.Supported=false,f=>f.Scoped=false,f=>f.Geometry=new(0,"open"),f=>f.Geometry=new(3,"invalid"),f=>f.Environment=double.NaN,f=>f.Occlusion=0})
         {var f=Frame();edit(f);Near(FloorHearing.Evaluate(c,f).FinalRange,40,"priority/unsupported/uncertain/scope pass-through");}
         Near(FloorHearing.Evaluate(new(){Enabled=false},Frame()).FinalRange,40,"feature off");
         {var f=Frame();f.NativeAudible=false;Check(!FloorHearing.Evaluate(c,f).Allowed,"cannot undo native random rejection");f.NativeAudible=true;f.Distance=41;Check(!FloorHearing.Evaluate(c,f).Allowed,"cannot extend native range");}
-        {var f=Frame();f.NativeRange=32;f.Occlusion=.8;Near(FloorHearing.Evaluate(c,f).FinalRange,24,"credit native obstruction: 32 to 24, not 19.2");
-         f.NativeRange=20;f.Occlusion=.5;Near(FloorHearing.Evaluate(c,f).FinalRange,20,"stronger native penalty kept");
-         f.NativeRange=12;f.Environment=.6;Near(FloorHearing.Evaluate(c,f).FinalRange,12,"bunker and occlusion already stronger");}
+        {var f=Frame();f.NativeRange=32;f.Occlusion=.8;Near(FloorHearing.Evaluate(c,f).FinalRange,16,"source multiplies native obstruction");
+         f.NativeRange=20;f.Occlusion=.5;Near(FloorHearing.Evaluate(c,f).FinalRange,10,"source stacks native penalty");
+         f.NativeRange=12;f.Distance=1;f.Environment=.6;Near(FloorHearing.Evaluate(c,f).FinalRange,6,"source stacks environment and obstruction");}
         // Range can only decrease; native equipment/clamp results are preserved even with multiple native modifiers.
         foreach(double env in new[]{.1,.3,.7,1})foreach(double occ in new[]{.1,.5,.9,1})foreach(int floors in new[]{1,2})foreach(bool gun in new[]{false,true})
         {var f=Frame(floors,gun);f.NativeRange=75*env*occ;f.Distance=f.NativeRange/2;f.Environment=env;f.Occlusion=occ;var t=FloorHearing.Evaluate(c,f);Check(t.FinalRange<=f.NativeRange&&t.FinalRange>0,"monotonic range");Check(t.Allowed==(f.Distance<=t.FinalRange),"decision and reported range agree");}
@@ -93,7 +93,7 @@ static class FloorHearingTests
         var trace=FloorHearing.Evaluate(c,Frame(2));
         using(var doc=JsonDocument.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(new{feature="P04",stage="evaluated",floorHearing=trace},Comet.Client.Diagnostics.Json)))
         {var t=doc.RootElement.GetProperty("floorHearing");Check(t.GetProperty("state").GetString()=="blocked"&&!t.GetProperty("allowed").GetBoolean()&&t.GetProperty("nativeRange").GetDouble()==40,"telemetry records negative perception, not action ownership");}
-        Console.WriteLine($"P04: {n} checks passed (geometry, audibility, native penalty credit, cache/budget, config and exact native IL).");return n;
+        Console.WriteLine($"P04: {n} checks passed (source height attenuation, audibility, native penalty stacking, legacy geometry helpers, config and exact native IL).");return n;
     }
     private sealed class Saturated:IFloorAcoustics { public int Cast(AcousticPoint a,AcousticPoint b,AcousticHit[] hits)=>hits.Length; }
     // Analytic horizontal planes test the SAME production geometry classifier with actual intersections,

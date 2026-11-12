@@ -14,7 +14,6 @@ namespace Comet.Client;
 public sealed partial class Plugin
 {
     private static Func<Enemy, float> closeThird = null!, closeUnknown = null!;
-    private static AccessTools.FieldRef<EnemyPartDataClass, RaycastResult[]> closeRays = null!;
     private static Func<EnemyVisionClass, Enemy> closeVisionEnemy = null!;
     private readonly Dictionary<string, int> closeCounters = new();
     private float nextCloseSummary, closeFaultUntil;
@@ -23,37 +22,21 @@ public sealed partial class Plugin
     {
         closeThird = (Func<Enemy, float>)AccessTools.Method(typeof(EnemyGainSightClass), "CalcThirdPartyMod").CreateDelegate(typeof(Func<Enemy, float>));
         closeUnknown = (Func<Enemy, float>)AccessTools.Method(typeof(EnemyGainSightClass), "CalcUnknownMod").CreateDelegate(typeof(Func<Enemy, float>));
-        closeRays = AccessTools.FieldRefAccess<EnemyPartDataClass, RaycastResult[]>("_raycastResults");
         closeVisionEnemy = AccessTools.MethodDelegate<Func<EnemyVisionClass, Enemy>>(AccessTools.PropertyGetter(typeof(EnemyVisionClass), "Enemy"));
-        // Patch the verified SAIN call site, not a copied sight formula. The official hash is checked
-        // at plugin startup; an incompatible call contract disables this preview before a raid.
-        h.Patch(AccessTools.Method(AccessTools.TypeByName("SAIN.Patches.Vision.VisionSpeedPatch"), "PatchPostfix"),
-            transpiler: new HarmonyMethod(typeof(Plugin), nameof(CloseSightTranspiler)));
+        h.Patch(AccessTools.Method(typeof(EnemyGainSightClass), "CalcModifier"),
+            postfix: new HarmonyMethod(typeof(Plugin), nameof(CloseModifier)));
         h.Patch(AccessTools.Method(typeof(EnemyVisionClass), "UpdateVisibleState"),
             prefix: new HarmonyMethod(typeof(Plugin), nameof(CloseVisibleBefore)),
             postfix: new HarmonyMethod(typeof(Plugin), nameof(CloseVisibleAfter)));
     }
-    private static IEnumerable<CodeInstruction> CloseSightTranspiler(IEnumerable<CodeInstruction> instructions)
-    {
-        var code = instructions.ToList();
-        var native = AccessTools.Method(typeof(EnemyGainSightClass), nameof(EnemyGainSightClass.GetGainSightModifier));
-        if (code.Count(x => x.Calls(native)) != 1 || code.Count(x => x.opcode == OpCodes.Div) != 1)
-            throw new InvalidOperationException("P05 native sight calculation contract changed.");
-        foreach (var i in code)
-        {
-            if (i.Calls(native)) { i.opcode = OpCodes.Call; i.operand = AccessTools.Method(typeof(Plugin), nameof(CloseSight)); }
-            yield return i; // Retain all labels and exception boundaries.
-        }
-    }
     private bool CloseScoped(BotComponent b) => world != null && config?.Enabled == true && config.CloseDetection.Enabled
         && config.CloseDetection.ReductionPercent > 0 && NativeAdapter.IsSupportedAi(b) && b.BotActive && !b.GameEnding && Authority && !Ghost(b.ProfileId);
-    private static float CloseSight(Enemy enemy)
+    private static void CloseModifier(Enemy enemy, ref float __result)
     {
-        float native = EnemyGainSightClass.GetGainSightModifier(enemy); // Native calculation and repeat-seen/heard bonus run once.
         var p = Instance;
-        if (p == null) return native;
-        try { return p.FilterCloseSight(enemy, native); }
-        catch (Exception ex) { p.CloseError(ex); return native; }
+        if (p == null) return;
+        try { __result = p.FilterCloseSight(enemy, __result); }
+        catch (Exception ex) { p.CloseError(ex); }
     }
     private float FilterCloseSight(Enemy enemy, float native)
     {
@@ -67,26 +50,6 @@ public sealed partial class Plugin
         var f = new CloseDetectionFrame { MasterEnabled = true, SupportedAi = true, Active = true, Authority = true,
             ValidTarget = enemy.EnemyPlayer != null && enemy.EnemyPlayer.HealthController.IsAlive && !Ghost(enemy.EnemyProfileId),
             Distance = distance, NativeModifier = native, Blind = b.Flashed.IsFlashed };
-        var angles = enemy.Vision.Angles;
-        var look = b.PlayerComponent.CharacterController.CurrentControlLookDirection;
-        var direction = enemy.EnemyDirectionNormal;
-        float maxAngle = b.Info.FileSettings.Core.VisibleAngle / 2f;
-        f.InFov = angles.CanBeSeen && look.sqrMagnitude > .001f && direction.sqrMagnitude > .001f
-            && maxAngle > 0 && Vector3.Angle(look, direction) <= maxAngle;
-        if (f.ValidTarget && !f.Blind && f.InFov)
-        {
-            int checkedParts = 0;
-            foreach (var part in enemy.Vision.EnemyParts.PartsArray)
-            {
-                if (++checkedParts > 7) break;
-                var rays = closeRays(part);
-                if (rays.Length < 3) break;
-                bool Fresh(RaycastResult r) => CloseDetection.FreshRay(Time.time, r.TimeLastSuccess, r.TimeLastChecked,
-                    r.LastRaycastHit.collider != null, r.LastSuccessBodyPart != null);
-                // The SAME body part must pass both geometry and visual-obstruction checks.
-                if (Fresh(rays[0]) && Fresh(rays[2])) { f.ClearRecentRay = true; break; }
-            }
-        }
         if (CloseDetection.Eligibility(c, f).Length == 0)
         {
             // These two native helpers only read current settings/contact state. Re-read them to
@@ -96,7 +59,7 @@ public sealed partial class Plugin
         var t = CloseDetection.Evaluate(c, f); t.Target = enemy.EnemyProfileId;
         CountClose(t.Reason);
         if (!states.TryGetValue(b, out var s))
-        { if (states.Count >= 512) return native; s = new BotState(b, config!, session); states.Add(b, s); }
+        { if (states.Count >= 512) return (float)t.FinalModifier; s = new BotState(b, config!, session); states.Add(b, s); }
         s.CloseEvidence.Observe(t.Target, Time.time, t);
         RecordClose(s, t, false);
         return (float)t.FinalModifier;

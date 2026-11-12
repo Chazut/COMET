@@ -65,7 +65,7 @@ public sealed partial class Plugin
             ||b.Decision.CurrentSelfDecision!=ESelfActionType.None;
         double unseen=e==null?0:e.Seen?e.TimeSinceSeen:Time.time;
         return DoorPolicy.Gate(scope,search,unsafeNow,e?.EnemyKnown==true&&e.KnownPlaces.LastKnownPosition.HasValue,e?.IsVisible==true,
-            e?.TimeSinceLastKnownUpdated??-1,unseen,c.DoorApproach);
+            e?.TimeSinceLastKnownUpdated??-1,unseen,c.DoorApproach,c.DoorSearchClear.Enabled?Math.Max(c.DoorApproach.ContactLifetime,c.DoorSearchClear.ContactLifetime):null);
     }
     private static bool DoorSearchStep(SearchClass __instance,Enemy enemy)
     {

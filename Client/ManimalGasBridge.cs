@@ -20,7 +20,8 @@ internal sealed class ManimalGasBridge
  {
   private readonly WeakReference<Component> reference;
   internal readonly int Id;
-  internal TrackedComponent(Component c){reference=new(c);Id=c.GetInstanceID();}
+  internal readonly float Born;
+  internal TrackedComponent(Component c,float? born=null){reference=new(c);Id=c.GetInstanceID();Born=born??Time.time;}
   internal bool TryGetTarget(out Component? c)=>reference.TryGetTarget(out c);
  }
  private readonly List<TrackedComponent> clouds=new(),emitters=new();
@@ -76,7 +77,9 @@ internal sealed class ManimalGasBridge
   Prune();
   foreach(var w in list)if(w.TryGetTarget(out var v)&&ReferenceEquals(v,c))return;
   if(list.Count>=64)throw new InvalidOperationException("gas cloud safety limit");
-  list.Add(new(c));
+  float born=Time.time;
+  if(volume&&source!=null)foreach(var w in clouds)if(w.TryGetTarget(out var v)&&v!=null&&ReferenceEquals(smoke.GetValue(v),source)){born=w.Born;break;}
+  list.Add(new(c,born));
   if(volume){
    string label=variantField==null?"CS":"Unknown";
    if(source!=null)foreach(var w in clouds)if(w.TryGetTarget(out var v)&&v!=null&&ReferenceEquals(smoke.GetValue(v),source)){label=Variant(v);break;}
@@ -128,6 +131,12 @@ internal sealed class ManimalGasBridge
  {
   if(!Ready||grenade==null)return false;
   foreach(var w in clouds)if(w.TryGetTarget(out var c)&&c!=null&&ReferenceEquals(smoke.GetValue(c),grenade))return true;
+  return false;
+ }
+ internal bool ExposureReady(string id)
+ {
+  foreach(var w in emitters)if(id=="volume:"+w.Id)return Time.time-w.Born>=5;
+  foreach(var w in clouds)if(id=="sphere:"+w.Id)return Time.time-w.Born>=5;
   return false;
  }
  internal void Clear(){clouds.Clear();emitters.Clear();emitterVariants.Clear();}

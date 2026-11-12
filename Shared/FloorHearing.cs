@@ -6,10 +6,10 @@ namespace Comet.Core;
 public sealed class FloorHearingConfig
 {
     public bool Enabled { get; set; } = true;
-    public double OneFloorOther { get; set; } = .6;
-    public double SeveralFloorsOther { get; set; } = .4;
+    public double OneFloorOther { get; set; } = .5;
+    public double SeveralFloorsOther { get; set; } = .3;
     public double OneFloorGunfire { get; set; } = 1;
-    public double SeveralFloorsGunfire { get; set; } = .9;
+    public double SeveralFloorsGunfire { get; set; } = .85;
     public double MinimumHeight { get; set; } = 2.5;
     public void Validate()
     {
@@ -149,10 +149,8 @@ public static class FloorHearing
         if (f.Geometry.Floors < 1 || f.Geometry.Floors > 2) return Native(f.Geometry.Reason ?? "floor-uncertain");
         t.TargetFactor = f.Gunfire ? (f.Geometry.Floors == 1 ? c.OneFloorGunfire : c.SeveralFloorsGunfire)
             : (f.Geometry.Floors == 1 ? c.OneFloorOther : c.SeveralFloorsOther);
-        // Credit native environment (including bunker) and obstruction attenuation together.
-        // Never cancel their effects or increase native range. No second blind multiplication.
-        double nativeBarrier = f.Environment * f.Occlusion;
-        t.AppliedFactor = Math.Min(1, t.TargetFactor / nativeBarrier);
+        // Source multiplies this factor after the native environment/occlusion calculation.
+        t.AppliedFactor = t.TargetFactor;
         t.FinalRange = f.NativeRange * t.AppliedFactor;
         t.Allowed = f.Distance <= t.FinalRange;
         t.State = !t.Allowed ? "blocked" : t.AppliedFactor < 1 ? "attenuated" : "native";

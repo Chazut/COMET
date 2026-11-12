@@ -90,8 +90,9 @@ static class ImpactReactionTests
             var md=pe.GetMetadataReader();var plugin=md.TypeDefinitions.Select(md.GetTypeDefinition).Single(t=>md.GetString(t.Name)=="Plugin");
             var hit=plugin.GetMethods().Select(md.GetMethodDefinition).Single(x=>md.GetString(x.Name)=="ImpactHit");
             var calls=FloorHearingTests.ReadIl(pe.GetMethodBody(hit.RelativeVirtualAddress).GetILBytes()!).Where(x=>x.op==OpCodes.Call||x.op==OpCodes.Callvirt||x.op==OpCodes.Ldfld).Select(x=>FloorHearingTests.Name(md,(int)x.operand!)).ToList();
-            foreach(string forbidden in new[]{"get_Position","MasterOrigin","CheckAddEnemy","AddEnemy","SetUnderFire","UpdatePersonalHeardPosition"})Check(!calls.Contains(forbidden),"hit adapter cannot inject hidden evidence: "+forbidden);
+            foreach(string required in new[]{"get_Position","CheckAddEnemy","SetUnderFire","UpdatePersonalHeardPosition"})Check(calls.Contains(required),"modded-role source injury report: "+required);
+            Check(calls.Contains("ModdedImpactType"),"source injury exception remains scoped before revealing the shooter");
         }
-        Console.WriteLine($"P07: {n} checks passed (impact memory, priorities, coarse direction, protection policy, config persistence and native IL).");return n;
+        Console.WriteLine($"P07: {n} checks passed (legacy trace compatibility, modded-role source injection, config persistence and native IL).");return n;
     }
 }

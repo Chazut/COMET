@@ -87,12 +87,12 @@ public sealed class DoorApproachTrace
 public static class DoorPolicy
 {
     public static bool Finite(double n)=>!double.IsNaN(n)&&!double.IsInfinity(n);
-    public static string Gate(bool scoped,bool search,bool unsafeNow,bool known,bool visible,double age,double unseen,DoorApproachConfig c)
+    public static string Gate(bool scoped,bool search,bool unsafeNow,bool known,bool visible,double age,double unseen,DoorApproachConfig c,double? searchLifetime=null)
     {
         if(!c.Enabled||!scoped)return "door-out-of-scope";
         if(!search)return "door-search-not-owned";
         if(unsafeNow||visible)return "door-native-priority";
-        if(!known||!Finite(age)||age<0||age>c.ContactLifetime)return "door-contact-expired";
+        if(!known||!Finite(age)||age<0||age>(searchLifetime??c.ContactLifetime))return "door-contact-expired";
         if(!Finite(unseen)||unseen<c.UnseenDelay)return "door-contact-just-lost";
         return "";
     }
