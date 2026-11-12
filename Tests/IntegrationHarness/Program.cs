@@ -30,6 +30,8 @@ static class Audit
         // Metadata preparation runs against the actual built client, without JITing Unity
         // callbacks on the .NET test host or executing any game action.
         var client = typeof(Comet.Client.Plugin).Assembly;
+        RuntimeHelpers.RunClassConstructor(client.GetType("Comet.Client.SourceCoverAccess",true)!.TypeHandle);
+        Console.WriteLine("zzap native cover arrival accessors: official SAIN bindings initialized.");
         var warmup = client.GetType("Comet.Client.DiagnosticWarmup", true)!;
         var prepare = warmup.GetMethod("Prepare", BindingFlags.Static | BindingFlags.NonPublic)!;
         var resolver = (Newtonsoft.Json.Serialization.IContractResolver)Activator.CreateInstance(client.GetType("Comet.Client.SnapshotDiagnosticResolver",true)!,true)!;

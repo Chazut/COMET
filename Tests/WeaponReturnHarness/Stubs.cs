@@ -65,7 +65,8 @@ namespace Comet.Client
    Observations++;
    if(Frame!=null)s.WeaponReturn.Policy.Observe(Frame.Now,Frame.Current.Id,Frame.Current.Slot,Frame.Ready,config!.WeaponReturn);
   }
-  private void RecordWeaponReturn(BotComponent b,BotState s)=>Records++;
+  private bool KeepRangeChoice(BotComponent b,BotState s,WeaponReturnFrame f,WeaponReturnGun g,string origin)=>false;
+  private void RecordWeaponReturn(BotComponent b,BotState s,bool force=false)=>Records++;
   private void WeaponReturnError(BotState s,Exception ex){Errors++;}
   internal bool Request(EFT.BotWeaponSelector selector,out bool result){result=false;return ChooseWeaponReturn(selector,ref result);}
   internal bool Ready(BotComponent b,EFT.Player.FirearmController? firearm)=>WeaponHandsReady(b,firearm);

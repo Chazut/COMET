@@ -62,7 +62,7 @@ internal static class DoorMedicalTests
             p=Start(kind);p.Draw("med","rifle",100);p.Fail("test");p.YieldToMedical();p.Callback(true,104);Check(!p.Active&&p.Trace!.Medical!.MedicalHandoff,"late callback cannot undo medical handoff");
             p=Start(kind);p.Draw("med","rifle",100);p.Suspend(101);p.Resume(103);Check(!p.Trace!.Guard,"medical resume does not guard grenades");p.YieldToMedical();Check(!p.CanRestore(true,false,false,104),"SAIN urgent heal not cancelled");
             p=Start(kind);p.Draw("med","rifle",100);p.Observe(true,false,false,false,100.1);p.Observe(false,false,true,false,100.2);Check(p.Trace!.Reason=="fake-other-hands-took-over","foreign hands preserved");
-            p=Start(kind);p.Draw("med","rifle",100);p.Observe(false,false,false,false,102.5);p.Observe(false,false,false,false,105.5);Check(p.Fault&&!p.Active&&p.Trace!.RecoveryFailed,"watchdog never completes animation");
+            p=Start(kind);p.Draw("med","rifle",100);p.Observe(false,false,false,false,102.5);p.Observe(false,false,false,false,105.8);Check(!p.Active&&!p.Fault&&p.Trace!.State=="completed","source timed holster does not require controller proof");
             p.Clear();p.Callback(true,106);Check(p.Trace==null&&!p.Active,"disposal rejects delayed callback");
         }
         var trace=new DoorMedicalTrace{Kind="stim"};trace.Sample(null,true,true,false);

@@ -29,7 +29,7 @@ static class GrenadeJudgmentTests
             Check(p.Pending&&p.Trace!.Accepted&&!p.Trace.Released,"native acceptance is not release");
             Check(!p.Released("different-grenade",f.Now+.1),"wrong projectile rejected");
             Check(p.Released(f.Item,f.Now+.2)&&p.Trace!.Released,"matching actual projectile confirms");Snapshot(p);
-            f.Now+=1;Check(!p.Evaluate(f,c,8,true,Draw)&&p.Trace!.Reason=="grenade-needs-new-evidence","no second throw on old info");
+            f.Now+=1;Check(p.Evaluate(f,c,8,true,Draw),"source allows another native throw on unchanged information");
             f.EvidenceAt=f.Now;Check(p.Evaluate(f,c,8,true,Draw),"fresh evidence may rearm (native cooldown still applies)");
         }
         {
@@ -41,10 +41,10 @@ static class GrenadeJudgmentTests
         {
             var p=new GrenadeJudgmentPolicy();var f=Frame(0);
             for(double t=0;t<=6;t+=.5){f.Now=f.EvidenceAt=t;p.Observe(f);}
-            Check(p.Evaluate(f,c,8,true,Draw)&&p.Trace!.CampBonus==30&&p.Trace.Samples==13,"confirmed repeated presence earns camp bonus");
-            f.Room=f.Vulnerable=true;Check(p.Evaluate(f,c,8,true,Draw)&&p.Trace!.Chance==95,"bonuses bounded at 95 percent");Snapshot(p);
-            f.Count=1;Check(p.Evaluate(f,c,8,true,Draw)&&p.Trace!.Chance==85,"last grenade penalty before clamp");
-            f.Now=12;Check(!p.Evaluate(f,c,8,true,()=>.8)&&Math.Abs(p.Trace!.Chance-42.5)<.001,"age6 halves chance including bonuses");
+            Check(p.Evaluate(f,c,8,true,Draw)&&p.Trace!.CampBonus==0&&p.Trace.Samples==14,"source camp bonus starts strictly after six seconds");
+            f.Now=f.EvidenceAt=6.1;f.Room=f.Vulnerable=true;Check(p.Evaluate(f,c,8,true,Draw)&&p.Trace!.Chance==95,"bonuses bounded at 95 percent");Snapshot(p);
+            f.Count=1;Check(p.Evaluate(f,c,8,true,Draw)&&p.Trace!.Chance==95,"source does not penalize the last grenade");
+            f.Now=12;Check(p.Evaluate(f,c,8,true,()=>.8)&&p.Trace!.Chance==95,"source does not fade recent contact probability");
         }
         foreach(bool gap in new[]{false,true})
         {
@@ -57,7 +57,7 @@ static class GrenadeJudgmentTests
             p.Evaluate(f,c,8,true,Draw);Check(p.Trace!.CampBonus==0,"slow drift measured from fixed anchor, not last sample");
             f.Instance++;p.Evaluate(f,c,8,true,Draw);Check(p.Trace!.Samples==1,"target object replacement resets evidence");
         }
-        foreach(var mutate in new Action<GrenadeJudgmentFrame>[] {f=>f.Personal=false,f=>f.EvidenceAt=f.Now-8,f=>f.EvidenceAt=f.Now+1,
+        foreach(var mutate in new Action<GrenadeJudgmentFrame>[] {f=>f.EvidenceAt=f.Now-8.1,f=>f.EvidenceAt=f.Now+1,
             f=>f.Block="grenade-self-exposed",f=>f.Block="grenade-treatment-priority",f=>f.Block="grenade-other-visible-threat",f=>f.X=double.NaN})
         {var p=new GrenadeJudgmentPolicy();var f=Frame();mutate(f);int n=draws;Check(!p.Evaluate(f,c,8,true,Draw)&&draws==n,"unsafe inputs never roll");}
         foreach(bool accepted in new[]{true,false})
@@ -69,15 +69,15 @@ static class GrenadeJudgmentTests
         {
             var p=new GrenadeJudgmentPolicy();var f=Frame();p.Evaluate(f,c,8,true,Draw);p.Request(f);p.Released(f.Item,10);p.Result(true,10,c);
             Check(p.Trace!.Released&&p.Trace.State=="released","synchronous native callback survives postfix");
-            f.Target="other";p.Evaluate(f,c,8,true,Draw);f.Target="enemy";Check(!p.Evaluate(f,c,8,true,Draw),"target switching preserves spent evidence");
+            f.Target="other";p.Evaluate(f,c,8,true,Draw);f.Target="enemy";Check(p.Evaluate(f,c,8,true,Draw),"source permits another native throw at the same evidence");
             p.Clear("ghost");Check(p.Count==0&&!p.Pending&&p.Trace!.ValidFor==0,"lifecycle clear");Snapshot(p);
         }
         {
-            var p=new GrenadeJudgmentPolicy();for(int i=0;i<200;i++){var f=Frame(i);f.Target="target"+i;p.Observe(f);}Check(p.Count==32,"bounded scalar contact memory");
+            var p=new GrenadeJudgmentPolicy();for(int i=0;i<200;i++){var f=Frame(i);f.Target="target"+i;p.Observe(f);}Check(p.Count==200,"source retains encountered contacts for the raid; lifecycle clear owns cleanup");
         }
         // Deterministic quantile check of the percentage interpretation; not a flaky random statistical assertion.
         foreach(int items in new[]{1,2})
-        {int yes=0;for(int i=0;i<1000;i++){var p=new GrenadeJudgmentPolicy();var f=Frame();f.Count=items;if(p.Evaluate(f,c,8,true,()=> (i+.5)/1000))yes++;}Check(yes==(items==1?300:500),"30/50 percent measured distribution");}
+        {int yes=0;for(int i=0;i<1000;i++){var p=new GrenadeJudgmentPolicy();var f=Frame();f.Count=items;if(p.Evaluate(f,c,8,true,()=> (i+.5)/1000))yes++;}Check(yes==500,"50 percent source distribution regardless of remaining inventory");}
         var root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../"));Directory.CreateDirectory(Path.Combine(root,"artifacts"));
         File.WriteAllText(Path.Combine(root,"artifacts/g01-policy-wire.json"),Newtonsoft.Json.JsonConvert.SerializeObject(wire,new Newtonsoft.Json.JsonSerializerSettings{ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()}));
         Console.WriteLine($"G01: {checks} checks passed");return checks;

@@ -17,17 +17,16 @@ internal static class MedicalChoiceTests
   MedicalOption Aid(string need="injury")=>new(){Action="FirstAid",Usable=true,Item="aid",Part="Chest",Need=need,Duration=4};
   MedicalOption Stim()=>new(){Action="Stims",Usable=true,Item="stim",Part="Chest",Need="low-health",Duration=2};
   MedicalOption Surg()=>new(){Action="Surgery",Usable=true,Item="kit",Part="LeftLeg",Need="destroyed-limb",Duration=20};
-  var f=Frame();f.Options.Add(Surg());C(new MedicalChoice().Evaluate(f,c).Choice=="Surgery","quiet protected surgery");
-  foreach(var block in new[]{"moving","unreached","exposed","visible","steps","incomplete","new","near","heavy","light","vital","hit","grenade"}){
-   f=Frame();f.Options.Add(Surg());switch(block){case"moving":f.Moving=true;break;case"unreached":f.ReachedCover=false;break;case"exposed":f.ProtectiveCover=false;break;case"visible":f.Visible=true;break;case"steps":f.Footsteps=true;break;case"incomplete":f.ThreatsIncomplete=true;break;case"new":f.Quiet=24.99;break;case"near":f.Nearest=40;break;case"heavy":f.HeavyBleed=true;break;case"light":f.LightBleed=true;break;case"vital":f.Vital=true;break;case"hit":f.SinceHit=1.99;break;default:f.Priority="grenade";break;}C(new MedicalChoice().Evaluate(f,c).Choice=="Wait",block+" refuses surgery");}
-  f=Frame();f.Options.Add(Aid("heavy-bleed"));f.Options.Add(Stim());f.Options.Add(Surg());f.HeavyBleed=true;f.Health=.2;f.Visible=true;f.ProtectiveCover=false;
-  C(new MedicalChoice().Evaluate(f,c).Choice=="FirstAid","real bleeding first even exposed");
-  f.Options[0].Usable=false;C(new MedicalChoice().Evaluate(f,c).Choice=="Stims","useful emergency stim if aid impossible");
-  f.SinceHit=.49;C(new MedicalChoice().Evaluate(f,c).Choice=="Wait","not in hit frame");f.SinceHit=.5;C(new MedicalChoice().Evaluate(f,c).Choice=="Stims","emergency delay boundary");
-  f=Frame();f.Options.Add(Stim());C(new MedicalChoice().Evaluate(f,c).Choice=="Wait","no wasteful stim");f.Health=.35;C(new MedicalChoice().Evaluate(f,c).Choice=="Stims","35 percent boundary");
-  f=Frame();f.Options.Add(Aid());f.SinceHit=1.99;C(new MedicalChoice().Evaluate(f,c).Choice=="Wait","ordinary hit delay");f.SinceHit=2;C(new MedicalChoice().Evaluate(f,c).Choice=="FirstAid","ordinary delay boundary");
-  f=Frame();f.Options.Add(Surg());var p=new MedicalChoice();var selected=p.Evaluate(f,c);C(!selected.Started&&!selected.Applied,"selection not actual use");p.Request(11);C(p.Trace!.State=="requested"&&!p.Trace.Started,"request not start");p.ObserveStart(12);C(p.Trace.Started&&p.Trace.ValidFor==1,"observed hands only");f.Options.Clear();f.Options.Add(Aid());C(ReferenceEquals(p.Evaluate(f,c),selected)&&p.Trace.Choice=="Surgery","no rescore during real operation");p.End(30,"ended",c);C(!p.Active&&!p.Trace.Applied&&p.Trace.Outcome=="unconfirmed","no invented completion");f.Now=32.99;C(p.Evaluate(f,c).Choice=="Wait","retry backoff");f.Now=33;C(p.Evaluate(f,c).Choice=="FirstAid","retry expires");
-  f=Frame();f.Options.Add(Surg());f.Options.Add(Aid());f.Aggression=.1;C(new MedicalChoice().Evaluate(f,c).Choice=="Surgery","cautious safe limb repair before minor HP");f.Aggression=.9;C(new MedicalChoice().Evaluate(f,c).Choice=="FirstAid","aggressive prefers quicker ordinary treatment");
+  var f=Frame();f.Options.Add(Surg());C(new MedicalChoice().Evaluate(f,c).Choice=="Surgery","safe surgery");
+  foreach(var mutation in new Action<MedicalFrame>[] {x=>x.Moving=true,x=>x.ProtectiveCover=false,x=>x.ThreatsIncomplete=true,x=>x.HeavyBleed=true,x=>x.LightBleed=true,x=>x.Vital=true,x=>x.Quiet=24.99})
+  {f=Frame();f.Options.Add(Surg());mutation(f);C(new MedicalChoice().Evaluate(f,c).Choice=="Surgery","no added hard veto for a source-eligible surgery");}
+  foreach(var mutation in new Action<MedicalFrame>[] {x=>x.Visible=true,x=>x.Footsteps=true,x=>x.Priority="grenade"})
+  {f=Frame();f.Options.Add(Surg());mutation(f);C(new MedicalChoice().Evaluate(f,c).Choice=="Wait","source pressure/wait or native urgency wins");}
+  f=Frame();f.Options.Add(Aid());f.SinceHit=1;var aid=new MedicalChoice().Evaluate(f,c);C(aid.Alternatives.Single(x=>x.Action=="FirstAid").Score>0,"recent hit penalizes without banning treatment");
+  f=Frame();f.Options.Add(Stim());C(new MedicalChoice().Evaluate(f,c).Choice=="Wait","healthy bot preserves stimulant");f.Health=.3;C(new MedicalChoice().Evaluate(f,c).Choice=="Stims","low-health stimulant");
+  f=Frame();f.Options.Add(Surg());var p=new MedicalChoice();var selected=p.Evaluate(f,c);C(!selected.Started&&!selected.Applied,"selection is not an observed medical operation");p.Request(11);p.ObserveStart(12);C(p.Trace!.Started&&p.Trace.Applied,"observed native start");
+  f.Options.Clear();C(ReferenceEquals(p.Evaluate(f,c),selected),"ongoing native treatment retained");p.End(30,"ended",c);C(!p.Active&&p.Trace.Outcome=="unconfirmed","no invented completion");
+  f.Now=30.01;f.Options.Add(Aid());C(p.Evaluate(f,c).Choice=="FirstAid","no extra COMET treatment cooldown");
   using var pe=new PEReader(File.OpenRead(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../references/sain-4.5.1/SAIN.dll"))));var md=pe.GetMetadataReader();
   foreach(var (type,method,count) in new[]{("SelfActionDecisionClass","StartBotHeal",1),("SelfActionDecisionClass","CheckContinueSelfAction",2),("SAINSelfActionClass","DoFirstAid",0),("SAINSelfActionClass","DoStims",0),("SAINSelfActionClass","DoSurgery",0),("DoSurgeryAction","checkDoSurgery",0),("DoSurgeryAction","Stop",0)}){
    var td=md.TypeDefinitions.Select(md.GetTypeDefinition).Single(t=>md.GetString(t.Name)==type);

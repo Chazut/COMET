@@ -71,9 +71,9 @@ public sealed partial class Plugin
     private static int OpportunityImmediateThreats(BotComponent bot,Enemy target)
     {
         int scanned=0;
-        foreach(var other in bot.EnemyController.KnownEnemies){if(++scanned>32)return 1;
+        foreach(var other in bot.EnemyController.KnownEnemies){
             if(other!=null&&other.EnemyProfileId!=target.EnemyProfileId&&other.EnemyKnown
-                &&(other.IsVisible||other.Status.ShotAtMeRecently))return 1;}
+                &&other.IsVisible)return 1;}
         return 0;
     }
     private void OpportunityError(BotComponent bot, Exception ex)

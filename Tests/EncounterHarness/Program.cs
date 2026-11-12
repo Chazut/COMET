@@ -15,7 +15,7 @@ Situation Situation()=>new(){Now=13.5,Target="target",KnownX=10,KnownY=0,KnownZ=
  var t=p.Read(b,s,Situation());Check(t?.Eligible==true,"fresh matching context read");
  var sit=Situation();sit.Encounter=t;sit.IsAi=sit.IsSupportedBot=sit.IsAuthority=sit.IsActive=true;
  var result=new HiddenEnemyDecision(p.config!).Evaluate(sit);s.Decision=result.Decision?.ToString()??"";s.Candidates=result.Candidates;p.Choice(s,sit);
- Check(sit.Encounter!.AppliedBonus==15&&sit.Encounter.Alternatives.Length>0,"actual chooser contribution and alternatives attached");
+ Check(sit.Encounter!.AppliedBonus==0&&sit.Encounter.Alternatives.Length>0,"actual chooser contribution and alternatives attached");
  Check(s.Encounter.Trace!.Choice==s.Decision,"choice snapshot detached from sampler");
  p.End(s);Check(s.Encounter.Memory.Count==0&&s.Encounter.Trace==null,"raid cleanup");
  Check(JObject.Parse(p.diagnostics!.Lines.Last())["encounter"]!["state"]!.Value<string>()=="ended","cleanup terminal event");events.AddRange(p.diagnostics.Lines);

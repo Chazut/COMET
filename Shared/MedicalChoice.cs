@@ -48,7 +48,8 @@ public sealed class MedicalFrame
     public double Now, Health = 1, SinceHit = 999, Aggression = .5;
     public bool HeavyBleed, LightBleed, Vital, ReachedCover, ProtectiveCover, Moving, Visible, Footsteps, ThreatsIncomplete;
     public double Nearest = 100000, Quiet = 999;
-    public int Contacts;
+    public int Contacts, Meds;
+    public bool RunningToCover, LegsHold, InHisView, CoverTowardHim;
     public string Contact = "", Priority = "";
     public double? X, Y, Z;
     public readonly List<MedicalOption> Options = new();
@@ -102,43 +103,30 @@ public sealed class MedicalChoice
             Cover=f.ReachedCover&&f.ProtectiveCover,Visible=f.Visible,Footsteps=f.Footsteps,Contacts=f.Contacts,
             Contact=f.Contact,X=f.X,Y=f.Y,Z=f.Z,Quiet=f.Quiet,Distance=f.Nearest,SinceHit=f.SinceHit,ThreatsIncomplete=f.ThreatsIncomplete };
         var options=f.Options.Select(o=>o.Copy()).ToList();
-        foreach (var o in options)
+        // HealUtility (zzap): pressure changes utility, it does not ban a treatment.
+        double Clamp(double n)=>Math.Max(0,Math.Min(1,n));
+        double safe=Clamp((f.Quiet-3)/15)*.5+Clamp((f.Nearest-10)/30)*.5;
+        double close=Clamp((30-f.Nearest)/25)*Clamp((25-f.Quiet)/15);
+        double medBias=f.Meds>=3?.1:f.Meds<=1&&f.Health>.35?-.1:0;
+        foreach(var o in options)
         {
-            o.Score=-1;
-            if (!o.Usable || !Finite(o.Duration) || o.Duration<=0 || o.Duration>120) { o.Reason="medical-no-usable-treatment";continue; }
-            string blocked=f.Priority;
-            if (f.Now<RetryAt) blocked="medical-retry-delay";
-            bool emergency=o.Need is "heavy-bleed" or "vital";
-            bool unsafeNow=f.Visible||f.Footsteps||f.ThreatsIncomplete;
-            if(blocked.Length==0)
+            if(!o.Usable||!Finite(o.Duration)||o.Duration<=0||f.Priority.Length>0)
+            {o.Score=-10000;o.Reason=f.Priority.Length>0?f.Priority:"medical-no-usable-treatment";continue;}
+            double score=o.Action switch
             {
-                if(o.Action=="Surgery")
-                {
-                    if(f.HeavyBleed||f.LightBleed||f.Vital)blocked="medical-urgent-injury-first";
-                    else if(f.Moving||!t.Cover&&f.Contacts>0)blocked="medical-cover-not-reached";
-                    else if(unsafeNow||f.Contacts>0&&(f.Quiet<c.SurgeryQuiet||f.Nearest<=c.SurgeryDistance))blocked="medical-surgery-threat";
-                    else if(f.SinceHit<c.HitDelay)blocked="medical-recent-hit";
-                    else o.Score=45+30*(1-f.Aggression);
-                }
-                else if(o.Action=="Stims")
-                {
-                    if(f.Health>c.StimHealth&&!f.Vital)blocked="medical-stim-not-needed";
-                    else if(f.SinceHit<c.EmergencyStimDelay)blocked="medical-recent-hit";
-                    else if(f.Moving)blocked="medical-still-moving";
-                    else o.Score=85+(f.Vital?20:0);
-                }
-                else if(o.Action=="FirstAid")
-                {
-                    if(f.SinceHit<(emergency?c.EmergencyStimDelay:c.HitDelay))blocked="medical-recent-hit";
-                    else if(f.Moving)blocked="medical-still-moving";
-                    else if(!emergency&&(unsafeNow||f.Contacts>0&&!t.Cover&&f.Quiet<10))blocked="medical-exposed";
-                    else o.Score=(emergency?120:o.Need=="light-bleed"?90:65)+10*(1-f.Health)-Math.Min(10,o.Duration*.25);
-                }
-            }
-            o.Reason=blocked.Length>0?blocked:o.Score>=0?"medical-"+o.Need:"medical-unsupported";
-            if(blocked.Length>0)o.Score=-1;
+                "FirstAid"=>medBias+.2+.5*(1-f.Health)+(f.ReachedCover?.2:0)+.3*safe
+                    -(f.Visible?.6:0)-(f.Footsteps?.55:0)-(f.SinceHit<c.HitDelay?.3:0)
+                    -(f.InHisView?.4:0)-(f.RunningToCover?(f.LegsHold?.2:.5):0)-.35*close-(f.CoverTowardHim?.5:0),
+                "Stims" when f.Health<=c.StimHealth=>.3+.4*(1-f.Health)+(f.Visible?(f.ReachedCover?.1:-.25):0)
+                    -(f.InHisView&&!f.ReachedCover?.2:0)-(f.SinceHit<c.EmergencyStimDelay?.2:0),
+                "Surgery"=>.1+.4*safe+(f.ReachedCover?.15:0)-(f.Visible?.8:0)-(f.Footsteps?.7:0)
+                    -(f.Quiet<10?.3:0)-(f.InHisView?.5:0)-(f.CoverTowardHim?.5:0),
+                _=>-10000
+            };
+            o.Score=score*100;o.Reason="medical-"+o.Need;
         }
-        options.Add(new MedicalOption{Action="Wait",Usable=true,Score=30,Reason=f.Priority.Length>0?f.Priority:f.Now<RetryAt?"medical-retry-delay":"medical-wait-for-safety-or-supplies"});
+        // Native zzap deliberately wins ties with Wait.
+        options.Insert(0,new MedicalOption{Action="Wait",Usable=true,Score=100*(.31+.45*close+(f.Footsteps?.25:0)+(f.Visible?.2:0)),Reason="medical-wait-score"});
         t.Alternatives=options.OrderByDescending(o=>o.Score).ToArray();var best=t.Alternatives[0];
         t.Choice=best.Action;t.Reason=best.Reason;t.Item=best.Item;t.Part=best.Part;t.Need=best.Need;t.Duration=best.Duration;
         if(best.Action!="Wait"){t.State="selected";SelectedAt=f.Now;}
@@ -147,6 +135,6 @@ public sealed class MedicalChoice
     public void Request(double now){if(Trace?.State!="selected")return;Trace.State="requested";Trace.Reason="medical-native-request";RequestedAt=now;}
     public void ObserveStart(double now){if(Trace?.State!="requested")return;Trace.State="started";Trace.Reason="medical-hands-observed";Trace.Started=true;Trace.Applied=true;Trace.ValidFor=1;StartedAt=now;}
     public void End(double now,string reason,MedicalChoiceConfig c,string outcome="unconfirmed")
-    {if(!Active)return;Trace!.State="ended";Trace.Reason=reason;Trace.Applied=false;Trace.ValidFor=0;Trace.Outcome=outcome;RetryAt=now+c.RetryDelay;}
+    {if(!Active)return;Trace!.State="ended";Trace.Reason=reason;Trace.Applied=false;Trace.ValidFor=0;Trace.Outcome=outcome;RetryAt=now;}
     public static bool Finite(double value)=>!double.IsNaN(value)&&!double.IsInfinity(value);
 }

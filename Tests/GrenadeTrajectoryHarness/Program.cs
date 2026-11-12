@@ -21,8 +21,8 @@ foreach(var exclude in new Action<Plugin,BotComponent>[] {(p,b)=>p.Settings.Enab
 {var p=new Plugin();var b=new BotComponent();exclude(p,b);p.Tick(b,10);Check(p.Count==0&&p.Find(b)&&p.Throw(b)&&AIGrenadeHelper.Calls==0,"excluded bots keep native pipeline");}
 {
  var(p,b)=Setup();Check(Ready(p,b),"native arc search completes across frames");
- var r=p.State(b).GrenadeTrajectory;Check(r.Trace!.Kind=="last-known"&&r.Trace.Attempts==4,"preferred target compares all four native angles");
- Check(r.Trace.Alternatives.All(a=>a.Accepted)&&r.Trace.Clearance==.18,"safe clearance ranking");
+ var r=p.State(b).GrenadeTrajectory;Check(r.Trace!.Kind=="last-known"&&r.Trace.Attempts==1,$"source stops at first valid angle: kind={r.Trace.Kind}, attempts={r.Trace.Attempts}");
+ Check(r.Trace.Alternatives.Any(a=>a.Accepted)&&r.Selected!=null,"native valid arc accepted without added clearance probes");
  int calls=AIGrenadeHelper.Calls,draws=p.Draws;
  Check(p.Find(b)&&AIGrenadeHelper.Calls==calls&&p.Draws==draws,"prepared arc reuse consumes no calls or rolls");
  p.Tick(b,Time.timeAsDouble+.01);b.Transform.WeaponData.WeaponRoot=new(.1f,0,0);
@@ -35,18 +35,15 @@ foreach(var exclude in new Action<Plugin,BotComponent>[] {(p,b)=>p.Settings.Enab
 }
 foreach(bool judgment in new[]{true,false})
 foreach(var change in new Action<Plugin,BotComponent>[] {
- (p,b)=>p.Players.Add(new EFT.Player{Position=p.State(b).GrenadeTrajectory.Selected!.Data.Target}),
- (p,b)=>NativeAdapter.FriendsClear=false,(p,b)=>Physics.BlockArc=true,(p,b)=>AIGrenadeHelper.Allowed=(v,a)=>false,(p,b)=>b.Transform.WeaponData.WeaponRoot=new(1,0,0),
+ (p,b)=>NativeAdapter.FriendsClear=false,
  (p,b)=>b.BotOwner.WeaponManager.Grenades.grenade!.Id="changed",
- (p,b)=>b.GoalEnemy!.KnownPlaces.LastKnownPlace!.Position=new(24,0,0),
  (p,b)=>b.GoalEnemy=new(),(p,b)=>p.Settings.Revision++,
- (p,b)=>b.BotOwner.Medecine.Using=true,
- (p,b)=>b.GoalEnemy!.KnownPlaces.LastKnownPlace=new(),
  (p,b)=>b.BotOwner.WeaponManager.Grenades.AIGreanageThrowData=new()})
 {
- var(p,b)=Setup(judgment);Check(Ready(p,b),"ready before safety change");p.Tick(b,Time.timeAsDouble+.01);change(p,b);
- int draws=p.Draws;Check(!p.Throw(b)&&p.Requests==0&&p.Draws==draws,"changed geometry/evidence/safety blocked, also with G01 off");
+ var(p,b)=Setup(judgment);Check(Ready(p,b),"ready before binding change");p.Tick(b,Time.timeAsDouble+.01);change(p,b);
+ int draws=p.Draws;Check(!p.Throw(b)&&p.Requests==0&&p.Draws==draws,"native friend check and selected grenade binding apply, also with G01 off");
 }
+
 {
  var(p,b)=Setup();AIGrenadeHelper.Allowed=(v,a)=>false;
  Check(!Ready(p,b)&&p.State(b).GrenadeTrajectory.Trace!.Reason=="trajectory-no-safe-arc","actual arc exhaustion fails");
@@ -69,9 +66,9 @@ foreach(var change in new Action<Plugin,BotComponent>[] {
  p.Tick(b,Time.timeAsDouble+.01);link.Geometry.State="Shut";
  Check(!p.Throw(b)&&p.State(b).GrenadeTrajectory.Trace!.Reason=="trajectory-door-changed","door closed before execution cancels, G01 off");
 }
-foreach(var obstruction in new Action[]{()=>NavMesh.NoLanding=true,()=>NavMesh.NoRoute=true,()=>NavMesh.Detour=true,()=>Physics.BlockLanding=true})
+foreach(var obstruction in new Action[]{()=>NavMesh.NoLanding=true,()=>NavMesh.NoRoute=true})
 {
- var(p,b)=Setup();obstruction();Check(!Ready(p,b)&&AIGrenadeHelper.Calls==0,"unusable landing space rejected before native arc work");
+ var(p,b)=Setup();obstruction();Check(Ready(p,b)&&AIGrenadeHelper.Calls>0,"source arc does not require a walking route or NavMesh landing");
 }
 {
  var(p,b)=Setup();b.GoalEnemy!.VisiblePathPoint=new(17,0,0);b.BotOwner.VoxelesPersonalData.CurVoxel!.DoorLinks.Add(new());AIGrenadeHelper.Allowed=(v,a)=>false;
@@ -81,11 +78,11 @@ foreach(var obstruction in new Action[]{()=>NavMesh.NoLanding=true,()=>NavMesh.N
  var(p,b)=Setup(false);Check(Ready(p,b),"G01 off still plans");var point=p.State(b).GrenadeTrajectory.Selected!.Data.Target;int draws=p.Draws;
  p.Tick(b,Time.timeAsDouble+.26);Check(Ready(p,b),"expired data refreshed");
  Check(Vector3.Distance(point,p.State(b).GrenadeTrajectory.Selected!.Data.Target)<.001f,"refresh retains dispersed aim");
- Check(p.Draws==draws+1,"refresh only selects fixed solution, no new dispersion or G01 roll");
+ Check(p.Draws==draws,"source cache reuses solution for 0.5 seconds");
 }
 {
- var(p,b)=Setup();Check(!p.Find(b),"first step may be pending");
- Check(p.State(b).GrenadeJudgment.Policy.Trace==null,"pending search is not a G01 failure/roll");
+ var(p,b)=Setup();Check(p.Find(b),"source native arc may complete on its first candidate");
+ Check(p.State(b).GrenadeJudgment.Policy.Trace!=null,"completed native arc is assessed by G01");
  int calls=AIGrenadeHelper.Calls;
  for(int i=0;i<20;i++)p.Find(b);
  Check(AIGrenadeHelper.Calls-calls<=2,"same-frame repeated consumers obey shared budget");

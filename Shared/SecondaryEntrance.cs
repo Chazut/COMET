@@ -8,15 +8,15 @@ public sealed class SecondaryEntranceConfig
     public bool AllowEntry {get;set;}=true;
     public double WatchMin {get;set;}=10;
     public double WatchMax {get;set;}=15;
-    public double Extension {get;set;}=5;
+    public double Extension {get;set;}=15;
     public double StandOff {get;set;}=2.5;
     public double MaxPath {get;set;}=35;
-    public double ContactAge {get;set;}=8;
+    public double ContactAge {get;set;}=15;
     public double MinimumAmmo {get;set;}=50;
-    public double GigaChad {get;set;}=85;
-    public double Chad {get;set;}=75;
-    public double Wreckless {get;set;}=85;
-    public double Normal {get;set;}=40;
+    public double GigaChad {get;set;}=100;
+    public double Chad {get;set;}=100;
+    public double Wreckless {get;set;}=100;
+    public double Normal {get;set;}=60;
     public double Rat {get;set;}=0;
     public double SnappingTurtle {get;set;}=0;
     public double Coward {get;set;}=0;
@@ -25,7 +25,7 @@ public sealed class SecondaryEntranceConfig
     public void Validate()
     {
         CometConfig.Range(WatchMin,1,30,nameof(WatchMin));CometConfig.Range(WatchMax,WatchMin,30,nameof(WatchMax));
-        CometConfig.Range(Extension,0,10,nameof(Extension));CometConfig.Range(StandOff,1,4,nameof(StandOff));
+        CometConfig.Range(Extension,0,30,nameof(Extension));CometConfig.Range(StandOff,1,4,nameof(StandOff));
         CometConfig.Range(MaxPath,5,60,nameof(MaxPath));CometConfig.Range(ContactAge,1,20,nameof(ContactAge));
         CometConfig.Range(MinimumAmmo,1,100,nameof(MinimumAmmo));CometConfig.Range(Retry,5,120,nameof(Retry));
         foreach(var x in new[]{GigaChad,Chad,Wreckless,Normal,Rat,SnappingTurtle,Coward,Timmy})CometConfig.Range(x,0,100,"Entry chance");
@@ -65,7 +65,7 @@ public sealed class SecondaryEntrance
     private double evidence,last=-1;
     public bool CanTry(string id,double now,double info,SecondaryEntranceConfig c)
         =>c.Enabled&&MedicalChoice.Finite(now)&&MedicalChoice.Finite(info)&&info<=now&&now>=0&&!string.IsNullOrEmpty(id)
-        &&(!attempts.TryGetValue(id,out var a)?attempts.Count<32:now>=a.At+c.Retry&&info>a.Evidence+.001);
+        &&(!attempts.TryGetValue(id,out var a)||now>=a.At+c.Retry);
     public bool Begin(string id,double now,double info,double watchRoll,SecondaryEntranceConfig c)
     {
         if(!CanTry(id,now,info,c))return false;
@@ -84,9 +84,9 @@ public sealed class SecondaryEntrance
         if(now<WatchAt+t.WatchDuration)return "wait";
         if(!t.Rolled){t.Rolled=true;t.EntryRoll=Clamp(roll)*100;t.EntryChance=c.Chance(personality);}
         bool selected=c.AllowEntry&&t.EntryRoll<t.EntryChance;
-        if(selected&&partner=="ready"&&t.Ammo>=c.MinimumAmmo){t.EntryReason="partner ready and entry selected";return "ready";}
-        t.EntryReason=!c.AllowEntry?"entry disabled":!selected?"personality keeps watch":partner!="ready"?"partner "+partner:"insufficient loaded ammunition";
-        if(!t.Extended&&c.Extension>0){t.Extended=true;t.WatchRemaining=Math.Max(0,WatchAt+t.WatchDuration+c.Extension-now);}
+        if(selected&&partner!="injured"&&t.Ammo>=c.MinimumAmmo){t.EntryReason="partner ready and entry selected";return "ready";}
+        t.EntryReason=!c.AllowEntry?"entry disabled":!selected?"personality keeps watch":partner=="injured"?"self injured":"insufficient loaded ammunition";
+        if(!t.Extended&&c.Extension>0&&partner!="stale"){t.Extended=true;t.WatchRemaining=Math.Max(0,WatchAt+t.WatchDuration+c.Extension-now);}
         return now<WatchAt+t.WatchDuration+c.Extension?"wait":"end";
     }
     public void End(double now,double? latestEvidence=null)

@@ -14,7 +14,6 @@ namespace Comet.Client;
 public sealed partial class Plugin
 {
     private static readonly AccessTools.FieldRef<EnemyKnownChecker,Enemy> abandonmentEnemy = AccessTools.FieldRefAccess<EnemyKnownChecker,Enemy>("Enemy");
-    private int abandonmentProbeFrame=-1,abandonmentProbes;
     private static void PatchSearchAbandonment(Harmony h)
     {
         h.Patch(AccessTools.Method(typeof(EnemyKnownChecker),"ShallKnowEnemy"),postfix:new HarmonyMethod(typeof(Plugin),nameof(CheckSearchedPlace)));
@@ -24,60 +23,23 @@ public sealed partial class Plugin
     {
         var p=Instance;if(p?.config==null)return false;
         var e=abandonmentEnemy(checker);
-        if(!p.states.TryGetValue(e.Bot,out var s))return false;
-        if(pending)return s.AbandonPending?.Target==e.EnemyProfileId;
-        if(!ReferenceEquals(e.Bot.GoalEnemy,e)&&!s.Abandonment.Remembers(e.EnemyProfileId))return false;
-        return Time.time>=s.AbandonProbeAt||s.AbandonPending!=null||s.Abandonment.NeedsSafetyCheck(e.EnemyProfileId);
+        return p.states.TryGetValue(e.Bot,out var s)&&(!pending||s.AbandonPending?.Target==e.EnemyProfileId);
     }
     private static void CheckSearchedPlace(EnemyKnownChecker __instance,float currentTime,ref bool __result)
     {
         var p=Instance;if(p?.config==null)return;
         var e=abandonmentEnemy(__instance);var b=e.Bot;
         if(!p.states.TryGetValue(b,out var s))return;
-        // Irrelevant contacts cannot invalidate the current inspection. Filter them
-        // before repeated authority, ghost, hands and lifecycle reads.
-        if(!ReferenceEquals(b.GoalEnemy,e)&&!s.Abandonment.Remembers(e.EnemyProfileId))return;
-        try
-        {
+        try {
             if(s.AbandonFault||!p.config.Enabled||!p.config.SearchAbandonment.Enabled||!NativeAdapter.IsSupportedAi(b)
-                ||!b.BotActive||b.IsDead||b.GameEnding||!p.Authority||p.Ghost(b.ProfileId))
-            {p.EndAbandonment(s,"search-check-out-of-scope",true);return;}
-            if(s.Entry.Policy.Active||s.Fake.Policy.Active||s.StepPeek.Policy.Active||s.Jump.Policy.Active||s.RunBy.Policy.Active){p.EndAbandonment(s,"search-check-door-jump");return;}
+                ||!b.BotActive||b.IsDead||b.GameEnding||!p.Authority||p.Ghost(b.ProfileId))return;
             var place=e.KnownPlaces.LastKnownPlace;
-            if(!__result||place==null){p.EndAbandonment(s,"search-check-native-expiry");return;}
-            bool unsafeNow=b.Flashed.IsFlashed||e.IsVisible||b.EnemyController.VisibleEnemies.Count>0||b.BotOwner.Memory.IsUnderFire
-                ||b.Suppression.IsSuppressed||b.Medical.TimeSinceShot<3||s.Fear.Current.Panic
-                ||b.BotOwner.DoorOpener.Interacting||b.Decision.CurrentSelfDecision!=ESelfActionType.None
-                ||b.Decision.CurrentSquadDecision!=ESquadDecision.None||b.Decision.CurrentCombatDecision==ECombatDecision.AvoidGrenade
-                ||!VisibleAdapter.WeaponReady(b);
-            if(unsafeNow) {p.EndAbandonment(s,"search-check-native-priority");if(e.IsVisible)s.Abandonment.ForgetFailure(e.EnemyProfileId);return;}
-            if(currentTime<s.AbandonProbeAt)return;
-            s.AbandonProbeAt=currentTime+.25f;
-            var point=place.Position;var origin=b.Position;
-            bool near=Vector3.Distance(point,origin)<=p.config.SearchAbandonment.Radius;
-            // Conservative floor guard plus two independent sight lines to the remembered place.
-            // No target transform, real enemy position, path search or scene enumeration.
-            bool sameFloor=Math.Abs(point.y-origin.y)<=1;
-            bool personal=b.Decision.CurrentCombatDecision==ECombatDecision.Search||place.HasArrivedPersonal;
-            var viewOffset=point+Vector3.up-b.Transform.EyePosition;
-            bool facing=viewOffset.sqrMagnitude<.25f||Vector3.Angle(b.Transform.LookDirection,viewOffset)<=Math.Min(60,b.Info.FileSettings.Core.VisibleAngle/2);
-            bool sampled=false,clear=false;
-            if(near&&sameFloor&&facing&&personal&&ReferenceEquals(b.GoalEnemy,e))
-            {
-                if(p.abandonmentProbeFrame!=Time.frameCount){p.abandonmentProbeFrame=Time.frameCount;p.abandonmentProbes=0;}
-                if(p.abandonmentProbes<4)
-                {
-                    p.abandonmentProbes++;sampled=true;
-                    clear=!Physics.Linecast(origin+Vector3.up*.6f,point+Vector3.up*.6f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore)
-                        &&!Physics.Linecast(origin+Vector3.up*1.2f,point+Vector3.up*1.2f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore);
-                }
-            }
+            if(!__result||place==null)return;
+            var point=place.Position;
             var f=new SearchAbandonmentFrame{Now=currentTime,Stamp=e.KnownPlaces.TimeLastKnownUpdated,Target=e.EnemyProfileId,
-                Instance=RuntimeHelpers.GetHashCode(e),X=point.x,Y=point.y,Z=point.z,Distance=Vector3.Distance(origin,point),
-                NativeKnown=__result,Active=ReferenceEquals(b.GoalEnemy,e),PersonalSearch=personal,Visible=e.IsVisible,
-                SameFloor=sameFloor,ClearView=clear,Sampled=sampled,Facing=facing};
-            var t=s.Abandonment.Evaluate(f,p.config.SearchAbandonment);
-            p.RecordAbandonment(s);
+                Instance=RuntimeHelpers.GetHashCode(e),X=point.x,Y=point.y,Z=point.z,Distance=Vector3.Distance(b.Position,point),
+                NativeKnown=__result,Visible=e.IsVisible,PersonalSearch=place.HasArrivedPersonal||place.HasArrivedSquad};
+            var t=s.Abandonment.Evaluate(f,p.config.SearchAbandonment);p.RecordAbandonment(s);
             if(t.ForgetRequested){s.AbandonPending=f;__result=false;}
         }
         catch(Exception ex){s.AbandonFault=true;p.EndAbandonment(s,"search-check-adapter-error",true);p.Logger.LogWarning("COMET P09 yielded: "+ex.Message);}

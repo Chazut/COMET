@@ -10,7 +10,7 @@ public sealed class SquadManeuverConfig
     public double SquadDistance {get;set;}=35;
     public double MinDistance {get;set;}=15;
     public double MaxDistance {get;set;}=80;
-    public double ContactAge {get;set;}=8;
+    public double ContactAge {get;set;}=10;
     public double ConfirmTimeout {get;set;}=3;
     public double Duration {get;set;}=25;
     public double StallTimeout {get;set;}=3;
@@ -64,8 +64,7 @@ public sealed class SquadManeuverPlan
     public void Drop(string id,string why)
     {
         var m=Member(id);if(m==null||!Active)return;m.Status="ended";m.Applied=false;m.Reason=why;
-        if(id==Support)End("maneuver-support-lost: "+why);
-        else if(!Members.Any(x=>x.Role=="flank"&&x.Status!="ended"))End("maneuver-no-flanker: "+why);
+        if(!Members.Any(x=>x.Role=="flank"&&x.Status!="ended"))End("maneuver-no-flanker: "+why);
     }
     public void Engage(string id,double now)
     {
@@ -84,10 +83,11 @@ public sealed class SquadManeuverPlan
         foreach(var m in Members)
         {
             if(m.Status is "ended" or "engaging")continue;
-            if(now-m.LastSeen>=1&&m.Confirmed){Drop(m.Id,"role-callback-lost");continue;}
-            if(!m.Confirmed&&now-(m.ReadyAt>=0?m.ReadyAt:Started)>=c.ConfirmTimeout&&m.Status!="planning")Drop(m.Id,"role-not-confirmed");
+            // zzap's no-show timeout concerns a flanker who never took the role.
+            // A diagnostic callback gap or a missing supporter is not a failed maneuver.
+            if(m.Role=="flank"&&!m.Confirmed&&now-(m.ReadyAt>=0?m.ReadyAt:Started)>=c.ConfirmTimeout&&m.Status!="planning")Drop(m.Id,"role-not-confirmed");
         }
-        if(Active&&State!="converging"&&SupportReady(now)&&Members.Any(x=>x.Role=="flank"&&x.Confirmed&&x.Status!="ended"))State="active";
+        if(Active&&State!="converging"&&Members.Any(x=>x.Role=="flank"&&x.Confirmed&&x.Status!="ended"))State="active";
         return Active;
     }
     public ManeuverTrace Trace(string id,double now,SquadManeuverConfig c)
@@ -121,10 +121,8 @@ public sealed class SquadManeuverBoard
         if(history.TryGetValue(key,out var h))
         {
             if(now<h.until){LastReason="maneuver-retry-cooldown";return null;}
-            if(evidence<=h.evidence+.001){LastReason="maneuver-evidence-already-used";return null;}
         }
-        if(candidates.Count<2||candidates.Count>16){LastReason="maneuver-insufficient-eligible-members";return null;}
-        if(history.Count>=512&&!history.ContainsKey(key)||plans.Count>=128){LastReason="maneuver-board-capacity";return null;}
+        if(candidates.Count<2){LastReason="maneuver-insufficient-eligible-members";return null;}
         if(!MedicalChoice.Finite(roll)||roll<0||roll>=1){LastReason="maneuver-invalid-roll";return null;}
         // One roll for the whole opportunity; a failed roll also consumes this evidence.
         history[key]=(now+c.Retry,evidence);

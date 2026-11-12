@@ -52,49 +52,24 @@ internal static class NativeAdapter
             ContactAge = enemy.TimeSinceLastKnownUpdated, KnownDistance = known.HasValue ? Vector3.Distance(bot.Position, known.Value) : 0,
             KnownX = known?.x ?? 0, KnownY = known?.y ?? 0, KnownZ = known?.z ?? 0, ContactSource = source,
             LowAmmo = bot.Decision.SelfActionDecisions.LowOnAmmo(.3f), Hurt = health == ETagStatus.BadlyInjured || health == ETagStatus.Dying,
+            UnderFire = bot.BotOwner.Memory.IsUnderFire, Frozen = bot.Decision.CurrentCombatDecision == ECombatDecision.Freeze,
             Suppressed = bot.Suppression.IsSuppressed, InCover = bot.Cover.CoverInUse != null
         };
     }
     internal static void Capabilities(BotComponent bot, Enemy enemy, Situation s, BotState state, CometConfig config)
     {
-        var path = enemy.Path.PathToEnemy;
-        var corners = EnemyPathCorners.Read(enemy.Path);
+        bool complete = enemy.Path.PathToEnemy?.status == NavMeshPathStatus.PathComplete;
         var known = enemy.KnownPlaces.LastKnownPosition!.Value;
-        bool complete = path != null && path.status == NavMeshPathStatus.PathComplete && corners.Length > 1
-            && (corners[corners.Length - 1] - known).sqrMagnitude <= 4 && (corners[0] - bot.Position).sqrMagnitude <= 16;
-        if (!complete) { s.Unavailable[Tactic.Push] = "no-current-complete-path"; s.Unavailable[Tactic.Search] = "no-current-complete-path"; }
+        if (!complete) s.Unavailable[Tactic.Push] = "no-current-complete-path";
         else if (enemy.Path.PathLength > config.PushMaxDistance) s.Unavailable[Tactic.Push] = "push-path-too-long";
+        if(bot.Info.Personality.ToString()=="Coward")s.Unavailable[Tactic.Push]="coward-keeps-distance";
+        if(bot.Decision.SelfActionDecisions.LowOnAmmo(.35f))s.Unavailable[Tactic.Push]="low-ammo";
         if (!bot.Info.PersonalitySettings.Search.WillSearchForEnemy) s.Unavailable[Tactic.Search] = "sain-personality-search-disabled";
-        if (config.SilentSearch.Enabled && !enemy.Seen && !bot.Info.PersonalitySettings.Search.WillSearchFromAudio)
+        if (!enemy.Seen && !bot.Info.PersonalitySettings.Search.WillSearchFromAudio)
             s.Unavailable[Tactic.Search] = "sain-personality-audio-search-disabled";
-        if (config.SilentSearch.Enabled && (enemy.KnownPlaces.LastKnownPlace?.HasArrivedPersonal == true || enemy.KnownPlaces.LastKnownPlace?.HasArrivedSquad == true))
-            s.Unavailable[Tactic.Search] = "silent-search-already-searched";
-        bool cover = false;
-        bool guidedCover=config.Progress.Enabled && !state.ProgressUnavailable;
-        if(guidedCover) state.SelectedCover=VisibleAdapter.SelectCover(bot,state.Progress);
-        // Reuse SAIN's cover cache. No global scene searches or new NavMesh scans.
-        int scannedCover=0;
-        if(!guidedCover) foreach (var point in bot.Cover.CoverPoints)
-        {
-            if(++scannedCover>24)break;
-            if (point == null || point.CoverData.IsBad || point.PathToPoint == null || point.PathToPoint.status != NavMeshPathStatus.PathComplete || (point.PathData.TimeSinceLastUpdated > 3 && !Plugin.RetainedCover(bot, point))) continue;
-            if(!state.ProgressUnavailable && state.Progress.Blocked(ProgressAdapter.CoverKey(point),s.Now))continue;
-            cover = true;
-            break;
-        }
-        // The legacy existence scan is less strict than SelectCover (spotted points,
-        // origin/destination validation). Never advertise a guided retreat without
-        // the actual point we will request, or fall back to a stale native cover.
-        if(guidedCover)cover=state.SelectedCover!=null;
-        if (!cover) s.Unavailable[Tactic.FallBack] = "no-reachable-cover";
+        state.SelectedCover=VisibleAdapter.SelectCover(bot);
         string flankReason=FlankAdapter.Capability(bot,state);
         if(flankReason.Length>0)s.Unavailable[Tactic.Flank]=flankReason;
-        var weapon = bot.BotOwner.WeaponManager;
-        if (weapon == null || !weapon.HaveBullets || weapon.Reload.Reloading || weapon.Selector.IsChanging || bot.Player.HandsController.IsInInteractionStrictCheck())
-        {
-            foreach (Tactic tactic in Enum.GetValues(typeof(Tactic))) s.Unavailable[tactic] = "weapon-or-hands-busy-yield-to-sain";
-            return;
-        }
         s.Unavailable[Tactic.Grenade] = GrenadeCapability(bot, enemy, known, state, config);
         if (s.Unavailable[Tactic.Grenade] == "ready") s.Unavailable.Remove(Tactic.Grenade);
     }

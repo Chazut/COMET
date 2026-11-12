@@ -13,7 +13,7 @@ public sealed class GrenadeTrajectoryConfig
     public double DoorDepthFirst { get; set; } = 1.8;
     public double DoorDepthSecond { get; set; } = 1.2;
     public double DoorDepthThird { get; set; } = 2.6;
-    public double PreparedLifetime { get; set; } = .25;
+    public double PreparedLifetime { get; set; } = .5;
     public void Validate()
     {
         CometConfig.Range(Distance,10,75,nameof(Distance));
@@ -68,7 +68,7 @@ public static class GrenadeTrajectoryRules
 {
     public const int AttemptLimit=12;
     public const double SearchLifetime=2;
-    // Roof info only orders candidates: the complete native arc and a clearance sweep still decide.
+    // Roof info only orders candidates; the native arc check decides feasibility.
     public static int[] Angles(bool alternative,bool lowCeiling)
         => alternative?new[]{15,25}:lowCeiling?new[]{15,25,35,45}:new[]{25,15,35,45};
     public static double Dispersion(double distance)=>.5+4.5*Math.Max(0,Math.Min(1,(distance-10)/40));

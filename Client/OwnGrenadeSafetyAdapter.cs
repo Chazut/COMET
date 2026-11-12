@@ -42,7 +42,6 @@ public sealed partial class Plugin
 {
     private readonly List<OwnProjectile> ownProjectiles=new();
     private float ownSampleAt;
-    private int ownRayFrame=-1,ownRays;
     private static MethodInfo ownDangerSetter=null!,ownReactionSetter=null!;
     private static void PatchOwnGrenadeSafety(Harmony h)
     {
@@ -50,8 +49,6 @@ public sealed partial class Plugin
         ownReactionSetter=AccessTools.PropertySetter(typeof(GrenadeReactionClass),nameof(GrenadeReactionClass.Reaction))??throw new MissingMethodException("G04 reaction setter");
         h.Patch(AccessTools.Method(typeof(BotComponent),nameof(BotComponent.ManualUpdate)),prefix:new HarmonyMethod(typeof(Plugin),nameof(OwnGrenadeUpdate)));
         h.Patch(AccessTools.Method(typeof(GrenadeReactionClass),"UpdateDangerGrenade"),postfix:new HarmonyMethod(typeof(Plugin),nameof(OwnNativeDanger)));
-        h.Patch(AccessTools.Method(typeof(BotPathDataManual),nameof(BotPathDataManual.TickPath)),prefix:new HarmonyMethod(typeof(Plugin),nameof(OwnPathTick)){priority=Priority.First});
-        h.Patch(AccessTools.Method(typeof(SAIN.Classes.PlayerMovementController),"SetTargetMoveDirection"),prefix:new HarmonyMethod(typeof(Plugin),nameof(OwnMoveInput)){priority=Priority.First});
     }
     private bool OwnScope(BotComponent b)=>config?.Enabled==true&&config.OwnGrenadeSafety.Enabled&&b!=null&&!b.IsDead
         &&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
@@ -76,18 +73,17 @@ public sealed partial class Plugin
             ||item.ThrowType.ToString() is "smoke_grenade" or "gas_grenade")return;
         var b=states.Keys.FirstOrDefault(x=>x!=null&&x.ProfileId==grenade.ProfileId&&OwnScope(x));if(b==null)return;
         if(ownProjectiles.Any(x=>x.Grenade.TryGetTarget(out var g)&&ReferenceEquals(g,grenade)))return;
-        double radius=ClearDangerRadius(item)-1+config.OwnGrenadeSafety.DangerMargin;
+        double radius=6; // OwnGrenadeTracker.DANGER_RADIUS
         if(!GrenadeChoiceRules.Finite(radius)||radius<=0||radius>150)return;
-        // At most 64 unconfirmed own projectiles per raid; refuse new tactics rather than silently discard a live hazard.
-        if(ownProjectiles.Count>=64){Logger.LogWarning("G04 projectile limit; SAIN retains grenade handling.");return;}
+        SampleOwnProjectiles();
+        // Source reaction list is bounded per thrower, never by a global veto.
+        var oldest=ownProjectiles.Where(x=>x.Evidence.Owner==b.ProfileId).OrderBy(x=>x.Evidence.ThrownAt).ToList();
+        while(oldest.Count>=4){ownProjectiles.Remove(oldest[0]);oldest.RemoveAt(0);}
         var p=new OwnProjectile{Grenade=new(grenade),Owner=new(b)};var e=p.Evidence;
         e.Owner=b.ProfileId;e.Projectile=grenade.Id;e.Item=item.Id.ToString();e.Radius=radius;e.Position=e.Origin=DP(grenade.transform.position);
         e.ThrownAt=e.SampledAt=Time.time;e.Fuse=GrenadeChoiceRules.Finite(item.GetExplDelay)?Math.Max(0,Math.Min(30,item.GetExplDelay)):8;
         p.Informed.Add(b.ProfileId);
-        // Only squadmates who could see this throw learn it. No global ally-position feed.
-        foreach(var mate in b.Squad.Members.Values)
-            if(mate!=null&&OwnScope(mate)&&Vector3.Distance(mate.Position,b.Position)<=30
-                &&!Physics.Linecast(mate.Position+Vector3.up*1.5f,b.Position+Vector3.up*1.5f,LayersMaskController.HighPolyWithTerrainMask))p.Informed.Add(mate.ProfileId);
+        // Teammates use SAIN's native grenade perception, as in zzap.
         ownProjectiles.Add(p);
         foreach(var pair in states)if(p.Informed.Contains(pair.Key.ProfileId))RecordOwnSafety(pair.Key,pair.Value,p,"tracking","own-grenade-live",false,false,true);
     }
@@ -116,7 +112,7 @@ public sealed partial class Plugin
             {
                 e.Missing(Time.time);
                 foreach(var pair in states)if(p.Informed.Contains(pair.Key.ProfileId))
-                {Release(pair.Value,"own-grenade-outcome-unknown");RecordOwnSafety(pair.Key,pair.Value,p,"waiting","own-grenade-outcome-unknown",false,false,true);}
+                {RecordOwnSafety(pair.Key,pair.Value,p,"waiting","own-grenade-outcome-unknown",false,false,true);}
             }
         }
     }
@@ -155,54 +151,23 @@ public sealed partial class Plugin
         try{ownDangerSetter.Invoke(__instance,new object[]{r.Tracker});ownReactionSetter.Invoke(__instance,new object[]{EGrenadeReaction.Scatter});}
         catch(Exception ex){p.OwnSafetyError(b,ex);}
     }
-    private bool OwnRouteSafe(BotComponent b,BotState s,IReadOnlyList<DoorPoint> points)
+    private bool OwnThreatens(BotComponent b,Vector3 point,out Vector3 newest)
     {
+        newest=Vector3.zero;
+        if(!OwnScope(b))return false;
         SampleOwnProjectiles();
+        bool danger=false;
         foreach(var p in ownProjectiles)
-            if(p.Informed.Contains(b.ProfileId)&&!OwnGrenadeSafetyRules.SafeRoute(p.Evidence,points,Time.time,config!.OwnGrenadeSafety,OwnSolidCover,p.Evidence.Owner==b.ProfileId))
-            {RecordOwnSafety(b,s,p,"waiting","own-grenade-route-blocked",true,false);return false;}
-        return true;
-    }
-    private static bool OwnPathTick(BotPathDataManual __instance)
-    {
-        var p=Instance;if(p==null||__instance.PathFinder is not SAINMoverClass mover||!p.OwnScope(mover.Bot)||p.ownProjectiles.Count==0)return true;
-        var b=mover.Bot;var s=p.GrenadeState(b);var r=s.OwnGrenade;if(r.Fault)return true;
-        if(!ReferenceEquals(mover.ActivePath,__instance))return true;
-        if(ReferenceEquals(r.CheckedPath,__instance)&&Time.time<r.PathNext)return true;
-        r.CheckedPath=__instance;r.PathNext=Time.time+(float)p.config!.OwnGrenadeSafety.Refresh;
-        try
         {
-            var points=new List<DoorPoint>{DP(b.Position)};
-            for(int i=Math.Max(0,__instance.CurrentIndex);i<__instance.PathPoints.Count&&points.Count<65;i++)points.Add(DP(__instance.PathPoints[i]));
-            if(p.OwnRouteSafe(b,s,points))return true;
-            // Pause has a native delay. Complete immediately so no unsafe movement leaks through this tick.
-            combatStopPath!.Invoke(__instance,new object[]{false,"COMET G04 grenade danger"});b.Player.Move(Vector2.zero);
-            p.Release(s,"own-grenade-route-blocked");return false;
+            var e=p.Evidence;
+            if(e.Owner!=b.ProfileId||e.Exploded||e.Expired(Time.time))continue;
+            newest=VP(e.Position);
+            if((DP(point)-e.Position).Length<=6&&!OwnSolidCover(DP(point),e.Position))danger=true;
         }
-        catch(Exception ex){p.OwnSafetyError(b,ex);return true;}
-    }
-    private static void OwnMoveInput(PlayerComponent playerComp,ref Vector3 direction)
-    {
-        var p=Instance;var b=playerComp.BotComponent;
-        if(p==null||b==null||!p.OwnScope(b)||p.ownProjectiles.Count==0||direction.sqrMagnitude<.001f)return;
-        var s=p.GrenadeState(b);if(s.OwnGrenade.Fault)return;
-        try{if(!p.OwnRouteSafe(b,s,new[]{DP(b.Position),DP(b.Position+direction.normalized*.75f)}))direction=Vector3.zero;}
-        catch(Exception ex){p.OwnSafetyError(b,ex);}
+        return danger;
     }
     private bool OwnSolidCover(DoorPoint point,DoorPoint grenade)
-    {
-        if(ownRayFrame!=Time.frameCount){ownRayFrame=Time.frameCount;ownRays=0;}
-        if(ownRays+2>64)return false;ownRays+=2;
-        bool Solid(float height)
-        {
-            if(!Physics.Linecast(VP(grenade)+Vector3.up*.1f,VP(point)+Vector3.up*height,out var hit,LayersMaskController.HighPolyWithTerrainMask))return false;
-            var col=hit.collider;if(col==null||col.isTrigger||col.attachedRigidbody!=null||col.GetComponentInParent<Door>()!=null||col.GetComponentInParent<Player>()!=null)return false;
-            if(col is TerrainCollider)return true;
-            var material=col.GetComponent<BallisticCollider>()??col.GetComponentInParent<BallisticCollider>();
-            return material!=null&&material.TypeOfMaterial is MaterialType.Concrete or MaterialType.Stone or MaterialType.MetalThick;
-        }
-        return Solid(1.3f)&&Solid(1.65f);
-    }
+        =>Physics.Linecast(VP(grenade)+Vector3.up*.3f,VP(point)+Vector3.up*1.2f,LayersMaskController.HighPolyWithTerrainMask);
     private void DropOwnTracker(BotComponent? b,OwnGrenadeRuntime r)
     {
         var reaction=b?.Grenade?.GrenadeReactionClass;
@@ -223,7 +188,7 @@ public sealed partial class Plugin
         var e=p.Evidence;s.OwnGrenade.Trace=new(){State=state,Reason=reason,Owner=e.Owner,Item=e.Item,Projectile=e.Projectile,Source=e.Owner==b.ProfileId?"own-throw":"observed-squad-throw",
             Outcome=e.Status,X=e.Position.X,Y=e.Position.Y,Z=e.Position.Z,Radius=e.Radius,Distance=(DP(b.Position)-e.Position).Length,Age=Math.Max(0,Time.time-e.ThrownAt),
             Active=ownProjectiles.Count(x=>!x.Evidence.Exploded&&x.Informed.Contains(b.ProfileId)),RouteBlocked=route,Escape=escape,ValidFor=state=="released"?0:.5,
-            Alternatives=new[]{"assault: blocked while route exposed","escape: native SAIN, increasing separation","entry: D07 still requires confirmed blast"}};WriteOwnTrace(s,force);
+            Alternatives=new[]{"own projectile: source six-metre danger check","escape: native SAIN until ten metres away","live object ends or expires after eight seconds"}};WriteOwnTrace(s,force);
     }
     private void WriteOwnTrace(BotState s,bool force=false)
     {

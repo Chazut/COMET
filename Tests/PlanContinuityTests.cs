@@ -17,32 +17,29 @@ internal static class PlanContinuityTests
             ProbeReady=true,ThreatCount=1,ThreatSignature="enemy:visible",ContinuationSafe=true};
         CometConfig Config(){var c=new CometConfig();c.VisibleCombat.CoverWeight=0;c.VisibleCombat.PushWeight=0;return c;}
         {
-            var e=new VisibleEnemyDecision(Config());var f=Frame();var first=e.Evaluate(f);Check(first.Decision==VisibleTactic.Shoot,"baseline");
+            var e=new VisibleEnemyDecision(Config());var f=Frame();var first=e.Evaluate(f);
+            Check(first.Decision==VisibleTactic.Shoot,"visible best option");
             f.ProbeReady=false;
-            for(int i=0;i<5;i++){f.Contact.Now=10.1+i*.1;var kept=e.Evaluate(f);Check(kept.Decision==VisibleTactic.Shoot&&!kept.Changed&&kept.Reason=="plan-kept-pending-exposure","queued probe retains plan without reroll");Check(ReferenceEquals(first.Candidates,kept.Candidates),"retained scores, no invented probe");}
-            f.Contact.Now=10.61;Check(e.Evaluate(f).Decision==null,"pending work eventually yields");
-            f.ProbeReady=true;f.Contact.Now=10.7;Check(e.Evaluate(f).Decision!=null,"full result can resume");
+            for(int i=0;i<15;i++){
+                f.Contact.Now=10.1+i*.1;var kept=e.Evaluate(f);
+                Check(kept.Decision==VisibleTactic.Shoot&&!kept.Changed,"source 2-3s decision interval survives queued diagnostics");
+                Check(ReferenceEquals(first.Candidates,kept.Candidates),"no reroll within source interval");
+            }
+            f.Contact.Now=13.1;Check(e.Evaluate(f).Reconsidered,"source decision interval expires");
+            f.Contact.Ghost=true;Check(e.Evaluate(f).Decision==null,"Ghost ownership remains outside COMET");
         }
-        foreach(Action<VisibleSituation> invalidate in new Action<VisibleSituation>[] {
-            f=>f.Contact.Target="new",f=>f.ThreatSignature="new-threat",f=>f.Contact.Hurt=true,f=>f.Contact.LowAmmo=true,
-            f=>f.Contact.Suppressed=true,f=>f.Contact.Ghost=true,f=>f.Contact.IsAuthority=false,f=>f.Contact.Visible=false,
-            f=>f.Contact.Fear=new FearTrace{Panic=true},f=>f.RecentHit=true,f=>f.WeaponReady=false,f=>f.ContinuationSafe=false})
+        foreach(Action<VisibleSituation> extra in new Action<VisibleSituation>[] {
+            f=>f.ThreatSignature="new-threat",f=>f.Contact.Hurt=true,f=>f.Contact.LowAmmo=true,
+            f=>f.Contact.Suppressed=true,f=>f.Contact.Fear=new FearTrace{Panic=true},f=>f.ContinuationSafe=false})
         {
-            var e=new VisibleEnemyDecision(Config());var f=Frame();e.Evaluate(f);f.Contact.Now+=.1;f.ProbeReady=false;invalidate(f);
-            Check(e.Evaluate(f).Decision==null,"unsafe pending continuation rejected");
+            var e=new VisibleEnemyDecision(Config());var f=Frame();var first=e.Evaluate(f);f.Contact.Now+=.1;extra(f);
+            Check(e.Evaluate(f).Decision==first.Decision,"COMET-added evidence gates do not abort source decision");
         }
+        foreach(Action<VisibleSituation> integration in new Action<VisibleSituation>[] {
+            f=>f.Contact.IsAuthority=false,f=>f.Contact.IsActive=false,f=>f.Contact.Ghost=true,f=>f.Contact.Visible=false})
         {
-            var e=new VisibleEnemyDecision(Config());var f=Frame();e.Evaluate(f);e.NotifyNativeRefusal();f.Contact.Now+=.1;f.ProbeReady=false;
-            Check(e.Evaluate(f).Decision==null,"native execution failure gets no grace");
-        }
-        {
-            var e=new VisibleEnemyDecision(Config());var f=Frame();e.Evaluate(f);f.ProbeReady=false;f.Contact.Now=10.1;
-            Check(e.TryContinuePending(f),"native continuation can use the same lease");
-            f.Contact.Now=10.4;Check(e.Evaluate(f).Decision==VisibleTactic.Shoot,"chooser shares continuation deadline");
-            f.Contact.Now=10.61;Check(!e.TryContinuePending(f)&&f.ContinuationReason=="grace-expired","switching entry points cannot reset deadline");
-            e.ProbeRefreshed();f.Contact.Now=10.7;Check(e.TryContinuePending(f),"new measured probe clears pending lease");
-            f.ContinuationSafe=false;f.ContinuationReason="";
-            Check(!e.TryContinuePending(f)&&f.ContinuationReason=="unverified-plan","missing diagnostic reason cannot bypass safety");
+            var e=new VisibleEnemyDecision(Config());var f=Frame();e.Evaluate(f);integration(f);
+            Check(e.Evaluate(f).Decision==null,"native/integration scope still releases control");
         }
         return n;
     }

@@ -28,16 +28,6 @@ internal static class ProgressAdapter
         keys["Cover"]=keys["FallBack"]=CoverKey(state.SelectedCover);
         keys["Flank"]=CoverKey(state.Flank.Point);
     }
-    internal static bool RetireFailedCover(BotComponent bot, PlanProgress progress, double now)
-    {
-        // SAIN UpdateCover ignores GoToCoverPoint's false result for CoverInUse and
-        // keeps holding it. Release only a destination already rejected by A12.
-        // Do not mark it permanently bad: it becomes usable after the retry delay.
-        if (!progress.Blocked(CoverKey(bot.Cover.CoverInUse), now)
-            && !progress.Blocked(CoverKey(bot.Cover.CoverPoint_MovingTo), now)) return false;
-        bot.Cover.StopSeekingCover();
-        return true;
-    }
     internal static ProgressFrame Capture(BotComponent bot,BotState state,bool authority,bool ghost,CometConfig config)
     {
         var p=bot.Position;var d=bot.Decision;var path=bot.Mover.ActivePath;
@@ -125,12 +115,7 @@ public sealed partial class Plugin
             string key=trace.State+":"+trace.Reason+":"+trace.Attempt;
             if(replan || key!=state.ProgressLogKey && Time.time-state.ProgressLogAt>=1)
             {state.ProgressLogKey=key;state.ProgressLogAt=Time.time;Emit(state,"evaluated",trace.Reason);}
-            if(replan && state.ActiveLabel.Length>0)
-            {
-                if(frame.Action is "Cover" or "FallBack" or "Flank"
-                    && RetireProgressCover(bot,state)) Emit(state,"evaluated","progress-native-cover-retired","A12");
-                Release(state,trace.Reason);
-            }
+
         }
         catch(Exception ex)
         {
@@ -139,16 +124,5 @@ public sealed partial class Plugin
             state.ProgressUnavailable=true;
         }
     }
-    private bool RetireProgressCover(BotComponent bot,BotState state)
-        => ProgressAdapter.RetireFailedCover(bot,state.Progress,Time.time);
-    private static bool ProgressCoverMove(SAINMoverClass __instance,CoverPoint point,ref bool __result)
-    {
-        var plugin=Instance;var bot=__instance.Bot;
-        if(plugin?.config?.Progress.Enabled!=true || !plugin.states.TryGetValue(bot,out var state) || state.ProgressUnavailable || state.ActiveLabel.Length==0
-            || !NativeAdapter.IsSupportedAi(bot) || !bot.BotActive || !plugin.Authority || plugin.Ghost(bot.ProfileId)
-            || bot.Decision.CurrentCombatDecision!=state.Expected || bot.Decision.CurrentSelfDecision!=ESelfActionType.None || bot.Decision.CurrentSquadDecision!=ESquadDecision.None)return true;
-        if(!state.Progress.Blocked(ProgressAdapter.CoverKey(point),Time.time))return true;
-        plugin.RetireProgressCover(bot,state);
-        __result=false;return false;
-    }
+
 }

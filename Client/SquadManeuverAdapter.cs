@@ -17,10 +17,9 @@ public sealed partial class Plugin
     {var mag=b.BotOwner.WeaponManager.CurrentWeapon?.GetCurrentMagazine();return mag==null||mag.MaxCount<=0?0:100d*mag.Count/mag.MaxCount;}
     private string ManeuverRearContact(BotComponent b,Vector3 known,out Vector3 rear)
     {
-        rear=default;int count=0;
+        rear=default;
         foreach(var e in b.EnemyController.KnownEnemies)
         {
-            if(++count>16)break;
             if(e==null||e==b.GoalEnemy||!e.EnemyKnown||!float.IsFinite(e.TimeSinceLastKnownUpdated)||e.TimeSinceLastKnownUpdated<0||e.TimeSinceLastKnownUpdated>config!.SquadManeuver.ContactAge
                 ||e.KnownPlaces.LastKnownPosition is not Vector3 point||!ValidPoint(point))continue;
             if(Vector3.Angle(known-b.Position,point-b.Position)>100){rear=point;return e.EnemyProfileId;}
@@ -44,14 +43,13 @@ public sealed partial class Plugin
                 if(mate==null||!CrossfireScope(mate)||mate.GoalEnemy?.EnemyProfileId!=enemy.EnemyProfileId)continue;
                 if(Vector3.Distance(b.Position,mate.Position)>c.SquadDistance)continue;
                 if(!states.TryGetValue(mate,out var ms)){if(states.Count>=512)continue;ms=new BotState(mate,config,session);states.Add(mate,ms);}
-                if(ms.Crossfire.Policy.Active||ms.Crossfire.Fault||Time.time<ms.Crossfire.Policy.RetryAt||CrossfireBlock(mate,ms,true,supportCandidate:mate.GoalEnemy.IsVisible||ms.MovementRecovery.Policy.RepositionBlock(config.MovementRecovery).Length>0).Length>0
+                if(ms.Crossfire.Policy.Active||ms.Crossfire.Fault||Time.time<ms.Crossfire.Policy.RetryAt||CrossfireBlock(mate,ms,true,supportCandidate:mate.GoalEnemy.IsVisible).Length>0
                     ||!CrossfireCanAcquire(mate))continue;
                 var mk=mate.GoalEnemy.KnownPlaces.LastKnownPosition;
-                if(mk==null||Vector3.Distance(mk.Value,known)>4||mate.GoalEnemy.TimeSinceLastKnownUpdated>c.ContactAge)continue;
+                if(mk==null||mate.GoalEnemy.TimeSinceLastKnownUpdated>c.ContactAge)continue;
                 double md=Vector3.Distance(mate.Position,mk.Value);if(md<c.MinDistance||md>c.MaxDistance)continue;
                 double ammo=ManeuverAmmo(mate);if(ammo<=0)continue;
                 candidates.Add(new(){Id=mate.ProfileId,Name=mate.Player.Profile.Nickname,Personality=mate.Info.Personality.ToString(),Ammo=ammo,VisibleContact=mate.GoalEnemy.IsVisible,
-                    MovementBlock=ms.MovementRecovery.Policy.RepositionBlock(config.MovementRecovery),
                     Score=SquadManeuverBoard.Score(mate.Info.Personality.ToString(),mate.Memory.Health.HealthStatus==ETagStatus.Healthy,ammo,c),
                     Roll=jumpRandom.NextDouble(),RearContact=ManeuverRearContact(mate,known,out _)});
             }
@@ -62,8 +60,6 @@ public sealed partial class Plugin
         }
         if(plan==null||!plan.Active||plan.Enemy!=enemy.EnemyProfileId||plan.Member(b.ProfileId) is not ManeuverMember role||role.Status is "ended" or "engaging")return false;
         if(!b.Squad.Members.TryGetValue(plan.Support,out var support))return false;
-        // A group must fit around the actual supporter, not just the bot that proposed it.
-        if(Vector3.Distance(b.Position,support.Position)>c.SquadDistance){plan.Drop(b.ProfileId,"support-out-of-range");return false;}
         r.Maneuver=plan;r.ManeuverRole=role;r.ManeuverStarted=Time.time;
         var begin=new CrossfireConfig{Participation=100};r.Policy.Begin(Time.time,begin,0);
         if(!r.Policy.Active){plan.Drop(b.ProfileId,"crossfire-unavailable");r.Maneuver=null;r.ManeuverRole=null;return false;}
@@ -107,18 +103,8 @@ public sealed partial class Plugin
             if(member.Status!="ended"&&(!b.Squad.Members.TryGetValue(member.Id,out var bot)
                 ||bot==null||bot.IsDead||!bot.BotActive))p.Drop(member.Id,"maneuver-member-unavailable");
         if(!p.Active||m.Status=="ended"){EndCrossfire(b,s,"maneuver-required-role-lost");return false;}
-        if(m.Role=="flank"&&r.Policy.Trace!.State=="moving")
-        {double distance=Vector3.Distance(b.Position,r.Goal);if(distance<m.BestDistance-.4){m.BestDistance=distance;m.ProgressAt=Time.time;}
-         if(Time.time-m.ProgressAt>=c.StallTimeout){EndCrossfire(b,s,"maneuver-route-stalled");return false;}}
-        if(!b.Squad.Members.TryGetValue(p.Support,out var support)||!states.TryGetValue(support,out var ss)||!CrossfireScope(support)
-            ||support.GoalEnemy?.EnemyProfileId!=p.Enemy||support.GoalEnemy.KnownPlaces.LastKnownPosition is not Vector3 sk
-            ||support.GoalEnemy.TimeSinceLastKnownUpdated>c.ContactAge&&!p.HasProgressingFlanker(Time.time,c)||CrossfireBlock(support,ss,true).Length>0
-            ||Vector3.Distance(b.Position,support.Position)>c.SquadDistance)
-        {p.End("maneuver-support-unavailable");EndCrossfire(b,s,p.Reason);return false;}
-        if(m.Role=="flank"&&ManeuverAmmo(b)<c.MinimumAmmo){EndCrossfire(b,s,"maneuver-flanker-low-ammo");return false;}
         if(m.Role=="rear"&&ManeuverRearContact(b,r.Known,out r.Watch)!=m.RearContact){EndCrossfire(b,s,"maneuver-rear-contact-stale");return false;}
         if(m.Role=="flank"&&r.Policy.Trace!.State=="ready"&&m.ReadyAt<0){m.ReadyAt=Time.time;m.Status="ready";}
-        if(m.Confirmed&&m.Role=="flank"&&!p.SupportReady(Time.time)){EndCrossfire(b,s,"maneuver-support-callback-lost");return false;}
         // The live plan owns execution state. Detached member snapshots are built
         // by RecordCrossfire at the diagnostic cadence, not every safety check.
         return true;
@@ -126,8 +112,8 @@ public sealed partial class Plugin
     private bool ExecuteManeuverSupport(BotComponent b,BotState s)
     {
         var r=s.Crossfire;var m=r.ManeuverRole;if(m==null||m.Role=="flank")return false;
-        if(b.Mover.ActivePath!=null||QueuedCombatMovement(b)||Vector3.Distance(b.Position,r.Goal)>1)
-        {EndCrossfire(b,s,"maneuver-support-moved-or-route-busy");return true;}
+        // Support may adjust its position or finish an outgoing native route.
+        // This never cancels the other members' routes (zzap maneuver semantics).
         if(r.Policy.Trace!.State=="ready"){r.Policy.Moving(Time.time,0);r.Policy.Progress(Time.time,0,config!.Crossfire);}
         r.Policy.Trace.Reason=m.Confirmed?"maneuver-support-established":"maneuver-support-awaiting-steering";
         r.Policy.Trace.Execution=m.Confirmed?(b.GoalEnemy?.IsVisible==true?"visible anchor; native SAIN aim and fire":"support angle observed; no flank movement claimed"):"awaiting support steering callback";
@@ -137,7 +123,7 @@ public sealed partial class Plugin
         {
             var f=DisciplineFrame(b,s,b.GoalEnemy);
             if(f.Block.Length==0&&!f.Visible&&f.KnownContact&&f.ObservedAt>=0&&Time.time-f.ObservedAt<=config.SuppressionDiscipline.ContactAge)
-                {r.ManeuverFire=true;b.ManualShoot.TryShoot(b.GoalEnemy,VP(f.Known)+Vector3.up*1.3f,true,EShootReason.Suppress);}
+                {r.ManeuverFire=true;b.Suppression.TrySuppressAnyEnemy(b.GoalEnemy,b.EnemyController.KnownEnemies);}
         }
         return true;
     }

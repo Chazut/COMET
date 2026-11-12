@@ -7,7 +7,7 @@ using UnityEngine;
 int checks=0;void C(bool b,string s){checks++;if(!b)throw new Exception("S09 adapter: "+s);}
 var harmony=new Harmony("comet.s09.harness");Plugin.Patch(harmony);
 var events=new List<string>();Plugin p=null!;BotComponent a=null!,b=null!;
-void Setup(string mode="Reduced")
+void Setup(string mode="Normal")
 {
     if(p!=null){events.AddRange(p.diagnostics!.Events);p.End();}Time.time=Time.realtimeSinceStartup=10;
     p=new();p.config!.SquadVoice.Mode=mode;p.config.SquadVoice.Chance=100;
@@ -23,9 +23,9 @@ foreach(var phrase in new[]{EPhraseTrigger.OnDeath,EPhraseTrigger.OnAgony,EPhras
 {int count=a.Talk.PlayerComponent.Played;Group(()=>a.Talk.Say(phrase,null,false,true));C(a.Talk.PlayerComponent.Played==count+1,"protected phrase "+phrase);}
 int before=a.Talk.PlayerComponent.Played;a.Talk.Say(EPhraseTrigger.OnFirstContact,null,false,true);C(a.Talk.PlayerComponent.Played==before+1,"other mod direct Say untouched");
 Group(()=>a.Talk.PlayerComponent.PlayVoiceLine(EPhraseTrigger.OnFirstContact,0,false));C(a.Talk.PlayerComponent.Played==before+2,"direct speaker call untouched even inside group producer");
-Setup();Speak();Speak(bot:b);C(b.Talk.PlayerComponent.Played==0&&(string?)Last()["reason"]=="squad-voice-squad-delay","squad cooldown");Advance(2);Speak(bot:b);C(b.Talk.PlayerComponent.Played==1,"teammate after gap");Speak();C(a.Talk.PlayerComponent.Played==1&&(string?)Last()["reason"]=="squad-voice-bot-delay","bot cooldown");
-Setup();p.config!.SquadVoice.Chance=0;Speak();C(a.Talk.PlayerComponent.Played==0&&(string?)Last()["reason"]=="squad-voice-chance","0% ordinary");Speak(EPhraseTrigger.OnEnemyGrenade);C(a.Talk.PlayerComponent.Played==1,"enemy grenade bypass");new SAIN.Layers.Combat.Solo.ThrowGrenadeAction{Talk=a.Talk}.Start();Advance();a.Talk.Tick();C(a.Talk.PlayerComponent.Played==2,"native own grenade producer urgent bypass");
-p.config.SquadVoice.Mode="Disabled";Speak(EPhraseTrigger.OnEnemyGrenade);C(a.Talk.PlayerComponent.Played==2,"disabled includes urgent squad alerts");
+Setup();Speak();Speak(bot:b);C(b.Talk.PlayerComponent.Played==1,"source native has no added squad delay");Speak();C(a.Talk.PlayerComponent.Played==2,"source native has no added bot delay");
+Setup("Reduced");p.config!.SquadVoice.Chance=0;Speak();C(a.Talk.PlayerComponent.Played==1,"legacy reduced has no extra chance roll");
+p.config.SquadVoice.Mode="Disabled";Speak(EPhraseTrigger.OnEnemyGrenade);C(a.Talk.PlayerComponent.Played==1,"source mute includes alerts");
 Setup();a.Talk.PlayerComponent.Busy=true;Speak();C((string?)Last()["state"]=="native-not-played"&&(double)Last()["validFor"]! == 0,"native declined audio never confirmed");a.Talk.PlayerComponent.Busy=false;Speak();C(a.Talk.PlayerComponent.Played==1,"busy attempt did not consume spacing");
 Setup("Disabled");a.Talk.Gesture=true;Speak(EPhraseTrigger.Roger);C(a.Talk.Gestures==1&&a.Talk.PlayerComponent.Played==0,"native gesture preserved in disabled");C((string?)Last()["state"]=="native-no-voice","gesture not falsely confirmed as sound");
 Setup("Disabled");Group(()=>a.Talk.TalkAfterDelay(EPhraseTrigger.OnFirstContact,null,1));Advance(.6f);a.Talk.Tick();C((string?)Last()["state"]=="queued","not due");Advance(.5f);a.Talk.Tick();C((string?)Last()["state"]=="filtered"&&a.Talk.PlayerComponent.Played==0,"delayed origin retained");

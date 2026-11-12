@@ -29,9 +29,6 @@ internal sealed class CoverScanRuntime
 }
 public sealed partial class Plugin
 {
-    partial void TickCoverFallbacks();
-    partial void ClearCoverFallbacks();
-    partial void CheckFallbackCover(BotComponent b,CoverPoint point,ref bool handled,ref bool usable,ref string reason);
     partial void CoverScanFailure(BotComponent b, Exception ex, ref bool handled);
     partial void ConfigureCoverRetry(BotComponent b, ref Func<bool>? retry);
     private readonly Dictionary<CoverFinderComponent, CoverScanRuntime> coverScans = new();
@@ -47,7 +44,6 @@ public sealed partial class Plugin
         h.Patch(moveNext, transpiler: new HarmonyMethod(typeof(Plugin), nameof(RedirectCoverScan)));
         h.Patch(coverFactory, postfix: new HarmonyMethod(typeof(Plugin), nameof(WrapCoverScan)));
         h.Patch(AccessTools.Method(typeof(CoverFinderComponent), "StopLooking"), prefix: new HarmonyMethod(typeof(Plugin), nameof(StopCoverScan)));
-        h.Patch(AccessTools.Method(typeof(SAINMoverClass), "GoToCoverPoint"), prefix: new HarmonyMethod(typeof(Plugin), nameof(ValidateScanCover)));
     }
     internal static IEnumerable<CodeInstruction> RedirectCoverScan(IEnumerable<CodeInstruction> instructions)
     {
@@ -86,61 +82,13 @@ public sealed partial class Plugin
         var p = Instance;
         if (p != null && p.coverScans.TryGetValue(__instance, out var r)) { p.coverScans.Remove(__instance); r.Runner.Dispose(); }
     }
-    private void CheckCoverScans() { foreach (var r in coverScans.Values) r.Runner.CheckContext(); TickCoverFallbacks(); }
-    private void EndCoverScans() { foreach (var r in coverScans.Values) r.Runner.Dispose(); coverScans.Clear();ClearCoverFallbacks(); }
+    private void CheckCoverScans() { foreach (var r in coverScans.Values) r.Runner.CheckContext(); }
+    private void EndCoverScans() { foreach (var r in coverScans.Values) r.Runner.Dispose(); coverScans.Clear(); }
     internal static bool RetainedCover(BotComponent b, CoverPoint point) => Instance is Plugin p && b.Cover?.CoverFinder is CoverFinderComponent f
         && p.coverScans.TryGetValue(f, out var r) && r.Runner.Retains(CoverContact(b)) && f.CoverPoints.Contains(point);
-    private static bool ValidateScanCover(SAINMoverClass __instance, CoverPoint point, ref bool __result)
-    {
-        if (SelectionCoverUsable(__instance.Bot, point, out _)) return true;
-        __result = false; return false;
-    }
-    // The chooser and mover must use the same safety test. Otherwise a retained
-    // but exposed point repeatedly wins selection only to fail at handoff.
-    internal static bool SelectionCoverUsable(BotComponent b, CoverPoint point, out string reason)
-    {
-        reason = "cover-selected-rechecked";
-        var p = Instance;
-        bool handled=false,usable=false;p?.CheckFallbackCover(b,point,ref handled,ref usable,ref reason);if(handled)return usable;
-        if (p == null || p.CoverScanMode(b) != 1 || !p.coverScans.TryGetValue(b.Cover.CoverFinder, out var r)) return true;
-        try
-        {
-            if (r.ValidationFault) return true;
-            r.Runner.CheckContext();
-            string contact = CoverContact(b);
-            var known = b.GoalEnemy?.LastKnownPosition;
-            var target = known.GetValueOrDefault();
-            if (r.Frame != Time.frameCount || r.CheckedContact != contact || !r.CheckedOrigin.Equals(b.NavMeshPosition) || !r.CheckedTarget.Equals(target))
-            { r.Checked.Clear(); r.Frame = Time.frameCount; r.CheckedContact = contact; r.CheckedOrigin = b.NavMeshPosition; r.CheckedTarget = target; }
-            if (point == null) { reason = "cover-selected-missing"; return false; }
-            if ((point.Spotted || point.Collider == null) && r.Checked.TryGetValue(point, out var cached) && cached.Valid)
-                r.Checked.Remove(point);
-            if (!r.Checked.TryGetValue(point, out var check))
-            {
-                bool valid = known.HasValue && !point.Spotted && point.Collider != null;
-                string why = !known.HasValue ? "no-known-target" : point.Spotted ? "spotted" : "missing-collider";
-                if (valid)
-                {
-                    var analyzer = (CoverAnalyzer)(coverAnalyzerGetter.Invoke(b.Cover.CoverFinder, null) ?? throw new InvalidOperationException("SAIN cover analyzer unavailable"));
-                    valid = analyzer.RecheckCoverPoint(point, known!.Value, (known.Value - b.NavMeshPosition).normalized, b.NavMeshPosition, out why);
-                }
-                point.CoverData.IsBad = !valid;
-                check = (valid, valid ? "cover-selected-rechecked" : "cover-selected-invalid-" + why);
-                r.Checked[point] = check;
-                r.Runner.Selection(check.Valid, check.Reason, ProgressAdapter.CoverKey(point));
-            }
-            reason = check.Reason;
-            return check.Valid;
-        }
-        catch (Exception ex)
-        {
-            r.ValidationFault = true;
-            p.Logger.LogWarning("C07 selected cover check failed: " + ex.GetBaseException().Message);
-            reason = "cover-selected-check-unavailable";
-            r.Runner.Selection(false, reason, ProgressAdapter.CoverKey(point));
-            return false;
-        }
-    }
+    // zzap lets CoverAnalyzer validate points during the scan. Selection does not run another scan.
+    internal static bool SelectionCoverUsable(BotComponent b,CoverPoint point,out string reason)
+    {reason="cover-selected";return point!=null&&!point.CoverData.IsBad;}
     private void RecordCoverScan(BotComponent b, CoverScanRuntime r, CoverScanTrace t)
     {
         // Normal short scans need no per-frame events. Summarize at most once per second,

@@ -72,7 +72,7 @@ public sealed partial class Plugin
                 r.Trace!.State="searching";r.Trace.Reason="trajectory-refreshing-fixed-aim";
                 r.Trace.Attempts=0;r.Trace.Alternatives.Clear();r.Trace.ValidFor=.5;r.Trace.Kind="";r.Trace.Angle=0;
             }
-            if(now-r.Started>GrenadeTrajectoryRules.SearchLifetime){FailGrenadeTrajectory(s,"trajectory-search-expired");return false;}
+
         }
         else
         {
@@ -93,22 +93,22 @@ public sealed partial class Plugin
                 if(why.Length>0)
                 {r.Trace!.Alternatives.Add(new(){Kind=aim.Kind,X=aim.Point.x,Y=aim.Point.y,Z=aim.Point.z,Reason=why});aim.Next=aim.Angles.Length;}
             }
-            if(aim.Next<aim.Angles.Length&&r.Trace!.Attempts<GrenadeTrajectoryRules.AttemptLimit)
+            if(aim.Next<aim.Angles.Length)
             {
                 int angle=aim.Angles[aim.Next++];r.Trace.Attempts++;
                 var alt=new GrenadeTrajectoryAlternative{Kind=aim.Kind,X=aim.Point.x,Y=aim.Point.y,Z=aim.Point.z,Angle=angle};
                 r.Trace.Alternatives.Add(alt);
                 var native=AIGrenadeHelper.CanThrowGrenade2(r.Origin,aim.Point,b.BotOwner.WeaponManager.Grenades.MaxPower*.9f,
                     (AIGreandeAng)Enum.Parse(typeof(AIGreandeAng),"ang"+angle),-1f,.66f);
-                alt.Reason=!ValidGrenadeArc(native)?"native-arc-blocked-or-out-of-range":SweepGrenadeArc(native,out var ignored);
+                alt.Reason=!ValidGrenadeArc(native)?"native-arc-blocked-or-out-of-range":"";
                 if(alt.Reason.Length==0)
                 {
                     // Margin only ranks already safe arcs. It cannot authorize an obstructed throw.
-                    alt.Clearance=GrenadeMargin(native);alt.Accepted=true;alt.Reason="trajectory-clear";
-                    r.Arcs.Add(new(){Data=native,Alternative=alt,Aim=aim});
+                    alt.Clearance=0;alt.Accepted=true;alt.Reason="trajectory-clear";
+                    r.Arcs.Add(new(){Data=native,Alternative=alt,Aim=aim});aim.Next=aim.Angles.Length;
                 }
             }
-            if(aim.Next>=aim.Angles.Length||r.Trace!.Attempts>=GrenadeTrajectoryRules.AttemptLimit)
+            if(aim.Next>=aim.Angles.Length)
             {
                 if(r.Arcs.Count>0)
                 {
@@ -127,7 +127,7 @@ public sealed partial class Plugin
                     return GrenadeTrajectoryRules.Fresh(now,r.Prepared,c.PreparedLifetime)?true:null;
                 }
                 r.Index++;
-                if(r.Index>=r.Targets.Count||r.Trace!.Attempts>=GrenadeTrajectoryRules.AttemptLimit)
+                if(r.Index>=r.Targets.Count)
                 {FailGrenadeTrajectory(s,"trajectory-no-safe-arc");return false;}
             }
             RecordGrenadeTrajectory(s);return null;
@@ -138,7 +138,7 @@ public sealed partial class Plugin
     }
     private string TrajectoryEvidence(BotComponent b,Enemy e,GrenadeJudgmentFrame f)
     {
-        if(!ReferenceEquals(e,b.GoalEnemy)||!f.Personal||!DP(new((float)f.X,(float)f.Y,(float)f.Z)).Finite)return "trajectory-no-personal-contact";
+        if(!ReferenceEquals(e,b.GoalEnemy)||!DP(new((float)f.X,(float)f.Y,(float)f.Z)).Finite)return "trajectory-no-personal-contact";
         if(f.Now<f.EvidenceAt||f.Now-f.EvidenceAt>config!.GrenadeContactLifetime)return "trajectory-stale-contact";
         if(f.Block.Length>0)return f.Block;
         if(f.Item.Length==0)return "trajectory-no-item";
@@ -150,8 +150,8 @@ public sealed partial class Plugin
         var r=s.GrenadeTrajectory;
         if(r.Revision!=config!.Revision)return "trajectory-config-changed";
         if(r.Enemy!=RuntimeHelpers.GetHashCode(e)||r.Item!=f.Item)return "trajectory-contact-or-item-changed";
-        if(Vector3.Distance(r.Known,new((float)f.X,(float)f.Y,(float)f.Z))>1)return "trajectory-contact-moved";
-        if(Vector3.Distance(r.Origin,b.Transform.WeaponData.WeaponRoot)>.35f)return "trajectory-origin-moved";
+
+
         if(r.Selected?.Aim.Door is DoorWork door&&!CurrentGrenadeDoor(door))return "trajectory-door-changed";
         return "";
     }
@@ -172,7 +172,7 @@ public sealed partial class Plugin
             var links=b.BotOwner.VoxelesPersonalData.CurVoxel?.DoorLinks;DoorWork? best=null;float distance=float.MaxValue;int n=0;
             if(links!=null)foreach(var link in links)
             {
-                if(++n>48)break;if(link?.Door==null)continue;
+                if(link?.Door==null)continue;
                 var w=new DoorWork{Data=new DoorDataStruct(link)};
                 if(!TryDoorGeometry(w.Data,out var g)||g.State!="Open")continue;w.Geometry=g;
                 var center=VP(g.Center);var normal=VP(g.Normal);var axis=VP(g.Axis);
@@ -199,7 +199,7 @@ public sealed partial class Plugin
         var along=raw-r.Origin;along.y=0;along=along.normalized;var side=Vector3.Cross(along,Vector3.up);
         raw+=along*(float)((jumpRandom.NextDouble()*2-1)*spread)+side*(float)((jumpRandom.NextDouble()-.5)*spread);
         raw.y+=.25f;
-        r.Targets.Add(new(){Kind=kind,Point=raw,Door=door,Angles=GrenadeTrajectoryRules.Angles(kind!="last-known",low)});
+        r.Targets.Add(new(){Kind=kind,Point=raw,Door=door,Angles=kind=="blind-corner"?new[]{15,5}:GrenadeTrajectoryRules.Angles(kind!="last-known",low)});
     }
     private static bool CurrentGrenadeDoor(DoorWork w)=>TryDoorGeometry(w.Data,out var g)&&g.State=="Open"
         &&(g.Center-w.Geometry.Center).Length<.1&&Math.Abs(g.Axis.Dot(w.Geometry.Axis))>.99;
@@ -214,40 +214,14 @@ public sealed partial class Plugin
             var center=VP(a.Door.Geometry.Center);var normal=VP(a.Door.Geometry.Normal);
             if(Vector3.Dot(a.Point-center,normal)*Vector3.Dot(r.Known-center,normal)<=0)return "trajectory-wrong-door-side";
         }
-        if(Math.Abs(a.Point.y-r.Known.y) > 1.5)return "trajectory-unrelated-floor";
-        if(!NavMesh.SamplePosition(a.Point,out var hit,.75f,NavMesh.AllAreas)||Math.Abs(hit.position.y-a.Point.y)>.75f)return "trajectory-no-landing-space";
-        var path=new NavMeshPath();
-        if(!NavMesh.CalculatePath(hit.position,r.Known,NavMesh.AllAreas,path)||path.status!=NavMeshPathStatus.PathComplete||path.corners.Length>32)return "trajectory-no-contact-route";
-        float straight=Vector3.Distance(hit.position,r.Known);
-        if(Length(path.corners)>Math.Min(12,straight*1.75+1))return "trajectory-unrelated-area";
-        if(Physics.CheckSphere(a.Point,.08f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))return "trajectory-landing-obstructed";
+        // No NavMesh landing, path-to-target, or extra swept-volume veto in zzap.
+        if(a.Door!=null&&Vector3.Distance(b.Position,a.Point)<8f
+            &&!Physics.Linecast(a.Point+Vector3.up*.3f,b.Position+Vector3.up*1.2f,LayersMaskController.HighPolyWithTerrainMask))
+            return "trajectory-door-self-blast";
         return "";
     }
     private static bool ValidGrenadeArc(AIGreanageThrowData? d)=>d!=null&&d.CanThrow&&DP(d.Target).Finite&&DP(d.Position).Finite
         &&ImpactReaction.Finite(d.Force)&&d.Force>0&&ImpactReaction.Finite(d.Ang)&&d.Ang>0&&d.Ang<90;
-    private static string SweepGrenadeArc(AIGreanageThrowData d,out double margin)
-    {margin=.08;return ArcBlocked(d,.08f)?"trajectory-insufficient-clearance":"";}
-    private static double GrenadeMargin(AIGreanageThrowData d)=>ArcBlocked(d,.18f)?.08:.18;
-    private static bool ArcBlocked(AIGreanageThrowData d,float radius)
-    {
-        // Reproduce the inspected native helper's path, including its 1.3 force multiplier.
-        // This is a conservative clearance check, not a second projectile physics implementation.
-        var flat=d.Target-d.Position;flat.y=0;float length=flat.magnitude;
-        if(length<.1f||length>80)return true;
-        var direction=flat/length;float rad=d.Ang*Mathf.Deg2Rad;float power=d.Force/1.3f;
-        int steps=Math.Min(48,Math.Max(12,(int)Math.Ceiling(length)));var prev=d.Position;
-        if(Physics.CheckSphere(prev,radius,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))return true;
-        for(int i=1;i<=steps;i++)
-        {
-            float x=length*i/steps;var next=d.Position+direction*x;
-            next.y+=AIGrenadeHelper.YByX(x,power,Mathf.Tan(rad),Mathf.Cos(rad));
-            if(!DP(next).Finite)return true;
-            var delta=next-prev;
-            if(Physics.SphereCast(prev,radius,delta.normalized,out _,delta.magnitude,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))return true;
-            prev=next;
-        }
-        return Physics.CheckSphere(d.Target,radius,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore);
-    }
     private bool ValidateGrenadeTrajectory(BotComponent b,Enemy e,BotState s)
     {
         if(!GrenadeTrajectoryScope(b))return true;
@@ -271,13 +245,13 @@ public sealed partial class Plugin
                 if(!ValidGrenadeArc(fresh))why="trajectory-execution-native-refused";
                 else
                 {
-                    why=SweepGrenadeArc(fresh,out _);
+                    why="";
                     if(why.Length==0)
                     {d=fresh;r.Selected.Data=fresh;b.BotOwner.WeaponManager.Grenades.AIGreanageThrowData=fresh;
-                     r.Prepared=fresh.CreatedTime;r.Trace!.Clearance=GrenadeMargin(fresh);}
+                     r.Prepared=fresh.CreatedTime;r.Trace!.Clearance=0;}
                 }
             }
-            if(why.Length==0)why=GrenadeSafety(b,s,f); // Actual participants checked immediately before native DoThrow.
+            if(why.Length==0)why=GrenadeSafety(b,s,f);
             if(why.Length>0){FailGrenadeTrajectory(s,why);return false;}
             r.Trace!.State="validated";r.Trace.Reason="trajectory-execution-validated";
             r.Trace.ValidFor=Math.Max(0,config!.GrenadeTrajectory.PreparedLifetime-(Time.timeAsDouble-r.Prepared));RecordGrenadeTrajectory(s,true);return true;

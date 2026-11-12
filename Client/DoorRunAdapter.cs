@@ -59,15 +59,14 @@ public sealed partial class Plugin
             ||!r.Policy.SameContact(e.EnemyProfileId,DP(known))||e.TimeSinceLastKnownUpdated>config.DoorApproach.ContactLifetime)return "run-by-contact-changed-or-expired";
         if(e.IsVisible){t.VisualAcquired=true;return "run-by-native-visual-acquired";}
         if(!TacticalDoorSearch(b,s))return "run-by-search-not-owned";
-        if(b.EnemyController.VisibleEnemies.Count>0||b.Flashed.IsFlashed||b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed
-            ||s.Fear.Current.Panic||b.Medical.TimeSinceShot<3||(!VisibleAdapter.WeaponReady(b)&&!RunOwnOpening(b,s))
-            ||b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None)return "run-by-native-priority";
+        if(b.BotOwner.Memory.IsUnderFire||b.Grenade.GrenadeDangerPoint!=null
+            ||b.Decision.CurrentSelfDecision!=ESelfActionType.None)return "run-by-native-priority";
         if((b.DoorOpener.Interacting||b.BotOwner.DoorOpener.Interacting)&&t.State!="opening")return "run-by-other-door-interaction";
         // Only personally perceived, dated places. Never inspect an unseen enemy's live transform.
         int count=0;
         foreach(var other in b.EnemyController.KnownEnemies)
         {
-            if(++count>32)return "run-by-threat-list-truncated";
+
             var place=other?.KnownPlaces.LastHeardPlace;if(place==null)continue;
             double age=Time.time-silentHeardAt(place);if(age<0||age>1.2)continue;
             if(place.SoundType is SAINSoundType.FootStep or SAINSoundType.Sprint or SAINSoundType.Jump or SAINSoundType.Land or SAINSoundType.Door or SAINSoundType.DoorBreach
@@ -115,7 +114,7 @@ public sealed partial class Plugin
         if(Time.time>=r.NextCheck||t.State=="return-pending")
         {
             if(!doorBudget.TryBegin(Time.frameCount,b))
-            {if(Time.time-r.LastCheck>.4){EndDoorRun(s,"run-by-validation-budget-expired");return true;}return false;}
+            {return false;}
             doorClock.Restart();
             try
             {
@@ -156,14 +155,13 @@ public sealed partial class Plugin
         switch(r.ValidationStep++)
         {
             case 0:
-                t.JumpReason=!j.Enabled?"jump-disabled":!b.Player.MovementContext.CanJump||b.Player.Physical.Stamina.NormalValue*100<j.MinimumStamina?"jump-resources-unavailable":PrepareJumpRoutes(b,r.JumpCandidate!);
+                t.JumpReason=!j.Enabled?"jump-disabled":PrepareJumpRoutes(b,r.JumpCandidate!);
                 return false;
             case 1:
                 if(t.JumpReason.Length==0)t.JumpReason=JumpLane(b,r.JumpCandidate!,true);
                 t.JumpEligible=t.JumpReason.Length==0;return false;
             case 2:
-                t.RunReason=!c.Enabled?"run-by-disabled":!b.Player.MovementContext.CanSprint||!b.BotOwner.CanSprintPlayer
-                    ||b.Player.Physical.Stamina.NormalValue*100<c.MinimumStamina?"run-by-resources-unavailable":PrepareRunRoutes(b,r);
+                t.RunReason=!c.Enabled?"run-by-disabled":PrepareRunRoutes(b,r);
                 return false;
             case 3:
                 if(t.RunReason.Length==0){t.RunReason=RunLane(b,r,false);if(t.RunReason.Length==0)t.RunReason=RunVolume(b,r.Far,r.Angle);}
@@ -181,8 +179,8 @@ public sealed partial class Plugin
                 }
                 // Recheck the chosen outward volume immediately before requesting sprint.
                 string why=RunLane(b,r,false);
-                if(why.Length>0||!b.Player.MovementContext.IsGrounded||b.Player.Physical.Stamina.NormalValue*100<c.MinimumStamina)
-                {EndDoorRun(s,why.Length>0?why:"run-by-resources-changed");return true;}
+                if(why.Length>0)
+                {EndDoorRun(s,why);return true;}
                 if(!b.Mover.RunToPointByWay(r.Outward!,true,.2f,ESprintUrgency.High,false)){EndDoorRun(s,"run-by-native-movement-refused");return true;}
                 r.OwnedPath=b.Mover.ActivePath;r.Policy.Start(DP(b.Position),Time.time);
                 if(!OwnsRunPath(r)){EndDoorRun(s,"run-by-path-not-observed");return true;}
@@ -192,20 +190,41 @@ public sealed partial class Plugin
     }
     private string PrepareRunRoutes(BotComponent b,DoorRunRuntime r)
     {
-        var g=r.Door!.Geometry;var far=DoorRunGeometry.Far(g,DP(r.Stack));var angle=DoorRunGeometry.Angle(g,DP(r.Stack));
-        if(!NavMesh.SamplePosition(VP(far),out var f,.2f,NavMesh.AllAreas)||!NavMesh.SamplePosition(VP(angle),out var a,.2f,NavMesh.AllAreas))return "run-by-no-local-navmesh";
-        r.Far=f.position;r.Angle=a.position;r.ReturnFrom=r.Far;
-        if(!DoorRunGeometry.ProtectedFar(g,DP(r.Stack),DP(r.Far)))return "run-by-far-end-still-exposed";
-        if(!b.Mover.CanGoToPoint(r.Far,out var outward,true,.1f))return "run-by-no-outward-route";
-        string why=DoorRunGeometry.Route(g,DP(r.Stack),DP(b.Position),far,DP(r.Far),outward.corners.Select(DP).ToArray(),outward.status==NavMeshPathStatus.PathComplete);
-        if(why.Length>0)return why;
-        var back=new NavMeshPath();NavMesh.CalculatePath(r.Far,r.Angle,NavMesh.AllAreas,back);
-        why=DoorRunGeometry.Route(g,DP(r.Stack),DP(r.Far),angle,DP(r.Angle),back.corners.Select(DP).ToArray(),back.status==NavMeshPathStatus.PathComplete);
-        if(why.Length>0)return "run-by-no-return-route:"+why;
-        if(!RunAngleSight(b,r))return "run-by-angle-no-door-sightline";
-        r.Outward=outward;r.Return=back;
-        var t=r.Policy.Trace!;t.StackX=r.Stack.x;t.StackY=r.Stack.y;t.StackZ=r.Stack.z;t.FarX=r.Far.x;t.FarY=r.Far.y;t.FarZ=r.Far.z;
-        t.AngleX=r.Angle.x;t.AngleY=r.Angle.y;t.AngleZ=r.Angle.z;return "";
+        var g=r.Door!.Geometry;var center=VP(g.Center);var axis=VP(g.Axis);
+        var side=VP(g.Normal)*Math.Sign((DP(r.Stack)-g.Center).Dot(g.Normal));
+        float edge=Mathf.Sign(Vector3.Dot(r.Stack-center,axis));if(edge==0)edge=1;
+        float half=Mathf.Max(.4f,Mathf.Abs(Vector3.Dot(r.Stack-center,axis))-.4f);
+        foreach(float depth in new[]{1.1f,.8f,1.5f})foreach(float extra in new[]{1.4f,1f,1.8f})
+        {
+            var raw=center+side*depth-axis*edge*(half+extra);
+            if(!NavMesh.SamplePosition(raw,out var hit,.5f,NavMesh.AllAreas)||Vector3.Dot(hit.position-center,side)<.3f)continue;
+            if(SourceRunLane(g,r.Stack,hit.position).Length>0)continue;
+            if(!b.Mover.CanGoToPoint(hit.position,out var path,true)||Length(path.corners)>=9)continue;
+            r.Far=hit.position;r.ReturnFrom=r.Far;r.Outward=path;
+            // Source falls back to the stack when no angle is available.
+            r.Angle=r.Stack;
+            var mouth=center-side*.4f+Vector3.up*1.3f;
+            bool found=false;
+            foreach(float d in new[]{2.4f,2f,2.9f}){
+                foreach(float wide in new[]{.8f,.4f,1.3f}){
+                    var angle=center+side*d+axis*edge*((float)g.HalfWidth+wide);
+                    if(!NavMesh.SamplePosition(angle,out var h,.7f,NavMesh.AllAreas)||Vector3.Dot(h.position-center,side)<1.4f)continue;
+                    if(Physics.Linecast(h.position+Vector3.up*1.4f,mouth,LayersMaskController.HighPolyWithTerrainMask)||NavMesh.Raycast(r.Far,h.position,out _,NavMesh.AllAreas))continue;
+                    r.Angle=h.position;found=true;break;
+                }if(found)break;
+            }
+            var back=new NavMeshPath();NavMesh.CalculatePath(r.Far,r.Angle,NavMesh.AllAreas,back);r.Return=back;
+            var t=r.Policy.Trace!;t.StackX=r.Stack.x;t.StackY=r.Stack.y;t.StackZ=r.Stack.z;t.FarX=r.Far.x;t.FarY=r.Far.y;t.FarZ=r.Far.z;
+            t.AngleX=r.Angle.x;t.AngleY=r.Angle.y;t.AngleZ=r.Angle.z;return "";
+        }
+        return "run-by-no-source-lane";
+    }
+    private static string SourceRunLane(DoorGeometry g,Vector3 from,Vector3 to)
+    {
+        if(NavMesh.Raycast(from,to,out _,NavMesh.AllAreas))return "run-by-lane-navmesh-edge";
+        int steps=Math.Max(2,(int)Math.Ceiling(Vector2.Distance(new(from.x,from.z),new(to.x,to.z))/.25f));
+        for(int i=0;i<=steps;i++)if(DoorSpatial.SegmentDistance(DP(Vector3.Lerp(from,to,(float)i/steps)),g.OpenA,g.OpenB)<.55)return "run-by-open-leaf-in-lane";
+        return "";
     }
     private bool RunAngleSight(BotComponent b,DoorRunRuntime r)
     {
@@ -216,8 +235,8 @@ public sealed partial class Plugin
     private string RunLane(BotComponent b,DoorRunRuntime r,bool back)
     {
         if(r.Door?.Data.Door==null||r.Door.Data.Door.DoorState!=EDoorState.Open)return "run-by-door-not-open";
-        if(back&&!RunAngleSight(b,r))return "run-by-angle-sightline-lost";
-        return RunVolume(b,back?r.ReturnFrom:r.Stack,back?r.Angle:r.Far);
+
+        return SourceRunLane(r.Door.Geometry,back?r.ReturnFrom:r.Stack,back?r.Angle:r.Far);
     }
     private string RunVolume(BotComponent b,Vector3 start,Vector3 end,bool overhead=false,float pose=1)
         =>TacticalVolume(b,start,end,overhead,pose);
@@ -241,7 +260,6 @@ public sealed partial class Plugin
         if(!s.RunBy.Policy.Active)return;
         string gate=RunGate(b,b.GoalEnemy,s);
         if(gate.Length>0)EndDoorRun(s,gate);
-        else if(Time.time-s.RunBy.LastCallback>.6f)EndDoorRun(s,"run-by-action-callback-stopped");
     }
     private void RecordDoorRun(BotState s,bool force=false)
     {

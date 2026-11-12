@@ -29,8 +29,8 @@ namespace EFT {
 }
 namespace SAIN.Preset.Shared.Enums {public enum ECombatDecision{Freeze,StandAndShoot,Search,Retreat} public enum ESelfActionType{None,Reload,FirstAid}}
 namespace SAIN.SAINComponent.Classes.EnemyClasses {
- public class Enemy {public bool EnemyKnown=true,IsVisible;public string EnemyProfileId="enemy";public Places KnownPlaces=new();public float RealDistance=500;}
- public class Places {public Place? LastSeenPlace,LastHeardPlace=new();public Place? LastSquadPlace;}
+ public class Enemy {public bool EnemyKnown=true,IsVisible,Seen=true,Heard=true;public float TimeSinceLastKnownUpdated;public string EnemyProfileId="enemy";public Places KnownPlaces=new();public float RealDistance=20;}
+ public class Places {public Place? LastKnownPlace=>LastSeenPlace??LastHeardPlace;public Place? LastSeenPlace,LastHeardPlace=new();public Place? LastSquadPlace;}
  public class Place {public Vector3 Position=new(20,0,0);public float Timestamp=10;public float TimeSincePositionUpdated=>Time.time-Timestamp;}
 }
 namespace SAIN.Components {

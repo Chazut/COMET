@@ -12,10 +12,10 @@ public sealed class AngleWatchConfig
     public double VisionAge { get; set; }=10;
     public double HearingAge { get; set; }=5;
     public double MovingWall { get; set; }=1.2;
-    public double StillWall { get; set; }=3;
-    public double HoldMinimum { get; set; }=1;
+    public double StillWall { get; set; }=4;
+    public double HoldMinimum { get; set; }=1.2;
     public double Refresh { get; set; }=.25;
-    public double PitchLimit { get; set; }=25;
+    public double PitchLimit { get; set; }=10;
     public void Validate()
     {
         CometConfig.Range(CornerRange,2,8,nameof(CornerRange));
@@ -26,7 +26,7 @@ public sealed class AngleWatchConfig
         CometConfig.Range(StillWall,1,4,nameof(StillWall));
         CometConfig.Range(HoldMinimum,.3,2,nameof(HoldMinimum));
         CometConfig.Range(Refresh,.1,.5,nameof(Refresh));
-        CometConfig.Range(PitchLimit,15,45,nameof(PitchLimit));
+        CometConfig.Range(PitchLimit,5,45,nameof(PitchLimit));
         if(StillWall<MovingWall)throw new ArgumentException("Stationary wall distance must not be smaller than moving distance.");
     }
 }
@@ -69,20 +69,16 @@ public sealed class AngleWatch
         if(!c.Enabled)return "angle-disabled";
         if(f.Block.Length>0)return f.Block;
         if(f.Target.Length==0||f.Action.Length==0)return "angle-no-contact-or-action";
-        if(f.Source!="personal-vision"&&f.Source!="personal-hearing")return "angle-no-personal-evidence";
         if(!DoorPolicy.Finite(f.Now)||!DoorPolicy.Finite(f.ObservedAt)||f.ObservedAt<0||f.Now<f.ObservedAt
             ||!CornerChase.Point(f.Known)||!CornerChase.Point(f.Position)||!CornerChase.Point(f.Origin)
             ||!f.NativeDirection.Finite||f.NativeDirection.Length<.1||!f.ObservedDirection.Finite||f.ObservedDirection.Length<.1)return "angle-invalid-evidence";
-        if(f.Now-f.ObservedAt>=(f.Source=="personal-vision"?c.VisionAge:c.HearingAge))return "angle-contact-expired";
-        if(!DoorPolicy.Finite(f.GeometryAt)||f.Now<f.GeometryAt||f.Now-f.GeometryAt>c.Refresh+.1)return "angle-geometry-expired";
         return "";
     }
     public bool Tick(AngleWatchFrame f,AngleWatchConfig c)
     {
         string gate=Gate(f,c);
         if(gate.Length>0){End(gate);return false;}
-        if(Active&&(f.Target!=Trace!.Target||f.Source!=Trace.Source||f.Action!=Trace.Action||f.Now<last||f.Now-last>.5))End("angle-context-changed");
-        if(exhaustedTarget==f.Target&&(f.Position-exhaustedPosition).Length<2&&(f.Known-exhaustedKnown).Length<2)return false;
+        if(Active&&(f.Target!=Trace!.Target||f.Source!=Trace.Source||f.Action!=Trace.Action||f.Now<last))End("angle-context-changed");
         if(exhaustedTarget.Length>0)exhaustedTarget="";
         AngleCandidate? chosen=null;
         // Hold only while the exact angle remains safe; newly blocked geometry cancels the hold immediately.
@@ -102,22 +98,17 @@ public sealed class AngleWatch
                 Alternatives=new[]{"No opening has both clear eye and muzzle lanes", "Keep native SAIN gaze"}};
             return false;
         }
-        if(Active&&f.Now>=deadline) {
-            exhaustedTarget=f.Target;exhaustedPosition=f.Position;exhaustedKnown=f.Known;End("angle-preparation-completed");return false;
-        }
         if(!Active) {
-            started=selectedAt=f.Now;deadline=f.ObservedAt+(f.Source=="personal-vision"?c.VisionAge:c.HearingAge);
+            started=selectedAt=f.Now;deadline=double.MaxValue;
             Trace=new(){Episode=++episode,Target=f.Target,Source=f.Source,Action=f.Action};
         }
-        if(f.Moving)deadline=Math.Min(deadline,started+c.MovingLimit);
-        if(f.Now>=deadline){exhaustedTarget=f.Target;exhaustedPosition=f.Position;exhaustedKnown=f.Known;End("angle-preparation-completed");return false;}
         if(Trace!.Candidate!=chosen.Id)selectedAt=f.Now;
         Aim=chosen.Aim;Side=c.SafeLean&&chosen.LeanSafe?chosen.Side:0;last=f.Now;
         var t=Trace;t.Candidate=chosen.Id;t.Kind=chosen.Kind;t.State="watching";
         t.Reason=chosen.Kind=="corner"?"angle-prepare-known-approach":chosen.Kind=="wall"?"angle-wall-blocks-native-gaze":"angle-unjustified-pitch";
         t.KnownX=f.Known.X;t.KnownY=f.Known.Y;t.KnownZ=f.Known.Z;t.AimX=Aim.X;t.AimY=Aim.Y;t.AimZ=Aim.Z;
         t.Elevation=chosen.Elevation;t.WallBlocked=f.WallBlocked;t.Moving=f.Moving;t.LeanSide=Side;
-        t.ContactAge=f.Now-f.ObservedAt;t.Remaining=Math.Max(0,deadline-f.Now);t.ValidFor=Math.Min(.2,t.Remaining);
+        t.ContactAge=f.Now-f.ObservedAt;t.Remaining=0;t.ValidFor=.3;
         t.RequestedPitch=Pitch(Aim-f.Origin);t.ObservedPitch=Pitch(f.ObservedDirection);t.AngleError=Angle(Aim-f.Origin,f.ObservedDirection);
         t.Aligned=t.AngleError<=8;t.Requested=true;t.LeanRequested=false;
         var alt=new string[Math.Min(6,f.Candidates.Length)+1];alt[0]="Native SAIN gaze; no firing or movement requested";

@@ -8,9 +8,9 @@ public sealed class CoverMateConfig
     public double MateDistance {get;set;}=20;
     public double Near {get;set;}=3;
     public double Far {get;set;}=6;
-    public double MaxPath {get;set;}=15;
+    public double MaxPath {get;set;}=12;
     public int Protectors {get;set;}=2;
-    public double Duration {get;set;}=15;
+    public double Duration {get;set;}=12;
     public double SurgeryDuration {get;set;}=60;
     public double StallTimeout {get;set;}=3;
     public double ReadyDelay {get;set;}=.2;
@@ -37,75 +37,15 @@ public sealed class CoverMateTrace
     public double OperationAge,Remaining,Separation;
     public int Protectors;
 }
-// All records are raid-local detached IDs and scalars. Failed episodes cannot continuously reassign guards.
+// zzap SquadCombatClass: one coverer per busy teammate, released when the session ends.
 public sealed class CoverMateBoard
 {
-    private readonly Dictionary<string,CoverOperation> operations=new();
-    private sealed class Claim {public string Owner="",Mate="",Operation="",Sector="";public double X,Z,Until;}
-    private readonly Dictionary<string,Claim> claims=new();
-    private readonly HashSet<string> attempted=new();
-    private int serial;private double clock=-1;
-    private bool Clock(double now)
-    {if(!MedicalChoice.Finite(now)||now<0)return false;if(now<clock)Clear();clock=now;return true;}
-    public CoverOperation? Observe(string mate,double now,string kind,string item,bool busy,bool ready,double expected,double progress,CoverMateConfig c)
-    {
-        if(!Clock(now)||string.IsNullOrEmpty(mate)||!MedicalChoice.Finite(expected)||!MedicalChoice.Finite(progress))return null;
-        operations.TryGetValue(mate,out var o);
-        if(o==null||o.Ended&&!o.Stalled&&busy)
-        {
-            if(!busy||operations.Count>=512&&!operations.ContainsKey(mate))return o;
-            o=new(){Id="care-"+(++serial),Kind=kind,Item=item,Started=now,Changed=now,Expected=Math.Max(0,expected),Progress=progress};operations[mate]=o;
-        }
-        if(o==null)return null;
-        o.Seen=now;o.Busy=busy;o.Ready=ready;
-        if(progress!=o.Progress){o.Progress=progress;o.Changed=now;}
-        // Do not treat a long animation as stalled just because HP does not change until its end.
-        if(busy)
-        {
-            o.ReadyAt=-1;
-            if((kind=="Surgery"&&o.Kind!="Surgery")||(item.Length>0&&item!=o.Item))
-            {o.Item=item;o.Expected=Math.Max(0,expected);o.Changed=now;}
-            if(kind=="Surgery")o.Kind=kind;
-            if(!o.Ended)
-            {
-                double cap=o.Kind=="Surgery"?c.SurgeryDuration:c.Duration;
-                double window=o.Expected>0?Math.Min(cap,o.Expected+5):cap;
-                if(now-o.Started>=cap||now-o.Changed>=window){o.Stalled=o.Ended=true;o.Reason="operation exceeded observation budget";}
-            }
-        }
-        else if(ready)
-        {
-            if(o.ReadyAt<0)o.ReadyAt=now;
-            if(now-o.ReadyAt>=c.ReadyDelay){o.Ended=true;o.Stalled=false;o.Reason="weapon ready";}
-        }
-        else o.ReadyAt=-1;
-        if(!o.Ended&&!ready&&now-o.Started>=(o.Kind=="Surgery"?c.SurgeryDuration:c.Duration))
-        {o.Stalled=o.Ended=true;o.Reason="weapon did not become ready before observation limit";}
-        return o;
-    }
-    public bool Attempt(string owner,string mate,string operation,double now)
-    {if(!Clock(now)||attempted.Count>=2048)return false;return attempted.Add(owner+"/"+mate+"/"+operation);}
+    private readonly Dictionary<string,string> claims=new();
     public bool Available(string owner,string mate,string operation,string sector,double x,double z,double now,CoverMateConfig c)
-    {
-        if(!Clock(now)||!MedicalChoice.Finite(x)||!MedicalChoice.Finite(z))return false;
-        int count=0;
-        foreach(var entry in claims.Values)
-        {
-            if(entry.Until<=now||entry.Owner==owner||entry.Mate!=mate||entry.Operation!=operation)continue;
-            count++;double a=Math.Sqrt(x*x+z*z),b=Math.Sqrt(entry.X*entry.X+entry.Z*entry.Z);
-            if(entry.Sector==sector||a<.01||b<.01||(x*entry.X+z*entry.Z)/(a*b)>Math.Cos(35*Math.PI/180))return false;
-        }
-        return count<c.Protectors;
-    }
+        =>!claims.TryGetValue(mate,out var claimed)||claimed==owner;
     public bool Reserve(string owner,string mate,string operation,string sector,double x,double z,double now,CoverMateConfig c)
-    {
-        if(!Available(owner,mate,operation,sector,x,z,now,c)||claims.Count>=512&&!claims.ContainsKey(owner))return false;
-        claims[owner]=new(){Owner=owner,Mate=mate,Operation=operation,Sector=sector,X=x,Z=z,Until=now+3};return true;
-    }
-    public bool Valid(string owner,double now)=>Clock(now)&&claims.TryGetValue(owner,out var claim)&&claim.Until>now;
-    public bool Renew(string owner,double now)
-    {if(!Clock(now)||!claims.TryGetValue(owner,out var c)||c.Until<=now)return false;c.Until=now+1;return true;}
-    public int Count(string mate,string operation,double now){int n=0;foreach(var c in claims.Values)if(c.Mate==mate&&c.Operation==operation&&c.Until>now)n++;return n;}
-    public void Release(string owner)=>claims.Remove(owner);
-    public void Clear(){operations.Clear();claims.Clear();attempted.Clear();serial=0;clock=-1;}
+    {if(!Available(owner,mate,operation,sector,x,z,now,c))return false;claims[mate]=owner;return true;}
+    public void Release(string owner)
+    {var remove=new List<string>();foreach(var pair in claims)if(pair.Value==owner)remove.Add(pair.Key);foreach(var mate in remove)claims.Remove(mate);}
+    public void Clear()=>claims.Clear();
 }

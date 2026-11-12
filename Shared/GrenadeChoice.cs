@@ -44,8 +44,8 @@ public static class GrenadeChoiceRules
         if(dummy)return "dummy-item";
         if(!fragmentation)return "not-timed-fragmentation";
         if(!Finite(contactDelay)||contactDelay>=0)return "contact-explosion";
-        if(!Finite(fuse)||fuse>30||fuse<c.MinimumFuse)return "fuse-outside-safe-range";
-        if(!Finite(flight)||flight<=0||fuse-flight<c.ArrivalMargin)return "insufficient-arrival-margin";
+        if(!Finite(fuse)||fuse<c.MinimumFuse)return "fuse-outside-safe-range";
+        // Flight estimates are diagnostic; zzap selects by fuse, distance and room context.
         return "";
     }
     public static GrenadeChoiceAlternative? Choose(IReadOnlyList<GrenadeChoiceAlternative> choices,bool shortest,string current)

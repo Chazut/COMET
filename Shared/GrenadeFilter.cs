@@ -42,8 +42,8 @@ public static class GrenadeFilterRules
     public static string FlashReject(double fuse,double contact,double flight,double margin)
     {
         if(!Finite(contact)||contact>=0)return "contact-explosion";
-        if(!Finite(fuse)||fuse<.75||fuse>30)return "flash-fuse-outside-safe-range";
-        if(!Finite(flight)||flight<=0||!Finite(margin)||fuse-flight<margin)return "insufficient-arrival-margin";
+        if(!Finite(fuse)||fuse<=0)return "flash-fuse-outside-safe-range";
+
         return "";
     }
     private static bool Finite(double v)=>!double.IsNaN(v)&&!double.IsInfinity(v);

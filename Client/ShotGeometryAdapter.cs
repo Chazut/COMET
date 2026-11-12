@@ -59,86 +59,24 @@ public sealed partial class Plugin
             if(!GeometryScope(b))return null;
             var muzzle=b.Transform.WeaponData.FirePort;var direction=b.Transform.WeaponData.PointDirection;
             var weapon=(b.Player.HandsController as Player.FirearmController)?.Item;
-            var ammo=GeometryAmmo(weapon);double degradation=Singleton<GlobalConfiguration>.Instance?.Ballistic.GlobalDamageDegradationCoefficient??double.NaN;
-            string key=string.Join(":",weapon?.Id.ToString()??"",ammo?.TemplateId.ToString()??"",ammo?.PenetrationPower,
-                ammo?.PenetrationPowerDiviation,ammo?.PenetrationChanceObstacle,ammo?.RicochetChance,degradation,consumer,target,
-                config!.ShotGeometry.AllowPenetration);
-            if(ShotGeometryPolicy.CanReuse(Time.time,r.At,Time.frameCount,r.Frame,r.Trace,DP(muzzle),DP(r.Muzzle),DP(aim),DP(r.Aim),DP(direction),DP(r.Direction),key,r.Key,r.StaticBlocked,config!.ShotGeometry))
-            {r.Trace!.Cached=true;r.Trace.Age=Math.Max(0,Time.time-r.At);RecordGeometry(s);return r.Trace;}
-            var f=new ShotGeometryFrame();bool stable=true;
+            string key=consumer+":"+target;
+            bool visible=b.GoalEnemy?.EnemyProfileId==target&&b.GoalEnemy.IsVisible;
+            if(!visible&&ShotGeometryPolicy.CanReuse(Time.time,r.At,Time.frameCount,r.Frame,r.Trace,DP(muzzle),DP(r.Muzzle),DP(aim),DP(r.Aim),DP(direction),DP(r.Direction),key,r.Key,true,config!.ShotGeometry))
+            {r.Trace!.Cached=true;r.Trace.Age=Time.time-r.At;RecordGeometry(s);return r.Trace;}
             var line=aim-muzzle;float distance=line.magnitude;
-            if(!CornerChase.Point(DP(muzzle))||!CornerChase.Point(DP(aim))||!CornerChase.Point(DP(direction))||distance<.1f||distance>500||direction.sqrMagnitude<.5f)
-            {r.Trace=new(){State="blocked",Reason="geometry-invalid-ray",Fresh=true};CompleteGeometry(b,s,muzzle,aim,direction,key,consumer,target,weapon,ammo,false);return r.Trace;}
-            if(!doorBudget.TryBegin(Time.frameCount,b))
-            {r.Trace=new(){Reason="geometry-budget-pending"};CompleteGeometry(b,s,muzzle,aim,direction,key,consumer,target,weapon,ammo,false);return r.Trace;}
-            var watch=System.Diagnostics.Stopwatch.StartNew();
-            try {
-                int mask=BallisticsCalculatorConstants.StaticObjectsHitMask | (1<<LayerMask.NameToLayer("Deadbody"));
-                f.Complete=true;f.OriginClear=!Physics.CheckSphere(muzzle,.04f,mask,QueryTriggerInteraction.Ignore);
-                var dir=line/distance;direction.Normalize();
-                // Allies remain live, including same-side bystanders outside the bot's squad.
-                f.AllySafe=GeometryAllies(b,r,muzzle,dir,distance)&&GeometryAllies(b,r,muzzle,direction,distance);
-                var surfaces=new List<ShotSurface>(16);
-                if(f.OriginClear&&f.AllySafe)
-                {
-                    f.Complete=GeometryLane(r,muzzle,dir,distance,mask,"aim",surfaces,ref stable);
-                    if(f.Complete&&Vector3.Angle(dir,direction)>.1f)f.Complete=GeometryLane(r,muzzle,direction,distance,mask,"barrel",surfaces,ref stable);
-                }
-                surfaces.Sort((a,z)=>{int lane=string.CompareOrdinal(a.Lane,z.Lane);return lane==0?a.Distance.CompareTo(z.Distance):lane;});f.Surfaces=surfaces.ToArray();
-                f.AmmoKnown=ammo!=null;f.Power=ammo?.PenetrationPower??0;f.Deviation=ammo?.PenetrationPowerDiviation??0;
-                f.AmmoChance=ammo?.PenetrationChanceObstacle??0;f.AmmoRicochet=ammo?.RicochetChance??0;
-                f.Degradation=DoorPolicy.Finite(degradation)?Math.Max(0,Math.Min(1,degradation)):double.NaN;
-                r.Trace=ShotGeometryPolicy.Evaluate(f,config.ShotGeometry);
-            } finally {watch.Stop();doorBudget.Charge(watch.Elapsed.TotalMilliseconds);GeometryClearBuffers(r);}
-            CompleteGeometry(b,s,muzzle,aim,direction,key,consumer,target,weapon,ammo,stable);return r.Trace;
+            var f=new ShotGeometryFrame{Complete=true,OriginClear=true,AllySafe=true,Visible=visible,
+                Blindfire=consumer.IndexOf("blind",StringComparison.OrdinalIgnoreCase)>=0,TargetDistance=distance,
+                FloorDifference=(b.GoalEnemy?.KnownPlaces.LastKnownPosition??aim).y-b.Position.y};
+            if(!visible&&distance>=.5f&&Physics.Raycast(muzzle,line/distance,out var hit,distance,LayersMaskController.HighPolyWithTerrainMask))
+            {
+                string kind="solid";var collider=hit.collider;
+                if(collider?.GetComponentInParent<Door>()!=null)kind="door";
+                else if(collider?.GetComponentInParent<BallisticCollider>() is {} ballistic&&ballistic.TypeOfMaterial is MaterialType.Glass or MaterialType.GlassShattered)kind="glass";
+                f.Surfaces=new[]{new ShotSurface{Distance=hit.distance,Kind=kind}};
+            }
+            r.Trace=ShotGeometryPolicy.Evaluate(f,config!.ShotGeometry);
+            CompleteGeometry(b,s,muzzle,aim,direction,key,consumer,target,weapon,null,true);return r.Trace;
         }catch(Exception ex){GeometryError(s,ex);return null;}
-    }
-    private static Ammo? GeometryAmmo(Weapon? w)
-    {
-        if(w==null||w.IsUnderBarrelDeviceActive||w.Chambers.Length>1)return null;
-        // Never use CurrentAmmoTemplate's fallback default ammo for an empty or unusual weapon.
-        var ammo=w.Chambers.Length==1?w.Chambers[0].ContainedItem as Ammo:null;
-        if(ammo?.IsUsed!=false)ammo=w.GetCurrentMagazine()?.FirstRealAmmo() as Ammo;
-        return ammo?.IsUsed==false&&ammo.ProjectileCount==1?ammo:null;
-    }
-    private static bool GeometryLane(ShotGeometryRuntime r,Vector3 start,Vector3 dir,float distance,int mask,string lane,List<ShotSurface> surfaces,ref bool stable)
-    {
-        int n=Physics.SphereCastNonAlloc(start,.04f,dir,r.Forward,distance,mask,QueryTriggerInteraction.Ignore);
-        int back=Physics.SphereCastNonAlloc(start+dir*distance,.04f,-dir,r.Backward,distance,mask,QueryTriggerInteraction.Ignore);
-        if(n==r.Forward.Length||back==r.Backward.Length||surfaces.Count+n+back>32)return false;
-        for(int i=0;i<n;i++)surfaces.Add(GeometrySurface(r.Forward[i],dir,r.Forward[i].distance,lane,ref stable));
-        for(int i=0;i<back;i++)surfaces.Add(GeometrySurface(r.Backward[i],dir,Math.Max(0,distance-r.Backward[i].distance),lane,ref stable));
-        return true;
-    }
-    private static ShotSurface GeometrySurface(RaycastHit hit,Vector3 dir,float distance,string lane,ref bool stable)
-    {
-        var c=hit.collider;var t=new ShotSurface{Distance=distance,Lane=lane,Forward=Vector3.Dot(dir,hit.normal)<0,Incidence=Vector3.Angle(-dir,hit.normal)};
-        if(c==null){stable=false;return t;}
-        var interactive=c.GetComponentInParent<WorldInteractiveObject>();
-        stable&=c.gameObject.isStatic&&c.attachedRigidbody==null&&interactive==null;
-        if(interactive is Door)t.Kind="door";
-        // Native Shot.TryGetBallisticCollider searches the hit object, then its immediate parent.
-        var root=c.GetComponent<BaseBallistic>()??c.transform.parent?.GetComponent<BaseBallistic>();
-        if(root is not BallisticCollider surface)return t;
-        t.Material=surface.TypeOfMaterial.ToString();
-        if(t.Kind!="door"&&surface.TypeOfMaterial is MaterialType.Glass or MaterialType.GlassShattered)t.Kind="glass";
-        var type=surface.GetType();
-        // Custom penetration/Get/ricochet overrides need separate evidence; do not call them speculatively.
-        if(type.GetMethod(nameof(BallisticCollider.IsPenetrated))?.DeclaringType!=typeof(BallisticCollider)
-            ||type.GetMethod(nameof(BallisticCollider.Deflects))?.DeclaringType!=typeof(BallisticCollider)
-            ||type.GetMethod(nameof(BallisticCollider.Get))?.DeclaringType!=typeof(BallisticCollider))return t;
-        t.Level=surface.PenetrationLevel;t.Chance=surface.PenetrationChance;t.Ricochet=surface.RicochetChance;t.Known=!surface.IsUnsetup();return t;
-    }
-    private static bool GeometryAllies(BotComponent b,ShotGeometryRuntime r,Vector3 muzzle,Vector3 dir,float distance)
-    {
-        var world=GameWorldComponent.Instance?.GameWorld;if(world==null)return false;
-        int n=Physics.OverlapSphereNonAlloc(muzzle,.2f,r.Overlaps,LayersMaskController.PlayerMask,QueryTriggerInteraction.Ignore);
-        if(n==r.Overlaps.Length)return false;
-        for(int i=0;i<n;i++){var p=world.GetPlayerByCollider(r.Overlaps[i]);if(p!=null&&p.ProfileId!=b.ProfileId&&!b.EnemyController.IsPlayerAnEnemy(p.ProfileId))return false;}
-        n=Physics.SphereCastNonAlloc(muzzle,.2f,dir,r.Allies,distance,LayersMaskController.PlayerMask,QueryTriggerInteraction.Ignore);
-        if(n==r.Allies.Length)return false;
-        for(int i=0;i<n;i++){var p=world.GetPlayerByCollider(r.Allies[i].collider);if(p!=null&&p.ProfileId!=b.ProfileId&&!b.EnemyController.IsPlayerAnEnemy(p.ProfileId))return false;}
-        return true;
     }
     private void CompleteGeometry(BotComponent b,BotState s,Vector3 muzzle,Vector3 aim,Vector3 direction,string key,string consumer,string target,Weapon? weapon,Ammo? ammo,bool stable)
     {

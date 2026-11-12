@@ -8,7 +8,7 @@ public sealed class DoorEntryConfig
     public bool Enabled { get; set; }=true;
     public double MinimumStamina { get; set; }=35;
     public double CrossingLimit { get; set; }=3.5;
-    public double DoorRetry { get; set; }=30;
+    public double DoorRetry { get; set; }=10;
     public double PreparedChance { get; set; }=40;
     public double RushChance { get; set; }=50;
     public double RetreatChance { get; set; }=60;
@@ -65,7 +65,7 @@ public sealed class DoorEntry
     {
         if(Active||!c.Enabled||string.IsNullOrEmpty(door)||string.IsNullOrEmpty(target)||!Valid(now)||!Available(door,now))return false;
         foreach(var key in new List<string>(history.Keys))if(history[key]<=now)history.Remove(key);
-        if(history.Count>=32)return false;
+        if(history.Count>=16)history.Clear();
         history[door]=now+c.DoorRetry;
         Trace=new(){Door=door,Target=target,Context=context,Chance=c.Chance(context),Reason=reason,State="ended",ValidFor=0};
         return true;
@@ -75,7 +75,7 @@ public sealed class DoorEntry
         if(Active||!c.Enabled||string.IsNullOrEmpty(door)||string.IsNullOrEmpty(target)||!Valid(now)||!Valid(originalDeadline)
             ||originalDeadline<=now||!Valid(roll)||roll>=1||!Available(door,now))return false;
         foreach(var key in new List<string>(history.Keys))if(history[key]<=now)history.Remove(key);
-        if(history.Count>=32)return false;
+        if(history.Count>=16)history.Clear();
         history[door]=now+c.DoorRetry;last=phase=now;Deadline=Math.Min(originalDeadline,now+3+8+c.CrossingLimit);
         Trace=new(){Door=door,Target=target,Context=context,Chance=c.Chance(context),Roll=roll*100,Rolled=true,Remaining=Deadline-now};
         if(Trace.Roll>=Trace.Chance){End("entry-roll-declined");return false;}
@@ -88,7 +88,6 @@ public sealed class DoorEntry
         if(!Valid(stamina)){End("entry-invalid-stamina");return false;}
         Trace.Stamina=stamina;
         if(!shut){End("entry-door-opened-by-other");return false;}
-        if(stamina<c.MinimumStamina){End("entry-low-stamina");return false;}
         Trace.Requested=true;Trace.State="interacting";Trace.Reason="entry-native-kick-requested";phase=now;return true;
     }
     public void Breached(bool observed,double now)
@@ -123,7 +122,7 @@ public sealed class DoorEntry
     }
     public void End(string reason){if(Trace==null)return;Trace.State="ended";Trace.Reason=reason;Trace.ValidFor=0;}
     public static double Budget(double now,double contactRemaining,double? parentDeadline,DoorEntryConfig c)
-        =>Math.Min(now+Math.Max(0,contactRemaining),Math.Min(parentDeadline??double.PositiveInfinity,now+3+8+c.CrossingLimit));
+        =>now+3+8+c.CrossingLimit; // Native kick adapter: no inherited tactical/contact deadline.
     public static bool Valid(double v)=>!double.IsNaN(v)&&!double.IsInfinity(v)&&v>=0;
     public static bool Lane(DoorGeometry g,DoorPoint approach,DoorPoint exit,DoorPoint from)
     {

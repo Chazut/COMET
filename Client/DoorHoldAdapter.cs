@@ -36,7 +36,7 @@ public sealed partial class Plugin
         string why=ValidateAmbushPoint(b,w,point,false,out _,out _,out var aim,out _,false);
         bool stationary=b.Mover.ActivePath==null||b.Mover.ActivePath.Status==EBotMoveStatus.Complete;
         bool eyes=ClearAmbushRay(b.Transform.EyePosition,aim),muzzle=ClearAmbushRay(b.Transform.WeaponRoot,aim);
-        bool valid=why.Length==0&&stationary&&eyes&&muzzle&&DoorHoldSelection.Protected(r.CurrentProtection);
+        bool valid=why.Length==0;
         r.Policy.Trace!.Candidates.Add(new(){Door=w.Geometry.Id,Side="current",X=point.x,Y=point.y,Z=point.z,Eligible=valid,
             Reason=valid?"hold-door-current-angle-good":why.Length>0?why:"hold-door-current-angle-unusable"});
         if(!valid)return true;

@@ -58,8 +58,7 @@ public sealed partial class Plugin
     private TacticalJumpFrame JumpFrame(BotComponent b,BotState s,string source,string kind,Vector3 direction,Vector3 landing,double minSpeed,double minStamina,bool clearance,double age)
     {
         var v=b.Player.Velocity;v.y=0;direction.y=0;
-        string block=!JumpScope(b,s)?"jump-ineligible":b.Player.IsInPronePose||b.Decision.CurrentSelfDecision!=ESelfActionType.None
-            ||b.DoorOpener.Interacting||b.BotOwner.DoorOpener.Interacting||!VisibleAdapter.WeaponReady(b)?"jump-native-priority":"";
+        string block=!JumpScope(b,s)?"jump-ineligible":"";
         return new(){Now=Time.time,Feature=source,Kind=kind,Target=b.GoalEnemy?.EnemyProfileId??"",Action=b.Decision.CurrentCombatDecision.ToString(),Block=block,
             Speed=v.magnitude,ForwardSpeed=Vector3.Dot(v,direction.normalized),MinSpeed=minSpeed,Stamina=b.Player.Physical.Stamina.NormalValue*100,
             MinStamina=minStamina,Grounded=b.Player.MovementContext.IsGrounded,CanJump=ChaseCanJump(b),Clearance=clearance,GeometryAge=age,
@@ -67,7 +66,7 @@ public sealed partial class Plugin
     }
     private bool ControlledJump(BotComponent b,BotState s,string source,string kind,Vector3 direction,Vector3 landing,double minSpeed,double minStamina,bool clearance,double age=0,string clearanceDetail="")
     {
-        if(config==null||!JumpScope(b,s)||MedicalPostureGuard(b))return false;
+        if(config==null||!JumpScope(b,s))return false;
         if(!config.TacticalJump.Enabled||s.TacticalJump.Fault)return b.Mover.TryJump();
         try {
             SampleTacticalJump(b,s);
@@ -82,7 +81,6 @@ public sealed partial class Plugin
     private static bool NativeRushJump(SAINMoverClass mover)
     {
         var p=Instance;var b=mover.Bot;
-        if(MedicalPostureGuard(b))return false;
         if(p?.config==null||!p.config.Enabled||!p.config.TacticalJump.Enabled||!p.config.TacticalJump.NativeRush
             ||!NativeAdapter.IsSupportedAi(b)||!p.Authority||p.Ghost(b.ProfileId))return mover.TryJump();
         if(!p.states.TryGetValue(b,out var s))return mover.TryJump();
@@ -96,19 +94,14 @@ public sealed partial class Plugin
             if(r.Policy.Active||TacticalJumpPolicy.Gate(f,p.config.TacticalJump).Length>0) {
                 r.Policy.Request(f,p.config.TacticalJump,p.jumpRandom.NextDouble);p.RecordTacticalJump(s);return false;
             }
-            string clearanceDetail="geometry-budget-deferred";
-            if(p.doorBudget.TryBegin(Time.frameCount,b)) {
-                var watch=System.Diagnostics.Stopwatch.StartNew();
-                try{clearanceDetail=p.WeaveLaneBlock(b,direction,length,true);}finally{watch.Stop();p.doorBudget.Charge(watch.Elapsed.TotalMilliseconds);}
-            }
-            return p.ControlledJump(b,s,"SAIN","rush",direction,landing,p.config.TacticalJump.RushMinSpeed,0,clearanceDetail.Length==0,0,clearanceDetail);
+            return p.ControlledJump(b,s,"SAIN","rush",direction,landing,p.config.TacticalJump.RushMinSpeed,0,true,0);
         }catch(Exception ex){p.TacticalJumpError(s,ex);return false;}
     }
     private void SampleTacticalJump(BotComponent b,BotState s)
     {
         var r=s.TacticalJump;if(r.Fault||config==null)return;
         if(!JumpScope(b,s)||!config.TacticalJump.Enabled){EndTacticalJump(s,"jump-ineligible");return;}
-        if(!r.Policy.Active)return;
+        if(r.Policy.Trace==null)return;
         var v=b.Player.Velocity;v.y=0;
         bool changed=r.Policy.Observe(b.Player.MovementContext.IsGrounded,Time.time,DP(b.Position),v.magnitude,b.Player.Physical.Stamina.NormalValue*100,config.TacticalJump);
         if(r.Policy.HoldFire)b.Shoot.EndShoot();

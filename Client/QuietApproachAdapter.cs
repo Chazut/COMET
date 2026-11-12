@@ -42,12 +42,8 @@ public sealed partial class Plugin
     {
         if(enemy==null)return "quiet-no-contact";
         if(enemy.IsVisible)return "quiet-visible-or-recent-fight";
-        if(b.Decision.CurrentSelfDecision!=ESelfActionType.None || b.Decision.CurrentSquadDecision!=ESquadDecision.None
-            || b.Decision.CurrentCombatDecision.ToString() is not ("Search" or "MoveToEngage"))return "quiet-other-action";
-        if(b.BotOwner.Memory.IsUnderFire || b.Suppression.IsHeavySuppressed || b.BotOwner.ShootData.Shooting || b.ManualShoot.Shooting
-            || !VisibleAdapter.WeaponReady(b))return "quiet-urgent";
-        if(b.BotOwner.DoorOpener.Interacting || b.Mover.ActivePath?.Status==EBotMoveStatus.DoorInteraction
-            || b.Mover.ActivePath?.Status==EBotMoveStatus.Paused || (QuietAction(b)=="Search" && b.Search.CurrentState.ToString()=="Wait"))return "quiet-native-pause";
+        if(b.Decision.CurrentSquadDecision==ESquadDecision.Help)return "quiet-help-squad";
+        if(enemy.IsSniper&&b.Info.PersonalitySettings.General.ENEMYSNIPER_ALWAYS_SPRINT_SEARCH)return "quiet-sniper-sprint";
         return "";
     }
     private QuietTrace? ReadQuiet(BotComponent bot,Enemy? enemy=null,bool force=false)
@@ -79,25 +75,17 @@ public sealed partial class Plugin
     }
     private QuietFrame CaptureQuiet(BotComponent b,Enemy e,BotState s)
     {
-        var known=e.KnownPlaces.LastKnownPosition;var p=b.Position;var corners=EnemyPathCorners.Read(e.Path);
-        bool complete=known.HasValue && e.Path.PathToEnemy?.status==NavMeshPathStatus.PathComplete && corners.Length>=2 && corners.Length<=128
-            && Vector3.Distance(corners[0],p)<=4 && Vector3.Distance(corners[corners.Length-1],known.Value)<=2;
-        double length=0;if(complete)for(int i=1;i<corners.Length;i++)length+=Vector3.Distance(corners[i-1],corners[i]);
-        bool threat=known.HasValue&&e.TimeSinceLastKnownUpdated<=config!.ContactLifetime,otherVisible=false;int count=0;
-        foreach(var other in b.EnemyController.KnownEnemies)
-        {if(++count>32){otherVisible=threat=true;break;}if(other==null)continue;
-            if(other.IsVisible && other.EnemyProfileId!=e.EnemyProfileId)otherVisible=true;
-            if(other.KnownPlaces.LastKnownPosition.HasValue&&other.TimeSinceLastKnownUpdated<=config!.ContactLifetime)threat=true;}
-        var loot=s.QuietLoot.Snapshot(e.EnemyProfileId,RuntimeHelpers.GetHashCode(e),Time.time,QuietLootConfig());
+        var known=e.KnownPlaces.LastKnownPosition;var p=b.Position;
+        bool complete=e.Path.PathToEnemy?.status==NavMeshPathStatus.PathComplete;
+        double length=e.Path.PathLength;bool threat=e.EnemyKnown,otherVisible=false;
         return new QuietFrame {Now=Time.time,Scoped=true,Enabled=true,Target=e.EnemyProfileId,TargetInstance=RuntimeHelpers.GetHashCode(e),
             Action=QuietAction(b),Personality=b.Info.Personality.ToString(),Source=NativeAdapter.Capture(b,e,true,false).ContactSource,
             Age=e.TimeSinceLastKnownUpdated,HasContact=known.HasValue,HasThreat=threat,Path=length,Complete=complete,
             Visible=e.IsVisible,OtherVisibleThreat=otherVisible,SinceSeen=e.Seen?e.TimeSinceSeen:double.MaxValue,
-            SinceFire=Math.Min(Time.time-b.BotOwner.Memory.UnderFireTime,b.Medical.TimeSinceShot),
-            Suppressed=b.Suppression.IsHeavySuppressed,Panic=s.Fear.Current.Panic,Urgent=s.ActiveLabel=="COMET:Push"||s.ActiveLabel=="COMET:ContinuePush",
-            Blocked=(!s.ProgressUnavailable&&config!.Progress.Enabled&&s.Progress.Current.Reconsider && s.ActiveLabel.Length>0)
-                || (known.HasValue&&config!.Progress.Enabled&&s.Progress.Blocked(ProgressAdapter.GoalKey(b),Time.time)),
-            LootHeard=loot.Cue=="looting" && loot.State=="assess",Executing=s.Quiet.Current.Applied,X=p.x,Y=p.y,Z=p.z};
+            SinceFire=Time.time-b.BotOwner.Memory.UnderFireTime,
+            Suppressed=b.Suppression.IsHeavySuppressed,Panic=s.Fear.Current.Panic,Urgent=false,
+            Blocked=false,
+            LootHeard=e.Status.VulnerableAction==EEnemyAction.Looting,Executing=s.Quiet.Current.Applied,X=p.x,Y=p.y,Z=p.z};
     }
     private OpportunityConfig QuietLootConfig()=>new OpportunityConfig {Enabled=true,LootWindow=config!.QuietApproach.LootWindow,
         ReactionDelay=0,SafetyMargin=0,RearmSilence=config.QuietApproach.ResetSilence};

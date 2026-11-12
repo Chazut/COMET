@@ -16,8 +16,7 @@ public sealed class RestLightsConfig
     }
 }
 
-// Episode ownership is separate from light state. A rejected command, external ON or mode change
-// consumes this pause too; no repeated OFF command until a genuinely new pause/weapon/owner.
+// Source idle timer: two seconds below 0.5 m/s outside a SAIN layer; repeat OFF every ten seconds.
 public sealed class RestLightsPolicy
 {
     public double Since=-1, NextEpisode, Last=-1;
@@ -31,10 +30,10 @@ public sealed class RestLightsPolicy
         if(Last>now){Release();NextEpisode=0;}
         Last=now;
         if(!eligible){Release();return false;}
-        if(Context!=context){Release();Context=context;Since=now;Episode++;}
-        return !Consumed&&now-Since>=c.HoldDelay&&now>=NextEpisode;
+        if(Since<0){Since=now;Episode++;}Context=context;
+        return now-Since>c.HoldDelay&&now>=NextEpisode;
     }
-    public void Consume(double now,RestLightsConfig c) { Consumed=true;NextEpisode=now+c.EpisodeInterval; }
+    public void Consume(double now,RestLightsConfig c) { Consumed=false;NextEpisode=now+c.EpisodeInterval; }
 }
 
 public static class RestLightsOwner

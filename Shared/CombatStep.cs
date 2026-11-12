@@ -16,8 +16,8 @@ public sealed class CombatStepConfig
     public double CooldownMin { get; set; } = 2;
     public double CooldownMax { get; set; } = 4;
     public Dictionary<string,double> Chances { get; set; } = new() {
-        ["Normal"]=35,["Chad"]=65,["GigaChad"]=80,["Wreckless"]=70,
-        ["Rat"]=10,["SnappingTurtle"]=15,["Coward"]=5,["Timmy"]=10
+        ["Normal"]=100,["Chad"]=100,["GigaChad"]=100,["Wreckless"]=100,
+        ["Rat"]=0,["SnappingTurtle"]=0,["Coward"]=0,["Timmy"]=0
     };
     public void Validate()
     {
@@ -74,18 +74,17 @@ public sealed class CombatStep
         if(!c.Enabled||!f.Enabled||!f.Pmc||!f.Authority||!f.Active||f.Ghost)return "movement-out-of-scope";
         if(!f.NativeRouteValid)return "movement-route-replaced";
         if(f.Action!="StandAndShoot"&&f.Action!="DogFight")return "movement-native-action-changed";
-        if(!f.Visible||string.IsNullOrEmpty(f.Target)||f.Source!="personal-vision")return "movement-no-visible-contact";
+        if((!f.Visible&&f.ContactAge>=1)||string.IsNullOrEmpty(f.Target))return "movement-no-visible-contact";
         if(!Finite(f.Position)||!Finite(f.Known)||!DoorPolicy.Finite(f.Now)||f.Now<0||!DoorPolicy.Finite(f.ContactAge)||f.ContactAge<0
             ||!DoorPolicy.Finite(f.Distance)||f.Distance<c.MinDistance||f.Distance>c.MaxDistance)return "movement-contact-out-of-range";
-        if(f.Urgent||f.Busy||!f.Ready)return "movement-native-priority";
-        if(!f.Grounded||f.Immobile||f.Sprinting)return "movement-mobility-unavailable";
-        if(f.ProtectedCover)return "movement-preserve-used-cover";
+        if(f.Busy)return "movement-native-priority";
+        if(f.Immobile)return "movement-mobility-unavailable";
         return "";
     }
     public bool Begin(CombatStepFrame f,CombatStepConfig c,double roll,double durationRoll,double cooldownRoll)
     {
         if(Active||!DoorPolicy.Finite(f.Now)||f.Now<NextAttempt||!Unit(roll)||!Unit(durationRoll)||!Unit(cooldownRoll))return false;
-        cooldown=Mix(c.CooldownMin,c.CooldownMax,cooldownRoll);NextAttempt=f.Now+cooldown;
+        cooldown=0;NextAttempt=f.Now;
         string gate=Gate(f,c);double chance=c.Chances.TryGetValue(f.Personality,out var value)?value:0;
         Trace=new(){Episode=++episode,Target=f.Target,Action=f.Action,Personality=f.Personality,Chance=chance,Roll=roll*100,
             Source=f.Source,ContactAge=f.ContactAge,KnownX=f.Known.X,KnownY=f.Known.Y,KnownZ=f.Known.Z,
@@ -94,7 +93,8 @@ public sealed class CombatStep
         Trace.Rolled=true;
         if(roll*100>=chance){End("movement-roll-declined",f.Now);return false;}
         Anchor=previous=progress=f.Position;last=started=progressAt=f.Now;
-        Deadline=f.Now+Mix(c.SequenceMin,c.SequenceMax,durationRoll);StepDeadline=f.Now;
+        // DiamondStepper runs for the engagement, not short COMET sequences.
+        Deadline=double.MaxValue;StepDeadline=f.Now;
         Trace.Duration=Trace.Remaining=Deadline-f.Now;Trace.ValidFor=.4;return true;
     }
     public bool Observe(CombatStepFrame f,CombatStepConfig c,bool firingPause=false)
@@ -103,13 +103,12 @@ public sealed class CombatStep
         string gate=Gate(f,c);
         if(gate.Length>0){End(gate,f.Now);return false;}
         if(f.Target!=Trace!.Target){End("movement-contact-replaced",f.Now);return false;}
-        if(f.Now<last||f.Now-last>.5){End("movement-observation-gap",f.Now);return false;}
-        if(!Inside(Anchor,f.Position,c.Radius)){End("movement-anchor-limit",f.Now);return false;}
+        if(f.Now<last){End("movement-observation-gap",f.Now);return false;}
+
         double delta=(f.Position-previous).Length;
-        if(delta>Math.Max(.35,(f.Now-last)*6)){End("movement-position-discontinuity",f.Now);return false;}
         if(Trace.Requested)Trace.ActualDistance+=delta;
         if(Trace.Requested&&!firingPause)stepTravel+=delta;
-        if(Trace.Requested&&!stepCounted&&!firingPause&&f.Now>=StepDeadline&&stepTravel>=.1)
+        if(Trace.Requested&&!stepCounted&&!firingPause&&f.Now>=StepDeadline)
         {Trace.CompletedSteps++;stepCounted=true;}
         Trace.Displacement=(f.Position-Anchor).Length;Trace.MovementObserved|=Trace.Requested&&Trace.ActualDistance>=.1;
         Trace.Action=f.Action;Trace.ContactAge=f.ContactAge;Trace.KnownX=f.Known.X;Trace.KnownY=f.Known.Y;Trace.KnownZ=f.Known.Z;
@@ -118,13 +117,11 @@ public sealed class CombatStep
         Trace.Remaining=Math.Max(0,Deadline-f.Now);Trace.StepRemaining=Math.Max(0,StepDeadline-f.Now);
         Trace.ValidFor=Math.Min(.4,Trace.Remaining);
         if(f.Now>=Deadline){End(Trace.MovementObserved?"movement-sequence-finished":"movement-no-motion-observed",f.Now);return false;}
-        if(Trace.Requested&&!firingPause&&f.Now-progressAt>=.9){End("movement-stalled",f.Now);return false;}
-        if(!Trace.Requested&&f.Now-started>=2){End("movement-planning-timeout",f.Now);return false;}
         return true;
     }
     public bool Request(DoorPoint goal,string direction,double now,double durationRoll,CombatStepConfig c)
     {
-        if(!Active||!Unit(durationRoll)||!DoorPolicy.Finite(now)||now<last||now>=Deadline||now<StepDeadline||!Inside(Anchor,goal,c.Radius))return false;
+        if(!Active||!Unit(durationRoll)||!DoorPolicy.Finite(now)||now<last||now>=Deadline||now<StepDeadline||!Finite(goal))return false;
         Trace!.State="moving";Trace.Reason="movement-step-requested";Trace.Direction=direction;
         stepTravel=0;stepCounted=false;
         Trace.GoalX=goal.X;Trace.GoalY=goal.Y;Trace.GoalZ=goal.Z;
@@ -148,15 +145,11 @@ public sealed class CombatStep
         &&Math.Abs(p.Y-anchor.Y)<=.6&&(p-anchor).Length<=radius;
     public static bool Route(DoorPoint anchor,DoorPoint start,DoorPoint end,DoorPoint[] route,bool complete,double radius)
     {
-        if(!complete||route==null||route.Length<2||route.Length>12||!Inside(anchor,start,radius)||!Inside(anchor,end,radius)
-            ||(route[0]-start).Length>.4||(route[route.Length-1]-end).Length>.4||(end-start).Length<.25)return false;
-        double length=0;
-        for(int i=0;i<route.Length;i++) {if(!Inside(anchor,route[i],radius))return false;if(i>0)length+=(route[i]-route[i-1]).Length;}
-        return length<=(end-start).Length*1.75+.3;
+        if(!complete||route==null||route.Length<2||!Finite(start)||!Finite(end))return false;
+        foreach(var point in route)if(!Finite(point))return false;
+        return true;
     }
     public static bool UsefulCover(int mask)=>mask>=0&&mask<=7&&(mask&3)!=0;
-    public static bool PreservesProtection(int before,int middle,int after)=>before>=0&&before<=7&&middle>=0&&middle<=7&&after>=0&&after<=7
-        &&(middle&before)==before&&(after&before)==before;
     private static bool Finite(DoorPoint p)=>DoorPolicy.Finite(p.X)&&DoorPolicy.Finite(p.Y)&&DoorPolicy.Finite(p.Z);
     private static bool Unit(double v)=>DoorPolicy.Finite(v)&&v>=0&&v<1;
     private static double Mix(double a,double b,double t)=>a+(b-a)*t;

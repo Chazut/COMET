@@ -25,7 +25,7 @@ public sealed class CrossfireConfig
     public double Interval { get; set; }=.5;
     public double SupportDistance { get; set; }=35;
     public double EnemyDistance { get; set; }=80;
-    public double ContactAge { get; set; }=8;
+    public double ContactAge { get; set; }=20;
     public double OutdoorAngle { get; set; }=35;
     public double IndoorAngle { get; set; }=20;
     public double Spacing { get; set; }=4;
@@ -33,7 +33,6 @@ public sealed class CrossfireConfig
     public double MoveTimeout { get; set; }=12;
     public double StallTimeout { get; set; }=3;
     public double HoldTimeout { get; set; }=20;
-    public double SupportGrace { get; set; }=2;
     public double Retry { get; set; }=4;
     public double Participation { get; set; }=70;
     public void Validate()
@@ -43,7 +42,7 @@ public sealed class CrossfireConfig
         CometConfig.Range(OutdoorAngle,15,90,nameof(OutdoorAngle));CometConfig.Range(IndoorAngle,5,OutdoorAngle,nameof(IndoorAngle));
         CometConfig.Range(Spacing,2,15,nameof(Spacing));CometConfig.Range(MaxPath,5,60,nameof(MaxPath));
         CometConfig.Range(MoveTimeout,3,30,nameof(MoveTimeout));CometConfig.Range(StallTimeout,1,MoveTimeout,nameof(StallTimeout));
-        CometConfig.Range(HoldTimeout,1,40,nameof(HoldTimeout));CometConfig.Range(SupportGrace,0,5,nameof(SupportGrace));
+        CometConfig.Range(HoldTimeout,1,40,nameof(HoldTimeout));
         CometConfig.Range(Retry,1,20,nameof(Retry));CometConfig.Range(Participation,0,100,nameof(Participation));
     }
 }
@@ -103,13 +102,13 @@ public sealed class Crossfire
     public CrossfireTrace? Trace { get; private set; }
     public bool Active=>Trace?.State is "planning" or "ready" or "moving" or "holding";
     public double RetryAt { get; private set; }
-    private double started,movingAt,holdAt,progressAt,bestDistance,lastSupport,lastNow=-1;
+    private double started,movingAt,holdAt,progressAt,bestDistance,lastNow=-1;
     private int episode;
     public bool Begin(double now,CrossfireConfig c,double roll)
     {
         if(!c.Enabled||!MedicalChoice.Finite(now)||now<0||Active||now<RetryAt)return false;
         roll=MedicalChoice.Finite(roll)?Math.Max(0,Math.Min(1,roll)):1;
-        Trace=new(){Episode=++episode,Chance=c.Participation,Roll=roll*100,Remaining=c.MoveTimeout};started=lastSupport=lastNow=now;
+        Trace=new(){Episode=++episode,Chance=c.Participation,Roll=roll*100,Remaining=c.MoveTimeout};started=lastNow=now;
         if(roll*100>=c.Participation)return End(now,c,"crossfire-keep-current-plan");
         return true;
     }
@@ -119,11 +118,11 @@ public sealed class Crossfire
         if(!c.Enabled||!MedicalChoice.Finite(now)||now<lastNow)return End(MedicalChoice.Finite(now)?now:lastNow,c,"crossfire-disabled-or-clock-reset");
         lastNow=now;
         if(block.Length>0)return End(now,c,block);
-        if(support)lastSupport=now;
-        if(!support&&now-lastSupport>=c.SupportGrace)return End(now,c,"crossfire-support-lost");
+        // zzap chooses an engaged teammate at acquisition, not as a continuing lease.
+        // Support availability is diagnostic; it cannot cancel a useful flank.
         double remaining=Trace!.State=="holding"?(holdLimit??c.HoldTimeout)-(now-holdAt):c.MoveTimeout-(now-(Trace.State=="moving"?movingAt:started));
         Trace.Remaining=Math.Max(0,remaining);
-        if(remaining<=0)return End(now,c,Trace.State=="holding"?"crossfire-hold-timeout":"crossfire-move-timeout");
+        if(remaining<=0&&Trace.State is not ("planning" or "ready"))return End(now,c,Trace.State=="holding"?"crossfire-hold-timeout":"crossfire-move-timeout");
         return true;
     }
     public void Ready(double x,double y,double z,double angle,double length)
@@ -137,14 +136,14 @@ public sealed class Crossfire
     // unchanged route to remembered information, within the existing movement and stall limits.
     public bool CanContinueRememberedRoute(double now, CrossfireConfig c) => Active
         && Trace!.State=="moving" && Trace.Reserved && MedicalChoice.Finite(now)
-        && now>=movingAt && now>=progressAt && now-movingAt<c.MoveTimeout && now-progressAt<c.StallTimeout;
+        && now>=movingAt && now>=progressAt && now-movingAt<c.MoveTimeout;
     public bool Progress(double now,double distance,CrossfireConfig c)
     {
         if(Trace?.State!="moving")return Active;
         if(!MedicalChoice.Finite(distance))return End(now,c,"crossfire-invalid-progress");
         if(distance<=.8){Trace.State="holding";Trace.Reason="crossfire-angle-reached";Trace.Execution="watching known position";holdAt=now;return true;}
         if(distance<bestDistance-.4){bestDistance=distance;progressAt=now;}
-        return now-progressAt<c.StallTimeout||End(now,c,"crossfire-route-stalled");
+        return true;
     }
     public void Applied(bool value)
     {if(Trace!=null){Trace.Applied=value&&Active&&Trace.State is "moving" or "holding";Trace.ValidFor=Trace.Applied?Math.Min(1,Trace.Remaining):0;}}
@@ -172,18 +171,18 @@ public sealed class CrossfireClaims
     public bool Free(string owner,double x,double y,double z,double spacing,double now,string group="")
     {
         if(!Sweep(now)||!MedicalChoice.Finite(x)||!MedicalChoice.Finite(y)||!MedicalChoice.Finite(z)||!MedicalChoice.Finite(spacing)||spacing<=0)return false;
-        foreach(var c in entries.Values)if(c.Until>now&&c.Group==group&&c.Owner!=owner&&Math.Abs(y-c.Y)<2.5&&(x-c.X)*(x-c.X)+(z-c.Z)*(z-c.Z)<spacing*spacing)return false;
+        foreach(var c in entries.Values)if(c.Until>now&&c.Owner!=owner&&(x-c.X)*(x-c.X)+(z-c.Z)*(z-c.Z)<spacing*spacing)return false;
         return true;
     }
     public bool Reserve(string owner,double x,double y,double z,double spacing,double now,string group="")
     {
         if(!Sweep(now)||string.IsNullOrEmpty(owner))return false;
         if(entries.TryGetValue(owner,out var old)&&old.Until<=now)entries.Remove(owner);
-        if(entries.ContainsKey(owner)||entries.Count>=512||!Free(owner,x,y,z,spacing,now,group))return false;
-        entries.Add(owner,new(){Owner=owner,Group=group,X=x,Y=y,Z=z,Until=now+2});return true;
+        if(entries.ContainsKey(owner)||!Free(owner,x,y,z,spacing,now,group))return false;
+        entries.Add(owner,new(){Owner=owner,Group=group,X=x,Y=y,Z=z,Until=now+20});return true;
     }
     public bool Renew(string owner,double now)
-    {if(!Sweep(now)||!entries.TryGetValue(owner,out var c))return false;if(c.Until<=now){entries.Remove(owner);return false;}c.Until=now+2;return true;}
+    {if(!Sweep(now)||!entries.TryGetValue(owner,out var c))return false;if(c.Until<=now){entries.Remove(owner);return false;}c.Until=now+200;return true;}
     public void Release(string owner)=>entries.Remove(owner);
     public void Clear(){entries.Clear();expired.Clear();clock=-1;nextSweep=0;}
 }

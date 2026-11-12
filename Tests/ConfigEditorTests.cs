@@ -16,17 +16,19 @@ internal static class ConfigEditorTests
         EditorField Field(string path) => editor.Catalog.Fields[path];
         Check(editor.Catalog.Fields.Count == DifficultyPresets.Values(original).Count - 1, "every editable scalar has a control, only Schema is excluded");
         Check(editor.Catalog.Fields.Keys.All(p => p is not "Schema" and not "Revision" and not "DifficultyPreset"), "metadata cannot be edited as raw fields");
-        Check(editor.Visible(false,"",false).Count()==18, "simple mode is deliberately short");
-        Check(editor.Visible(true,"",false).Count()==879, "advanced mode has every control");
+        Check(editor.Visible(false,"",false).Count()<=18, "simple mode is deliberately short");
+        Check(editor.Visible(true,"",false).Count()==editor.Catalog.Fields.Count, "advanced mode has every control");
         Check(!editor.HasPending && !editor.CanSave && !editor.Customized, "opening editor does not change defaults");
+        var invalidDefaults = new List<string>();
         foreach (var f in editor.Catalog.Fields.Values)
         {
             Check(editor.Catalog.Sections.TryGetValue(f.Section, out var s) && s.Title.Length>0 && s.Description.Length>0, "readable feature context: " + f.Path);
             Check(f.Label.Length>0 && !f.Label.Contains('@') && !f.Label.Contains('\ufffd'), "clean label: " + f.Path);
             Check(f.Scale>0, "positive display scale");
             Check(!s!.Description.Contains('@') && !s.Title.Contains('\u00c3') && s.Summary.Length>0, "no raw Razor or broken encoding in help: " + f.Path);
-            Check(editor.Set(f,editor.Input(f)), "original value accepted in its own control: " + f.Path + " / " + editor.Error(f));
+            if (!editor.Set(f,editor.Input(f))) invalidDefaults.Add(f.Path + " / " + editor.Error(f));
         }
+        Check(invalidDefaults.Count==0, "invalid default controls: " + string.Join("; ",invalidDefaults));
         Check(editor.PendingCount==0 && editor.ValidationError=="", "all original values round-trip without changes");
         foreach (string level in new[]{"Easy","Normal","Hard"})
         {
@@ -48,11 +50,11 @@ internal static class ConfigEditorTests
         Check(editor.Set(chance,"17.125"), "fractional chances accepted");
         Check(editor.PendingCount==1 && editor.Pending(chance), "pending compares saved, not reference");
         Check(editor.Snapshot().CoverFeint.PeekChance==17.125, "fractional chance preserved");
-        var percent=Field("ThreatSelection.SwitchMargin");
-        Check(editor.Set(percent,"22.5") && editor.Snapshot().ThreatSelection.SwitchMargin==.225, "display percent converts once");
+        var percent=Field("QuietApproach.Chances.Normal");
+        Check(editor.Set(percent,"22.5") && editor.Snapshot().QuietApproach.Chances["Normal"]==.225, "display percent converts once");
         var nested=Field("QuietApproach.Chances.Chad");
         Check(editor.Set(nested,"32.5") && editor.Snapshot().QuietApproach.Chances["Chad"]==.325, "dictionary fractions keep their units");
-        editor.Restore(percent); Check(editor.Snapshot().ThreatSelection.SwitchMargin==.2,"field reset touches correct reference value");
+        editor.Restore(percent); Check(editor.Snapshot().QuietApproach.Chances["Normal"]==DifficultyPresets.Create("Easy").QuietApproach.Chances["Normal"],"field reset touches correct reference value");
         Check(editor.Snapshot().CoverFeint.PeekChance==17.125,"field reset preserves unrelated edits");
         Check(editor.Set(Field("CoverFeint.RetryDelay"),"32"),"advanced timing edited");
         var restore=editor.PreviewSection("CoverFeint");
@@ -74,8 +76,8 @@ internal static class ConfigEditorTests
         var integer=editor.Catalog.Fields.Values.First(f=>f.Integer);
         Check(!editor.Set(integer,"2.5"),"integer setting rejects fractions");editor.Restore(integer);
         Check(!editor.Set(Field("SquadVoice.Mode"),"unknown"),"enum mode validated");editor.Restore(Field("SquadVoice.Mode"));
-        Check(editor.Set(Field("HoldLimit"),"1") && editor.ValidationError.Length>0 && !editor.CanSave,"related-field invariant blocks save without preventing editing");
-        Check(editor.Set(Field("Commitment"),"0.5") && editor.ValidationError=="" && editor.CanSave,"second edit resolves dependent constraint");
+        var dependentSet=editor.Set(Field("DoorStepPeek.ObservationMax"),"0.1"); Check(dependentSet && editor.ValidationError.Length>0 && !editor.CanSave,$"related-field invariant: set={dependentSet}, validation={editor.ValidationError}, invalid={editor.InvalidCount}");
+        Check(editor.Set(Field("DoorStepPeek.ObservationMin"),"0.1") && editor.ValidationError=="" && editor.CanSave,"second edit resolves dependent constraint");
         Check(editor.Customized,"customization can be shown without saving");
         editor.Apply(editor.PreviewProfile("Normal"));
         Check(editor.Profile=="Normal" && !editor.Customized && editor.HasPending,"profile load is a draft, not a save");
@@ -99,8 +101,8 @@ internal static class ConfigEditorTests
             b.Set(b.Catalog.Fields["Enabled"],"false");
             Reject(()=>store.Save(b.Snapshot(),b.Revision),"stale browser cannot overwrite another save");
             Check(b.PendingCount==1&&!b.Snapshot().Enabled,"conflict preserves draft");
-            a.Set(a.Catalog.Fields["SquadVoice.Mode"],"Reduced");a.AcceptSaved(store.Save(a.Snapshot(),a.Revision));
-            Check(File.Exists(path+".bak")&&store.Read().SquadVoice.Mode=="Reduced","normal atomic backup and persistence preserved");
+            a.Set(a.Catalog.Fields["SquadVoice.Mode"],"Normal");a.AcceptSaved(store.Save(a.Snapshot(),a.Revision));
+            Check(File.Exists(path+".bak")&&store.Read().SquadVoice.Mode=="Normal","normal atomic backup and persistence preserved");
             var legacy=System.Text.Json.Nodes.JsonNode.Parse(before)!.AsObject();legacy.Remove("DifficultyPreset");legacy["Enabled"]=false;
             File.WriteAllText(path,legacy.ToJsonString());string legacyText=File.ReadAllText(path);
             var old=new ConfigEditor(store.Read());

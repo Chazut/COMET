@@ -33,11 +33,11 @@ internal static class SquadStormTests
   List<StormMember> M(int count=2,string personality="Chad",double roll=.1)=>Enumerable.Range(0,count).Select(i=>new StormMember{Id=i.ToString(),Name="PMC "+i,Personality=personality,Ammo=100,Roll=roll}).ToList();
   for(int count=2;count<=8;count++){
    var board=new SquadStormBoard();var p=board.Start("group","target",10,E(),M(count),c)!;C(p!=null,"proposal "+count);
-   p!.Members[0].Ready=true;p.Members[0].LastCallback=10.1;p.Tick(10.1,c);C(p.State=="preparing","one ready is insufficient");
+   p!.Members[0].Ready=true;p.Members[0].LastCallback=10.1;p.Tick(10.1,c);C(p.State=="active","one volunteer departs without collective readiness barrier");
    foreach(var m in p.Members){m.Ready=true;m.LastCallback=10.2;}
-   C(p.Tick(10.2,c)&&p.State=="active"&&p.Departure==10.2,"common departure");C(p.Members.All(x=>x.Status!="ended"),"no artificial attacker cap");
+   C(p.Tick(10.2,c)&&p.State=="active"&&p.Departure==10.1,"first volunteer departure persists");C(p.Members.All(x=>x.Status!="ended"),"no artificial attacker cap");
    p.Drop("0","own urgent care");C(p.Active,"individual withdrawal");
-   p.Tick(11.3,c);C(!p.Active,"callbacks expire");board.Finish(p,11.3,c,p.Reason);
+   p.Tick(11.3,c);C(p.Active,"diagnostic callback gaps do not abort source assault");p.End("test-ended");board.Finish(p,11.3,c,p.Reason);
    C(board.Start("group","target",12,E(12),M(),c)==null,"retry delay");C(board.Start("group","target",32,E(10),M(),c)==null,"no repeat old evidence");
    C(board.Start("group","target",32,E(32),M(),c)!=null,"new evidence after cooldown");board.Clear();C(board.Get("group")==null,"raid cleanup");
   }
@@ -52,20 +52,20 @@ internal static class SquadStormTests
    var board=new SquadStormBoard();C(board.Start("g","e",10,E(),M(4,personality,.99),c)==null,"not enough volunteers "+personality);
    C(board.LastAttempt!.Members.All(x=>x.Status=="declined"),"retain refusal reasons");
   }
-  {var board=new SquadStormBoard();var members=M();members[1].Ammo=39;C(board.Start("g","e",10,E(),members,c)==null,"own magazine gate");}
-  {var board=new SquadStormBoard();var p=board.Start("g","e",10,E(),M(),c)!;C(!p.Tick(14,c)&&p.Reason=="storm-preparation-timeout","preparation deadline");}
+  {var board=new SquadStormBoard();var members=M();members[1].Ammo=39;C(board.Start("g","e",10,E(),members,c)?.Members.Count(m=>m.Status=="declined")==1,"one member failing ammo does not veto the other volunteer");}
+  {var board=new SquadStormBoard();var p=board.Start("g","e",10,E(),M(),c)!;C(p.Tick(14,c),"no COMET preparation barrier");}
   {var board=new SquadStormBoard();var e=E();e.Cue="reload";e.Until=11;var p=board.Start("g","e",10,e,M(),c)!;foreach(var m in p.Members){m.Ready=true;m.LastCallback=10.2;m.Eta=1;}
-   C(!p.Tick(10.2,c)&&p.Reason=="storm-too-late-for-opening","travel plus preparation must fit");}
-  foreach(string why in new[]{"danger","score","clock","disabled","expiry"}){
+   C(p.Tick(10.2,c),"source assault does not require ETA inside an inferred opening");}
+  foreach(string why in new[]{"clock","disabled","expiry"}){
    var local=new SquadStormConfig();var p=new SquadStormBoard().Start("g","e",10,E(),M(),local)!;
    if(why=="danger")p.Evidence.Danger=true;if(why=="score")p.Evidence.Score=.1;if(why=="disabled")local.Enabled=false;
-   C(!p.Tick(why=="clock"?9:why=="expiry"?15:10.2,local),"cancel "+why);
+   C(!p.Tick(why=="clock"?9:why=="expiry"?25:10.2,local),"cancel "+why);
   }
   foreach(double bad in new[]{double.NaN,double.PositiveInfinity,double.NegativeInfinity}){
    var e=E();e.Score=bad;C(new SquadStormBoard().Start("g","e",10,e,M(),c)==null,"invalid evidence score");
    e=E();e.Until=bad;C(new SquadStormBoard().Start("g","e",10,e,M(),c)==null,"invalid evidence expiry");
    var p=new SquadStormBoard().Start("g","e",10,E(),M(),c)!;foreach(var m in p.Members){m.Ready=true;m.LastCallback=10.2;m.Eta=bad;}
-   C(!p.Tick(10.2,c),"unknown ETA cannot launch group");
+   C(p.Tick(10.2,c),"ETA telemetry is not a source assault gate");
   }
   {var p=new SquadStormBoard().Start("g","e",10,E(),M(4),c)!;
    foreach(var m in p.Members.Take(2)){m.Ready=true;m.LastCallback=10.1;}

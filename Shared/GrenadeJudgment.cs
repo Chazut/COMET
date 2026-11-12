@@ -41,7 +41,7 @@ public sealed class GrenadeJudgmentTrace
     public double Age,X,Y,Z,CampSeconds,BaseChance,CampBonus,RoomBonus,VulnerableBonus,LastPenalty,Fade,Chance,RetryRemaining,ValidFor;
     public double? Roll;
     public bool Requested,Accepted,Released;
-    public string[] Alternatives={"Keep fighting or use another COMET tactic", "Wait for a safe native trajectory and fresh personal evidence", "Keep the last grenade for a better opportunity"};
+    public string[] Alternatives={"Keep fighting or use another COMET tactic", "Wait for a native trajectory", "Continue fighting"};
 }
 
 // Scalar memory only; changing combat entry points does not create another opportunity.
@@ -66,7 +66,7 @@ public sealed class GrenadeJudgmentPolicy
     {
         if(!contacts.TryGetValue(f.Target,out var e)||e.Instance!=f.Instance)
         {
-            if(contacts.Count>=32&&!contacts.ContainsKey(f.Target))contacts.Remove(contacts.OrderBy(x=>x.Value.LastAccess).First().Key);
+
             contacts[f.Target]=e=new Contact{Instance=f.Instance};
         }
         e.LastAccess=f.Now;return e;
@@ -75,20 +75,20 @@ public sealed class GrenadeJudgmentPolicy
     {
         if(!Finite(f.Now)||f.Now<0)return;
         if(f.Now<clock){Clear("grenade-clock-reset");}clock=f.Now;
-        if(!f.Personal||f.Target.Length==0||!Finite(f.EvidenceAt)||f.EvidenceAt<0||f.EvidenceAt>f.Now+.01||!new DoorPoint(f.X,f.Y,f.Z).Finite)return;
+        if(f.Target.Length==0||!Finite(f.EvidenceAt)||f.EvidenceAt<0||f.EvidenceAt>f.Now+.01||!new DoorPoint(f.X,f.Y,f.Z).Finite)return;
         var e=Get(f);var point=new DoorPoint(f.X,f.Y,f.Z);
-        if(f.EvidenceAt<=e.Stamp+.001)return; // repeated reads are not observations
+        // zzap measures how long the known position has stayed within 1.5 m.
         double d=(point.X-e.Anchor.X)*(point.X-e.Anchor.X)+(point.Y-e.Anchor.Y)*(point.Y-e.Anchor.Y)+(point.Z-e.Anchor.Z)*(point.Z-e.Anchor.Z);
-        if(e.Stamp<0||f.EvidenceAt-e.Stamp>2||d>2.25){e.Since=f.EvidenceAt;e.Samples=0;e.Anchor=point;}
-        e.Stamp=f.EvidenceAt;e.Samples++;
+        if(e.Stamp<0||d>2.25){e.Since=f.Now;e.Samples=0;e.Anchor=point;}
+        e.Stamp=f.Now;e.Samples++;
     }
     public bool Prepare(GrenadeJudgmentFrame f,GrenadeJudgmentConfig c,double limit)
     {
         Observe(f);var e=Get(f);
-        if(Tick(f.Now,c))return false;
+        Tick(f.Now,c); // Diagnostic timeout must not veto the next native throw.
         string why=!c.Enabled?"grenade-judgment-disabled":!Finite(f.Now)||f.Now<0||!Finite(f.EvidenceAt)||!new DoorPoint(f.X,f.Y,f.Z).Finite?"grenade-invalid-evidence"
-            :!f.Personal?"grenade-no-personal-contact":f.EvidenceAt<0||f.Now<f.EvidenceAt||f.Now-f.EvidenceAt>=limit?"grenade-contact-expired"
-            :f.Block.Length>0?f.Block:Pending?"grenade-release-pending":f.EvidenceAt<=e.Spent+.001?"grenade-needs-new-evidence"
+            :f.EvidenceAt<0||f.Now<f.EvidenceAt||f.Now-f.EvidenceAt>limit?"grenade-contact-expired"
+            :f.Block.Length>0?f.Block
             :f.Now<e.Next?"grenade-retry-wait":"";
         if(why.Length==0)return true;
         // Preserve the pending request trace, including a synchronous projectile callback.
@@ -100,11 +100,11 @@ public sealed class GrenadeJudgmentPolicy
         if(!Prepare(f,c,limit))return false;var e=Get(f);
         if(!arc){e.Next=f.Now+c.NoArcRetry;Set(f,e,"blocked","grenade-no-safe-trajectory");return false;}
         var t=Set(f,e,"assessed","grenade-judgment");
-        t.BaseChance=c.BaseChance;t.CampBonus=e.Samples>=3&&e.Stamp-e.Since>=c.CampSeconds?c.CampBonus:0;
+        t.BaseChance=c.BaseChance;t.CampBonus=f.Now-e.Since>c.CampSeconds?c.CampBonus:0;
         t.RoomBonus=f.Room?c.RoomBonus:0;t.VulnerableBonus=f.Vulnerable?c.VulnerableBonus:0;
-        t.LastPenalty=f.Count==1?c.LastGrenadePenalty:0;
-        t.Fade=Math.Max(0,Math.Min(1,(limit-t.Age)/(limit-c.FadeStart)));
-        t.Chance=Math.Max(0,Math.Min(95,c.BaseChance+t.CampBonus+t.RoomBonus+t.VulnerableBonus-t.LastPenalty))*t.Fade;
+        t.LastPenalty=t.Age>10?20:0;
+        t.Fade=1;
+        t.Chance=Math.Max(10,Math.Min(95,c.BaseChance+t.CampBonus+t.RoomBonus+t.VulnerableBonus-t.LastPenalty))*t.Fade;
         if(e.Roll==null||f.Now>=e.RollUntil)
         {
             double roll=random(),retry=random();
@@ -126,7 +126,7 @@ public sealed class GrenadeJudgmentPolicy
     }
     public void Request(GrenadeJudgmentFrame f)
     {
-        if(Trace?.State!="eligible"||Pending)return;
+        if(Trace?.State!="eligible")return;
         pendingTarget=f.Target;pendingItem=f.Item;pendingStamp=f.EvidenceAt;pendingAt=f.Now;
         Trace.Requested=true;Trace.State="requested";Trace.Reason="grenade-native-request";
     }
@@ -135,13 +135,13 @@ public sealed class GrenadeJudgmentPolicy
         if(Trace?.Requested!=true)return;
         if(Trace.Released)return; // native callback can fire inside DoThrow
         Trace.Accepted=accepted;Trace.State=accepted?"accepted":"refused";Trace.Reason=accepted?"grenade-native-accepted":"grenade-native-refused";
-        if(!accepted){pendingItem="";if(contacts.TryGetValue(pendingTarget,out var e))e.Next=now+c.NoArcRetry;}
+        if(!accepted){pendingItem="";if(contacts.TryGetValue(pendingTarget,out var e))e.Next=now+.5;}
     }
     public bool Tick(double now,GrenadeJudgmentConfig c)
     {
         if(!Pending||now-pendingAt<=10)return false;
-        pendingItem="";if(contacts.TryGetValue(pendingTarget,out var e)){e.Next=now+c.NoArcRetry;e.Roll=null;}
-        Trace!.State="timeout";Trace.Reason="grenade-release-not-observed";Trace.ValidFor=1;return true;
+        pendingItem=""; // Missing observer callback must not postpone the next native throw.
+        Trace!.State="timeout";Trace.Reason="grenade-release-not-observed";Trace.ValidFor=1;return false;
     }
     public bool Released(string item,double now)
     {

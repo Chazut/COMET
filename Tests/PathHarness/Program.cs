@@ -12,19 +12,13 @@ MethodDeclarationSyntax Method(string file, string name) => CSharpSyntaxTree.Par
 // Execute the actual production calculations, replacing only engine objects.
 // Do not copy the algorithms into tests: changes in these methods must be tested.
 var capabilities = Method("NativeAdapter", "Capabilities").Body!.Statements
-    .TakeWhile(s => !s.ToString().Contains("bot.Info.PersonalitySettings"));
+    .TakeWhile(s => !s.ToString().Contains("bot.Info"));
 var opportunity = Method("OpportunityAdapter", "ReadOpportunity").DescendantNodes()
     .OfType<TryStatementSyntax>().First().Block.Statements
     .SkipWhile(s => !s.ToString().StartsWith("var corners ="))
     .TakeWhile(s => !s.ToString().StartsWith("var own ="));
 var quiet = Method("QuietApproachAdapter", "CaptureQuiet").Body!.Statements
     .TakeWhile(s => !s.ToString().StartsWith("bool threat="));
-var risk = Method("VisibleAdapter", "RouteRisk").WithModifiers(
-    SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.InternalKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword))).NormalizeWhitespace();
-var pushRiskCall = Method("VisibleAdapter", "Capture").DescendantNodes().OfType<InvocationExpressionSyntax>()
-    .Single(i => i.Expression.ToString() == "RouteRisk" && i.ArgumentList.Arguments[0].ToString().Contains("enemy.Path"));
-if (pushRiskCall.ArgumentList.Arguments[0].ToString() != "EnemyPathCorners.Read(enemy.Path)")
-    throw new Exception("Visible route sampling must consume the counted enemy route.");
 string probe = """
 using System;
 using System.Collections.Generic;
@@ -39,7 +33,7 @@ internal static class Probe {
     "internal static (int Count, double Length, double Vertical) Opportunity(Enemy enemy) {\n" +
     string.Join("\n", opportunity) + "\nreturn (count,length,vertical); }\n" +
     "internal static (bool Complete,double Length) Quiet(Bot b, Enemy e) {\n" +
-    string.Join("\n", quiet) + "\nreturn (complete,length); }\n" + risk + "\n}";
+    string.Join("\n", quiet) + "\nreturn (complete,length); }\n" + "\n}";
 var trees = new[] {
     CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Client/EnemyPathCorners.cs"))),
     CSharpSyntaxTree.ParseText(probe),

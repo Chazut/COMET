@@ -25,7 +25,7 @@ internal sealed class LightDisciplineRuntime
     internal object? Enemy;
     internal bool Captured, Fault;
     internal string[] Modes = Array.Empty<string>();
-    internal float CallbackAt, Next, LogAt;
+    internal float CallbackAt, Next, LogAt, ForceAt;
     internal string Key = "";
     internal void Drop() { Devices.Clear(); Modes = Array.Empty<string>(); Weapon = null; Enemy = null; Captured = false; Next = 0; }
 }
@@ -74,31 +74,20 @@ public sealed partial class Plugin
                 var f = p.LightFrame(b, s);
                 bool dark = r.Policy.Evaluate(f, p.config!.LightDiscipline);
                 if (!dark) { r.Captured = false; r.Devices.Clear(); r.Modes = Array.Empty<string>(); p.RecordLightDiscipline(s); return true; }
-                if (!r.Captured)
-                {
-                    p.SuspendDevicesForAmbush(s);
-                    r.Captured = true;
-                    foreach (var mod in weapon!.Mods)
-                    {
-                        if (mod.GetItemComponent<LightComponent>() is not { } device) continue;
-                        if (r.Devices.Count >= 16) { r.Policy.Yield("light-too-many-devices"); break; }
+                p.SuspendDevicesForAmbush(s);
+                r.Captured = true; r.Devices.Clear();
+                foreach (var mod in weapon!.Mods)
+                    if (mod.GetItemComponent<LightComponent>() is { } device)
                         r.Devices.Add(new() { Component = device, Mode = device.SelectedMode });
-                    }
-                    if (r.Policy.Dark && r.Devices.Count == 0) r.Policy.Yield("light-no-device");
-                    if (r.Policy.Dark)
-                    {
-                        var commands = new List<LightsState>();
-                        foreach (var d in r.Devices) if (d.Component.IsActive)
-                            commands.Add(new LightsState { Id = d.Component.Item.Id, IsActive = false, LightMode = d.Mode });
-                        // One ordinary game command, preserving every selected visible/IR mode. Never sends ON.
-                        if (commands.Count > 0) { p.ObserveLightDevices(s, true); hand!.SetLightsState(commands.ToArray()); }
-                        p.ObserveLightDevices(s, false);
-                        if (!r.Policy.Trace!.ObservedOff) r.Policy.Yield("light-extinction-unconfirmed");
-                    }
+                if (Time.time >= r.ForceAt)
+                {
+                    r.ForceAt = Time.time + .5f;
+                    var commands = new List<LightsState>();
+                    foreach (var d in r.Devices) if (d.Component.IsActive)
+                        commands.Add(new LightsState { Id=d.Component.Item.Id, IsActive=false, LightMode=d.Mode });
+                    if (commands.Count > 0) { hand!.SetLightsState(commands.ToArray()); p.ObserveLightDevices(s,true); }
                 }
-                else if (!LightDevicesUnchanged(r))
-                { p.ObserveLightDevices(s, false); r.Policy.Yield("light-device-changed-by-other-owner"); }
-                else p.ObserveLightDevices(s, false);
+                p.ObserveLightDevices(s,false);
                 p.RecordLightDiscipline(s);
             }
             return !r.Policy.Dark;
@@ -118,35 +107,21 @@ public sealed partial class Plugin
     private string LightBlock(BotComponent b, Player.FirearmController? hand)
     {
         if (hand == null || hand.Item is not Weapon || !ReferenceEquals(hand.Item, b.BotOwner.WeaponManager.CurrentWeapon)) return "light-weapon-not-in-hands";
-        if (!WeaponHandsReady(b, hand) || hand.IsInRemoveOperation() || hand.IsInReloadOperation() || hand.IsInSpawnOperation()
-            || hand.IsInventoryOpen() || hand.IsInInteractionStrictCheck() || hand.IsHandsProcessing()) return "light-hands-busy";
-        if (b.Decision.CurrentSelfDecision != ESelfActionType.None || b.BotOwner.Medecine.Using || b.BotOwner.WeaponManager.Reload.Reloading
-            || b.BotOwner.DoorOpener.Interacting || b.DoorOpener.Interacting) return "light-priority-action";
-        if (b.Grenade.GrenadeDangerPoint != null || b.BotOwner.WeaponManager.Grenades.ThrowindNow || b.Flashed.IsFlashed
-            || b.Player.IsSprintEnabled || b.Mover.Running || b.BotOwner.ShootData.Shooting || b.ManualShoot.Shooting) return "light-urgent-or-firing";
-        var a = b.CurrentAction?.GetType();
-        if (a == null || a.Assembly != typeof(BotComponent).Assembly
-            || a.FullName != "SAIN.Layers.Combat.Solo.FreezeAction" && a.FullName != "SAIN.Layers.Combat.Solo.StandAndShootAction") return "light-action-owner-changed";
-        int count = 0;
-        foreach (var e in b.EnemyController.KnownEnemies)
-            if (++count > 32 || e != null && !ReferenceEquals(e, b.GoalEnemy) && e.IsVisible) return "light-other-visible-threat";
         return "";
     }
     private LightDisciplineFrame LightFrame(BotComponent b, BotState s)
     {
         var e = b.GoalEnemy;
-        var seen = e?.KnownPlaces.LastSeenPlace; var heard = e?.KnownPlaces.LastHeardPlace;
-        var place = seen; string source = seen != null ? "personal-vision" : "";
-        if (heard != null && (place == null || heard.TimeSincePositionUpdated < place.TimeSincePositionUpdated)) { place = heard; source = "personal-hearing"; }
-        bool known = e?.EnemyKnown == true && place != null && ValidPoint(place.Position);
+        var place = e?.KnownPlaces.LastKnownPlace;
+        bool known = e != null && (e.Seen || e.Heard);
+        string source = e?.Seen == true ? "seen" : "heard";
         string action = b.Decision.CurrentCombatDecision.ToString();
-        string tactic = action == "Freeze" ? (s.Ambush.Policy.Active ? "door-ambush" : s.HoldAngle.Policy.Active ? "angle-hold" : "native-freeze")
-            : action == "StandAndShoot" && b.Cover.CoverInUse != null ? "cover-hold" : "";
+        string tactic = action != "Search" ? "holding-angle" : "";
         return new()
         {
             Now = Time.time, Contact = e?.EnemyProfileId ?? "", Source = known ? source : "", Action = action, Tactic = tactic,
-            Known = known ? DP(place!.Position) : null, ContactAge = known ? place!.TimeSincePositionUpdated : double.NaN,
-            Distance = known ? Vector3.Distance(b.Position, place!.Position) : double.NaN,
+            Known = place != null ? DP(place.Position) : null, ContactAge = e?.TimeSinceLastKnownUpdated ?? double.NaN,
+            Distance = e?.RealDistance ?? double.NaN,
             Speed = b.Player.Velocity.magnitude, Visible = e?.IsVisible == true, NightVision = b.BotOwner.NightVision.UsingNow
         };
     }

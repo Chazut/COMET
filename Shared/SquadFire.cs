@@ -26,14 +26,13 @@ public sealed class SquadFireTrace
 }
 public static class SquadFireGeometry
 {
-    // A swept body point can cross the barrel even if neither its current nor predicted endpoint touches it.
+    // zzap tests only the predicted body point at 0.3 seconds.
     public static bool Crosses(DoorPoint muzzle,DoorPoint end,DoorPoint current,DoorPoint predicted,double radius)
     {
         if(!muzzle.Finite||!end.Finite||!current.Finite||!predicted.Finite||!DoorPolicy.Finite(radius)||radius<=0)return false;
-        var axis=end-muzzle;double length=axis.Length;if(length<.05)return false;var direction=axis*(1/length);
-        double a=(current-muzzle).Dot(direction),b=(predicted-muzzle).Dot(direction);
-        if(Math.Max(a,b)<=0||Math.Min(a,b)>length)return false;
-        return FireLaneGeometry.SegmentDistance(current,predicted,muzzle,end)<radius;
+        var axis=end-muzzle;double length=axis.Length;if(length<.0001)return false;var direction=axis*(1/length);
+        double along=(predicted-muzzle).Dot(direction);if(along<.3||along>length)return false;
+        return (predicted-(muzzle+direction*along)).Length<radius;
     }
     // A low penetration estimate is not proof of safety: protect the ally unless a known solid cannot penetrate at all.
     public static bool CanReach(ShotGeometryTrace t)=>t.Reason!="geometry-solid-obstacle" ||
@@ -48,8 +47,7 @@ public sealed class SquadFirePolicy
     {
         if(!c.Enabled||!DoorPolicy.Finite(f.Now)||f.Now<0||f.Now<last){End("squad-fire-disabled-or-clock-reset");last=f.Now;return false;}
         double gap=last<0?0:f.Now-last;last=f.Now;
-        if(!f.Fresh){clearAt=-1;if(Blocking&&f.Now-freshAt<=.25){ResetEffect();Trace!.Reason="squad-fire-awaiting-fresh-check";return true;}
-            End("squad-fire-check-unavailable");return false;}
+        if(!f.Fresh){End("squad-fire-check-unavailable");return false;}
         freshAt=f.Now;
         if(f.Risk){
             if(!Blocking){started=f.Now;Trace=new();}clearAt=-1;
@@ -61,10 +59,7 @@ public sealed class SquadFirePolicy
             t.BlockedFor=f.Now-started;t.ClearFor=0;t.Alternatives=f.Alternatives;return true;
         }
         if(!Blocking)return false;
-        ResetEffect();Trace!.Action=f.Action;if(clearAt<0||gap>Math.Max(.15,c.Interval*2.5))clearAt=f.Now;
-        Trace!.ClearFor=f.Now-clearAt;Trace.BlockedFor=f.Now-started;
-        if(Trace.ClearFor+1e-6>=c.ClearDelay){End("squad-fire-lane-clear-native-decides");return false;}
-        Trace.State="clearing";Trace.Reason="squad-fire-confirming-clear-lane";return true;
+        End("squad-fire-lane-clear-native-decides");return false;
     }
     private void ResetEffect(){if(Trace==null)return;Trace.Applied=Trace.StopRequested=Trace.Stopped=Trace.StartPrevented=false;Trace.ValidFor=0;Trace.Execution="veto proposed";}
     public void Applied(bool requested,bool stopped,bool prevented,SquadFireConfig c)

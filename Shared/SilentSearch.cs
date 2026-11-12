@@ -14,9 +14,9 @@ public sealed class SilentSearchConfig
     public double ScoreBonus { get; set; } = 15;
     public Dictionary<string,SilentSearchPersonality> Personalities { get; set; } = new()
     {
-        ["Normal"]=new(){Delay=15}, ["Chad"]=new(){Delay=12}, ["GigaChad"]=new(){Delay=10},
-        ["Wreckless"]=new(){Delay=10}, ["Rat"]=new(){Delay=20}, ["SnappingTurtle"]=new(){Delay=20},
-        ["Timmy"]=new(){Delay=22}, ["Coward"]=new(){Enabled=false,Delay=22}
+        ["Normal"]=new(){Delay=15}, ["Chad"]=new(){Delay=15}, ["GigaChad"]=new(){Delay=15},
+        ["Wreckless"]=new(){Delay=15}, ["Rat"]=new(){Delay=15}, ["SnappingTurtle"]=new(){Delay=15},
+        ["Timmy"]=new(){Delay=15}, ["Coward"]=new(){Enabled=false,Delay=15}
     };
     public void Validate()
     {
@@ -31,7 +31,7 @@ public sealed class SilentSearchConfig
 }
 public sealed class SilentSearchFrame
 {
-    public double Now, HeardAt, ContactAge, Lifetime=25, X,Y,Z;
+    public double Now, HeardAt, ContactAge, Lifetime=60, TimeBeforeSearch=40, X,Y,Z;
     public string Target="", Personality="Normal";
     public int Instance;
     public bool Scoped=true, Personal=true, Seen, HasContact=true, SearchAllowed=true, AudioAllowed=true,
@@ -69,18 +69,20 @@ public static class SilentSearchPolicy
     {
         var t=new SilentSearchTrace{Target=f.Target,Personality=f.Personality,Instance=f.Instance};
         if(!c.Enabled||!f.Scoped){t.Reason="silent-search-out-of-scope";return t;}
-        if(!f.HasContact||f.Target.Length==0||!f.Personal||f.Seen){t.Reason="silent-search-not-personal-heard-only";return t;}
+        if(!f.HasContact||f.Target.Length==0||f.Seen){t.Reason="silent-search-not-personal-heard-only";return t;}
         if(!ImpactReaction.Finite(f.Now)||!ImpactReaction.Finite(f.HeardAt)||f.HeardAt<0||f.HeardAt>f.Now
             ||!ImpactReaction.Finite(f.ContactAge)||f.ContactAge<0||!ImpactReaction.Finite(f.Lifetime)||f.Lifetime<=0
             ||!ImpactReaction.Finite(f.X)||!ImpactReaction.Finite(f.Y)||!ImpactReaction.Finite(f.Z))
         {t.Reason="silent-search-invalid-evidence";return t;}
         t.HeardAt=f.HeardAt;t.Silence=f.Now-f.HeardAt;t.X=f.X;t.Y=f.Y;t.Z=f.Z;
         t.Remaining=Math.Max(0,f.Lifetime-Math.Max(f.ContactAge,t.Silence));t.ValidFor=Math.Min(1.5,t.Remaining);
-        if(t.Remaining<=0){t.Reason="silent-search-contact-expired";return t;}
+        // Native EnemyKnown owns forgetting; no additional COMET expiry.
+        t.ValidFor=1.5;
         if(!c.Personalities.TryGetValue(f.Personality,out var rule)||!rule.Enabled){t.Reason="silent-search-personality-disabled";return t;}
-        t.Delay=rule.Delay;
-        if(!f.SearchAllowed||!f.AudioAllowed){t.Reason=!f.SearchAllowed?"sain-personality-search-disabled":"sain-personality-audio-search-disabled";return t;}
-        if(f.Arrived||f.Failed||!f.Path||f.Unsafe)
+        t.Delay=15;
+        if(!f.SearchAllowed){t.Reason="sain-personality-search-disabled";return t;}
+        if(f.AudioAllowed&&f.TimeBeforeSearch<=15){t.Reason="native-search-already-allowed";return t;}
+        if(f.Arrived)
         {t.State="blocked";t.Reason=f.Arrived?"silent-search-already-searched":f.Failed?"silent-search-failed-destination":!f.Path?"silent-search-no-complete-path":"silent-search-native-danger";return t;}
         if(t.Silence<t.Delay){t.State="waiting";t.Reason="silent-search-waiting";return t;}
         t.State="ready";t.Reason="silent-search-reevaluate";t.Eligible=true;t.Bonus=c.ScoreBonus;return t;
@@ -97,7 +99,7 @@ public sealed class SilentSearchReviews
         if(!t.Eligible||string.IsNullOrEmpty(t.Target)||!ImpactReaction.Finite(t.HeardAt)||t.HeardAt<0)return false;
         if(consumed.TryGetValue(t.Target,out var old))
         {if(old.instance==t.Instance&&t.HeardAt<=old.stamp)return false;}
-        else if(consumed.Count>=32)return false;
+
         consumed[t.Target]=(t.Instance,t.HeardAt);return true;
     }
 }

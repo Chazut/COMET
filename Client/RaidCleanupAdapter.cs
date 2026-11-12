@@ -89,7 +89,8 @@ public sealed partial class Plugin
                 Array.Clear(doorOccupants,0,doorOccupants.Length);doorBudget.Clear();doorClock.Reset();
             });
             Step("squad-caches",()=>{
-                crossfireClaims.Clear();maneuverBoard.Clear();coverMateBoard.Clear();stormBoard.Clear();laneShots.Clear();
+                fearMemory.Clear();fearDeaths=new();
+                crossfireClaims.Clear();maneuverBoard.Clear();coverMateBoard.Clear();stormBoard.Clear();nativeStormPlans.Clear();laneShots.Clear();
                 stormObservationConfig=null;stormOpportunityConfig=null;stormObservationFrame=-1;
                 voicePolicy.Clear();voiceSource=null;voiceRequest=voicePlayback=voiceEmission=null;
             });

@@ -21,6 +21,8 @@ public sealed class MovementHearingConfig
 
 public sealed class CometConfig
 {
+    public const string SourceBaseline = "zzap-fbb86b83-1";
+    public string BehaviorBaseline { get; set; } = SourceBaseline;
     public PerformanceConfig Performance { get; set; } = new();
     public CombatJournalConfig CombatJournal { get; set; } = new();
     public ControlJournalConfig ControlJournal { get; set; } = new();
@@ -127,7 +129,7 @@ public sealed class CometConfig
     public HandoffConfig Handoff { get; set; } = new HandoffConfig();
     public LoadoutConfig Loadout { get; set; } = new LoadoutConfig();
     public ThreatSelectionConfig ThreatSelection { get; set; } = new ThreatSelectionConfig();
-    public double ContactLifetime { get; set; } = 25;
+    public double ContactLifetime { get; set; } = 60;
     public double Commitment { get; set; } = 2;
     public double SwitchMargin { get; set; } = 15;
     public double HoldLimit { get; set; } = 5;
@@ -141,8 +143,8 @@ public sealed class CometConfig
     };
     public Dictionary<string, double> Aggression { get; set; } = new Dictionary<string, double>
     {
-        ["Normal"] = .5, ["Chad"] = .75, ["GigaChad"] = .9, ["Wreckless"] = .85,
-        ["Rat"] = .25, ["SnappingTurtle"] = .3, ["Coward"] = .1, ["Timmy"] = .25
+        ["Normal"] = .5, ["Chad"] = .8, ["GigaChad"] = 1, ["Wreckless"] = 1,
+        ["Rat"] = .2, ["SnappingTurtle"] = .3, ["Coward"] = 0, ["Timmy"] = .4
     };
 
     public void Validate()
@@ -508,16 +510,16 @@ public sealed class SightContinuityConfig
     public bool Enabled { get; set; } = true;
     public double CloseDuration { get; set; } = .8;
     public double CloseDistance { get; set; } = 8;
-    public double MediumDuration { get; set; } = 1;
+    public double MediumDuration { get; set; } = 1.5;
     public double MaxDistance { get; set; } = 45;
-    public double StableSight { get; set; } = .35;
+    public double StableSight { get; set; } = 0;
     public void Validate()
     {
         CometConfig.Range(CloseDuration, .1, 2, nameof(CloseDuration));
         CometConfig.Range(CloseDistance, 1, 20, nameof(CloseDistance));
         CometConfig.Range(MediumDuration, .1, 2, nameof(MediumDuration));
         CometConfig.Range(MaxDistance, CloseDistance, 80, nameof(MaxDistance));
-        CometConfig.Range(StableSight, .2, 2, nameof(StableSight));
+        CometConfig.Range(StableSight, 0, 2, nameof(StableSight));
     }
 }
 

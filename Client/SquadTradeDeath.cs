@@ -28,24 +28,23 @@ public sealed partial class Plugin
     private static void ObserveTradeDeath(Squad __instance,Player __0,IPlayer __1)
     {
         var p=Instance;if(p?.config?.Enabled!=true||!p.config.SquadTrade.Enabled||!p.Authority||p.world==null||!TradeDead(__0)||p.Ghost(__0.ProfileId))return;
-        if(__instance.Members.Count>16)return;
+
         foreach(var b in __instance.Members.Values)
         {
             try
             {
-                if(b==null||b.ProfileId==__0.ProfileId||!p.CrossfireScope(b)||!Witnesses(b,__0.Position+Vector3.up,40))continue;
+                if(b==null||b.ProfileId==__0.ProfileId||!p.CrossfireScope(b))continue;
                 if(!p.states.TryGetValue(b,out var s))
                 {if(p.states.Count>=512)continue;s=new BotState(b,p.config,p.session);p.states.Add(b,s);}
-                string associated="";int scanned=0;
-                foreach(var e in b.EnemyController.KnownEnemies)
-                {
-                    if(++scanned>16)break;
-                    // The event's aggressor identity is only useful if this observer already sees that enemy.
-                    // No killer transform is read, nor any contact inserted into SAIN's knowledge.
-                    if(e!=null&&e.EnemyKnown&&e.IsVisible&&e.EnemyProfileId==__1?.ProfileId){associated=e.EnemyProfileId;break;}
-                }
+                string associated=__1?.ProfileId ?? "",aimedAt="";
+                foreach(var mate in __instance.Members.Values)if(mate?.ProfileId==__0.ProfileId){aimedAt=mate.GoalEnemy?.EnemyProfileId??"";break;}
+                // zzap trades the killer, falling back to the fallen mate's goal enemy.
+                if(associated.Length==0)
+                    foreach(var mate in __instance.Members.Values)
+                        if(mate?.ProfileId==__0.ProfileId){associated=mate.GoalEnemy?.EnemyProfileId ?? "";break;}
                 var r=s.Crossfire.Trade;int group=TradeGroup(b);
-                r.Memory.Observe(__0.ProfileId,__0.Profile.Nickname,Time.time,true,false,true,associated,p.jumpRandom.NextDouble(),p.config.SquadTrade,group);
+                var loss=r.Memory.Observe(__0.ProfileId,__0.Profile.Nickname,Time.time,true,false,true,associated,0,p.config.SquadTrade,group);
+                if(loss!=null)loss.AimedAt=aimedAt;
             }
             catch(Exception ex){p.TradeWarning(ex);}
         }

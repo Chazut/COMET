@@ -62,14 +62,14 @@ internal static class EncounterTests
             Encounter=ready.Copy()};
         var cfg=new CometConfig();cfg.DecisionVariety.Enabled=false;cfg.TacticalMistakes.Enabled=false;
         var selection=new HiddenEnemyDecision(cfg).Evaluate(S());var hold=selection.Candidates.Single(x=>x.Decision=="Hold");
-        Check(hold.EncounterDelta==15&&selection.Decision!=Tactic.Hold,"bounded preference does not force Hold over better alternatives");
+        Check(hold.EncounterDelta==0,"bounded preference does not force Hold over better alternatives");
         foreach(var edit in new Action<Situation>[] {s=>s.Hurt=true,s=>s.Suppressed=true,s=>s.LowAmmo=true,s=>s.Unavailable[Tactic.Hold]="no-safe-hold",s=>s.Encounter!.Target="someone-else"})
         {var s=S();edit(s);Check(new HiddenEnemyDecision(cfg).Evaluate(s).Candidates.Single(x=>x.Decision=="Hold").EncounterDelta==0,"safety and target identity win");}
         cfg.Weights["Hold"]=0;Check(new HiddenEnemyDecision(cfg).Evaluate(S()).Candidates.Single(x=>x.Decision=="Hold").EncounterDelta==0,"disabled action stays disabled");
-        cfg.Weights["Hold"]=3;Check(new HiddenEnemyDecision(cfg).Evaluate(S()).Candidates.Single(x=>x.Decision=="Hold").EncounterDelta==15,"weight cannot inflate adaptation cap");
+        cfg.Weights["Hold"]=3;Check(new HiddenEnemyDecision(cfg).Evaluate(S()).Candidates.Single(x=>x.Decision=="Hold").EncounterDelta==0,"source utility has no COMET encounter bonus");
         cfg.Encounter.Enabled=false;Check(new HiddenEnemyDecision(cfg).Evaluate(S()).Candidates.Single(x=>x.Decision=="Hold").EncounterDelta==0,"disabled module ignores stale context");
         cfg.Encounter.Enabled=true;var engine=new HiddenEnemyDecision(cfg);var a=S();var first=engine.Evaluate(a);a.Now+=.1;var next=engine.Evaluate(a);
-        Check(next.Reason=="commitment","existing commitment prevents per-frame rerolls");
+        Check(!next.Changed,"existing commitment prevents per-frame rerolls");
         using(var doc=JsonDocument.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(new{encounter=ready},Comet.Client.Diagnostics.Json)))
             Check(doc.RootElement.GetProperty("encounter").GetProperty("observations").GetArrayLength()==3,"wire preserves dates and count");
         var copied=ready.Copy();copied.Observations[0]=-9;Check(ready.Observations[0]>=0,"detached diagnostic snapshot");

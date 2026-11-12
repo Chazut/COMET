@@ -12,7 +12,7 @@ namespace UnityEngine {
  }
  public static class Mathf {public const float Deg2Rad=(float)Math.PI/180;public static float Tan(float x)=>(float)Math.Tan(x);public static float Cos(float x)=>(float)Math.Cos(x);}
  public enum QueryTriggerInteraction{Ignore}public struct RaycastHit{}
- public static class Physics {
+ public static class Physics {public static bool Linecast(Vector3 a,Vector3 b,int mask)=>false;
  public static bool BlockArc,BlockLanding,BlockMargin,BlastShield;public static int Sweeps;
  public static bool CheckSphere(Vector3 v,float r,int mask,QueryTriggerInteraction q)=>BlockLanding;
  public static bool SphereCast(Vector3 a,float r,Vector3 d,out RaycastHit hit,float distance,int mask,QueryTriggerInteraction q){hit=new();Sweeps++;return BlockArc||BlockMargin&&r>.1f;}
@@ -55,7 +55,7 @@ namespace SAIN.Preset.Shared.Enums {public enum ETagStatus{Healthy,BadlyInjured,
 namespace SAIN.SAINComponent.Classes.EnemyClasses {
  public class EnemyPlace {public Vector3 Position=new(20,0,0);}
  public class Places {public EnemyPlace? LastKnownPlace,LastSeenPlace,LastHeardPlace;public float TimeLastKnownUpdated=10;public Vector3? LastKnownPosition=>LastKnownPlace?.Position;}
- public class Enemy {public Vector3? VisiblePathPoint;public string EnemyProfileId="enemy";public Places KnownPlaces=new();public bool IsVisible=true;public Player EnemyPlayer=new();public Enemy(){KnownPlaces.LastKnownPlace=KnownPlaces.LastSeenPlace=new();}}
+ public class Enemy {public Status Status=new();public PathData Path=new();public Vector3? VisiblePathPoint;public string EnemyProfileId="enemy";public Places KnownPlaces=new();public bool IsVisible=true;public Player EnemyPlayer=new();public Enemy(){KnownPlaces.LastKnownPlace=KnownPlaces.LastSeenPlace=new();}}
 }
 namespace SAIN.SAINComponent.Classes.WeaponFunction {public class GrenadeThrowDecider {public BotComponent Bot=null!;private bool FindThrowTarget(Enemy e)=>true;private bool TryThrowGrenade()=>true;}}
 namespace SAIN.Components {
@@ -120,3 +120,5 @@ namespace Comet.Client {
 
 
 public static class LocalizedText {public static string Localized(this string s)=>s;}
+
+namespace SAIN.SAINComponent.Classes.EnemyClasses { public class Status {public bool VulnerableAction;public bool EnemyIsReloading,EnemyIsHealing,EnemyHasGrenadeOut;} public class PathData {public float PathDistance=20,PathLength=20;} }

@@ -27,6 +27,7 @@ internal sealed class RelocationRuntime
     internal CoverPoint? BestCover,Selected;
     internal RelocationCandidate? Best;
     internal readonly List<CoverPoint> Cached=new();
+    internal readonly List<Vector3> SourceCandidates=new();
     internal readonly List<Vector3> Threats=new();
     internal readonly Dictionary<IBotPathData,NavMeshPath> Routes=new();
     internal float Next,NextProbe,LastSafety=-1000,RequestedAt,LogAt=-1000,ReleaseAt=-1;
@@ -38,7 +39,7 @@ internal sealed class RelocationRuntime
     internal WeakReference<Grenade>? Projectile;
     internal Vector3 Blast;
     internal double BlastRadius;
-    internal void Drop(){Owner=null;Enemy=null;BestCover=Selected=null;Best=null;Cached.Clear();Threats.Clear();Routes.Clear();Projectile=null;ProjectileId=-1;ReleaseAt=-1;BlastRadius=0;GrenadeItem="";RequestFrame=-1;NativeMoveStarted=CoverCall=false;}
+    internal void Drop(){Owner=null;Enemy=null;BestCover=Selected=null;Best=null;Cached.Clear();SourceCandidates.Clear();Threats.Clear();Routes.Clear();Projectile=null;ProjectileId=-1;ReleaseAt=-1;BlastRadius=0;GrenadeItem="";RequestFrame=-1;NativeMoveStarted=CoverCall=false;}
 }
 
 public sealed partial class Plugin
@@ -95,36 +96,30 @@ public sealed partial class Plugin
             Speed=b.Player.Velocity.magnitude,HandsReady=VisibleAdapter.WeaponReady(b),Distance=known.HasValue?Vector3.Distance(b.Position,known.Value):0,
             Hurt=b.Memory.Health.HealthStatus!=ETagStatus.Healthy,
             HealthyPusher=b.Memory.Health.HealthStatus==ETagStatus.Healthy&&b.Info.PersonalitySettings.Rush.CanRushEnemyReloadHeal};
-        var env=ReadEnvironment(b,s,"outdoor-relocation");
-        // Disabled P10 keeps a conservative local EFT fallback; a roof alone is not an indoor classification.
-        f.Outdoor=config!.EnvironmentContext.Enabled?env.Reported=="outdoor"&&!env.Conflict
-            :b.Player.Environment==EnvironmentType.Outdoor&&b.Player.AIData?.EnvironmentId==0;
-        var opponent=s.Situation?.Opponent;
-        f.LongWeapon=opponent?.Target==f.Target&&opponent.Evidence.Any(x=>x.Active&&x.Kind=="weapon"
-            &&(x.Value=="sniperRifle"||x.Value=="marksmanRifle")&&Time.time-x.ObservedAt>=0&&Time.time-x.ObservedAt<=config.Opponent.WeaponMemory)==true;
+        f.Outdoor=!(b.Memory.Location.IsIndoors || b.Player.Environment == EnvironmentType.Indoor);
+        var weapon=e?.EnemyPlayerComponent?.Equipment?.CurrentWeaponInfo;
+        f.LongWeapon=weapon!=null&&(weapon.WeaponClass.ToString()=="marksmanRifle"||weapon.WeaponClass.ToString()=="sniperRifle"||weapon.HasOptic);
         int mates=0;
         if(b.Squad?.Members!=null)foreach(var mate in b.Squad.Members.Values) {
-            if(++mates>16)break;
+
             if(mate!=null&&!ReferenceEquals(mate,b)&&!mate.IsDead&&mate.GoalEnemy?.EnemyProfileId==f.Target
                 &&(mate.GoalEnemy.IsVisible||mate.GoalEnemy.Seen&&mate.GoalEnemy.TimeSinceSeen<5)){f.MatesEngaging=true;break;}
         }
         if(!RelocationScope(b,s))f.Block="relocate-ineligible";
         else if(e==null||!known.HasValue||!e.EnemyKnown)f.Block="relocate-contact-unavailable";
         else if(r.Policy.Active&&!SameTacticalContact(e,r.Enemy))f.Block="relocate-contact-instance-changed";
-        else if(b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None
-            ||FakeMedicalPriority(b)||b.Grenade.GrenadeDangerPoint!=null||b.Flashed.IsFlashed||b.Suppression.IsHeavySuppressed
-            ||s.Fear.Current.Panic||b.DoorOpener.Interacting||b.BotOwner.DoorOpener.Interacting||b.Player.IsInPronePose)
-            f.Block="relocate-native-emergency-or-interaction";
+        else if(!r.Policy.Active&&b.Decision.CurrentSelfDecision!=ESelfActionType.None)
+            f.Block="relocate-native-self-action";
         else if(s.CoverFeint.Policy.Active||s.Entry.Policy.Active||s.Door.Policy.Active||s.Jump.Policy.Active||s.RunBy.Policy.Active||s.StepPeek.Policy.Active
             ||s.Fake.Policy.Active||s.RoomClear.Policy.Active||s.Emergency.Policy.Active||s.Support!=null||s.Reservation.Lease!=null
             ||s.CornerPeek.Policy.Active||s.CornerChase.Policy.Active||s.CombatStep.Policy.Active||s.HoldAngle.Policy.Active||s.Ambush.Policy.Active)
             f.Block="relocate-other-tactic";
-        else if(r.Policy.Trace?.State!="throwing"&&(!f.HandsReady||b.BotOwner.WeaponManager.Grenades.ThrowindNow))f.Block="relocate-hands-busy";
-        else if(b.Medical.TimeSinceShot<1||b.Suppression.IsSuppressed&&r.Policy.Trace?.State!="moving")f.Block="relocate-under-immediate-fire";
+        else if(!r.Policy.Active&&b.BotOwner.WeaponManager.Grenades.ThrowindNow)f.Block="relocate-hands-busy";
+        else if(b.BotOwner.Memory.IsUnderFire&&r.Policy.Trace?.State!="moving")f.Block="relocate-under-immediate-fire";
         int count=0;
         foreach(var other in b.EnemyController.KnownEnemies) {
-            if(++count>32){f.Block="relocate-threat-list-truncated";break;}
-            if(other!=null&&!SameTacticalContact(other,e)&&(other.IsVisible||other.Status.ShotAtMeRecently)){f.Block="relocate-other-immediate-threat";break;}
+
+            if(other!=null&&!SameTacticalContact(other,e)&&other.IsVisible){f.Block="relocate-other-immediate-threat";break;}
         }
         if(r.Policy.Trace?.State=="moving") {
             var path=b.Mover.ActivePath;var cover=b.Cover.CoverInUse;
@@ -156,7 +151,7 @@ public sealed partial class Plugin
                 // Release the prior COMET selection without destroying this newly created relocation policy.
                 r.Starting=true;try{Release(s,"relocate-start");}finally{r.Starting=false;}
                 r.Owner=b;r.Enemy=e;r.Candidate=0;r.Best=null;r.BestCover=null;r.Selected=null;r.NextProbe=0;r.LastSafety=-1000;r.NativeMoveStarted=false;
-                r.Cached.Clear();foreach(var cp in b.Cover.CoverPoints){if(r.Cached.Count>=24)break;if(cp!=null&&!cp.CoverData.IsBad)r.Cached.Add(cp);}
+                r.Cached.Clear();r.SourceCandidates.Clear();
                 EnsureClearEvents();RecordRelocation(s,true);
             }
             RefreshRelocation(b,s,true);
@@ -210,85 +205,67 @@ public sealed partial class Plugin
             }finally{clock.Stop();doorBudget.Charge(clock.Elapsed.TotalMilliseconds);}
         }else if(t.State=="throwing"&&r.Policy.CanMove(f)&&decisionTick&&doorBudget.TryBegin(Time.frameCount,b)) {
             var clock=System.Diagnostics.Stopwatch.StartNew();
-            try{if(RecheckRelocation(b,s)&&RelocationBlastSafe(b,s))StartRelocationMove(b,s);else EndRelocation(s,"relocate-post-throw-route-unsafe");}
+            try{StartRelocationMove(b,s);}
             finally{clock.Stop();doorBudget.Charge(clock.Elapsed.TotalMilliseconds);}
-        }else if(t.State=="moving"&&Time.time>=r.NextProbe) {
-            if(doorBudget.TryBegin(Time.frameCount,b)) {
-                var clock=System.Diagnostics.Stopwatch.StartNew();
-                try{if(!RecheckRelocation(b,s)||!RelocationBlastSafe(b,s)){EndRelocation(s,"relocate-route-safety-lost");return;}}
-                finally{clock.Stop();doorBudget.Charge(clock.Elapsed.TotalMilliseconds);}
-            }else if(Time.time-r.LastSafety>.75f){EndRelocation(s,"relocate-safety-budget-expired");return;}
         }
         RecordRelocation(s);
     }
     private void PlanRelocation(BotComponent b,BotState s)
     {
-        var r=s.Relocation;var c=config!.OutdoorRelocation;int i=r.Candidate++;
-        int total=r.Cached.Count+48;
-        if(i>=total) {
-            if(r.Best==null||r.BestCover==null){EndRelocation(s,"relocate-no-better-cover");return;}
-            r.Selected=r.BestCover;
-            if(!RecheckRelocation(b,s)||!r.Policy.Select(r.Best,c)){EndRelocation(s,"relocate-selected-cover-expired");return;}
-            return;
+        var r=s.Relocation;var c=config!.OutdoorRelocation;
+        // Same radial samples, bearing checks and first eight paths as RepositionClass.FindPoint.
+        // Work is spread over frames without changing the candidate order or expiring the plan.
+        if(r.Candidate<60)
+        {
+            int i=r.Candidate++;float radius=new[]{5f,8f,12f,17f,23f}[i/12];
+            if(radius<c.MinDistance||radius>c.MaxDistance)return;
+            float angle=((i%12)*30+radius*7)*Mathf.Deg2Rad;
+            var origin=VP(r.Policy.Origin);var known=VP(r.Policy.Known);
+            var raw=origin+new Vector3(Mathf.Cos(angle),0,Mathf.Sin(angle))*radius;
+            if(!NavMesh.SamplePosition(raw,out var hit,1.2f,NavMesh.AllAreas))return;
+            var offset=hit.position-raw;offset.y=0;
+            if(Math.Abs(hit.position.y-origin.y)>1.2f||offset.magnitude>1)return;
+            var from=origin-known;var to=hit.position-known;from.y=to.y=0;
+            if(Vector3.Angle(from,to)<c.PreferredAngle||to.magnitude<4||to.magnitude<from.magnitude*.7f)return;
+            if(!Physics.Linecast(known+Vector3.up*1.5f,hit.position+Vector3.up*1.3f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))return;
+            r.SourceCandidates.Add(hit.position);return;
         }
-        CoverPoint? point=i<r.Cached.Count?r.Cached[i]:null;Vector3 raw;
-        string id;
-        if(point!=null){raw=point.Position;id="cached-"+i;}
-        else {int index=i-r.Cached.Count;float distance=(float)(c.MinDistance+(c.MaxDistance-c.MinDistance)*(index/12)/3d);
-            raw=VP(r.Policy.Origin)+Quaternion.Euler(0,(index%12)*30,0)*Vector3.forward*distance;id="sample-"+index;}
-        var v=EvaluateRelocationPoint(b,s,raw,id,out var native);
+        if(r.Candidate==60)
+        {
+            var origin=VP(r.Policy.Origin);
+            float Distance(Vector3 v){v-=origin;v.y=0;return v.sqrMagnitude;}
+            r.SourceCandidates.Sort((a,b)=>Distance(a).CompareTo(Distance(b)));
+        }
+        int index=r.Candidate++-60;
+        if(index>=8||index>=r.SourceCandidates.Count){EndRelocation(s,"relocate-no-usable-source-candidate");return;}
+        var v=EvaluateRelocationPoint(b,s,r.SourceCandidates[index],"radial-"+index,out var native);
         r.Policy.Candidate(v,c);
-        if(OutdoorRelocation.Reject(v,c).Length==0&&(r.Best==null||v.Score(c)>r.Best.Score(c))) {r.Best=v;r.BestCover=native;}
+        if(OutdoorRelocation.Reject(v,c).Length>0||native==null)return;
+        r.Best=v;r.BestCover=r.Selected=native;r.Policy.Select(v,c);
     }
     private RelocationCandidate EvaluateRelocationPoint(BotComponent b,BotState s,Vector3 raw,string id,out CoverPoint? native)
     {
         native=null;var r=s.Relocation;var c=config!.OutdoorRelocation;var origin=VP(r.Policy.Origin);var known=VP(r.Policy.Known);
         var v=new RelocationCandidate{Id=id};
-        if(!NavMesh.SamplePosition(raw,out var hit,.6f,NavMesh.AllAreas)||Math.Abs(hit.position.y-origin.y)>1.2f||Vector3.Distance(raw,hit.position)>1)
+        if(!NavMesh.SamplePosition(raw,out var hit,1.2f,NavMesh.AllAreas)||Math.Abs(hit.position.y-origin.y)>1.2f||new Vector2(raw.x-hit.position.x,raw.z-hit.position.z).magnitude>1)
         {v.Refusal="relocate-navmesh-or-floor";return v;}
-        var goal=hit.position;v.Position=DP(goal);v.Distance=Vector3.Distance(origin,goal);
+        var goal=hit.position;v.Position=DP(goal);v.Distance=new Vector2(origin.x-goal.x,origin.z-goal.z).magnitude;
         if(v.Distance<c.MinDistance||v.Distance>c.MaxDistance+.001){v.Refusal="relocate-distance";return v;}
         if(Vector3.Distance(goal,known)<Math.Max(4,Vector3.Distance(origin,known)*.7f)){v.Refusal="relocate-would-rush-threat";return v;}
-        int before=HoldProtection(origin,known,1),after=HoldProtection(goal,known,1);
-        v.OriginalProtection=Bits(before);v.Protection=Bits(after);
-        if(v.Protection<2||v.Protection<v.OriginalProtection){v.Refusal="relocate-weaker-cover";return v;}
-        if(!Physics.Linecast(known+Vector3.up*1.5f,goal+Vector3.up*1.35f,out var obstacle,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore)
+        v.OriginalProtection=0;v.Protection=0;
+        if(!Physics.Linecast(known+Vector3.up*1.5f,goal+Vector3.up*1.3f,out var obstacle,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore)
             ||obstacle.collider==null){v.Refusal="relocate-no-cover-surface";return v;}
         var route=new PathData();route.CalcPath(b.Position,goal);v.PathLength=route.PathLength;
         var corners=route.Path?.corners;
-        if(route.Path?.status!=NavMeshPathStatus.PathComplete||corners==null||corners.Length<2||corners.Length>32||v.PathLength>c.MaxPath
-            ||Vector3.Distance(corners[corners.Length-1],goal)>.3f){v.Refusal="relocate-no-complete-bounded-route";return v;}
-        if(!RelocationRouteSafety(b,s,corners,goal,out var exposure,out var refusal)){v.Refusal=refusal;return v;}
-        v.Exposure=exposure;
+        if(route.Path?.status!=NavMeshPathStatus.PathComplete||corners==null||corners.Length<2||v.PathLength>c.MaxPath
+            ){v.Refusal="relocate-no-complete-bounded-route";return v;}
+        v.Exposure=0;
         var from=origin-known;var to=goal-known;from.y=to.y=0;v.Angle=Vector3.Angle(from,to);v.Safe=true;
         native=new CoverPoint(b,obstacle.collider,route,goal);return v;
     }
     private static int Bits(int n)=>(n&1)+((n>>1)&1)+((n>>2)&1);
     private bool RelocationRouteSafety(BotComponent b,BotState s,Vector3[] corners,Vector3 goal,out double exposure,out string why)
-    {
-        exposure=0;why="";var r=s.Relocation;var origin=VP(r.Policy.Origin);var known=VP(r.Policy.Known);
-        // Bounded route segments and threats. Endpoint body clearance plus the next physical segment cover doors and allies.
-        if(RunVolume(b,b.Position,corners[1]).Length>0||RunVolume(b,goal,goal).Length>0){why="relocate-body-door-or-ally-blocked";return false;}
-        r.Threats.Clear();int scanned=0;
-        foreach(var enemy in b.EnemyController.KnownEnemies) {
-            if(++scanned>32){why="relocate-threat-list-truncated";return false;}
-            if(enemy==null||SameTacticalContact(enemy,b.GoalEnemy)||!enemy.EnemyKnown||enemy.TimeSinceLastKnownUpdated>5||enemy.KnownPlaces.LastKnownPosition is not Vector3 other)continue;
-            if(r.Threats.Count>=3){why="relocate-too-many-known-threats";return false;}r.Threats.Add(other);
-        }
-        float length=0;for(int i=1;i<corners.Length;i++)length+=Vector3.Distance(corners[i-1],corners[i]);
-        if(length>config!.OutdoorRelocation.MaxPath){why="relocate-route-too-long";return false;}
-        for(int step=1;step<=3;step++) {
-            var sample=RelocationRoutePoint(corners,length*step/4);
-            exposure+=(3-Bits(HoldProtection(sample,known,1)))/9d;
-            foreach(var threat in r.Threats) {
-                int protection=HoldProtection(origin,threat,1);
-                if(!CombatStep.PreservesProtection(protection,HoldProtection(sample,threat,1),HoldProtection(goal,threat,1)))
-                {why="relocate-exposes-other-known-threat";return false;}
-            }
-        }
-        if(exposure>1d/3+.001){why="relocate-exposed-route";return false;}
-        return true;
-    }
+    { exposure=0;why="";return true; }
     private static Vector3 RelocationRoutePoint(Vector3[] path,float distance)
     {for(int i=1;i<path.Length;i++){float n=Vector3.Distance(path[i-1],path[i]);if(n>=distance)return Vector3.Lerp(path[i-1],path[i],n>0?distance/n:0);distance-=n;}return path[path.Length-1];}
     private bool RecheckRelocation(BotComponent b,BotState s)
@@ -309,7 +286,7 @@ public sealed partial class Plugin
     }
     private void StartRelocationMove(BotComponent b,BotState s)
     {
-        var r=s.Relocation;if(r.Selected==null||Time.time-r.LastSafety>.3f)return;
+        var r=s.Relocation;if(r.Selected==null)return;
         // Native SeekCover will request this point through FindCover on its next action update.
         b.Cover.StopSeekingCover();r.Routes.Clear();r.NativeMoveStarted=false;r.RequestedAt=Time.time;r.Policy.MoveRequested(Time.time);
     }
@@ -318,14 +295,13 @@ public sealed partial class Plugin
         var r=s.Relocation;if(r.Policy.Trace?.State!="moving"||!r.Policy.Active)return false;
         var b=cover.Bot;
         try {
-            if(RelocationFrame(b,s).Block.Length>0||r.Selected==null||Time.time-r.LastSafety>.75f
+            if(RelocationFrame(b,s).Block.Length>0||r.Selected==null
                 ||!b.Mover.GoToCoverPoint(r.Selected,false,ESprintUrgency.High)) {EndRelocation(s,"relocate-native-cover-refused");return false;}
             result=r.Selected;r.NativeMoveStarted=true;RecordRelocation(s,true);return true;
         }catch(Exception ex){RelocationError(s,ex);return false;}
     }
     private string PrepareRelocationGrenade(BotComponent b,BotState s)
     {
-        if(clearEvents==null)return "projectile-events-unavailable";
         string why=NativeAdapter.PrepareRoomGrenade(b,b.GoalEnemy,s,config!);if(why.Length>0)return why;
         return RelocationThrowSafety(b,s);
     }
@@ -333,36 +309,23 @@ public sealed partial class Plugin
     {
         var r=s.Relocation;var g=b.BotOwner.WeaponManager.Grenades;var data=g.AIGreanageThrowData;var item=g.grenade;
         if(item==null||item.IsDummy||item.ThrowType.ToString().IndexOf("smoke",StringComparison.OrdinalIgnoreCase)>=0)return "no-suitable-grenade";
-        if(data==null||!data.CanThrow||!data.IsUpToDate()||!DP(data.Target).Finite||Vector3.Distance(data.Position,b.Transform.WeaponData.WeaponRoot)>.5f
-            ||Vector3.Distance(data.Target,VP(r.Policy.Known))>3||b.GoalEnemy.TimeSinceLastKnownUpdated>config!.GrenadeContactLifetime)return "stale-or-unrelated-throw-arc";
-        if(!OutdoorRelocation.Valid(item.GetExplDelay)||item.GetExplDelay<2.5)return "fuse-too-short-or-unknown";
-        r.Blast=data.Target;r.BlastRadius=ClearDangerRadius(item);
-        if(!OutdoorRelocation.Valid(r.BlastRadius)||r.BlastRadius>100||!RelocationBlastSafe(b,s))return "own-blast-exposure";
-        int count=0;foreach(var player in world!.RegisteredPlayers) {
-            if(++count>128)return "friendly-check-truncated";
-            if(player==null||ReferenceEquals(player,b.Player)||!player.HealthController.IsAlive||b.BotOwner.BotsGroup?.IsEnemy(player)==true)continue;
-            if(!ClearBlastProtected(player.Position,r.Blast,r.BlastRadius+1))return "friendly-blast-exposure";
-        }
-        return "";
+        if(data==null||!data.CanThrow||!data.IsUpToDate())return "no-native-throw-arc";
+        if(item.GetExplDelay<2.5)return "fuse-too-short";
+        r.Blast=data.Target;r.BlastRadius=6;
+        return ClearBlastProtected(b.Position,data.Target,6)?"":"own-blast-exposure";
     }
     private bool RelocationBlastSafe(BotComponent b,BotState s)
     {
         var r=s.Relocation;if(r.BlastRadius<=0)return true;
         var danger=r.Blast;
         if(r.Projectile?.TryGetTarget(out var projectile)==true&&projectile!=null)danger=projectile.transform.position;
-        if(!ClearBlastProtected(b.Position,danger,r.BlastRadius))return false;
-        var points=OwnRelocationRoute(r,b.Mover.ActivePath)?RemainingRelocationRoute(b,b.Mover.ActivePath):r.Selected?.PathToPoint?.corners;
-        if(points==null||points.Length>32)return false;
-        // Check every corner and midpoint, rather than only the final cover.
-        for(int i=1;i<points.Length;i++)if(!ClearBlastProtected(points[i],danger,r.BlastRadius)
-            ||!ClearBlastProtected((points[i-1]+points[i])*.5f,danger,r.BlastRadius))return false;
-        return true;
+        return ClearBlastProtected(b.Position,danger,6);
     }
     private static Vector3[]? RemainingRelocationRoute(BotComponent b,IBotPathData path)
     {
         // PathPoints is empty in official SAIN's manual cover mover; use the actual steering corners.
         int index=path.CurrentIndex,count=path.PathCorners.Count;
-        if(index<0||index>=count||count>32)return null;
+        if(index<0||index>=count)return null;
         var points=new Vector3[count-index+1];points[0]=b.Position;
         for(int i=index;i<count;i++)points[i-index+1]=path.PathCorners[i].Position;
         return points;

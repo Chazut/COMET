@@ -58,7 +58,7 @@ public sealed class RetreatWeavePolicy
     {
         if(!c.Enabled||!c.Weave&&!c.HeadDown&&!c.Jumps)return "weave-disabled";
         if(f.Block.Length>0)return f.Block;
-        if(f.Target.Length==0||f.Context.Length==0||f.Source!="personal-vision"&&f.Source!="personal-fire")return "weave-no-personal-threat";
+        if(f.Target.Length==0||f.Context.Length==0)return "weave-no-personal-threat";
         if(!CornerChase.Point(f.Position)||!CornerChase.Point(f.Known)||!CornerChase.Point(f.Goal))return "weave-invalid-position";
         if(!Nonnegative(f.Now)||!Nonnegative(f.VisionAge)||!Nonnegative(f.FireAge)||!Nonnegative(f.Distance)||!Nonnegative(f.RearAngle)
             ||!Nonnegative(f.Speed)||!Nonnegative(f.GoalDistance)||!Nonnegative(f.GoalHeight)||!Nonnegative(f.GeometryAge))return "weave-invalid-evidence";
@@ -80,13 +80,10 @@ public sealed class RetreatWeavePolicy
         if(reason.Length==0&&!running)reason="weave-not-running";
         if(reason.Length==0&&(was?Math.Min(f.VisionAge,f.FireAge)>=10:f.VisionAge>=2&&f.FireAge>=3))reason="weave-threat-memory-expired";
         if(reason.Length==0&&f.RearAngle<=90&&!(was&&f.Now<headUntil&&f.RearAngle>80))reason="weave-threat-no-longer-behind";
-        if(reason.Length==0&&stuck)reason="weave-progress-blocked";
         double yaw=0,pitch=0;string jump="";
         if(reason.Length==0) {
             if(!was){sign=random()<.5?-1:1;nextSwitch=f.Now+Interval(c,random);headUntil=f.Now+.8;progressAt=f.Now;bestDistance=f.GoalDistance;}
-            if(f.GoalDistance<bestDistance-.25){bestDistance=f.GoalDistance;progressAt=f.Now;}
-            if(f.Now-progressAt>1.2&&f.Grounded){reason="weave-no-cover-progress";stuck=true;}
-            else {
+            {
                 Active=true;reason="weave-running-from-known-threat";pitch=c.HeadDown?c.Pitch:0;
                 bool fresh=f.GeometryAge<=c.Refresh+.05;
                 bool fast=f.Speed>=c.JumpMinSpeed&&f.ForwardDot>.85;
@@ -109,8 +106,8 @@ public sealed class RetreatWeavePolicy
                         if(clear)yaw=sign*c.Angle;else reason="weave-blocked-use-native-route";
                     }
                 }
-                if(!fresh){pitch=0;reason="weave-safety-pending";}
-                if(!f.Straight){pitch=0;reason="weave-keep-environment-in-view";}
+
+
                 if(jump.Length>0){requests++;straightUntil=f.Now+.8;pendingUntil=0;yaw=0;}
             }
         }

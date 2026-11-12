@@ -68,7 +68,7 @@ namespace Comet.Client {
   private readonly Dictionary<BotComponent,BotState> states=new();
   public Plugin(){Instance=this;}
   public IEnumerator Wrap(CoverFinderComponent f){IEnumerator e=f.Original();WrapCoverScan(f,ref e);return e;}
-  public bool Validate(BotComponent b,CoverPoint point){bool result=false;return ValidateScanCover(new(b),point,ref result);}
+  public bool Validate(BotComponent b,CoverPoint point){bool result=false;return Plugin.SelectionCoverUsable(b,point,out _);}
   public void Sweep()=>CheckCoverScans();public void End()=>EndCoverScans();public void Stop(CoverFinderComponent f)=>StopCoverScan(f);
   public int Count=>coverScans.Count;public int Warnings=>Logger.Warnings.Count;public void Patches()=>PatchCoverScan(new());
  }

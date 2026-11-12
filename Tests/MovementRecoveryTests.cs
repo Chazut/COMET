@@ -16,12 +16,9 @@ internal static class MovementRecoveryTests
   for(int i=0;i<=60;i++){f.Now=i*.5;f.Route="route-"+i;f.Owner=i%2==0?"SAIN":"external-mover";f.Action=i%3==0?"Search":"Push";var a=p.Observe(f,c);if(a.Length>0){commands.Add(a);p.Result(true,"accepted");}Check(p.Trace.State!="recovered","accepted action is not success");}
   Check(string.Join(",",commands)=="early-vault,repath,vault-or-jump,stop","order, optional hop OFF, one request per incident despite path churn");
   Check(!p.Handling&&p.Trace.State=="exhausted","bounded A12 ownership ends");
-  Check(p.RepositionBlock(c)=="movement-awaiting-real-progress","exhausted mover cannot be selected to flank");
-  c.Enabled=false;Check(p.RepositionBlock(c)=="","disabled recovery does not keep a stale flank restriction");c.Enabled=true;
   f.X=.3;f.Now+=.5;p.Observe(f,c);Check(p.Trace.State=="exhausted","small jitter cannot reset exhausted incident");
   f.Y=2;f.Now+=.5;p.Observe(f,c);Check(p.Trace.State=="exhausted","jump height alone is not real route progress");
   f.X=.7;f.Now+=.5;p.Observe(f,c);Check(p.Trace.State=="recovered"&&p.Trace.ValidFor==0,"real progress confirms recovery");
-  Check(p.RepositionBlock(c)=="","real movement clears the flank restriction");
   p=new();f=new(){Intent=true};for(int i=0;i<=4;i++){f.Now=i*.5;p.Observe(f,c);}double before=p.Trace.StalledSeconds;
   f.Pause="medical";for(int i=5;i<=44;i++){f.Now=i*.5;Check(p.Observe(f,c)==""&&!p.Handling&&p.Trace.ValidFor==0,"medical pauses are protected");}
   f.Pause="";f.Now+=.5;p.Observe(f,c);Check(p.Trace.StalledSeconds==before,"pause does not count or erase evidence");

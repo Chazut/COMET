@@ -101,6 +101,14 @@ public sealed class PresetLibrary
             return result;
         }
         var merged = Merge(supplied, baseline, "");
+        // The merge fills absent metadata too; consult the imported document, not
+        // the defaults, before deciding whether this was an old behaviour preset.
+        if (supplied[nameof(CometConfig.BehaviorBaseline)]?.GetValue<string>() != CometConfig.SourceBaseline)
+        {
+            merged.Remove(nameof(CometConfig.BehaviorBaseline));
+            SourceBaselineMigration.Upgrade(merged);
+            if (!missing.Contains(nameof(CometConfig.BehaviorBaseline))) missing.Add(nameof(CometConfig.BehaviorBaseline));
+        }
         var config = merged.Deserialize<CometConfig>(Json) ?? throw new InvalidDataException("Empty COMET preset.");
         config.Validate();
         return new(name, config, missing);
@@ -121,6 +129,9 @@ public sealed class PresetLibrary
         // Preserve omissions in an older library entry: export must not silently accept new defaults.
         foreach (var path in preset.AddedSettings)
         {
+            // Export the migrated baseline explicitly, otherwise its next import
+            // would migrate the already reviewed settings a second time.
+            if (path == nameof(CometConfig.BehaviorBaseline)) continue;
             var parts = path.Split('.'); JsonObject parent = settings;
             foreach (var part in parts[..^1]) parent = parent[part]!.AsObject();
             parent.Remove(parts[^1]);

@@ -82,19 +82,6 @@ public sealed class SainHandoff
         // One aggregate reason per second at most; no per-frame refusal spam.
         pathCheckLoggedAt=now;return true;
     }
-    public bool TryGrace(double now,HandoffCue contact,bool temporary,bool safe,string unsafeReason="unsafe-native-path")
-    {
-        if(!Clock(now))return false;
-        bool same=Valid(cue)&&Valid(contact)&&cue.Target==contact.Target&&cue.Visible==contact.Visible
-            && Math.Abs(contact.X-cue.X)<.5 && Math.Abs(contact.Y-cue.Y)<.5 && Math.Abs(contact.Z-cue.Z)<.5;
-        pathCheck=Yielded?"already-yielded":action.Length==0?"no-owned-action":!temporary?"not-a-temporary-path-loss":
-            !safe?unsafeReason:!same?"known-contact-changed":config.Grace==0?"path-grace-disabled":
-            !Finite(graceStart)&&graceUsed?"path-grace-used":Finite(graceStart)&&now-graceStart>=config.Grace?"path-grace-expired":"";
-        Current.PathCheck=pathCheck;
-        if(pathCheck.Length>0)return false;
-        if(!Finite(graceStart)) { graceUsed=true; graceStart=now; }
-        reason="handoff-safe-path-grace";kind="temporary";Current=Trace(now,"grace");return true;
-    }
     public bool Begin(double now,string why,string category,HandoffCue contact)
     {
         if(!Clock(now))return false;
@@ -103,23 +90,19 @@ public sealed class SainHandoff
         if(Yielded && retryAdmitted && reason==why && kind==category)
         {
             // A real retry failed again: bound future work, without logging the same handoff every second.
-            retryAdmitted=false;until=now+(fault?config.ErrorRetry:config.Retry);cue=Copy(contact);
+            retryAdmitted=false;until=fault?now+config.ErrorRetry:now;cue=Copy(contact);
             Current=Trace(now,observed?"native-observed":"native-pending");return false;
         }
         retryAdmitted=false;
         Yielded=true; observed=false; reason=why; kind=category; cue=Copy(contact);
-        until=now+(fault?config.ErrorRetry:config.Retry); graceStart=double.NaN; combat=self=squad="";
+        until=fault?now+config.ErrorRetry:now; graceStart=double.NaN; combat=self=squad="";
         Current=Trace(now,"native-pending");return true;
     }
     public bool Blocked(double now,HandoffCue contact)
     {
         if(!Clock(now))return true;
         if(!Yielded)return false;
-        bool fresh=Valid(contact)&&Valid(cue)&&contact.At>cue.At+.05&&now-contact.At>=0&&now-contact.At<=1
-            && ((!cue.Visible && contact.Visible) || (contact.Target==cue.Target
-                && Math.Pow(contact.X-cue.X,2)+Math.Pow(contact.Y-cue.Y,2)+Math.Pow(contact.Z-cue.Z,2)>=1));
-        // Merely changing target, replaying a cue, or an error does not bypass the retry delay.
-        bool blocked=now<until && (kind=="error" || !fresh);
+        bool blocked=kind=="error" && now<until;
         if(!blocked)retryAdmitted=true;
         Current=Trace(now,observed?"native-observed":"native-pending");return blocked;
     }

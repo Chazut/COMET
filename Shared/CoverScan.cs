@@ -83,7 +83,7 @@ public sealed class CoverScanRunner<T> : IEnumerator, IDisposable
     {
         if (disposed || !owned) return;
         int m = mode(); string target = contact();
-        if (m != 1 || target.Length == 0 || target != context)
+        if (m != 1)
             Invalidate(m != 1 ? "cover-scan-out-of-scope" : "cover-scan-contact-changed");
     }
     public bool MoveNext()
@@ -105,18 +105,14 @@ public sealed class CoverScanRunner<T> : IEnumerator, IDisposable
                 nativePartial = false; Restart(); context = target; owned = true;
             }
             if (Scanning && clock() < started) { Restart(); Current = pause; return true; }
-            if (Scanning && clock() - started >= limit())
-            {
-                Report("timeout", "cover-scan-timeout-retaining-results"); Restart();
-                Current = pause; return true;
-            }
+            context=target;
             if (!Scanning) { Scanning = true; started = clock(); Working.Clear(); Trace.Scan++; }
             bool next;
             redirect(this, true);
             try { next = native.MoveNext(); } finally { redirect(this, false); }
             Current = native.Current;
             // A contact may be replaced by native callbacks during MoveNext.
-            if (mode() != 1 || contact() != context) { Invalidate("cover-scan-context-changed-during-step"); Current = pause; return true; }
+            if (mode() != 1) { Invalidate("cover-scan-context-changed-during-step"); Current = pause; return true; }
             if (!next) { Dispose(); return false; }
             if (complete(native))
             {

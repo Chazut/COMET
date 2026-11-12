@@ -93,25 +93,17 @@ public sealed class SquadStormPlan
     {
         if(!Active)return false;
         if(!MedicalChoice.Finite(now)||now<Started||!c.Enabled){End("storm-disabled-or-clock-reset");return false;}
-        if(Evidence.Danger||!MedicalChoice.Finite(Evidence.Score)||Evidence.Score<c.Weakness||!MedicalChoice.Finite(Evidence.Until)||now>=Evidence.Until||now>=Until){End("storm-opening-ended");return false;}
-        foreach(var m in Members.Where(x=>x.Status is not ("ended" or "declined")))
-            if(m.LastCallback>=0&&now-m.LastCallback>=1)Drop(m.Id,"storm-execution-expired");
-        if(!Active)return false;
+        if(now>=Until){End("storm-opening-ended");return false;}
         if(State=="preparing")
         {
-            if(now-Started>c.PrepareTimeout){End("storm-preparation-timeout");return false;}
-            var ready=Members.Where(m=>m.Ready&&m.LastCallback>=0&&now-m.LastCallback<1).ToArray();
-            if(ready.Length>=c.MinimumAttackers)
+            // zzap shares the opportunity, then each volunteer acts independently.
+            // It does not require simultaneous route/callback confirmations.
+            if(Members.Any(m=>m.Ready&&m.Status is not ("ended" or "declined")))
             {
-                // Measured route ETA is checked at departure, not only when the plan was proposed.
-                if(ready.Any(m=>!MedicalChoice.Finite(m.Eta)||m.Eta<0)||Evidence.Cue.Length>0&&ready.Any(m=>now+m.Eta>=Evidence.Until)){End("storm-too-late-for-opening");return false;}
-                State="active";Departure=now;Until=Math.Min(Until,now+c.Duration);Reason="storm-common-departure";
+                State="active";Departure=now;Until=now+c.Duration;Reason="storm-volunteer-departure";
 
             }
-            else if(now-Started>=c.PrepareTimeout||Members.Count(m=>m.Status is not ("ended" or "declined"))<c.MinimumAttackers)
-            {End(now-Started>=c.PrepareTimeout?"storm-preparation-timeout":"storm-not-enough-ready-attackers");return false;}
         }
-        if(State=="active"&&now-Started>=c.PrepareTimeout)foreach(var m in Members.Where(m=>!m.Ready&&m.Status is not ("ended" or "declined")).ToArray())Drop(m.Id,"storm-preparation-timeout");
         return Active;
     }
     public SquadStormTrace Trace(string id,double now,SquadStormConfig c)
@@ -136,8 +128,8 @@ public sealed class SquadStormBoard
         if(plans.TryGetValue(group,out var old)&&old.Active)return old.Enemy==enemy?old:null;
         if(old!=null){Finish(old,now,c,old.Reason);plans.Remove(group);}
         string key=group+"/"+enemy;
-        if(history.TryGetValue(key,out var h)&&(now<h.until||e.At<=h.evidence+.001))return null;
-        if(plans.Count>=128||history.Count>=512&&!history.ContainsKey(key)||members.Count<2||members.Count>16||members.Select(x=>x.Id).Distinct().Count()!=members.Count)return null;
+        if(history.TryGetValue(key,out var h)&&now<h.until)return null;
+        if(members.Count<2||members.Select(x=>x.Id).Distinct().Count()!=members.Count)return null;
         var p=new SquadStormPlan{Id="storm-"+(++serial),Group=group,Enemy=enemy,Observer=e.Source,Started=now,Until=now+c.PrepareTimeout+c.Duration,EvidenceAt=e.At,Evidence=e};
         foreach(var m in members)
         {
@@ -147,7 +139,7 @@ public sealed class SquadStormBoard
             p.Members.Add(m);
         }
         history[key]=(now+c.Retry,e.At);LastAttempt=p;
-        if(p.Members.Count(x=>x.Status!="declined")<c.MinimumAttackers){p.End("storm-not-enough-volunteers");return null;}
+        if(!p.Members.Any(x=>x.Status!="declined")){p.End("storm-no-volunteer");return null;}
         plans[group]=p;return p;
     }
     public void Finish(SquadStormPlan p,double now,SquadStormConfig c,string why)

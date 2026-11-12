@@ -8,16 +8,16 @@ using SAIN.SAINComponent.Classes.Decision;
 using SAIN.SAINComponent.Classes.EnemyClasses;
 using UnityEngine;
 namespace UnityEngine {
- public struct Vector3(float x,float y,float z){public float x=x,y=y,z=z;public float magnitude=>(float)Math.Sqrt(x*x+y*y+z*z);public static float Distance(Vector3 a,Vector3 b)=>new Vector3(a.x-b.x,a.y-b.y,a.z-b.z).magnitude;}
+ public struct Vector3(float x,float y,float z){public static Vector3 operator *(Vector3 a,float f)=>new(a.x*f,a.y*f,a.z*f);public static Vector3 up=>new(0,1,0);public static Vector3 operator +(Vector3 a,Vector3 b)=>new(a.x+b.x,a.y+b.y,a.z+b.z);public float x=x,y=y,z=z;public float magnitude=>(float)Math.Sqrt(x*x+y*y+z*z);public static float Distance(Vector3 a,Vector3 b)=>new Vector3(a.x-b.x,a.y-b.y,a.z-b.z).magnitude;}
  public static class Time{public static float time=10,realtimeSinceStartup=10;public static int frameCount;}
 }
 namespace EFT {
  public enum EBodyPart{Head,Chest,Stomach,LeftArm,RightArm,LeftLeg,RightLeg,Common}
- public enum ETagStatus{Healthy,Dying}
+ public enum ETagStatus{Healthy,Injured,BadlyInjured,Dying}
  public interface IMedsController{}
  public class Hands{public Item? Item;public bool Busy;public bool IsInInteractionStrictCheck()=>Busy;}
  public class MedHands:Hands,IMedsController{}
- public class Player{public class FirearmController:Hands{public bool Ready=true;}public Hands HandsController=new();public Vector3 Velocity;public bool IsSprintEnabled;public ActiveHealthController HealthController=new();public Inventory Inventory=new();public InventoryController InventoryController=new();}
+ public class Player{public Movement MovementContext=new();public class FirearmController:Hands{public bool Ready=true;}public Hands HandsController=new();public Vector3 Velocity;public bool IsSprintEnabled;public ActiveHealthController HealthController=new();public Inventory Inventory=new();public InventoryController InventoryController=new();}
  public class Inventory{public object Equipment=new();}
  public class InventoryController{public List<Meds> Items=new();public void GetAcceptableItemsNonAlloc<T>(EquipmentSlot[] slots,List<T> list){list.AddRange(Items.OfType<T>());}}
  public class BotOwner {
@@ -70,20 +70,20 @@ public class NativeMed(Player p){public bool _lastIsCanceled; public bool _using
  if(Bhf){Using=false;Done?.Invoke();}else{Done?.Invoke();Using=false;}
  Player.HandsController=new();}
 }
-public class BotFirstAid(Player p):NativeMed(p){public bool CanUseByTime()=>Time.time>=_nextPosibleUseTime;public void TryApplyToCurrentPart(int? animation=null,Action? callback=null)=>Begin(CurUsingMeds,callback);}
-public class BotSurgicalKit(Player p):NativeMed(p){public void ApplyToCurrentPart(Action? callback=null)=>Begin(CurUsingMeds,callback);}
+public class BotFirstAid(Player p):NativeMed(p){public bool IsBleeding;public bool CanUseByTime()=>Time.time>=_nextPosibleUseTime;public void TryApplyToCurrentPart(int? animation=null,Action? callback=null)=>Begin(CurUsingMeds,callback);}
+public class BotSurgicalKit(Player p):NativeMed(p){public bool ShallStartUse()=>true;public void ApplyToCurrentPart(Action? callback=null)=>Begin(CurUsingMeds,callback);}
 public class BotStimulators(Player p):NativeMed(p){public Stimulator? _stimulator;public float LastEndUseTime;public bool CanUseNow()=>Time.time>=_nextPosibleUseTime;public void TryApply(bool noCheckDelay=false,int? animation=null,Action<bool>? callback=null)=>Begin(_stimulator,()=>callback?.Invoke(true));}
-namespace SAIN.Preset.Shared.Enums{public enum ESelfActionType{None,Reload,FirstAid,Stims,Surgery}public enum ECombatDecision{None,AvoidGrenade}public enum SAINSoundType{FootStep,Sprint,Shot}}
+namespace SAIN.Preset.Shared.Enums{public enum ESelfActionType{None,Reload,FirstAid,Stims,Surgery}public enum ECombatDecision{None,AvoidGrenade,SeekCover,Retreat,RunAway}public enum SAINSoundType{FootStep,Sprint,Shot}}
 namespace SAIN.Components{
- public class BotComponent{public string ProfileId="pmc";public bool Pmc=true,BotActive=true,IsDead,GameEnding,SAINLayersActive=true;public Player Player=new();public BotOwner BotOwner;public Medical Medical=new();public Info Info=new();public Cover Cover=new();public Vector3 Position;public EnemyController EnemyController=new();public Decision Decision=new();public Grenade Grenade=new();public Mover Mover=new();public BotComponent(){BotOwner=new(Player);}}
- public class Medical{private float hitAt=Time.time-10;public float TimeSinceShot{get=>Time.time-hitAt;set=>hitAt=Time.time-value;}}public class Info{public string Personality="Normal";}public class Cover{public Point? CoverInUse=new();}public class Point{public bool BotInThisCover=true;}
+ public class BotComponent{public HealthMemory Memory=new();public string ProfileId="pmc";public bool Pmc=true,BotActive=true,IsDead,GameEnding,SAINLayersActive=true;public Player Player=new();public BotOwner BotOwner;public Medical Medical=new();public Info Info=new();public Cover Cover=new();public Vector3 Position;public EnemyController EnemyController=new();public Decision Decision=new();public Grenade Grenade=new();public Mover Mover=new();public BotComponent(){BotOwner=new(Player);}}
+ public class Medical{private float hitAt=Time.time-10;public float TimeSinceShot{get=>Time.time-hitAt;set=>hitAt=Time.time-value;}}public class Info{public string Personality="Normal";}public class Cover{public Point? CoverInUse=new();}public class Point{public Vector3 Position;public bool BotInThisCover=true;}
  public class EnemyController{public List<Enemy> KnownEnemies=new();}public class Decision{public ESelfActionType CurrentSelfDecision;public ECombatDecision CurrentCombatDecision;}
  public class Grenade{public object? GrenadeDangerPoint;}public class Mover{public int Stops;public void Stop()=>Stops++;}
 }
 namespace SAIN.SAINComponent.Classes.Decision{public class SelfActionDecisionClass(BotComponent bot){public BotComponent Bot=bot;}public class SAINSelfActionClass(BotComponent bot){public BotComponent Bot=bot;public void DoFirstAid(){}public void DoStims(){}public void DoSurgery(){}}}
 namespace SAIN.SAINComponent.Classes.EnemyClasses{
- public class Enemy(BotComponent b){public BotComponent Bot=b;public bool EnemyKnown=true,IsVisible;public string EnemyProfileId="enemy";public Places KnownPlaces=new();}
- public class Places{public EnemyPlace? LastSeenPlace=new();public EnemyPlace? LastHeardPlace;}
+ public class Enemy(BotComponent b){public BotComponent Bot=b;public bool Seen=true;public float TimeSinceSeen=100;public bool EnemyKnown=true,IsVisible,InLineOfSight;public float TimeSinceLastKnownUpdated=>KnownPlaces.LastSeenPlace?.TimeSincePositionUpdated??0;public EnemyPath Path=new();public string EnemyProfileId="enemy";public Places KnownPlaces=new();}
+ public class Places{public Vector3? LastKnownPosition=>LastSeenPlace?.Position??LastHeardPlace?.Position;public EnemyPlace? LastSeenPlace=new();public EnemyPlace? LastHeardPlace;}
  public class EnemyPlace{public Vector3 Position=new(60,0,0);public float TimeSincePositionUpdated=30;}
  public class EnemyEvents{public void EnemyHeard(SAINSoundType type,bool report,EnemyPlace p){}}
 }
@@ -117,3 +117,11 @@ namespace Comet.Client{
 }
 
 namespace Comet.Client { public sealed partial class Plugin { private bool PostCombatMedicalScope(SAIN.Components.BotComponent b)=>false; private bool PostSurgeryTooSoon(SAIN.Components.BotComponent b,BotState s)=>false; private bool PostReachedCover(SAIN.Components.BotComponent b,BotState s)=>false; } }
+
+namespace SAIN.Components {public class HealthMemory {public HealthMemoryStatus Health=new();}public class HealthMemoryStatus {public EFT.ETagStatus HealthStatus=EFT.ETagStatus.Injured;}}
+namespace SAIN.SAINComponent.Classes.EnemyClasses {public class EnemyPath {public float PathLength=60;}}
+
+namespace EFT {public class Movement {public bool CanSprint=true;}}
+namespace UnityEngine {public static class Physics {public static bool Block;public static bool Linecast(Vector3 a,Vector3 b,int mask)=>Block;}}
+public static class LayersMaskController {public const int HighPolyWithTerrainMask=1;}
+namespace UnityEngine {public static class Random {public static float Range(float min,float max)=>min;}}

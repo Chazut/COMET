@@ -36,15 +36,12 @@ public static class DoorHoldSelection
         if(!Fraction(currentProtection)||!Fraction(candidateProtection)||!Finite(pathLength)||pathLength<0||!Finite(available)||available<=0
             ||!Finite(waitDuration)||waitDuration<=0||!Finite(minimum)||minimum<0||!Finite(approachLimit)||approachLimit<=0)
         {t.Outcome="reconsider";t.Reason="hold-door-invalid-or-expired";return t;}
-        if(currentAngle&&Protected(currentProtection))
-        {t.Outcome="stay";t.Reason="hold-door-current-angle-good";t.UsefulWait=Math.Min(available,waitDuration);return t;}
-        t.EstimatedTravel=pathLength/EstimatedWalkingSpeed+SettleAllowance;
-        t.UsefulWait=Math.Max(0,Math.Min(waitDuration,available-t.EstimatedTravel));
-        string refusal=!candidateSafe?"hold-door-no-safe-angle":!Protected(candidateProtection)?"hold-door-insufficient-protection":
-            candidateProtection+1e-6<currentProtection?"hold-door-worse-protection":
-            t.EstimatedTravel>approachLimit||t.UsefulWait+1e-6<minimum||t.UsefulWait<=0?"hold-door-not-enough-time":"";
-        if(refusal.Length>0){t.Outcome=Protected(currentProtection)?"native-hold":"reconsider";t.Reason=refusal;}
-        else {t.Outcome="move";t.Reason="hold-door-useful-reposition";}
+        if(currentAngle)
+        {t.Outcome="stay";t.Reason="hold-door-current-angle-good";t.UsefulWait=waitDuration;return t;}
+        t.EstimatedTravel=pathLength/EstimatedWalkingSpeed;
+        t.UsefulWait=waitDuration;
+        t.Outcome=candidateSafe?"move":"native-hold";
+        t.Reason=candidateSafe?"hold-door-useful-reposition":"hold-door-no-angle";
         return t;
     }
     private static double Safe(double x)=>Finite(x)&&x>=0?x:0;

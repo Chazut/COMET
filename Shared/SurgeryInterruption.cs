@@ -37,6 +37,7 @@ public sealed class SurgeryEvidence
 public sealed class SurgeryFrame
 {
     public double Now;
+    public bool SourceAllowed=true;
     public bool Hit, Grenade, NativeCancelled, Hands, OperationPending, Completed, WeaponReady;
     public readonly List<SurgeryEvidence> Evidence = new();
 }
@@ -86,22 +87,11 @@ public sealed class SurgeryInterruption
         t.Reason="surgery-continue-safe";t.Evidence=null;
         t.Alternatives=new[]{"continue: no qualifying personal danger","interrupt: thresholds not reached"};
         if(f.NativeCancelled)t.Reason="surgery-native-cancel-observed";
-        else if(f.Hit)t.Reason="surgery-new-hit";
-        else if(f.Grenade)t.Reason="surgery-detected-grenade";
-        else foreach(var e in f.Evidence)
-        {
-            if(!MedicalChoice.Finite(e.Age)||e.Age<0||!MedicalChoice.Finite(e.Distance)||e.Distance<0)continue;
-            bool qualifies=e.Kind=="visible"?e.Distance<=c.VisibleDistance:
-                e.Kind=="footstep"?e.Distance<=c.FootstepDistance&&e.Age<c.FootstepAge:
-                e.Kind=="known"&&e.Distance<=c.KnownDistance&&e.Age<c.KnownAge;
-            if(qualifies){t.Reason="surgery-"+e.Kind+"-threat";t.Evidence=e;break;}
-            t.Reason="surgery-continue-distant-or-stale";
-            if(t.Evidence==null||e.Distance<t.Evidence.Distance)t.Evidence=e;
-        }
+        else if(!f.SourceAllowed)t.Reason="surgery-source-area-not-clear";
         t.Applied=f.Hands;t.ValidFor=t.Applied?1:0;
         if(t.Reason.StartsWith("surgery-continue",StringComparison.Ordinal))return false;
         t.Requested=true;t.State="cancel-requested";t.Applied=true;t.ValidFor=1;
-        cancelAt=f.Now;RetryAt=f.Now+c.RetryDelay;t.RetryRemaining=c.RetryDelay;
+        cancelAt=f.Now;RetryAt=0;t.RetryRemaining=0;
         t.Alternatives=new[]{"interrupt: personal danger or native cancellation","continue: unsafe","restart surgery: wait, then recheck H01 safety"};
         return !f.NativeCancelled;
     }

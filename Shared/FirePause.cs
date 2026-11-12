@@ -51,14 +51,14 @@ public sealed class FirePause
 {
     public FirePauseTrace? Trace { get; private set; }
     public bool Pausing=>Trace?.State is "braking" or "settled";
-    public bool Waiting=>Trace?.State=="waiting";
+    public bool Waiting=>Trace?.State is "waiting" or "resumed";
     private double durationRoll,requestedAt,settledAt,last,deadline,sequenceDeadline;
     private const double StationarySpeed=.12, StableTime=.05, MaxGap=.1;
-    private double stableSince=-1;
+    private int tapsAtLastPlant;
     public void Begin(int episode,string target,double now,double roll,double durationSample,FirePauseConfig c)
     {
         if(!DoorPolicy.Finite(now)||!Unit(roll)||!Unit(durationSample))throw new ArgumentException("Firing pause: invalid sample.");
-        durationRoll=durationSample;last=now;stableSince=-1;
+        durationRoll=durationSample;last=now;tapsAtLastPlant=0;
         bool selected=c.Enabled&&roll*100<c.Chance;
         Trace=new(){Episode=episode,Target=target,Chance=c.Chance,Roll=roll*100,Selected=selected,
             State=selected?"waiting":"ended",Reason=!c.Enabled?"pause-disabled":selected?"pause-selected":"pause-roll-declined"};
@@ -68,14 +68,13 @@ public sealed class FirePause
         if(!Waiting)return false;
         string why=Gate(f,c);
         if(why!="pause-invalid-observation")Update(f);
-        if(why.Length==0&&f.CompletedSteps<c.StepsBeforePause)why="pause-waiting-for-two-steps";
+        if(why.Length==0&&f.CompletedSteps-tapsAtLastPlant<c.StepsBeforePause)why="pause-waiting-for-two-steps";
         if(why.Length>0){Trace!.Reason=why;return false;}
         double min=f.Mode=="single"?c.SingleMin:c.AutomaticMin,max=f.Mode=="single"?c.SingleMax:c.AutomaticMax;
         double duration=min+(max-min)*durationRoll;
-        if(f.SequenceDeadline-f.Now<c.BrakeLimit+duration){End("pause-insufficient-sequence-time");return false;}
-        Trace!.State="braking";Trace.Reason="pause-stop-planned";Trace.Duration=Trace.Remaining=duration;
-        Trace.Weapon=f.Weapon;Trace.Mode=f.Mode;requestedAt=last=f.Now;sequenceDeadline=f.SequenceDeadline;
-        deadline=f.Now+c.BrakeLimit;stableSince=-1;Trace.ValidFor=Math.Min(MaxGap,deadline-f.Now);return true;
+        Trace!.State="settled";Trace.Reason="pause-stop-planned";Trace.Duration=Trace.Remaining=duration;
+        Trace.Weapon=f.Weapon;Trace.Mode=f.Mode;requestedAt=settledAt=last=f.Now;sequenceDeadline=f.SequenceDeadline;
+        tapsAtLastPlant=f.CompletedSteps;deadline=f.Now+duration;Trace.ValidFor=duration;return true;
     }
     public void ConfirmRequest(){if(Pausing){Trace!.StopRequested=true;Trace.Reason="pause-stop-requested";}}
     public bool Observe(FirePauseFrame f,FirePauseConfig c)
@@ -84,25 +83,9 @@ public sealed class FirePause
         string why=Gate(f,c);
         if(why.Length==0&&!f.RouteFree)why="pause-route-replaced";
         if(why.Length==0&&(f.Weapon!=Trace!.Weapon||f.Mode!=Trace.Mode))why="pause-weapon-changed";
-        if(why.Length==0&&(f.Now<last||f.Now-last>MaxGap+.000001))why="pause-observation-gap";
-        if(why.Length==0&&f.Now>=sequenceDeadline)why="pause-sequence-ended";
         if(why.Length>0){End(why);return false;}
-        if(f.Now==last)return true; // Several callbacks in one rendered frame are not new evidence.
         last=f.Now;Update(f);
-        Trace!.BrakeElapsed=Math.Max(0,(Trace.State=="settled"?settledAt:f.Now)-requestedAt);
-        if(!Trace.StopRequested){End("pause-request-unconfirmed");return false;}
-        if(Trace.State=="braking")
-        {
-            if(f.Speed<=StationarySpeed){if(stableSince<0)stableSince=f.Now;}else stableSince=-1;
-            if(f.Now>deadline+.000001){End("pause-brake-timeout");return false;}
-            if(stableSince>=0&&f.Now-stableSince>=StableTime-.000001)
-            {
-                Trace.State="settled";Trace.Reason="pause-stop-observed";Trace.StopObserved=true;
-                settledAt=f.Now;deadline=f.Now+Trace.Duration;
-            }
-            else if(f.Now>=deadline){End("pause-brake-timeout");return false;}
-        }
-        else if(f.Speed>StationarySpeed){End("pause-motion-resumed");return false;}
+        Trace!.StopObserved |= f.Speed<=StationarySpeed;
         if(Trace.State=="settled")Trace.Remaining=Math.Max(0,deadline-f.Now);
         if(f.Now>=deadline){End(Trace.Shots>0?"pause-completed":"pause-completed-without-shot",true);return false;}
         Trace.ValidFor=Math.Min(MaxGap,Math.Min(deadline,sequenceDeadline)-f.Now);return true;

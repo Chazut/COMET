@@ -15,14 +15,14 @@ public sealed class DecisionExecution
     public double RetryAt { get; private set; }
     private string feature = "";
     private double last = -1;
-    private bool observed;
+    private bool observed, missingReported;
     public bool Active => Phase is "accepted" or "executing" or "unobserved" or "paused";
 
     public void Accept(double now, string feature, string action, string target)
     {
         if (Active && this.feature == feature && Action == action && Target == target) return;
         this.feature = feature; Action = action; Target = target;
-        MissingFor = 0; last = now; observed = false; Phase = "accepted";
+        MissingFor = 0; last = now; observed = missingReported = false; Phase = "accepted";
     }
 
     public string Sample(double now, bool executed, bool paused)
@@ -34,13 +34,13 @@ public sealed class DecisionExecution
         if (executed)
         {
             bool resumed = observed && MissingFor > 0;
-            bool first = !observed; observed = true; MissingFor = 0; Phase = "executing";
+            bool first = !observed; observed = true; MissingFor = 0; missingReported = false; Phase = "executing";
             return first ? "execution-observed" : resumed ? "execution-observed-again" : "";
         }
         // Unknown/foreign execution never counts as progress or success.
         MissingFor += dt; Phase = observed ? "unobserved" : "accepted";
-        if (MissingFor < ObservationTimeout) return "";
-        Phase = "timed-out"; RetryAt = now + RetryDelay;
+        if (MissingFor < ObservationTimeout || missingReported) return "";
+        missingReported = true; // Telemetry only: no cancellation, blacklist or retry lock.
         return observed ? "execution-observation-lost" : "execution-start-not-observed";
     }
 

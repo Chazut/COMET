@@ -33,7 +33,7 @@ internal sealed class GrenadeEscapeRuntime
     internal GrenadeReactionTrace? Trace;
     internal IBotPathData? Path;
     internal NavMeshPath? Mesh;
-    internal Vector3 Goal;
+    internal Vector3 Goal, CommittedDanger;
     internal DoorPoint? KnownContact;
     internal float Next,CheckAt,CommitUntil,RetryAt,PathCheckAt,LogAt=-1000;
     internal int Candidate,CoverCandidates;
@@ -48,8 +48,8 @@ public sealed partial class Plugin
         var action=AccessTools.TypeByName("SAIN.Layers.Combat.Solo.AvoidGrenadeAction")??throw new MissingMemberException("G05 native grenade action");
         h.Patch(AccessTools.Method(action,"Update"),prefix:new HarmonyMethod(typeof(Plugin),nameof(EscapeAction)){priority=Priority.First});
         h.Patch(AccessTools.Method(action,"Stop"),postfix:new HarmonyMethod(typeof(Plugin),nameof(EscapeActionStopped)));
-        h.Patch(AccessTools.Method(typeof(BotPathDataManual),nameof(BotPathDataManual.TickPath)),prefix:new HarmonyMethod(typeof(Plugin),nameof(EscapePathTick)){priority=Priority.First});
-        h.Patch(AccessTools.Method(typeof(SAIN.Classes.PlayerMovementController),"SetTargetMoveDirection"),prefix:new HarmonyMethod(typeof(Plugin),nameof(EscapeMoveInput)){priority=Priority.First});
+
+
     }
     private bool EscapeScope(BotComponent b)=>config?.Enabled==true&&config.GrenadeReaction.Enabled&&NativeAdapter.IsSupportedAi(b)
         &&!b.IsDead&&b.BotActive&&!b.GameEnding&&b.SAINLayersActive&&Authority&&!Ghost(b.ProfileId);
@@ -67,12 +67,15 @@ public sealed partial class Plugin
                 r.Dangers.Clear();var live=new HashSet<string>();GrenadeTrackerClass? selected=null;OwnGrenadeEvidence? selectedHazard=null;double best=double.MaxValue;
                 void Add(GrenadeTrackerClass? tracker,OwnGrenadeEvidence e,bool own)
                 {
-                    if(e.Exploded||e.Expired(Time.time)||own&&e.Owner==b.ProfileId&&e.Grace(Time.time,config.OwnGrenadeSafety))return;
+                    // Enemy lifetime belongs to SAIN's live tracker. The eight-second
+                    // source retention below applies only to our own thrown grenades.
+                    if(e.Exploded||own&&(e.Expired(Time.time)||e.Owner==b.ProfileId&&e.Grace(Time.time,config.OwnGrenadeSafety)))return;
                     r.Dangers.Add(e);string key=e.Owner+":"+e.Projectile;live.Add(key);
                     var safety=new OwnGrenadeSafetyConfig{ExitPadding=config.GrenadeReaction.ExitPadding};
-                    bool danger=OwnGrenadeSafetyRules.Threat(e,DP(b.Position),r.Escaping.Contains(key),Time.time,safety,OwnSolidCover,false);
+                    bool danger=own?OwnGrenadeSafetyRules.Threat(e,DP(b.Position),r.Escaping.Contains(key),Time.time,safety,OwnSolidCover,false)
+                        :(e.Position-DP(b.Position)).Length<=7||!OwnSolidCover(DP(b.Position+Vector3.up*1.2f),e.Position+new DoorPoint(0,.1,0));
                     if(!danger){r.Escaping.Remove(key);return;}r.Escaping.Add(key);
-                    double score=(e.Position-DP(b.Position)).Length/Math.Max(1,e.Radius);
+                    double score=(e.Position-DP(b.Position)).Length;
                     if(tracker!=null&&score<best){best=score;selected=tracker;selectedHazard=e;}
                 }
                 foreach(var t in native.EnemyGrenadesList.Values)
@@ -80,7 +83,7 @@ public sealed partial class Plugin
                     if(t?.Grenade==null||!t.CanReact||t.Grenade.WeaponSource is not ThrowWeap item||item.IsDummy||item.ThrowType.ToString() is "smoke_grenade" or "gas_grenade")continue;
                     double radius=ClearDangerRadius(item)-1+config.GrenadeReaction.DangerMargin;
                     if(!GrenadeChoiceRules.Finite(radius)||radius<=0||radius>150||!DP(t.DangerPoint).Finite)continue;
-                    if(r.Dangers.Count>=64)throw new InvalidOperationException("known grenade limit");
+
                     Add(t,new(){Owner=t.Grenade.ProfileId,Item=item.Id.ToString(),Projectile=t.Grenade.Id,Position=DP(t.DangerPoint),Radius=radius},false);
                 }
                 if(config.OwnGrenadeSafety.Enabled)
@@ -120,118 +123,40 @@ public sealed partial class Plugin
     }
     private void UpdateGrenadeEscape(BotComponent b,BotState s)
     {
-        var r=s.GrenadeEscape;var c=config!.GrenadeReaction;if(r.Hazard==null||r.Selected?.Grenade==null)return;
-        if(Time.time<r.CheckAt)return;r.CheckAt=Time.time+(float)c.Refresh;
-        if(r.Path!=null&&ReferenceEquals(r.Path,b.Mover.ActivePath)&&ReferenceEquals(r.Path.NavMeshPath,r.Mesh)&&Time.time<r.CommitUntil
-            &&GrenadeReactionRules.DestinationSafe(DP(r.Goal),r.Dangers,c.ExitPadding,OwnSolidCover)&&EscapeRouteSafe(r,RemainingEscape(b,r.Path)))
-        {RenewDispersion(b,s);RecordGrenadeEscape(b,s,"moving","grenade-safe-destination-held");return;}
-        if(r.Path==null&&Time.time<r.RetryAt){RecordGrenadeEscape(b,s,"prone","grenade-no-safe-route");return;}
-        StopEscapePath(b,r);
-        if(r.Candidates.Count==0)PrepareEscapeCandidates(b,r);
-        PrepareDispersion(b,r);
-        if(escapeProbeFrame!=Time.frameCount){escapeProbeFrame=Time.frameCount;escapeProbes=0;}
-        NavMeshPath? sharedRoute=null;Vector3 sharedGoal=default;int sharedCandidate=0;
-        GrenadeDispersionAssessment? sharedAssessment=null;
-        int perBot=0;
-        while(r.Candidate<r.Candidates.Count&&perBot++<4&&escapeProbes<8)
-        {
-            escapeProbes++;var target=r.Candidates[r.Candidate++];string reject="";
-            if(!NavMesh.SamplePosition(target,out var hit,2,NavMesh.AllAreas))reject="no-navmesh";
-            else if(Vector3.Distance(b.Position,hit.position)<1)reject="no-displacement";
-            else
-            {
-                var mesh=new NavMeshPath();
-                if(!NavMesh.CalculatePath(b.Position,hit.position,NavMesh.AllAreas,mesh)||mesh.status!=NavMeshPathStatus.PathComplete||mesh.corners.Length<2
-                    ||Vector3.Distance(mesh.corners[0],b.Position)>2||Vector3.Distance(mesh.corners[mesh.corners.Length-1],hit.position)>.5f)reject="incomplete-route";
-                else if(!GrenadeReactionRules.DestinationSafe(DP(hit.position),r.Dangers,c.ExitPadding,OwnSolidCover))reject="destination-exposed";
-                else if(!EscapeRouteSafe(r,mesh.corners.Select(DP).ToArray()))reject="route-crosses-danger";
-                else
-                {
-                    var dispersion=AssessDispersion(r,hit.position);
-                    if(dispersion.Conflict)
-                    {
-                        if(sharedAssessment==null||dispersion.Nearest>sharedAssessment.Nearest)
-                        {sharedRoute=mesh;sharedGoal=hit.position;sharedCandidate=r.Candidate;sharedAssessment=dispersion;}
-                        reject="reserved-near-"+dispersion.Peer+" ("+dispersion.Nearest.ToString("0.0",System.Globalization.CultureInfo.InvariantCulture)+" m)";
-                    }
-                    else if(StartEscapeRoute(b,s,mesh,hit.position,r.Candidate,dispersion,false))return;
-                    else
-                        reject="native-movement-refused";
-                }
-            }
-            if(r.Alternatives.Count<8)r.Alternatives.Add("Candidate "+r.Candidate+": "+reject);
+        var r=s.GrenadeEscape;var c=config!.GrenadeReaction;
+        if(r.Hazard==null||r.Selected?.Grenade==null)return;
+        var danger=VP(r.Hazard.Position);
+        if(r.Path!=null&&(danger-r.CommittedDanger).sqrMagnitude<=16&&(b.Position-r.Goal).sqrMagnitude>=4&&Time.time<r.CommitUntil)return;
+        r.CommittedDanger=danger;r.CommitUntil=Time.time+(float)c.Commitment;
+        var enemy=b.GoalEnemy;float distance=Vector3.Distance(b.Position,danger);
+        r.Reaction=distance<6?"Scatter":GrenadeReactionRules.Preference(b.Info.Personality.ToString(),enemy!=null);
+        r.Contact=enemy?.EnemyProfileId??"";r.ContactSource=enemy==null?"":RelocationContactSource(enemy);
+        var away=b.Position-danger;away.y=0;if(away.sqrMagnitude<.01f){away=-b.LookDirection;away.y=0;}away.Normalize();
+        if(r.Reaction=="Push"&&distance>6&&enemy!=null){var to=enemy.EnemyPosition-b.Position;to.y=0;if(to.sqrMagnitude>.01){to.Normalize();if(Vector3.Dot(away,to)>0)away=(away+to).normalized;}}
+        int index=0;
+        if(config.GrenadeDispersion.Enabled&&b.Squad.BotInGroup){foreach(var id in b.Squad.Members.Keys){if(id==b.ProfileId)break;index++;}}
+        if(index>0)away=Quaternion.Euler(0,35*((index+1)/2)*(index%2==0?1:-1),0)*away;
+        r.Alternatives.Clear();
+        float metres=8-distance;
+        if(metres>0&&b.Grenade.GrenadeReactionClass.EstimatedTimeRemaining*5<metres){
+            b.Mover.Prone.SetProne(true);r.Prone=true;r.Path=null;RecordGrenadeEscape(b,s,"prone","grenade-source-blast-imminent");return;}
+        bool sprint=distance<8||r.Reaction is "Retreat" or "Scatter";
+        bool Start(Vector3 goal,bool move){
+            if(!move)return false;
+            r.Goal=goal;r.Path=b.Mover.ActivePath;r.Mesh=r.Path?.NavMeshPath;r.Prone=false;b.Mover.Prone.SetProne(false);
+            if(index>0)ReserveDispersion(b,s,new GrenadeDispersionAssessment(),false);
+            RecordGrenadeEscape(b,s,"moving","grenade-source-escape-selected",true);return true;
         }
-        // Spacing never adds a wait: use the best safe fallback in this same callback, including budget exhaustion.
-        if(sharedRoute!=null&&sharedAssessment!=null&&StartEscapeRoute(b,s,sharedRoute,sharedGoal,sharedCandidate,sharedAssessment,true))return;
-        if(r.Candidate<r.Candidates.Count){RecordGrenadeEscape(b,s,"planning","grenade-search-budget-yield");return;}
-        // No fixed fuse estimate: prone only after exhausting this bounded reachable escape search.
-        b.Mover.Prone.SetProne(true);r.Prone=true;r.RetryAt=Time.time+.3f;r.Candidates.Clear();
-        RecordGrenadeEscape(b,s,"prone","grenade-no-safe-route",true);
-    }
-    private bool StartEscapeRoute(BotComponent b,BotState s,NavMeshPath mesh,Vector3 goal,int candidate,GrenadeDispersionAssessment dispersion,bool shared)
-    {
-        var r=s.GrenadeEscape;
-        b.Mover.Prone.SetProne(false);r.Prone=false;
-        if(!b.Mover.RunToPointByWay(mesh,true,.5f,ESprintUrgency.High,false))return false;
-        if(r.Reaction=="Relocate"&&candidate>r.CoverCandidates)
-        {r.Reaction="Scatter";if(r.Alternatives.Count<8)r.Alternatives.Add("Relocate fallback: no validated cover destination");}
-        if(r.Reaction=="Push"&&r.KnownContact.HasValue&&(DP(goal)-r.KnownContact.Value).Length>=(DP(b.Position)-r.KnownContact.Value).Length)
-        {r.Reaction="Scatter";if(r.Alternatives.Count<8)r.Alternatives.Add("Push fallback: safe route does not approach known opponent");}
-        r.Path=b.Mover.ActivePath;r.Mesh=mesh;r.Goal=goal;r.CommitUntil=Time.time+(float)config!.GrenadeReaction.Commitment;r.Candidates.Clear();
-        ReserveDispersion(b,s,dispersion,shared);
-        RecordGrenadeEscape(b,s,"moving","grenade-safe-route-selected",true);return true;
-    }
-    private void PrepareEscapeCandidates(BotComponent b,GrenadeEscapeRuntime r)
-    {
-        r.Candidate=0;r.CoverCandidates=0;r.Alternatives.Clear();r.Contact=r.ContactSource="";DoorPoint? contact=null;
-        var e=b.GoalEnemy;var known=e?.KnownPlaces.LastKnownPosition;
-        if(e!=null&&known.HasValue&&GrenadeReactionRules.PersonalContact(e.IsVisible,RelocationContactSource(e),e.TimeSinceLastKnownUpdated))
-        {contact=DP(known.Value);r.Contact=e.EnemyProfileId;r.ContactSource=RelocationContactSource(e);}
-        r.KnownContact=contact;
-        r.Reaction=GrenadeReactionRules.Preference(b.Info.Personality.ToString(),contact.HasValue);
-        var direction=GrenadeReactionRules.Direction(DP(b.Position),r.Hazard!.Position,DP(b.LookDirection*-1),contact,r.Reaction);
-        if(r.Reaction=="Push"&&contact.HasValue&&direction.Dot(contact.Value-DP(b.Position))<=0)
-        {r.Reaction="Scatter";r.Alternatives.Add("Push rejected: opponent is toward the grenade");}
-        if(r.Reaction=="Relocate")foreach(var cp in b.Cover.CoverPoints)
-        {if(r.Candidates.Count>=8)break;if(cp!=null&&!cp.CoverData.IsBad&&Vector3.Distance(cp.Position,b.Position)>=2)r.Candidates.Add(cp.Position);}
-        r.CoverCandidates=r.Candidates.Count;
-        double distance=r.Reaction=="Retreat"?config!.GrenadeReaction.RetreatDistance:config!.GrenadeReaction.ScatterDistance;
-        foreach(double scale in new[]{1d,.67,.34})foreach(float angle in new[]{0f,40f,-40f,80f,-80f,130f,-130f})
-            r.Candidates.Add(b.Position+(Quaternion.Euler(0,angle,0)*VP(direction))*(float)(distance*scale));
-    }
-    private bool EscapeRouteSafe(GrenadeEscapeRuntime r,IReadOnlyList<DoorPoint> route)
-    {
-        var safety=new OwnGrenadeSafetyConfig{ExitPadding=config!.GrenadeReaction.ExitPadding};
-        foreach(var e in r.Dangers)if(!OwnGrenadeSafetyRules.SafeRoute(e,route,Time.time,safety,OwnSolidCover,false))return false;
-        return true;
-    }
-    private static List<DoorPoint> RemainingEscape(BotComponent b,IBotPathData path)
-    {
-        var points=new List<DoorPoint>{DP(b.Position)};
-        for(int i=Math.Max(0,path.CurrentIndex);i<path.PathPoints.Count;i++){if(points.Count>=65)return new(){new(double.NaN,0,0),new(0,0,0)};points.Add(DP(path.PathPoints[i]));}
-        return points;
-    }
-    private static bool EscapePathTick(BotPathDataManual __instance)
-    {
-        var p=Instance;if(p==null||__instance.PathFinder is not SAINMoverClass mover||!p.EscapeScope(mover.Bot)||!p.states.TryGetValue(mover.Bot,out var s))return true;
-        var r=s.GrenadeEscape;if(r.Fault||!r.Handled||r.Dangers.Count==0||!ReferenceEquals(mover.ActivePath,__instance))return true;
-        try
-        {
-            if(ReferenceEquals(r.Path,__instance)&&Time.time<r.PathCheckAt)return true;
-            r.PathCheckAt=Time.time+(float)p.config!.GrenadeReaction.Refresh;
-            if(p.EscapeRouteSafe(r,RemainingEscape(mover.Bot,__instance)))return true;
-            combatStopPath.Invoke(__instance,new object[]{false,"COMET G05 grenade danger"});mover.Bot.Player.Move(Vector2.zero);
-            p.ReleaseDispersion(mover.Bot,r,"dispersion-route-invalidated");
-            r.Path=null;r.Mesh=null;r.CheckAt=0;r.Candidates.Clear();p.RecordGrenadeEscape(mover.Bot,s,"planning","grenade-route-invalidated");return false;
+        if(distance>=8){var cp=b.Cover.FindPointInDirection(-away,.25f,r.Reaction=="Relocate"?4:8);
+            if(cp!=null&&Start(cp.Position,b.Mover.GoToCoverPoint(cp,sprint,sprint?ESprintUrgency.High:ESprintUrgency.Low)))return;}
+        float range=(float)(r.Reaction=="Retreat"?c.RetreatDistance:c.ScatterDistance);
+        for(int step=0;step<3;step++)foreach(float angle in new[]{0f,40f,-40f,80f,-80f,130f,-130f}){
+            var target=b.Position+Quaternion.Euler(0,angle,0)*away*range*(1-step*.33f);
+            if(!NavMesh.SamplePosition(target,out var nav,3,NavMesh.AllAreas))continue;
+            bool moving=sprint?b.Mover.RunToPoint(nav.position,false,-1,ESprintUrgency.High):b.Mover.WalkToPoint(nav.position,false);
+            if(Start(nav.position,moving))return;
         }
-        catch(Exception ex){p.EscapeError(mover.Bot,s,ex);return true;}
-    }
-    private static void EscapeMoveInput(PlayerComponent playerComp,ref Vector3 direction)
-    {
-        var p=Instance;var b=playerComp.BotComponent;if(p==null||b==null||direction.sqrMagnitude<.001f||!p.EscapeScope(b)||!p.states.TryGetValue(b,out var s))return;
-        var r=s.GrenadeEscape;if(r.Fault||!r.Handled||r.Dangers.Count==0)return;
-        try{if(!p.EscapeRouteSafe(r,new[]{DP(b.Position),DP(b.Position+direction.normalized*.75f)}))direction=Vector3.zero;}
-        catch(Exception ex){p.EscapeError(b,s,ex);}
+        r.Path=null;RecordGrenadeEscape(b,s,"planning","grenade-native-movement-refused");
     }
     private static void EscapeActionStopped(BotAction __instance)
     {if(Instance is { } p&&p.states.TryGetValue(__instance.Bot,out var s)){p.StopEscapePath(__instance.Bot,s.GrenadeEscape);s.GrenadeEscape.Candidates.Clear();p.EndGrenadeTrace(s,"grenade-native-action-ended");}}

@@ -34,12 +34,7 @@ public static class DoorEmergencyRules
     public static string Route(bool complete,bool space,bool allies,int current,int protection,double length,double height,double advance,bool exposedToOther,DoorEmergencyConfig c)
     {
         if(!complete)return "incomplete-route";
-        if(!space)return "obstacle-or-clearance";
-        if(!allies)return "ally-or-reservation";
         if(!DoorPolicy.Finite(length)||length<=0||length>c.MaxPath)return "path-too-long";
-        if(!DoorPolicy.Finite(height)||height>.75||!DoorPolicy.Finite(advance)||advance>.25)return "unsafe-height-or-advance";
-        if(protection<2||protection<=current)return "no-better-protection";
-        if(exposedToOther)return "other-known-threat-exposure";
         return "";
     }
 }

@@ -42,6 +42,7 @@ public sealed class EditorCatalog
         using var stream = typeof(EditorCatalog).Assembly.GetManifestResourceStream("Comet.EditorCatalog.json")
             ?? throw new InvalidOperationException("COMET editor catalogue is missing.");
         var catalog = JsonSerializer.Deserialize<EditorCatalog>(stream)!;
+        foreach(var path in catalog.Fields.Keys.Where(SourceBaselineSettings.IsRetiredPath).ToArray())catalog.Fields.Remove(path);
         foreach (var (path, field) in catalog.Fields)
         {
             field.Path = path;
@@ -163,8 +164,8 @@ public sealed class ConfigEditor
         }
         else if (field.Text)
         {
-            if (field.Path == "SquadVoice.Mode" && input is "Normal" or "Reduced" or "Disabled") value = JsonValue.Create(input);
-            else error = "Choose Normal, Reduced or Disabled.";
+            if (field.Path == "SquadVoice.Mode" && input is "Normal" or "Disabled") value = JsonValue.Create(input);
+            else error = "Choose Normal or Disabled.";
         }
         else if (!double.TryParse(input, NumberStyles.Float, Culture, out double number) || !double.IsFinite(number))
             error = "Enter a finite number.";

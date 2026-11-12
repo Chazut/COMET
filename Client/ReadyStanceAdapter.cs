@@ -5,6 +5,7 @@ using EFT;
 using HarmonyLib;
 using Newtonsoft.Json;
 using SAIN.Components;
+using SAIN.Models.Enums;
 using SAIN.Preset.Shared.Enums;
 using SAIN.SAINComponent.Classes.Decision;
 using SAIN.SAINComponent.Classes.EnemyClasses;
@@ -15,7 +16,7 @@ namespace Comet.Client;
 internal sealed class ReadyStanceRuntime
 {
     internal readonly ReadyStance Policy=new();
-    internal float Next,LogAt;
+    internal float Next,LogAt,LastCombatLayer=-100;
     internal bool NativePatrol,NativeKnown,Fault;
     internal string Key="";
 }
@@ -26,64 +27,29 @@ public sealed partial class Plugin
     {
         readyPatrol=AccessTools.Field(typeof(MovementContext),"_isInPatrol")??throw new MissingFieldException("H05 native patrol posture");
         h.Patch(AccessTools.Method(typeof(BotDecisionManager),nameof(BotDecisionManager.ManualUpdate)),postfix:new HarmonyMethod(typeof(Plugin),nameof(ReadyFight)));
-        h.Patch(AccessTools.Method(typeof(EnemyEvents),nameof(EnemyEvents.EnemyHeard),new[]{typeof(SAINSoundType),typeof(bool),typeof(EnemyPlace)}),postfix:new HarmonyMethod(typeof(Plugin),nameof(ReadyHeard)));
         h.Patch(AccessTools.Method(typeof(SAINMoverClass),"WantsPatrolStance")??throw new MissingMethodException("H05 native patrol choice"),postfix:new HarmonyMethod(typeof(Plugin),nameof(ReadyNativeWish)));
         h.Patch(AccessTools.Method(typeof(SAINMoverClass),nameof(SAINMoverClass.ManualUpdate)),postfix:new HarmonyMethod(typeof(Plugin),nameof(ReadyAfterMover)));
     }
     private bool ReadyScope(BotComponent b)=>config?.Enabled==true&&config.ReadyStance.Enabled&&world!=null&&Authority
         &&b!=null&&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
+    private string ReadyBlock(BotComponent b,BotState s)=>""; // Native CanSetPatrol retains the hands/sprint checks.
     private static void ReadyFight(BotDecisionManager __instance)
     {
-        var p=Instance;var b=__instance.Bot;if(p==null)return;
-        try
-        {
-            if(!p.ReadyScope(b)){if(p.states.TryGetValue(b,out var old))p.EndReadyStance(old,"ready-stance-out-of-scope");return;}
-            bool firing=b.BotOwner.ShootData.Shooting,hit=b.BotOwner.Memory.IsUnderFire,visible=b.GoalEnemy?.IsVisible==true;
-            if(!firing&&!hit&&!visible)return;
-            if(!p.states.TryGetValue(b,out var s)){if(p.states.Count>=512)return;s=new BotState(b,p.config!,p.session);p.states.Add(b,s);}
-            if(s.ReadyStance.Fault)return;
-            var e=b.GoalEnemy;var place=e?.KnownPlaces.LastSeenPlace;var heard=e?.KnownPlaces.LastHeardPlace;
-            if(heard!=null&&(place==null||heard.TimeSincePositionUpdated<place.TimeSincePositionUpdated))place=heard;
-            bool usable=place!=null&&ValidPoint(place.Position)&&place.TimeSincePositionUpdated>=0&&float.IsFinite(place.TimeSincePositionUpdated);
-            s.ReadyStance.Policy.Observe(Time.time,usable?Time.time-place!.TimeSincePositionUpdated:double.NaN,
-                hit?"incoming fire":firing?"firing":"visible contact",e?.EnemyProfileId??"",usable?Vector3.Distance(b.Position,place!.Position):null,true,p.config!.ReadyStance);
-        }
-        catch(Exception ex){if(p.states.TryGetValue(b,out var s))p.ReadyError(s,ex);}
-    }
-    private static void ReadyHeard(Enemy ___Enemy,SAINSoundType __0,EnemyPlace __2)
-    {
-        var p=Instance;var b=___Enemy?.Bot;
-        if(p==null||b==null||!p.states.TryGetValue(b,out var s)||s.ReadyStance.Fault)return;
-        try
-        {
-            if(!p.ReadyScope(b)){p.EndReadyStance(s,"ready-stance-out-of-scope");return;}
-            if(__0!=SAINSoundType.FootStep&&__0!=SAINSoundType.Sprint&&__0!=SAINSoundType.Shot)return;
-            if(__2==null||!___Enemy!.EnemyKnown||!ValidPoint(__2.Position))return;
-            s.ReadyStance.Policy.Observe(Time.time,Time.time-__2.TimeSincePositionUpdated,"heard "+__0,___Enemy.EnemyProfileId,
-                Vector3.Distance(b.Position,__2.Position),false,p.config!.ReadyStance);
-        }catch(Exception ex){p.ReadyError(s,ex);}
-    }
-    private string ReadyBlock(BotComponent b,BotState s)
-    {
-        if(b.Player.IsSprintEnabled||b.Mover.Running)return "ready-stance-sprint";
-        if(b.BotOwner.DoorOpener.Interacting||b.BotOwner.Mover.CurrentState==EBotMoverState.NearDoor)return "ready-stance-door";
-        if(b.BotOwner.Medecine.Using||b.Player.HandsController is IMedsController||s.MedicalPosture.Policy.Blocking)return "ready-stance-medicine";
-        if(b.BotOwner.WeaponManager.Reload.Reloading)return "ready-stance-reload";
-        if(b.Player.HandsController is not Player.FirearmController f||!WeaponHandsReady(b,f)||f.IsInRemoveOperation()||f.IsInReloadOperation()
-            ||f.IsInventoryOpen()||f.IsInInteractionStrictCheck()||f.IsInSpawnOperation()||f.IsHandsProcessing())return "ready-stance-hands";
-        return "";
+        var p=Instance;var b=__instance.Bot;if(p==null||!p.ReadyScope(b))return;
+        if(b.ActiveLayer!=ESAINLayer.Combat&&b.ActiveLayer!=ESAINLayer.AvoidThreat&&b.ActiveLayer!=ESAINLayer.Flashed)return;
+        if(!p.states.TryGetValue(b,out var s)){s=new BotState(b,p.config!,p.session);p.states.Add(b,s);}
+        s.ReadyStance.LastCombatLayer=Time.time;
     }
     private static void ReadyNativeWish(SAINMoverClass __instance,ref bool __result)
     {
-        var p=Instance;var b=__instance.Bot;if(p==null||!p.states.TryGetValue(b,out var s)||s.ReadyStance.Fault)return;
-        try
-        {
-            if(!p.ReadyScope(b)){p.EndReadyStance(s,"ready-stance-out-of-scope");return;}
-            var r=s.ReadyStance;r.NativePatrol=__result;r.NativeKnown=true;
-            if(r.Policy.Evaluate(Time.time,__result,p.ReadyBlock(b,s),p.config!.ReadyStance))__result=false;
-            // Observation is recorded after native UpdateStance applied (or refused) the request.
-            r.Next=0;
-        }catch(Exception ex){p.ReadyError(s,ex);}
+        var p=Instance;var b=__instance.Bot;if(p==null)return;
+        try {
+            if(!p.ReadyScope(b))return;
+            if(!p.states.TryGetValue(b,out var s)){s=new BotState(b,p.config!,p.session);p.states.Add(b,s);}
+            var r=s.ReadyStance;if(r.Fault)return;r.NativePatrol=__result;r.NativeKnown=true;
+            r.Policy.ObserveCombatAge(Time.time,Time.time-r.LastCombatLayer,p.config!.ReadyStance);
+            if(r.Policy.Evaluate(Time.time,__result,"",p.config.ReadyStance))__result=false;r.Next=0;
+        }catch(Exception ex){if(p.states.TryGetValue(b,out var s))p.ReadyError(s,ex);}
     }
     private static void ReadyAfterMover(SAINMoverClass __instance)
     {var p=Instance;if(p!=null&&p.states.TryGetValue(__instance.Bot,out var s))p.SampleReadyStance(__instance.Bot,s);}

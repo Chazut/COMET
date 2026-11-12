@@ -29,11 +29,11 @@ internal static class OutdoorRelocationTests
         f=F(11);f.Position=new(10,0,0);Check(p.Observe(f,c)&&!p.Trace.Arrived,"position alone does not prove native arrival");
         f.Arrived=true;Check(!p.Observe(f,c)&&p.Trace.Arrived&&p.Trace.State=="arrived"&&p.Trace.ValidFor==0,"native arrival at matching floor completes");
         var history=p.History;Check(!history.Eligible("known-contact:1",35,F().Known,20),"elapsed delay alone cannot reroll");
-        history.Observe("known-contact:1",34,6,35);Check(history.Eligible("known-contact:1",35,F().Known,20),"fresh incoming fire reopens after cooldown");
+        history.Observe("known-contact:1",34,6,35);Check(!history.Eligible("known-contact:1",35,F().Known,20),"source roll is once per enemy");
         Check(!history.Eligible("known-contact:1",20,F().Known,20),"fresh fire cannot bypass cooldown");
         p=P();Check(p.Begin(F(),c,Low),"new planning");p.End("relocate-no-better-cover");
         Check(!p.Begin(F(40),c,Low),"failed search does not spin identical opportunities");f=F(40);f.Known=new(4,0,30);
-        Check(p.Begin(f,c,Low),"moved known contact enables another search after delay");
+        Check(!p.Begin(f,c,Low),"moving contact cannot reroll source per-enemy chance");
         p=P();int before=rolls;Check(!p.Begin(F(),c,()=>.7)&&p.Trace!.Reason=="relocate-chose-to-stay","70% boundary excluded");
         Check(!p.Begin(F(50),c,Low)&&rolls==before,"failed roll remains stable without a new cue");
         foreach(double percent in new[]{0d,100d}){p=P();var cfg=new OutdoorRelocationConfig{Chance=percent};Check(p.Begin(F(),cfg,()=>.999)==(percent==100),"exact chance endpoint");}
@@ -41,26 +41,26 @@ internal static class OutdoorRelocationTests
         Check(OutdoorRelocation.Chance(f,c)==100,"observed long weapon stacks and clamps");f=F();f.HealthyPusher=true;f.MatesEngaging=true;
         Check(Math.Abs(OutdoorRelocation.Chance(f,c)-39.2)<.001,"healthy aggression and team support keep zzap adjustments");
         foreach(var change in new Action<RelocationFrame>[] {f=>f.Block="ghost",f=>f.Block="remote-client",f=>f.Block="scav",f=>f.Block="medical",
-            f=>f.Outdoor=false,f=>f.InCover=false,f=>f.Visible=true,f=>f.HandsReady=false,f=>f.SightAge=1.49,f=>f.Source="",f=>f.Target="",
-            f=>f.ContactAge=25.1,f=>f.Now=double.NaN,f=>f.Position=new(double.PositiveInfinity,0,0),f=>f.Known=new(0,0,double.NaN),f=>f.Speed=-1}) {
+            f=>f.Outdoor=false,f=>f.InCover=false,f=>f.Visible=true,f=>f.SightAge=1.49,f=>f.Source="",f=>f.Target="",
+            f=>f.ContactAge=30.1,f=>f.Now=double.NaN,f=>f.Position=new(double.PositiveInfinity,0,0),f=>f.Known=new(0,0,double.NaN),f=>f.Speed=-1}) {
             p=P();f=F();change(f);before=rolls;Check(!p.Begin(f,c,Low)&&!p.Active&&rolls==before,"ineligible frames do not consume chance");
         }
-        foreach(var change in new Action<RelocationCandidate>[] {v=>v.Safe=false,v=>v.Protection=1,v=>v.Protection=2,v=>v.Distance=4.9,
-            v=>v.Distance=17.1,v=>v.PathLength=26.1,v=>v.Exposure=.34,v=>v.Angle=double.NaN,v=>v.PathLength=double.PositiveInfinity,
+        foreach(var change in new Action<RelocationCandidate>[] {v=>v.Safe=false,v=>v.Distance=4.9,
+            v=>v.Distance=17.1,v=>v.PathLength=26.1,v=>v.Angle=double.NaN,v=>v.PathLength=double.PositiveInfinity,
             v=>v.Position=new(0,double.NaN,0),v=>v.Refusal="other-known-threat",v=>v.Protection=4}) {
             var v=C();change(v);
             Check(OutdoorRelocation.Reject(v,c).Length>0,"unsafe or unhelpful destinations refused");
         }
-        var nearAngle=C();nearAngle.Angle=15;nearAngle.Exposure=0;Check(OutdoorRelocation.Reject(nearAngle,c)=="","25 degrees is a preference, not an absolute cutoff");
-        var pointless=C();pointless.Angle=0;Check(OutdoorRelocation.Reject(pointless,c)=="relocate-staying-is-better","do not move just to move");
+        var nearAngle=C();nearAngle.Angle=15;nearAngle.Exposure=0;Check(OutdoorRelocation.Reject(nearAngle,c)=="relocate-bearing-too-small","source requires 25 degrees");
+        var pointless=C();pointless.Angle=0;Check(OutdoorRelocation.Reject(pointless,c)=="relocate-bearing-too-small","do not move just to move");
         p=P();p.Begin(F(),c,Low);for(int i=0;i<80;i++)p.Candidate(new(){Id="bad-"+i,Refusal="blocked"},c);
         Check(p.Trace!.Candidates==80&&p.Trace.Rejected==80&&p.Trace.Alternatives.Length==8,"diagnostics bounded during candidate search");
         p=P();p.Begin(F(),c,Low);p.Select(C(),c);p.Throw(true,10.1,"native-accepted");
         Check(!p.CanMove(F(11)),"native throw acceptance is not release");p.Projectile(10.3);
-        Check(!p.CanMove(F(10.49)),"minimum delay after observed release");f=F(10.6);f.HandsReady=false;Check(!p.CanMove(f),"wait for weapon-ready hands");
+        Check(!p.CanMove(F(10.49)),"minimum delay after observed release");f=F(10.6);f.HandsReady=false;Check(p.CanMove(f),"source release delay is sufficient without an additional hands-ready veto");
         f.HandsReady=true;Check(p.CanMove(f),"move after real release and ready hands without waiting for explosion");
         p=P();p.Begin(F(),c,Low);p.Select(C(),c);p.Throw(true,10.1,"native-accepted");
-        Check(!p.Observe(F(16.2),c)&&p.Trace!.Reason=="relocate-throw-unconfirmed-or-hands-busy","missing projectile cannot freeze forever");
+        Check(p.Observe(F(16.2),c)&&p.CanMove(F(16.2)),"source proceeds after four seconds even without projectile callback");
         p=P();p.Begin(F(),c,Low);p.Select(C(),c);p.Throw(false,10.1,"native-refused");Check(p.CanMove(F(10.2)),"refused grenade falls back to grenade-free movement");
         foreach(var scenario in new[]{"route","contact","visible","clock","stuck","timeout","floor","origin","session"}) {
             p=P();p.Begin(F(),c,Low);f=F(11);
@@ -68,15 +68,16 @@ internal static class OutdoorRelocationTests
             switch(scenario) {
                 case "route":f.RouteOwned=false;break;
                 case "contact":f.Known=new(9,0,30);break;
-                case "visible":f.Visible=true;break;
+                case "visible":f.Visible=true;f.Distance=30;break;
                 case "clock":f.Now=9;break;
                 case "stuck":f.Now=13.2;break;
-                case "timeout":f.Now=22.2;f.Position=new(2,0,0);break;
+                case "timeout":f.Now=22.2;f.Speed=1;f.Position=new(2,0,0);break;
                 case "origin":f.Position=new(2,0,0);break;
                 case "session":f.Now=40.1;break;
                 case "floor":f.Position=new(10,2,0);f.Arrived=true;Check(p.Observe(f,c)&&!p.Trace!.Arrived,"different floor is not arrival");continue;
             }
-            Check(!p.Observe(f,c)&&!p.Active&&p.Trace!.ValidFor==0,"bounded interruption: "+scenario);
+            if(scenario is "contact" or "visible" or "stuck" or "origin") Check(p.Observe(f,c)&&p.Active,"source plan survives: "+scenario);
+            else Check(!p.Observe(f,c)&&!p.Active&&p.Trace!.ValidFor==0,"source interruption: "+scenario);
         }
         var h=new RelocationHistory();h.Observe("bot-first",8,5,10);Check(!h.Eligible("bot-first",10,new(),20),"own first sight does not trigger the tactic");
         h.Observe("never-seen",8,-1,10);Check(h.Eligible("never-seen",10,new(),20),"heard personal fire can precede vision");
@@ -122,7 +123,7 @@ internal static class OutdoorRelocationTests
         for(int i=0;i<200;i++) {
             var v=C();v.Angle=random.NextDouble()*90;v.Exposure=random.NextDouble();v.PathLength=5+random.NextDouble()*25;
             string reason=OutdoorRelocation.Reject(v,c);
-            if(reason.Length==0)Check(v.Score(c)>.1&&v.Exposure<=1d/3+.001&&v.PathLength<=26,"ranked route always satisfies hard limits");
+            if(reason.Length==0)Check(v.Score(c)==-v.Distance&&v.PathLength<=26,"ranked route always satisfies hard limits");
             p=P();p.Begin(F(),c,Low);p.Select(C(),c);p.MoveRequested(10.1);f=F(10.2);f.Block="priority-"+i;
             Check(!p.Observe(f,c)&&p.Trace!.Reason==f.Block,"native interrupts release regardless of route ranking");
         }

@@ -51,7 +51,7 @@
     <Compile Remove="GrenadeFilterHarness/**/*.cs" />
     <Compile Include="../Shared/*.cs" Link="Core/%(Filename)%(Extension)" />
     <Compile Include="../Server/IntegrationReports.cs" Link="IntegrationReports.cs" />
-    <Compile Include="../Server/ConfigStore.cs" Link="ConfigStore.cs" />
+    <Compile Include="../Server/ConfigStore.cs" Link="ConfigStore.cs" /><Compile Include="../Server/SourceBaselineMigration.cs" Link="SourceBaselineMigration.cs" />
     <Compile Include="../Server/PresetLibrary.cs" Link="PresetLibrary.cs" />
     <Compile Include="../Client/Diagnostics.cs" Link="Diagnostics.cs" /><Compile Include="../Client/TacticCounters.cs" Link="TacticCounters.cs" /><Compile Include="../Client/CombatReport.cs" Link="CombatReport.cs" />
     <Reference Include="SPTarkov.DI" HintPath="C:/Games/SPT-4.1/SPT_Runtime/SPTarkov.DI.dll" />

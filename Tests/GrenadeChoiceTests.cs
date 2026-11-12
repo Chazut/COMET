@@ -10,7 +10,7 @@ internal static class GrenadeChoiceTests
   C(Math.Abs(GrenadeChoiceRules.Flight(20,26,60)!.Value-2)<.00001);
   foreach(var v in new[]{double.NaN,double.PositiveInfinity,0,-1})C(GrenadeChoiceRules.Flight(20,v,25)==null);
   foreach(var v in new[]{double.NaN,0,90,180})C(GrenadeChoiceRules.Flight(20,20,v)==null);
-  C(GrenadeChoiceRules.Reject(2.5,-1,false,true,1.75,c)=="");C(GrenadeChoiceRules.Reject(2.5,-1,false,true,1.751,c)=="insufficient-arrival-margin");
+  C(GrenadeChoiceRules.Reject(2.5,-1,false,true,1.75,c)=="");C(GrenadeChoiceRules.Reject(2.5,-1,false,true,1.751,c)=="");
   C(GrenadeChoiceRules.Reject(2.49,-1,false,true,1,c)=="fuse-outside-safe-range");C(GrenadeChoiceRules.Reject(5,0,false,true,1,c)=="contact-explosion");
   C(GrenadeChoiceRules.Reject(5,-1,true,true,1,c)=="dummy-item");C(GrenadeChoiceRules.Reject(5,-1,false,false,1,c)=="not-timed-fragmentation");
   var a=new[]{new GrenadeChoiceAlternative{Item="a",Eligible=true,Fuse=3},new GrenadeChoiceAlternative{Item="b",Eligible=true,Fuse=5},new GrenadeChoiceAlternative{Item="z",Eligible=true,Fuse=3}};

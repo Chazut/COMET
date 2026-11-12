@@ -25,75 +25,46 @@ public sealed class MistakeTrace
     public List<MixOption> Options { get; set; } = new List<MixOption>();
 }
 
-// One instance for both tactical policies of one bot. Neither contact changes nor
-// ownership releases reset its clock. A05 never consumes A04 or Unity random state.
+// R_F's UtilityMistake: a five-second verdict per bot and decision family.
 public sealed class TacticalMistakes
 {
     private readonly TacticalMistakesConfig config;
-    private uint state;
-    private int draws, opportunities;
-    private double? lastMistakeAt;
-    public TacticalMistakes(TacticalMistakesConfig config, string stream)
+    private readonly Random random;
+    private sealed class Verdict { public string Best="", Picked=""; public double Until; }
+    private readonly Dictionary<bool,Verdict> verdicts=new();
+    private int draws,opportunities;
+    public TacticalMistakes(TacticalMistakesConfig config,string stream)
+    {this.config=config;random=new Random(StableSeed.Of(stream+"|mistake"));}
+    public Candidate? Select(List<Candidate> candidates,Candidate? before,MixTrace mixing,string personality,bool visible,double now,bool urgent,bool retry)
     {
-        this.config = config;
-        uint h = 2166136261;
-        unchecked { foreach (char c in stream + "|A05") { h ^= c; h *= 16777619; } }
-        state = h == 0 ? 0x9e3779b9 : h;
-    }
-
-    public Candidate? Select(List<Candidate> candidates, Candidate? before, MixTrace mixing,
-        string personality, bool visible, double now, bool urgent, bool retry)
-    {
-        var ranked = candidates.Where(c => c.Eligible && Finite(c.Score) && c.Score > 0)
-            .OrderByDescending(c => c.Score).ThenBy(c => c.Decision, StringComparer.Ordinal).ToList();
-        var best = ranked.FirstOrDefault();
-        double chance = Math.Min(1, config.Multiplier * (config.Chances.TryGetValue(personality, out var p) ? p : config.Chances["Normal"]));
-        double lossLimit = visible ? config.VisibleMaxLoss : config.HiddenMaxLoss;
-        // Even when A04 is disabled, its configured score band separates ordinary
-        // variety from a mistake. Equal-score choices are never mistakes.
-        var pool = ranked.Where(c => best != null && c.Score < best.Score * (1 - mixing.ScoreGap)
-            && c.Score >= best.Score * (1 - lossLimit)).ToList();
-        var trace = new MistakeTrace { Seed = state.ToString("x8"), Opportunity = ++opportunities, DrawIndex = draws,
-            At = Finite(now) ? now : 0, NextAllowedAt = lastMistakeAt + config.MinimumInterval,
-            Best = best?.Decision ?? "", Before = before?.Decision ?? "", Selected = before?.Decision ?? "",
-            BestScore = best?.Score ?? 0, SelectedScore = before?.Score ?? 0, Chance = chance, MaxLoss = lossLimit,
-            Personality = personality };
-        string blocked = !config.Enabled || chance == 0 ? "disabled" : !Finite(now) ? "invalid-time"
-            : urgent ? "urgent" : retry ? "native-retry" : best == null || before == null ? "no-feasible-option"
-            : !ReferenceEquals(before, best) ? "a04-already-varied"
-            : lastMistakeAt.HasValue && now < lastMistakeAt.Value + config.MinimumInterval ? "cooldown"
-            : pool.Count == 0 ? "no-plausible-alternative" : "";
-        var chosen = before;
-        trace.State = blocked;
-        if (blocked.Length == 0)
+        var ranked=candidates.Where(c=>c.Eligible&&!double.IsNaN(c.Score)&&!double.IsInfinity(c.Score)).OrderByDescending(c=>c.Score).ToList();
+        var best=ranked.FirstOrDefault();
+        double chance=Math.Min(1,config.Multiplier*(config.Chances.TryGetValue(personality,out var p)?p:.05));
+        var trace=new MistakeTrace {At=now,Opportunity=++opportunities,DrawIndex=draws,Best=best?.Decision??"",Before=before?.Decision??"",
+            Selected=before?.Decision??"",BestScore=best?.Score??0,SelectedScore=before?.Score??0,Chance=chance,MaxLoss=.35,Personality=personality};
+        Candidate? chosen=before;
+        if(!config.Enabled||chance==0)trace.State="disabled";
+        else if(best==null||before==null||ranked.Count<2||ranked[1].Score<=0)trace.State="no-positive-alternative";
+        else if(before.Decision!=best.Decision)trace.State="a04-already-varied";
+        else
         {
-            state ^= state << 13; state ^= state >> 17; state ^= state << 5;
-            double roll = state / 4294967296.0;
-            trace.Roll = roll; trace.DrawIndex = ++draws;
-            trace.State = "kept-best";
-            if (roll < chance)
+            if(!verdicts.TryGetValue(visible,out var v)||now>=v.Until||v.Best!=best.Decision)
             {
-                // One draw, split into equal subintervals for eligible alternatives.
-                chosen = pool[Math.Min(pool.Count - 1, (int)(roll / chance * pool.Count))];
-                lastMistakeAt = now; trace.NextAllowedAt = now + config.MinimumInterval;
-                trace.State = "mistake-selected";
+                double roll=random.NextDouble();draws++;trace.Roll=roll;
+                string pick="";
+                if(roll<chance) {int i=1;if(ranked.Count>2&&ranked[2].Score>0){draws++;if(random.NextDouble()<.3)i=2;}pick=ranked[i].Decision;}
+                v=new Verdict {Best=best.Decision,Picked=pick,Until=now+5};verdicts[visible]=v;
             }
+            trace.NextAllowedAt=v.Until;
+            var alternative=ranked.Find(c=>c.Decision==v.Picked&&c.Score>0);
+            if(alternative==null)trace.State="kept-best";
+            else if(best.Score-alternative.Score>35)trace.State="score-loss-too-large";
+            else {chosen=alternative;trace.State="mistake-selected";}
         }
-        foreach (var c in candidates)
-        {
-            bool valid = ranked.Contains(c), alternate = pool.Contains(c);
-            string reason = !c.Eligible ? c.Reason : !valid ? "nonpositive-or-invalid-score" : ReferenceEquals(c, best) ? "best"
-                : best != null && c.Score >= best.Score * (1 - mixing.ScoreGap) ? "inside-a04-band"
-                : !alternate ? "score-loss-too-large" : "plausible-alternative";
-            double probability = blocked.Length > 0 ? ReferenceEquals(c, before) ? 1 : 0
-                : ReferenceEquals(c, best) ? 1 - chance : alternate ? chance / pool.Count : 0;
-            trace.Options.Add(new MixOption { Decision = c.Decision, Score = Finite(c.Score) ? c.Score : 0,
-                Probability = probability, Reason = reason });
-        }
-        trace.Selected = chosen?.Decision ?? ""; trace.SelectedScore = chosen?.Score ?? 0;
-        trace.ScoreLoss = best == null ? 0 : Math.Max(0, (best.Score - trace.SelectedScore) / best.Score);
-        mixing.Mistake = trace;
-        return chosen;
+        trace.Selected=chosen?.Decision??"";trace.SelectedScore=chosen?.Score??0;trace.DrawIndex=draws;
+        trace.ScoreLoss=best==null?0:Math.Max(0,best.Score-trace.SelectedScore)/100;
+        foreach(var c in candidates)trace.Options.Add(new MixOption {Decision=c.Decision,Score=c.Score,
+            Reason=!c.Eligible?c.Reason:c.Score<=0?"nonpositive":c==best?"best":"ranked-alternative"});
+        mixing.Mistake=trace;mixing.Selected=trace.Selected;return chosen;
     }
-    private static bool Finite(double x) => !double.IsNaN(x) && !double.IsInfinity(x);
 }

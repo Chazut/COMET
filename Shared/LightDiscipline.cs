@@ -5,19 +5,19 @@ namespace Comet.Core;
 public sealed class LightDisciplineConfig
 {
     public bool Enabled { get; set; } = true;
-    public double ContactLifetime { get; set; } = 15;
+    public double ContactLifetime { get; set; } = 60;
     public double MaxDistance { get; set; } = 60;
-    public double MaxSpeed { get; set; } = .5;
-    public double HoldDelay { get; set; } = .5;
-    public double HiddenDelay { get; set; } = 1;
-    public double VisibleDelay { get; set; } = .25;
+    public double MaxSpeed { get; set; } = 1.2;
+    public double HoldDelay { get; set; } = 0;
+    public double HiddenDelay { get; set; } = 0;
+    public double VisibleDelay { get; set; } = 0;
     public void Validate()
     {
         CometConfig.Range(ContactLifetime, 1, 60, nameof(ContactLifetime));
         CometConfig.Range(MaxDistance, 5, 120, nameof(MaxDistance));
         CometConfig.Range(MaxSpeed, 0, 1.2, nameof(MaxSpeed));
-        CometConfig.Range(HoldDelay, .1, 3, nameof(HoldDelay));
-        CometConfig.Range(HiddenDelay, .1, 5, nameof(HiddenDelay));
+        CometConfig.Range(HoldDelay, 0, 3, nameof(HoldDelay));
+        CometConfig.Range(HiddenDelay, 0, 5, nameof(HiddenDelay));
         CometConfig.Range(VisibleDelay, 0, .5, nameof(VisibleDelay));
     }
 }
@@ -40,7 +40,7 @@ public sealed class LightDisciplineTrace
     public bool Requested, ObservedOff, NightVision;
     public int Devices, ActiveDevices;
     public string[] Modes = Array.Empty<string>();
-    public string[] Alternatives = { "Keep SAIN's current lighting choice", "Wait for stable tactical concealment", "Release on confirmed vision or a higher priority action" };
+    public string[] Alternatives = { "Keep SAIN's current lighting choice", "Stay dark while holding a known angle", "Use native lighting when moving, searching or seeing the enemy" };
 }
 
 // Per-bot state contains only values. Native objects live in the bounded adapter snapshot.
@@ -61,37 +61,16 @@ public sealed class LightDisciplinePolicy
         if (contact != f.Contact) { Clear("light-contact-changed"); contact = f.Contact; }
         var t = Trace ??= new();
         t.Contact = f.Contact; t.Source = f.Source; t.Action = f.Action; t.Tactic = f.Tactic;
-        t.Known = f.Known; t.NightVision = f.NightVision;
+        t.Known = f.Known.HasValue && f.Known.Value.Finite ? f.Known : null; t.NightVision = f.NightVision;
         t.ContactAge = FiniteNonnegative(f.ContactAge); t.Distance = FiniteNonnegative(f.Distance); t.Speed = FiniteNonnegative(f.Speed);
         t.HoldWait = t.HiddenWait = t.VisibleWait = 0;
         if (!c.Enabled || f.Block.Length > 0) { Release(!c.Enabled ? "light-disabled" : f.Block); return false; }
-        // An already hidden bot tolerates brief visual flicker. No new darkness begins on a visible enemy.
-        if (f.Visible)
-        {
-            hiddenAt = holdAt = -1;
-            if (visibleAt < 0) visibleAt = f.Now;
-            t.VisibleWait = Math.Max(0, c.VisibleDelay - (f.Now - visibleAt));
-            if (Dark && t.VisibleWait > 1e-6) { t.Reason = "light-confirming-vision"; return true; }
-            Release("light-visible-contact"); return false;
-        }
-        visibleAt = -1;
-        if (f.Contact.Length == 0 || f.Source.Length == 0 || f.Known == null || !f.Known.Value.Finite
-            || t.ContactAge == null || f.ContactAge > c.ContactLifetime || t.Distance == null || f.Distance > c.MaxDistance)
-        { Release("light-no-recent-known-contact"); return false; }
-        if (hiddenAt < 0) hiddenAt = f.Now;
-        if (f.Tactic.Length == 0 || t.Speed == null || f.Speed > c.MaxSpeed)
-        { Release(f.Tactic.Length == 0 ? "light-not-tactical-hold" : "light-moving", false); return false; }
-        if (tactic != f.Tactic) { Release("light-tactic-changed", false); tactic = f.Tactic; }
-        if (yielded) { t.State = "yielded"; t.Reason = yieldReason; t.ValidFor = 0; return false; }
-        if (holdAt < 0)
-        {
-            holdAt = f.Now;
-            if (!Dark) { t.Requested = t.ObservedOff = false; t.Devices = t.ActiveDevices = 0; t.Modes = Array.Empty<string>(); t.Weapon = ""; t.Execution = "No device command"; }
-        }
-        t.HoldWait = Dark ? 0 : Math.Max(0, c.HoldDelay - (f.Now - holdAt));
-        t.HiddenWait = Dark ? 0 : Math.Max(0, c.HiddenDelay - (f.Now - hiddenAt));
-        if (!Dark && (t.HoldWait > 1e-6 || t.HiddenWait > 1e-6))
-        { t.State = "waiting"; t.Reason = "light-stabilizing-hold"; t.ValidFor = 0; return false; }
+        // zzap BotLightController.ShallStayDark: immediate visibility release;
+        // known enemy within 60 m/60 s, moving below 1.2 m/s, except Search.
+        if (f.Visible) { Release("light-visible-contact"); return false; }
+        if (f.Contact.Length == 0 || f.Source.Length == 0 || f.ContactAge >= c.ContactLifetime
+            || f.Distance >= c.MaxDistance || f.Speed >= c.MaxSpeed || f.Action == "Search")
+        { Release("light-not-holding-angle"); return false; }
         Dark = true; t.State = "dark"; t.Reason = "light-tactical-concealment"; t.ValidFor = .8; return true;
     }
     private static double? FiniteNonnegative(double n) => DoorPolicy.Finite(n) && n >= 0 ? n : null;

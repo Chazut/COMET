@@ -27,21 +27,18 @@ public sealed partial class Plugin
     {
         var cfg=config ?? throw new InvalidOperationException("Missing authoritative configuration");
         var heard=e.KnownPlaces.LastHeardPlace;var known=e.KnownPlaces.LastKnownPlace;
-        var personal=heard!=null&&ReferenceEquals(heard,known)&&e.Heard;
+        var personal=heard!=null&&e.Heard;
         var f=new SilentSearchFrame{
             Now=Time.time,Target=e.EnemyProfileId,Instance=RuntimeHelpers.GetHashCode(e),Personality=situation.Personality,
             Scoped=ContactSafety.AllowsGoal(b)&&!s.SilentFault&&cfg.Enabled&&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId),
             Personal=personal,Seen=e.Seen||e.IsVisible,HasContact=situation.HasContact,
-            HeardAt=personal?silentHeardAt(heard!):0,ContactAge=situation.ContactAge,Lifetime=cfg.ContactLifetime,
+            HeardAt=known!=null?silentHeardAt(known):0,ContactAge=situation.ContactAge,Lifetime=cfg.ContactLifetime,
+            TimeBeforeSearch=b.Info.TimeBeforeSearch,
             X=personal?heard!.Position.x:0,Y=personal?heard!.Position.y:0,Z=personal?heard!.Position.z:0,
             SearchAllowed=b.Info.PersonalitySettings.Search.WillSearchForEnemy,AudioAllowed=b.Info.PersonalitySettings.Search.WillSearchFromAudio,
             Arrived=known?.HasArrivedPersonal==true||known?.HasArrivedSquad==true,
-            Unsafe=situation.Visible||b.EnemyController.VisibleEnemies.Count>0||situation.Hurt||situation.Suppressed||situation.LowAmmo||s.Fear.Current.Panic
-                ||b.BotOwner.Memory.IsUnderFire||b.Medical.TimeSinceShot<3||b.BotOwner.DoorOpener.Interacting
-                ||b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None
-                ||b.Decision.CurrentCombatDecision==ECombatDecision.AvoidGrenade||!VisibleAdapter.WeaponReady(b),
             Path=!situation.Unavailable.ContainsKey(Tactic.Search),
-            Failed=cfg.Progress.Enabled&&!s.ProgressUnavailable&&s.Progress.Blocked(ProgressAdapter.GoalKey(b),Time.time)
+            Failed=false
         };
         var t=SilentSearchPolicy.Evaluate(f,cfg.SilentSearch);
         var previous=s.SilentTrace;

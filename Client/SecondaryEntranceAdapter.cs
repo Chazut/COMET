@@ -13,6 +13,7 @@ namespace Comet.Client;
 
 internal sealed class EntranceRuntime
 {
+    internal int Calculations;
     internal readonly SecondaryEntrance Policy=new();
     internal readonly List<DoorWork> Doors=new();
     internal readonly List<Vector3> Radial=new();
@@ -39,12 +40,11 @@ public sealed partial class Plugin
         if(!r.Indoor)return DeclineSquad(s,"S02","entrance-outdoors-use-crossfire");
         if(!a.Policy.CanTry(r.Contact,Time.time,r.ContactAt,c))return DeclineSquad(s,"S02","entrance-disabled-stale-or-retry");
         if(!a.Policy.Begin(r.Contact,Time.time,r.ContactAt,jumpRandom.NextDouble(),c))return DeclineSquad(s,"S02","entrance-participation-declined");
-        r.Policy.Trace.Entrance=a.Policy.Trace;a.Started=Time.time;
+        r.Policy.Trace.Entrance=a.Policy.Trace;a.Started=Time.time;a.Calculations=0;
         // Local door links only. Ordinary open passages are also checked from bounded NavMesh paths below.
-        CollectEntranceDoors(b,a,r.Known);
-        if(b.Squad.Members.TryGetValue(r.Support,out var mate))CollectEntranceDoors(mate,a,r.Known);
-        for(int ring=0;ring<3;ring++)for(int i=0;i<8;i++)
-        {float angle=i*Mathf.PI/4;float radius=5+ring*3;a.Radial.Add(r.Known+new Vector3(Mathf.Cos(angle),0,Mathf.Sin(angle))*radius);}
+
+        for(int ring=0;ring<3;ring++)for(int i=0;i<12;i++)
+        {float angle=i*Mathf.PI/6;float radius=5+ring*3;a.Radial.Add(r.Known+new Vector3(Mathf.Cos(angle),0,Mathf.Sin(angle))*radius);}
         return true;
     }
     private static void CollectEntranceDoors(BotComponent b,EntranceRuntime a,Vector3 known)
@@ -106,81 +106,40 @@ public sealed partial class Plugin
         a.Drop();r.Policy.Trace.Entrance=null;r.Policy.Trace.Candidates=0;r.Route=null;r.Candidate=r.Sample=0;r.Samples.Clear();
         if(!r.Rejects.Contains(why)&&r.Rejects.Count<8)r.Rejects.Add(why);r.Policy.Trace.Alternatives=r.Rejects.ToArray();BuildCrossfireCandidates(b,r);
     }
+    // zzap FindOtherEntrance: infer access from path corners; no physical-door proof.
     private void ProbeEntrance(BotComponent b,BotState s)
     {
         var r=s.Crossfire;var a=r.Entrance;var c=config!.SecondaryEntrance;
-        if(a.Stage==0)
-        {
-            var path=new NavMeshPath();if(!NavMesh.CalculatePath(r.Reference,r.Known,NavMesh.AllAreas,path)||!EntrancePath(path,r.Reference,r.Known,80))
-            {FallbackEntrance(b,s,"no complete partner route");return;}
-            a.PrimaryPath=path;DoorGeometry? primary=null;
-            foreach(var w in a.Doors)if(Vector3.Distance(VP(w.Geometry.Center),r.Known)<=12&&CrossesEntrance(path.corners,w.Geometry)
-                &&(primary==null||Vector3.Distance(VP(w.Geometry.Center),r.Known)<Vector3.Distance(VP(primary.Center),r.Known)))primary=w.Geometry;
-            if(primary==null&&PathThroat(b,path,out var inferred))primary=inferred;
-            if(primary==null){FallbackEntrance(b,s,"primary access cannot be verified");return;}
-            a.PrimaryGeometry=primary;a.Primary=VP(primary.Center);a.PrimaryId=primary.Id;a.Policy.Trace!.Primary=primary.Id;a.Stage=1;return;
+        Vector3 Flat(Vector3 p){p.y=0;return p;}
+        if(a.Stage==0) {
+            if(!NavMesh.SamplePosition(r.Known,out var en,1,NavMesh.AllAreas)||!NavMesh.SamplePosition(r.Reference,out var mn,1,NavMesh.AllAreas)) {FallbackEntrance(b,s,"no navmesh");return;}
+            var p=new NavMeshPath();if(!NavMesh.CalculatePath(mn.position,en.position,NavMesh.AllAreas,p)||p.corners.Length<3) {FallbackEntrance(b,s,"partner direct route");return;}
+            a.Primary=p.corners[p.corners.Length-2];a.PrimaryPath=p;a.PrimaryId="path-corner";a.Stage=1;return;
         }
-        if(r.Route!=null)
-        {
-            if(r.Sample<r.Samples.Count)
-            {
-                var previous=r.Sample==0?r.Origin:r.Samples[r.Sample-1];var point=r.Samples[r.Sample++];string why=EntranceApproachSafety(b,s,point);
-                if(why.Length==0)why=RunVolume(b,previous,point);
-                if(why.Length>0){RejectCrossfire(r,why);a.Chosen=null;}return;
-            }
-            string occupied=CrossfireSpace(b,s,r.Goal,true);
-            if(occupied.Length>0||!ReserveEntrance(b,s)){RejectCrossfire(r,occupied.Length>0?occupied:"passage already reserved");a.Chosen=null;return;}
-            if(!crossfireClaims.Reserve(s.Id,r.Goal.x,r.Goal.y,r.Goal.z,config.Crossfire.Spacing,Time.time,r.Group))
-            {ReleaseEntrance(s);RejectCrossfire(r,"watch position already reserved");a.Chosen=null;return;}
-            r.Policy.Ready(r.Goal.x,r.Goal.y,r.Goal.z,r.Angle,r.Length);r.Policy.Trace!.Reason="secondary-entrance-verified";
-            a.Policy.Trace!.State="moving";return;
+        if(a.Index>=a.Radial.Count||a.Calculations>=24) {
+            if(a.Chosen==null){FallbackEntrance(b,s,"no alternative entrance path");return;}
+            if(!crossfireClaims.Reserve(s.Id,r.Goal.x,r.Goal.y,r.Goal.z,config.Crossfire.Spacing,Time.time,r.Group)) {FallbackEntrance(b,s,"watch point claimed");return;}
+            r.Policy.Ready(r.Goal.x,r.Goal.y,r.Goal.z,r.Angle,r.Length);r.Policy.Trace!.Reason="secondary-entrance-path-found";a.Policy.Trace!.State="moving";return;
         }
-        DoorWork? chosen=null;bool virtualPassage=false;r.Policy.Trace!.Candidates=Math.Min(48,a.Index+1);
-        if(a.Index<a.Doors.Count)chosen=a.Doors[a.Index++];
-        else
-        {
-            int radial=a.Index++-a.Doors.Count;
-            if(radial>=a.Radial.Count){FallbackEntrance(b,s,"no distinct safe secondary access");return;}
-            if(!NavMesh.SamplePosition(a.Radial[radial],out var nav,.75f,NavMesh.AllAreas))return;
-            var path=new NavMeshPath();if(!NavMesh.CalculatePath(nav.position,r.Known,NavMesh.AllAreas,path)||!EntrancePath(path,nav.position,r.Known,15)
-                ||!PathThroat(b,path,out var opening))return;
-            chosen=new(){Geometry=opening};virtualPassage=true;
-        }
-        var g=chosen.Geometry;var center=VP(g.Center);
-        if(g.Id==a.PrimaryId||Vector3.Distance(center,a.Primary)<3||CrossesEntrance(a.PrimaryPath!.corners,g))
-        {RejectCrossfire(r,"access duplicates the supporting teammate's route");return;}
-        if(Vector3.Distance(center,r.Known)>12||Math.Abs(center.y-r.Known.y)>.8)
-        {RejectCrossfire(r,"access outside remembered area or on another floor");return;}
-        if(g.State is not ("Open" or "Shut")){RejectCrossfire(r,"access locked or unavailable");return;}
-        var normal=VP(g.Normal);if(Vector3.Dot(r.Known-center,normal)<0)normal*= -1;
-        if(Vector3.Dot(r.Known-center,normal)<1.5)return;
-        // Confirm both distinct routes really lead into the remembered area.
-        var inside=center+normal*.8f;var toTarget=new NavMeshPath();
-        if(!NavMesh.CalculatePath(inside,r.Known,NavMesh.AllAreas,toTarget)||!EntrancePath(toTarget,inside,r.Known,15)
-            ||CrossesEntrance(toTarget.corners,g)||CrossesEntrance(toTarget.corners,a.PrimaryGeometry!)||CrossfireAngle(a.Primary,center,r.Known)<20)return;
-        // Try the requested distance, then two bounded closer positions when space is tight.
-        NavMeshHit hit=default;bool stackFound=false;
-        for(int step=0;step<3;step++)
-        {
-            float distance=(float)(step==0?c.StandOff:step==1?Math.Max(1,c.StandOff*.75):1);
-            var raw=center-normal*distance;
-            if(NavMesh.SamplePosition(raw,out hit,.5f,NavMesh.AllAreas)&&Math.Abs(hit.position.y-center.y)<=.65
-                &&Vector3.Dot(hit.position-center,normal)<=-1&&EntranceApproachSafety(b,s,hit.position).Length==0)
-            {stackFound=true;break;}
-        }
-        if(!stackFound)return;
-        a.Chosen=chosen;a.Virtual=virtualPassage;a.Center=center;a.Normal=normal;a.Stack=hit.position;r.Goal=hit.position;
-        string deny=CrossfireSpace(b,s,r.Goal,true);if(deny.Length==0)deny=EntranceApproachSafety(b,s,r.Goal);
-        if(deny.Length>0){RejectCrossfire(r,deny);a.Chosen=null;return;}
-        if(!b.Mover.CanGoToPoint(r.Goal,out var route,true,.2f)||!EntrancePath(route,b.Position,r.Goal,(float)c.MaxPath)||CrossesEntrance(route.corners,g)||CrossesEntrance(route.corners,a.PrimaryGeometry!))
-        {RejectCrossfire(r,"approach crosses target access or lacks complete route");a.Chosen=null;return;}
-        r.Route=route;r.Length=(float)Length(route.corners);r.Angle=CrossfireAngle(a.Primary,center,r.Known);r.Samples.Clear();r.Sample=0;
-        var cs=route.corners;for(int i=1;i<cs.Length;i++){int count=Math.Max(1,(int)Math.Ceiling(Vector3.Distance(cs[i-1],cs[i])));for(int j=1;j<=count;j++)r.Samples.Add(cs[i-1]+(cs[i]-cs[i-1])*(j/(float)count));}
-        var t=a.Policy.Trace!;t.Passage=g.Id;t.PassageX=center.x;t.PassageY=center.y;t.PassageZ=center.z;
+        var raw=a.Radial[a.Index++];
+        if(!NavMesh.SamplePosition(raw,out var nav,1,NavMesh.AllAreas)||Flat(nav.position-a.Primary).magnitude<4||Flat(nav.position-r.Reference).magnitude<4)return;
+        if(!NavMesh.SamplePosition(r.Known,out var enemy,1,NavMesh.AllAreas))return;
+        a.Calculations++;var routeIn=new NavMeshPath();
+        if(!NavMesh.CalculatePath(nav.position,enemy.position,NavMesh.AllAreas,routeIn)||routeIn.status!=NavMeshPathStatus.PathComplete||routeIn.corners.Length<3||Length(routeIn.corners)>15)return;
+        var cs=routeIn.corners;var door=cs[cs.Length-2];if(Flat(door-a.Primary).magnitude<3)return;
+        var back=Flat(cs[cs.Length-3]-door);float n=Math.Min(2.5f,back.magnitude);
+        if(n<.8||!NavMesh.SamplePosition(door+back.normalized*n,out var hold,1,NavMesh.AllAreas))return;
+        if(Physics.Linecast(hold.position+Vector3.up*1.5f,door+Vector3.up*1.2f,LayersMaskController.HighPolyWithTerrainMask)
+            ||CrossfireSpace(b,s,hold.position,true).Length>0||!b.Mover.CanGoToPoint(hold.position,out var path,true))return;
+        float len=(float)Length(path.corners);if(len>c.MaxPath||a.Chosen!=null&&len>=r.Length)return;
+        var normal=Flat(door-hold.position).normalized;
+        var g=new DoorGeometry{Id="path-entrance",Center=DP(door),Normal=DP(normal),Axis=DP(Vector3.Cross(Vector3.up,normal)),State="Open",HalfWidth=1};
+        a.Chosen=new(){Geometry=g};a.Virtual=true;a.Center=door;a.Normal=normal;a.Stack=hold.position;r.Goal=hold.position;r.Route=path;r.Length=len;r.Angle=CrossfireAngle(a.Primary,door,r.Known);r.Samples.Clear();r.Sample=0;
+        var t=a.Policy.Trace!;t.Passage=g.Id;t.PassageX=door.x;t.PassageY=door.y;t.PassageZ=door.z;
     }
     private string EntranceApproachSafety(BotComponent b,BotState s,Vector3 point)
     {
-        var r=s.Crossfire;string why=CrossfireSpace(b,s,point,false);if(why.Length==0)why=CrossfireThreatSafety(b,r,point);
+        var r=s.Crossfire;string why=CrossfireSpace(b,s,point,false);
         if(why.Length==0&&CrossfireSight(point,r.Known))why="approach exposes the remembered enemy position";
         if(why.Length==0)why=RunVolume(b,point,point+Vector3.up*.01f);return why;
     }
@@ -194,51 +153,16 @@ public sealed partial class Plugin
     {var a=s.Crossfire.Entrance;if(a.Lease!=null)doorReservations.Release(a.Lease);a.Lease=null;}
     private string EntranceSupportStatus(BotComponent b,BotState s)
     {
-        var r=s.Crossfire;
-        if(!b.Squad.Members.TryGetValue(r.Support,out var mate)||mate==null||!CrossfireScope(mate))return "unavailable";
-        if(mate.GoalEnemy?.EnemyProfileId!=r.Contact||!mate.GoalEnemy.EnemyKnown||mate.GoalEnemy.TimeSinceLastKnownUpdated>config!.SecondaryEntrance.ContactAge)return "contact lost";
-        if(Vector3.Distance(mate.Position,r.Reference)>4||Vector3.Distance(mate.Position,b.Position)>config.Crossfire.SupportDistance)return "left primary access";
-        if(mate.BotOwner.Medecine.Using||mate.Decision.CurrentSelfDecision!=ESelfActionType.None)return "healing or occupied";
-        if(mate.BotOwner.WeaponManager.Reload.Reloading)return "reloading";
-        if(mate.Decision.CurrentCombatDecision.ToString().Contains("Retreat")||mate.Decision.CurrentCombatDecision.ToString().Contains("RunAway")
-            ||mate.Decision.CurrentSquadDecision!=ESquadDecision.None)return "withdrawing or squad priority";
-        if(mate.BotOwner.Memory.IsUnderFire||mate.Suppression.IsSuppressed||mate.Flashed.IsFlashed||mate.Grenade.GrenadeDangerPoint!=null)return "under pressure";
-        if(mate.Memory.Health.HealthStatus is ETagStatus.BadlyInjured or ETagStatus.Dying)return "injured";
-        if(!WeaponHandsReady(mate,mate.Player.HandsController as Player.FirearmController)||!mate.BotOwner.WeaponManager.HaveBullets)return "weapon unavailable";
-        var primary=r.Entrance.Doors.Find(x=>x.Geometry.Id==r.Entrance.PrimaryId);
-        if(primary!=null&&primary.Data.Door.DoorState!=EDoorState.Open)return "primary access blocked";
-        if(mate.GoalEnemy.IsVisible)return "ready";
-        if(mate.GoalEnemy.KnownPlaces.LastKnownPosition is not Vector3 known||Vector3.Distance(known,r.Known)>2)return "contact changed";
-        // A covering partner must actually face the same approach, not merely retain an enemy ID.
-        if(Vector3.Angle(mate.Player.LookDirection,r.Entrance.Primary-mate.Position)>35)return "not covering primary access";
-        return "ready";
+        if(b.Memory.Health.HealthStatus is ETagStatus.BadlyInjured or ETagStatus.Dying)return "injured";
+        return b.GoalEnemy.TimeSinceLastKnownUpdated<8?"ready":"stale";
     }
     private static double EntranceAmmo(BotComponent b)
     {var m=b.BotOwner.WeaponManager?.CurrentWeapon?.GetCurrentMagazine();return m==null||m.MaxCount<=0?0:m.Count*100d/m.MaxCount;}
     private bool ValidateEntranceActive(BotComponent b,BotState s,bool callback)
     {
-        var r=s.Crossfire;var a=r.Entrance;var t=a.Policy.Trace!;var c=config!.SecondaryEntrance;
-        var ids=new List<string>(b.Squad.Members.Keys);ids.Sort(StringComparer.Ordinal);
-        if(string.Join("|",ids)!=r.Group){EndCrossfire(b,s,"secondary-entrance-squad-changed");return false;}
-        if(!c.Enabled||Time.time-r.ContactAt>c.ContactAge){EndCrossfire(b,s,"secondary-entrance-disabled-or-stale");return false;}
-        if(r.Policy.Trace!.State=="planning")return true;
-        if(a.Lease!=null)
-        {
-            if(!doorReservations.Owns(a.Lease,ReservationSquad(b,s),s.Id,Time.time))
-            {EndCrossfire(b,s,"secondary-entrance-reservation-lost");return false;}
-            if(callback&&Time.time>=a.NextRenew)
-            {if(!doorReservations.Renew(a.Lease,ReservationSquad(b,s),s.Id,t.State,Time.time,true,config.DoorReservation)){EndCrossfire(b,s,"secondary-entrance-renewal-failed");return false;}a.NextRenew=Time.time+config.DoorReservation.RenewInterval;}
-        }
-        if(a.Chosen==null){EndCrossfire(b,s,"secondary-entrance-missing-passage");return false;}
-        if(!a.Virtual&&(!TryDoorGeometry(a.Chosen.Data,out var g)||g.State is not ("Open" or "Shut")
-            ||Vector3.Distance(VP(g.Center),a.Center)>.1))
-        {EndCrossfire(b,s,"secondary-entrance-door-unavailable");return false;}
-        t.SupportStatus=EntranceSupportStatus(b,s);t.Ammo=EntranceAmmo(b);
-        if(a.Entering||a.Preparing||a.Opening)
-        {
-            if(t.SupportStatus!="ready"||EntranceAmmo(b)<c.MinimumAmmo){EndCrossfire(b,s,"secondary-entrance-entry-support-or-ammo-lost");return false;}
-        }
-        return true;
+        var a=s.Crossfire.Entrance;if(!config!.SecondaryEntrance.Enabled){EndCrossfire(b,s,"secondary-entrance-disabled");return false;}
+        if(s.Crossfire.Policy.Trace!.State!="planning"&&a.Chosen==null){EndCrossfire(b,s,"secondary-entrance-missing-target");return false;}
+        a.Policy.Trace!.SupportStatus=EntranceSupportStatus(b,s);a.Policy.Trace.Ammo=EntranceAmmo(b);return true;
     }
     private void ExecuteEntrance(BotComponent b,BotState s)
     {
@@ -259,7 +183,7 @@ public sealed partial class Plugin
         if(r.Policy.Trace!.State=="holding"&&!a.Entering&&!a.Preparing)
         {
             a.Policy.Arrived(Time.time);t.State="watching";
-            string choice=a.Policy.Decide(Time.time,Time.time-r.ContactAt<=c.ContactAge,t.SupportStatus,EntranceAmmo(b),b.Info.Personality.ToString(),
+            string choice=a.Policy.Decide(Time.time,b.GoalEnemy.TimeSinceLastKnownUpdated<15&&Vector3.Distance(b.GoalEnemy.KnownPlaces.LastKnownPosition??r.Known,a.Center)<12,t.SupportStatus,EntranceAmmo(b),b.Info.Personality.ToString(),
                 t.Rolled?t.EntryRoll/100:Time.time>=a.Policy.WatchAt+t.WatchDuration?jumpRandom.NextDouble():0,c);
             if(choice=="end"){EndCrossfire(b,s,"secondary-entrance-"+t.EntryReason.Replace(' ','-'));return;}
             if(choice!="ready")return;a.Preparing=true;t.State="preparing-entry";
@@ -273,23 +197,9 @@ public sealed partial class Plugin
                 a.Opening=true;a.Preparing=false;a.OpenAt=Time.time;t.OpenRequested=true;t.State="opening";return;
             }
             t.OpenObserved=true;var raw=a.Center+a.Normal*2.5f;
-            if(!NavMesh.SamplePosition(raw,out var nav,.5f,NavMesh.AllAreas)||Math.Abs(nav.position.y-a.Center.y)>.65
-                ||!b.Mover.CanGoToPoint(nav.position,out var route,true,.2f)||!EntrancePath(route,b.Position,nav.position,8)
-                ||!CrossesEntrance(route.corners,a.Chosen!.Geometry))
-            {EndCrossfire(b,s,"secondary-entrance-no-verified-crossing-route");return;}
+            if(!NavMesh.SamplePosition(raw,out var nav,1,NavMesh.AllAreas)||!b.Mover.CanGoToPoint(nav.position,out var route,true))
+            {EndCrossfire(b,s,"secondary-entrance-no-path");return;}
             var cs=route.corners;
-            for(int i=1;i<cs.Length;i++)
-            {
-                if(RunVolume(b,cs[i-1],cs[i]).Length>0){EndCrossfire(b,s,"secondary-entrance-crossing-blocked");return;}
-                int samples=Math.Max(1,(int)Math.Ceiling(Vector3.Distance(cs[i-1],cs[i])));
-                for(int j=1;j<=samples;j++)
-                {var point=cs[i-1]+(cs[i]-cs[i-1])*(j/(float)samples);if(CrossfireSpace(b,s,point,false).Length>0||CrossfireThreatSafety(b,r,point).Length>0){EndCrossfire(b,s,"secondary-entrance-crossing-unsafe");return;}}
-            }
-            if(b.Mover.ActivePath!=null||QueuedCombatMovement(b)){EndCrossfire(b,s,"secondary-entrance-foreign-route");return;}
-            if(!crossfireClaims.Free(s.Id,nav.position.x,nav.position.y,nav.position.z,config.Crossfire.Spacing,Time.time,r.Group))
-            {EndCrossfire(b,s,"secondary-entrance-entry-position-busy");return;}
-            crossfireClaims.Release(s.Id);
-            if(!crossfireClaims.Reserve(s.Id,nav.position.x,nav.position.y,nav.position.z,config.Crossfire.Spacing,Time.time,r.Group)){EndCrossfire(b,s,"secondary-entrance-entry-reservation-failed");return;}
             r.Goal=nav.position;r.Route=route;r.Length=(float)Length(cs);r.Samples.Clear();r.Samples.AddRange(cs);
             if(!b.Mover.WalkToPointByWay(route,true,.3f,false)||b.Mover.ActivePath==null){EndCrossfire(b,s,"secondary-entrance-native-entry-refused");return;}
             r.Path=b.Mover.ActivePath;r.PathStarted=r.Path.TimeStarted;

@@ -121,7 +121,7 @@ public sealed partial class Plugin
     {
         var r=s.RoomClear;
         if(config?.DoorRoomClear.Enabled!=true||r.Fault||r.Policy.Active||DoorGate(b,e,s).Length>0
-            ||e.KnownPlaces.LastKnownPosition is not Vector3 known||ClearResources(b).Length>0)return false;
+            ||e.KnownPlaces.LastKnownPosition is not Vector3 known)return false;
         if(Vector3.Distance(b.Position,VP(door.Geometry.Center))>3)return false;
         bool searching=e.TimeSinceLastKnownUpdated>config.DoorRoomClear.ContactLifetime;
         if(searching&&(!b.Info.PersonalitySettings.Search.WillSearchForEnemy||!e.Seen&&!b.Info.PersonalitySettings.Search.WillSearchFromAudio))return false;
@@ -141,11 +141,7 @@ public sealed partial class Plugin
     private string ClearResources(BotComponent b)
     {
         if(MedicalPostureGuard(b)||FakeMedicalPriority(b))return "clear-real-medical-priority";
-        var weapon=b.BotOwner.WeaponManager?.CurrentWeapon;
-        if(weapon==null||weapon.GetCurrentMagazine()==null)return "clear-magazine-unavailable";
-        var mag=weapon.GetCurrentMagazine();
-        if(mag.MaxCount<=0||mag.Count*100d/mag.MaxCount<config!.DoorRoomClear.MinimumAmmo)return "clear-insufficient-loaded-ammo";
-        if(b.Player.Physical.Stamina.NormalValue*100<config!.DoorRoomClear.MinimumStamina)return "clear-insufficient-stamina";
+        // zzap uses health/ammunition to weight the plan, not to veto an entry already selected.
         return "";
     }
     private string ClearGate(BotComponent b,BotState s)
@@ -161,23 +157,16 @@ public sealed partial class Plugin
             if(search.Length>0)return search;
         }
         if(e==null||!e.EnemyKnown||e.EnemyProfileId!=t.Target
-            ||e.KnownPlaces.LastKnownPosition is not Vector3 known||(DP(known)-new DoorPoint(t.KnownX,t.KnownY,t.KnownZ)).Length>2)return "clear-contact-changed";
+            ||e.KnownPlaces.LastKnownPosition is not Vector3 known)return "clear-contact-changed";
         t.ContactAge=e.TimeSinceLastKnownUpdated;
         if(e.IsVisible||b.EnemyController.VisibleEnemies.Count>0)return "clear-visible-contact-native-combat";
         if(b.Grenade.GrenadeDangerPoint!=null)return "clear-grenade-danger-native-escape";
-        // Once the grenade is out, keep its safety wait even if the tactical contact has become stale.
-        if(t.Mode!="search"&&t.State is not ("throwing" or "waiting-blast" or "post-blast")&&t.ContactAge>config.DoorRoomClear.ContactLifetime)return "clear-contact-expired";
-        if(b.Flashed.IsFlashed||b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed||s.Fear.Current.Panic||b.Medical.TimeSinceShot<3
-            ||b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None)return "clear-native-priority";
-        if(r.Door==null||!TryDoorGeometry(r.Door.Data,out var g)||(g.Center-r.Door.Geometry.Center).Length>.1||Math.Abs(g.Axis.Dot(r.Door.Geometry.Axis))<.99)return "clear-frame-changed";
+        if(b.BotOwner.Memory.IsUnderFire)return "clear-under-fire";
+        if(r.Door==null||!TryDoorGeometry(r.Door.Data,out var g))return "clear-door-unavailable";
         bool ownOpen=t.State=="opening";
         if(!ownOpen&&(b.DoorOpener.Interacting||b.BotOwner.DoorOpener.Interacting||JumpInteractionState(b)))return "clear-foreign-door-interaction";
         if(!ownOpen&&t.DoorOpenObserved&&g.State!="Open")return "clear-door-no-longer-open";
         if(!ownOpen&&g.State!="Open"&&g.State!="Shut")return "clear-door-unavailable";
-        bool handsBusy=t.State is "feint" or "throwing" or "waiting-blast" or "post-blast";
-        if(!ownOpen&&!handsBusy&&!FakeWeaponReady(b))return "clear-weapon-not-ready";
-        if(!handsBusy){string resources=ClearResources(b);if(resources.Length>0)return resources;}
-        if(t.State!="entering"&&Vector3.Distance(b.Position,r.Stack)>.5f)return "clear-protected-frame-lost";
         return "";
     }
     private bool KeepDoorClear(BotComponent b,BotState s,ref ECombatDecision decision,ref bool result)
@@ -194,7 +183,6 @@ public sealed partial class Plugin
         {
             string why=ClearGate(b,s);
             if(why.Length>0)EndDoorClear(s,why);
-            else if(Time.time-s.RoomClear.LastCallback>.6f)EndDoorClear(s,"clear-search-callback-stopped");
         }
         catch(Exception ex){s.RoomClear.Fault=true;EndDoorClear(s,"clear-adapter-error");Logger.LogWarning("COMET room entry yielded: "+ex.Message);}
     }
@@ -226,7 +214,7 @@ public sealed partial class Plugin
         }
         if(t.State=="throwing")return false;
         if(t.State=="waiting-blast"&&(r.Projectile==null||!r.Projectile.TryGetTarget(out var projectile)||projectile==null))
-        {r.Policy.MissingProjectile();FinishDoorClear(s);return true;}
+        {r.Policy.MissingProjectile();}
         if(t.State=="entering")
         {
             bool near=Vector3.Distance(b.Position,r.Destination)<=.5f;
@@ -237,12 +225,11 @@ public sealed partial class Plugin
         }
         if(Time.time<r.NextCheck){b.Steering.LookToPoint(VP(new(t.KnownX,t.KnownY,t.KnownZ))+Vector3.up*1.2f);return false;}
         if(!doorBudget.TryBegin(Time.frameCount,b))
-        {if(Time.time-r.LastCheck>.5f){EndDoorClear(s,"clear-safety-budget-expired");return true;}return false;}
+        {return false;}
         doorClock.Restart();
         try
         {
             r.LastCheck=Time.time;r.NextCheck=Time.time+.25f;
-            if(t.State!="entering"&&!ClearCover(b,r)){EndDoorClear(s,"clear-frame-cover-lost");return true;}
             if(t.State=="preparing")
             {
                 if(r.Door!.Data.Door.DoorState==EDoorState.Shut)
@@ -274,7 +261,7 @@ public sealed partial class Plugin
             else if(t.State=="throw-ready")
             {
                 string why=PrepareClearGrenade(b,e!,s);
-                if(why.Length>0){EndDoorClear(s,"clear-grenade-plan-invalid:"+why);return true;}
+                if(why.Length>0){t.Variant="direct";t.State="entry-ready";t.Reason="clear-grenade-unavailable-dash-anyway";return false;}
                 var nade=b.BotOwner.WeaponManager.Grenades.grenade;
                 r.Policy.ThrowRequest(nade.Id.ToString(),nade.GetExplDelay,ClearDangerRadius(nade),Time.time);
                 if(r.Policy.Active)
@@ -301,12 +288,9 @@ public sealed partial class Plugin
                 if(why.Length==0)why=DirectClearSafety(b,r);
                 if(why.Length>0){EndDoorClear(s,"clear-entry-recheck:"+why);return true;}
                 r.Policy.MoveRequest(DP(b.Position),Time.time);
-                bool accepted=b.Mover.WalkToPointByWay(r.Route!,true,.35f,false);r.Policy.MoveResult(accepted);r.OwnedPath=accepted?b.Mover.ActivePath:null;
+                b.Mover.SetTargetPose(1f);b.Mover.SetTargetMoveSpeed(1f);
+                bool accepted=b.Mover.RunToPoint(r.Destination,true,.5f,ESprintUrgency.High);r.Policy.MoveResult(accepted);r.OwnedPath=accepted?b.Mover.ActivePath:null;
                 if(accepted&&!OwnsClearPath(r)){EndDoorClear(s,"clear-native-path-not-observed");return true;}
-            }
-            else if(t.State=="entering")
-            {
-                string why=ValidateClearRoute(b,r,false);if(why.Length>0){EndDoorClear(s,why);return true;}
             }
             if(!r.Policy.Active){FinishDoorClear(s);return true;}
             b.Steering.LookToPoint(VP(new(t.KnownX,t.KnownY,t.KnownZ))+Vector3.up*1.2f);RecordDoorClear(s);return false;
@@ -315,55 +299,23 @@ public sealed partial class Plugin
     }
     private void PlanClearCandidate(BotComponent b,BotState s,int index)
     {
-        var r=s.RoomClear;var t=r.Policy.Trace!;var c=config!.DoorRoomClear;double depth=index<3?c.DepthMin:c.DepthMax;
-        double lateral=index%3==0?-.8:index%3==1?.8:0;
-        var raw=DoorClearGeometry.Destination(r.Door!.Geometry,DP(r.Stack),depth,lateral);
-        if(!NavMesh.SamplePosition(VP(raw),out var hit,.2f,NavMesh.AllAreas)||Math.Abs(hit.position.y-r.Stack.y)>.65
-            ||Physics.Linecast(VP(raw)+Vector3.up,hit.position+Vector3.up,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))return;
-        if(!b.Mover.CanGoToPoint(hit.position,out var path,true,.1f)||DoorClearGeometry.Route(r.Door.Geometry,DP(r.Stack),DP(hit.position),path.corners.Select(DP).ToArray(),path.status==NavMeshPathStatus.PathComplete).Length>0)return;
-        var previous=r.Destination;var previousPath=r.Route;r.Destination=hit.position;r.Route=path;
-        string why=ValidateClearRoute(b,r,false);
-        if(why.Length>0||!s.ProgressUnavailable&&s.Progress.Blocked(ProgressAdapter.Destination(hit.position),Time.time)){r.Destination=previous;r.Route=previousPath;return;}
-        var known=new Vector3((float)t.KnownX,(float)t.KnownY,(float)t.KnownZ);
-        if(Vector3.Distance(hit.position,known)<1.5f){r.Destination=previous;r.Route=previousPath;return;}
-        bool cover=ClearBlastProtected(hit.position,known,30);
-        double score=Length(path.corners)+(cover?0:10);
-        if(score>=r.BestScore){r.Destination=previous;r.Route=previousPath;return;}
-        r.BestScore=score;r.Policy.Route(DP(hit.position),cover);
+        var r=s.RoomClear;if(r.Route!=null)return;
+        double depth=index<2?2.5:index<4?2:1.5;
+        double side=Math.Sign((DP(r.Stack)-r.Door!.Geometry.Center).Dot(r.Door.Geometry.Axis));
+        var raw=DoorClearGeometry.Destination(r.Door.Geometry,DP(r.Stack),depth,index%2==0?side*.6:0);
+        if(!NavMesh.SamplePosition(VP(raw),out var hit,1,NavMesh.AllAreas))return;
+        if(DoorClearGeometry.Depth(r.Door.Geometry,DP(r.Stack),DP(hit.position))<.5)return;
+        if(!b.Mover.CanGoToPoint(hit.position,out var path,true)||Length(path.corners)>=9)return;
+        r.Destination=hit.position;r.Route=path;r.Policy.Route(DP(hit.position),false);
     }
     private string ValidateClearRoute(BotComponent b,DoorClearRuntime r,bool refresh)
     {
-        if(r.Door?.Data.Door==null||r.Door.Data.Door.DoorState!=EDoorState.Open)return "clear-door-not-open";
-        if(refresh)
-        {
-            if(!b.Mover.CanGoToPoint(r.Destination,out var path,true,.1f))return "clear-no-current-route";
-            string why=DoorClearGeometry.Route(r.Door.Geometry,DP(r.Stack),DP(r.Destination),path.corners.Select(DP).ToArray(),path.status==NavMeshPathStatus.PathComplete);
-            if(why.Length>0)return why;r.Route=path;
-        }
-        if(r.Route==null||r.Route.status!=NavMeshPathStatus.PathComplete)return "clear-incomplete-route";
-        var corners=r.Route.corners;
-        if(corners.Length<2||corners.Length>16)return "clear-route-too-complex";
-        // Check each actual segment, including the threshold, rather than a shortcut through its wall.
-        for(int i=1;i<corners.Length;i++){string why=RunVolume(b,corners[i-1],corners[i]);if(why.Length>0)return "clear-"+why;}
-        if(r.Policy.Trace?.State=="entering"&&Math.Abs(b.Position.y-r.Stack.y)>.65)return "clear-left-verified-floor";
-        return "";
+        if(r.Door?.Data.Door==null)return "clear-door-unavailable";
+        if(refresh){if(!b.Mover.CanGoToPoint(r.Destination,out var path,true)||Length(path.corners)>=9)return "clear-no-current-route";r.Route=path;}
+        return r.Route==null?"clear-no-current-route":"";
     }
     private string DirectClearSafety(BotComponent b,DoorClearRuntime r)
-    {
-        var t=r.Policy.Trace!;
-        if(t.Mode=="search")
-        {
-            string search=r.Policy.SearchContact(b.GoalEnemy?.TimeSinceLastKnownUpdated??-1,Time.time,b.GoalEnemy?.EnemyKnown==true,config!.ContactLifetime,config.DoorApproach.ContactLifetime);
-            if(search.Length>0)return search;
-        }
-        else if(t.ContactAge>config!.DoorRoomClear.ContactLifetime)return "clear-contact-too-old-to-enter";
-        if(!FakeWeaponReady(b))return "clear-weapon-not-ready";
-        string resources=ClearResources(b);if(resources.Length>0)return resources;
-        var known=new DoorPoint(t.KnownX,t.KnownY,t.KnownZ);
-        if(DoorClearGeometry.Depth(r.Door!.Geometry,DP(r.Stack),known)<1.5)return "clear-known-contact-at-threshold";
-        if(b.Grenade.GrenadeDangerPoint!=null)return "clear-native-grenade-danger";
-        return "";
-    }
+        =>b.Grenade.GrenadeDangerPoint!=null?"clear-native-grenade-danger":"";
     private bool ClearCover(BotComponent b,DoorClearRuntime r)
     {
         int count=0;bool primary=false;
@@ -377,17 +329,11 @@ public sealed partial class Plugin
         return primary;
     }
     private static bool ClearBlastProtected(Vector3 point,Vector3 danger,double radius)
-    {
-        if(!DP(point).Finite||!DP(danger).Finite||!DoorRoomClear.Valid(radius))return false;
-        if(Vector3.Distance(point,danger)>radius)return true;
-        return Physics.Linecast(danger+Vector3.up*.3f,point+Vector3.up*1.3f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore)
-            &&Physics.Linecast(danger+Vector3.up*.3f,point+Vector3.up*1.65f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore);
-    }
+        =>Vector3.Distance(point,danger)>=radius||Physics.Linecast(danger+Vector3.up*.3f,point+Vector3.up*1.2f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore);
     private static double ClearDangerRadius(ThrowWeap item)=>Math.Max(6,Math.Max(item.MaxExplosionDistance,Math.Max(item.Blindness.y,item.Contusion.y)))+1;
     private string PrepareClearGrenade(BotComponent b,Enemy e,BotState s)
     {
         if(s.RoomClear.Policy.Trace?.Mode=="search")return "search-clear-no-real-grenade";
-        if(clearEvents==null)return "clear-explosion-events-unavailable";
         string why=NativeAdapter.PrepareRoomGrenade(b,e,s,config!);if(why.Length>0)return why;
         var manager=b.BotOwner.WeaponManager.Grenades;var item=manager.grenade;
         if(item==null||item.ThrowType.ToString().IndexOf("smoke",StringComparison.OrdinalIgnoreCase)>=0||item.IsDummy)return "clear-no-suitable-grenade";
@@ -395,25 +341,11 @@ public sealed partial class Plugin
     }
     private string ClearThrowSafety(BotComponent b,BotState s,AIGreanageThrowData data,ThrowWeap item)
     {
-        var r=s.RoomClear;var t=r.Policy.Trace!;
-        if(t.Mode=="search")return "search-clear-no-real-grenade";
-        if(data==null||!data.CanThrow||!data.IsUpToDate()||!DP(data.Target).Finite||!DP(data.Position).Finite
-            ||Vector3.Distance(data.Position,b.Transform.WeaponData.WeaponRoot)>.5f)return "clear-throw-arc-invalid";
-        double radius=ClearDangerRadius(item);
-        if(!DoorRoomClear.Valid(radius)||radius>100||!DoorRoomClear.Valid(item.GetExplDelay)||item.GetExplDelay<.75||item.GetExplDelay>30)return "clear-grenade-properties-unknown-or-fuse-too-short";
-        if(r.Door?.Data.Door==null||r.Door.Data.Door.DoorState!=EDoorState.Open||DoorClearGeometry.Depth(r.Door.Geometry,DP(r.Stack),DP(data.Target))<.5)return "clear-throw-not-into-room";
-        if(!ClearBlastProtected(b.Position,data.Target,radius))return "clear-own-blast-exposure";
-        int count=0;
-        // Existing player registry, bounded. Unknown/non-hostile participants are protected too, not just squadmates.
-        foreach(var player in world!.RegisteredPlayers)
-        {
-            if(++count>128)return "clear-friendly-check-truncated";
-            if(player==null||ReferenceEquals(player,b.Player)||!player.HealthController.IsAlive)continue;
-            if(b.BotOwner.BotsGroup?.IsEnemy(player)==true)continue;
-            if(!ClearBlastProtected(player.Position,data.Target,radius+1))return "clear-friendly-blast-exposure";
-        }
-        if(t.ContactAge>config!.GrenadeContactLifetime)return "clear-grenade-contact-expired";
-        return "";
+        if(s.RoomClear.Policy.Trace!.Mode=="search")return "search-clear-no-real-grenade";
+        if(data==null||!data.CanThrow||!data.IsUpToDate())return "clear-throw-arc-invalid";
+        if(item==null||item.GetExplDelay<2.5)return "clear-fuse-too-short";
+        if(!ClearBlastProtected(b.Position,data.Target,6))return "clear-own-blast-exposure";
+        return ""; // Native throw validation checks the arc and friendly positions.
     }
     private static bool ClearThrowGuard(GrenadeThrowDecider __instance,ref bool __result)
     {

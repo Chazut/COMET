@@ -82,20 +82,12 @@ public sealed partial class Plugin
         if(known!=null&&Time.time<known.RestLights.Next&&Time.time>=known.RestLights.CallbackAt
             &&known.RestLights.Trace?.Layer==layer&&ReferenceEquals(known.RestLights.Hand,hand)
             &&ReferenceEquals(known.RestLights.Weapon,hand!.Item))return;
-        string status="",category="";
-        if(layer=="OrbitBrainLayer"&&restOrbitObjective!=null)
-        {
-            var objective=restOrbitObjective(b.ProfileId);
-            if(objective!=null){status=(string?)restOrbitStatus!.GetValue(objective)??"";category=(string?)restOrbitCategory!.GetValue(objective)??"";}
-        }
-        string behavior=RestLightsOwner.Behavior(layer,native,status,category);
-        if(behavior.Length==0){if(known!=null)EndRestLights(known,"rest-owner-not-waiting");return;}
+        string behavior="idleOutOfCombat";
         if(known==null){if(states.Count>=512)return;known=new BotState(b,config!,session);states.Add(b,known);}
         var s=known;var r=s.RestLights;var c=config!.RestLights;var weapon=hand!.Item;
         r.CallbackAt=Time.time;r.Next=Time.time+.25f;
-        string context=layer+"|"+behavior+"|"+weapon.Id;
-        if(r.Policy.Context!=context||!ReferenceEquals(r.Hand,hand)||!ReferenceEquals(r.Weapon,weapon)||Time.time<r.Policy.Last)
-        {EndRestLights(s,"rest-context-changed");r.Hand=hand;r.Weapon=weapon;}
+        string context="idleOutOfCombat";
+        r.Hand=hand;r.Weapon=weapon;
         bool ready=r.Policy.Update(Time.time,context,true,c);
         r.Trace??=new();var t=r.Trace;
         t.Layer=layer;t.Owner=layer=="OrbitBrainLayer"?"ORBIT":"EFT";t.Behavior=behavior;t.Weapon=weapon.Id.ToString();
@@ -111,17 +103,8 @@ public sealed partial class Plugin
     }
     private string RestBlock(BotComponent b,Player.FirearmController? hand)
     {
-        // EFT can retain an obsolete GoalEnemy after SAIN releases combat to ORBIT.
-        // Active SAIN contact/visibility/under-fire state takes precedence, not that stale memory alone.
-        if(b.SAINLayersActive||b.GoalEnemy!=null||b.BotOwner.Memory.IsUnderFire
-            ||b.BotOwner.ShootData.Shooting||b.ManualShoot.Shooting)return "rest-combat-priority";
-        if(b.Grenade.GrenadeDangerPoint!=null||b.BotOwner.WeaponManager.Grenades.ThrowindNow||b.Flashed.IsFlashed)return "rest-danger";
-        if(b.Decision.CurrentSelfDecision!=ESelfActionType.None||hand==null||hand.Item==null
-            ||!ReferenceEquals(hand.Item,b.BotOwner.WeaponManager.CurrentWeapon)||!DeviceHandsReady(b,hand))return "rest-hands-busy";
-        if(b.Player.IsSprintEnabled||b.Mover.Running)return "rest-moving";
-        // Do not expose hidden enemies: only existing local AI contact state is consulted.
-        int count=0;foreach(var e in b.EnemyController.KnownEnemies)
-            if(++count>32||e?.EnemyKnown==true||e?.IsVisible==true)return "rest-known-threat";
+        if(b.SAINLayersActive||b.GoalEnemy?.IsVisible==true)return "rest-combat";
+        if(hand?.Item==null)return "rest-no-firearm";
         return "";
     }
     private void BeginRestExtinction(BotComponent b,BotState s,Player.FirearmController hand,Weapon weapon)

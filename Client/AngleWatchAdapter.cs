@@ -25,6 +25,7 @@ internal sealed class AngleWatchRuntime
     internal LeanSetting Applied;
     internal AngleCandidate[] Candidates=Array.Empty<AngleCandidate>();
     internal string LogKey="",ProbeSource="";
+    internal float SelectedAt,WallSide=1;internal int ClearChecks;
 }
 public sealed partial class Plugin
 {
@@ -45,7 +46,6 @@ public sealed partial class Plugin
         if(!SameTacticalContact(r.Enemy,e)){EndAngle(s,"angle-contact-changed");r.Enemy=e;r.SeenAt=r.GeometryAt=-1000;r.NextGeometry=0;r.Candidates=Array.Empty<AngleCandidate>();}
         if(e?.IsVisible==true&&Time.time-r.SampleAt>=.1f&&e.KnownPlaces.LastSeenPlace is {} seen)
         {r.Seen=seen.Position;r.SeenAt=Time.time;r.SampleAt=Time.time;}
-        if(r.Policy.Active&&Time.time-r.CallbackAt>.4f)EndAngle(s,"angle-steering-callback-expired");
     }
     private AngleWatchFrame AngleFrame(BotComponent b,BotState s,Vector3 native)
     {
@@ -53,25 +53,14 @@ public sealed partial class Plugin
         var f=new AngleWatchFrame {Now=Time.time,Target=e?.EnemyProfileId??"",Action=b.Decision.CurrentCombatDecision.ToString(),
             Position=DP(b.Position),Origin=DP(b.Transform.WeaponRoot),NativeDirection=DP(native),
             ObservedDirection=DP(b.PlayerComponent.CharacterController.CurrentControlLookDirection),Moving=b.Player.Velocity.magnitude>=.5f};
-        if(r.SeenAt>=0&&Time.time-r.SeenAt<c.VisionAge){f.Source="personal-vision";f.Known=DP(r.Seen);f.ObservedAt=r.SeenAt;}
-        // LastHeardPlace is populated by UpdatePersonalHeardPosition, separately from squad reports.
-        var heard=e?.KnownPlaces.LastHeardPlace;
-        if(heard!=null&&heard.TimeSincePositionUpdated>=0&&heard.TimeSincePositionUpdated<c.HearingAge
-            &&(f.Source.Length==0||Time.time-heard.TimeSincePositionUpdated>f.ObservedAt))
-        {f.Source="personal-hearing";f.Known=DP(heard.Position);f.ObservedAt=Time.time-heard.TimeSincePositionUpdated;}
-        if(!combat.Enabled||!combat.Pmc||!combat.Authority||combat.Ghost||!combat.Active)f.Block="angle-ineligible";
-        else if(e==null||e.IsVisible||e.InLineOfSight)f.Block="angle-visible-or-no-enemy";
-        else if(combat.Urgent||combat.Busy||!combat.Grounded||!combat.Ready||b.Medical.TimeSinceShot<.5)f.Block="angle-urgent-or-busy";
-        else if(s.CornerChase.Policy.Active||s.CornerPrefire.Policy.Active||s.CornerPeek.Policy.Active||s.Sight.Current!=null
-            ||s.Ambush.Policy.Active||s.RoomClear.Policy.Active||s.Entry.Policy.Active)f.Block="angle-preserve-tactical-aim";
-        else if(b.ManualShoot.Shooting||b.ManualShoot.Reason!=EShootReason.None||b.Aim.AimStatus!=AimStatus.NoTarget)f.Block="angle-native-fire-or-aim";
-        else if(f.Action!="Search"&&f.Action!="RushEnemy"&&f.Action!="HoldInCover"&&f.Action!="StandAndShoot")f.Block="angle-native-action-priority";
-        else if(b.CurrentAction?.GetType().Assembly!=typeof(BotComponent).Assembly
-            ||b.CurrentAction.GetType().FullName!="SAIN.Layers.Combat.Solo."+(f.Action=="HoldInCover"?"StandAndShoot":f.Action)+"Action")f.Block="angle-native-action-owner";
-        int count=0;
-        if(f.Block.Length==0)foreach(var other in b.EnemyController.KnownEnemies) {
-            if(++count>32||other!=null&&!SameTacticalContact(other,e)&&(other.IsVisible||other.Status.ShotAtMeRecently)){f.Block="angle-other-threat";break;}
+        if(e?.KnownPlaces.LastKnownPosition is Vector3 known) {
+            f.Source=e.IsVisible?"personal-vision":"sain-known-contact";f.Known=DP(known);
+            f.ObservedAt=Time.time-e.TimeSinceLastKnownUpdated;
         }
+        if(!combat.Enabled||!combat.Pmc||!combat.Authority||combat.Ghost||!combat.Active)f.Block="angle-ineligible";
+        else if(e==null||e.IsVisible)f.Block="angle-visible-or-no-enemy";
+        else if(e.Seen&&e.TimeSinceSeen<.5f||s.Sight.Current!=null)f.Block="angle-recent-sight";
+        else if(s.RetreatWeave.Policy.Active)f.Block="angle-retreat-head-down";
         return f;
     }
     private static void AngleSteering(SAINSteeringClass __instance,ref Vector3 ____targetLookDirection,out AngleRestore __state)
@@ -100,7 +89,9 @@ public sealed partial class Plugin
             var f=p.AngleFrame(b,s,____targetLookDirection);
             if(f.Block.Length>0||f.Source.Length==0||!p.config.AngleWatch.Enabled){p.EndAngle(s,f.Block.Length>0?f.Block:"angle-no-evidence-or-disabled");return;}
             p.AngleGeometry(b,s,f);
+            var previous=r.Policy.Trace?.Candidate;
             if(!r.Policy.Tick(f,p.config.AngleWatch)){p.ReleaseAngleLean(s);p.RecordAngle(s);return;}
+            if(previous!=r.Policy.Trace!.Candidate){r.SelectedAt=Time.time;r.WallSide=Vector3.SignedAngle(VP(f.NativeDirection),VP(r.Policy.Aim)-b.Transform.WeaponRoot,Vector3.up);}
             // Only this invocation uses the prepared direction. Do not leave a stale gaze in SAIN's backing field.
             __state=new(){Changed=true,Original=____targetLookDirection};
             ____targetLookDirection=(VP(r.Policy.Aim)-b.Transform.WeaponRoot).normalized;
@@ -113,64 +104,66 @@ public sealed partial class Plugin
     {if(__state.Changed)____targetLookDirection=__state.Original;}
     private void AngleGeometry(BotComponent b,BotState s,AngleWatchFrame f)
     {
-        var r=s.AngleWatch;var c=config!.AngleWatch;var native=VP(f.NativeDirection);
-        bool moved=Vector3.Distance(b.Position,r.ProbePosition)>.75f||Vector3.Angle(native,r.ProbeDirection)>25
-            ||Vector3.Distance(VP(f.Known),r.ProbeKnown)>.3f||r.ProbeSource!=f.Source;
-        if(moved||Time.time-r.GeometryAt>=c.Refresh) {
-            if(moved)r.GeometryAt=-1000;
-            if(Time.time>=r.NextGeometry&&doorBudget.TryBegin(Time.frameCount,b)) {
-                r.NextGeometry=Time.time+(float)c.Refresh;
-                var watch=System.Diagnostics.Stopwatch.StartNew();
-                try {
-                    var options=new List<AngleCandidate>(8);var root=b.Transform.WeaponRoot;var eyes=b.Player.PlayerBones.Head.position;
-                    var muzzle=b.Transform.WeaponData.FirePort;var known=VP(f.Known);float height=Mathf.Clamp(root.y-b.Position.y,.6f,1.7f);
-                    float wall=(float)(f.Moving?c.MovingWall:c.StillWall);
-                    r.Wall=!AngleLane(eyes,eyes+native.normalized*wall,.03f)||!AngleLane(muzzle,muzzle+native.normalized*wall,.04f);
-                    // Route is calculated to frozen personal evidence, never enemy.VisiblePathPoint or a hidden transform.
-                    var route=new NavMeshPath();Vector3 anchor=known+Vector3.up*height,lip=anchor;bool corner=false,stairs=false;int side=0;
-                    if(Vector3.Distance(b.Position,known)<=60&&NavMesh.SamplePosition(known,out var end,.5f,NavMesh.AllAreas)
-                        &&NavMesh.CalculatePath(b.Position,end.position,NavMesh.AllAreas,route)&&route.status==NavMeshPathStatus.PathComplete) {
-                        var points=route.corners;
-                        if(points.Length>=2) {
-                            stairs=Math.Abs(points[1].y-b.Position.y)>.7&&Vector3.Distance(b.Position,points[1])<=c.CornerRange;
-                            if(points.Length>=3&&Vector3.Distance(b.Position,points[1])>=.6f&&Vector3.Distance(b.Position,points[1])<=c.CornerRange) {
-                                var incoming=points[1]-b.Position;var outgoing=points[2]-points[1];
-                                float turn=Vector3.Angle(new(incoming.x,0,incoming.z),new(outgoing.x,0,outgoing.z));
-                                if(turn>=20&&turn<=150&&outgoing.magnitude>.5f) {
-                                    anchor=points[1]+Vector3.up*height+outgoing.normalized*Mathf.Min(.6f,outgoing.magnitude);corner=true;
-                                    lip=points[1]+Vector3.up*height-incoming.normalized*.2f;
-                                    side=Vector3.Dot(Vector3.Cross(Vector3.up,incoming),outgoing)<0?-1:1;
-                                }
-                            }
-                            if(stairs&&!corner)anchor=points[1]+Vector3.up*height;
-                        }
-                    }
-                    bool elevated=Math.Abs(known.y-b.Position.y)>.7||stairs;
-                    void Add(string id,string kind,Vector3 point,int lean=0) {
-                        var delta=point-root;
-                        if(!elevated)point=root+VP(AngleWatch.ClampPitch(DP(delta),c.PitchLimit));
-                        bool safe=AngleLane(eyes,point,.03f)&&AngleLane(muzzle,point,.04f);
-                        options.Add(new(){Id=id,Kind=kind,Aim=DP(point),Clear=safe,Elevation=elevated,Side=lean,
-                            LeanSafe=lean!=0&&safe&&c.SafeLean&&LeanSweep(eyes,eyes+b.Player.Transform.right*(lean*.3f))});
-                    }
-                    if(corner){Add("near-corner","corner",anchor,side);Add("corner-lip","corner",lip,side);}
-                    if(c.WallCorrection&&r.Wall) {
-                        // Search only around the evidence-bearing approach, not arbitrary open directions behind the bot.
-                        var dir=anchor-root;if(dir.magnitude>.5f) {
-                            foreach(float yaw in new[]{0f,20f,-20f,40f,-40f}) {
-                                var point=root+(Quaternion.AngleAxis(yaw,Vector3.up)*dir.normalized)*Mathf.Min(dir.magnitude,3.5f);
-                                Add("opening-"+yaw,"wall",point);
-                            }
-                        }
-                    }
-                    if(!elevated&&Math.Abs(AngleWatch.Pitch(f.NativeDirection))>c.PitchLimit
-                        &&Vector3.Angle(new(native.x,0,native.z),new(known.x-root.x,0,known.z-root.z))<=60)
-                        Add("vertical-guard","pitch",root+VP(AngleWatch.ClampPitch(DP(native),c.PitchLimit)).normalized*3);
-                    r.Candidates=options.ToArray();r.GeometryAt=Time.time;r.ProbePosition=b.Position;r.ProbeDirection=native;r.ProbeKnown=known;r.ProbeSource=f.Source;
-                }finally{watch.Stop();doorBudget.Charge(watch.Elapsed.TotalMilliseconds);}
+        var r=s.AngleWatch;var c=config!.AngleWatch;var e=b.GoalEnemy;
+        if(Time.time-r.GeometryAt<c.Refresh){f.Candidates=r.Candidates;f.WallBlocked=r.Wall;return;}
+        var options=new List<AngleCandidate>();var root=b.Transform.WeaponRoot;var eye=b.Transform.EyePosition;
+        var native=VP(f.NativeDirection);int mask=LayersMaskController.HighPolyWithTerrainMask;
+        var corner=e?.VisiblePathPoint;
+        bool recent=e?.Seen==true&&e.TimeSinceSeen<1f;
+        string action=f.Action;
+        if(corner is Vector3 point&&f.Moving&&!recent&&e!.TimeSinceLastKnownUpdated<=30
+            &&b.BotOwner.Medecine?.Using!=true&&action!="AvoidGrenade"&&action!="Retreat"&&action!="RunAway"
+            &&!s.Entry.Policy.Active&&!s.RoomClear.Policy.Active) {
+            float dist=Vector3.Distance(b.Position,point);
+            if(dist>=.6f&&dist<=c.CornerRange) {
+                var lean=b.Mover.Lean.FindLeanFromBlindCornerAngle(e);
+                options.Add(new(){Id="near-corner",Kind="corner",Aim=DP(SourcePastCorner(root,point,e.KnownPlaces.LastKnownPosition,b.LookDirection)),
+                    Clear=true,LeanSafe=true,Side=lean==LeanSetting.Left?-1:lean==LeanSetting.Right?1:0});
             }
         }
-        f.GeometryAt=r.GeometryAt;f.Candidates=r.Candidates;f.WallBlocked=r.Wall;
+        r.Wall=native.sqrMagnitude>.01f&&Physics.Raycast(eye,native.normalized,(float)(f.Moving?c.MovingWall:c.StillWall),mask);
+        bool aimingBlocks=b.Aim.AimStatus!=AimStatus.NoTarget&&!Physics.Raycast(eye,native.normalized,.8f,mask);
+        if(c.WallCorrection&&r.Wall&&!aimingBlocks) {
+            if(r.Policy.Active&&r.Policy.Trace!.Kind=="wall"&&
+                (Time.time-r.SelectedAt<c.HoldMinimum||!Physics.Raycast(eye,(VP(r.Policy.Aim)-root).normalized,3f,mask)))
+                options.Add(new(){Id="kept-wall",Kind="wall",Aim=DP(root+(VP(r.Policy.Aim)-root).normalized*3),Clear=true});
+            if(corner is Vector3 p) {
+                var dir=p+Vector3.up*1.3f-eye;float dist=dir.magnitude;
+                if(dist>1.5f&&!Physics.Raycast(eye,dir/dist,Mathf.Min(dist,4f),mask))
+                    options.Add(new(){Id="wall-corner",Kind="wall",Aim=DP(SourceClampPitch(eye,eye+dir,native)),Clear=true});
+            }
+            var flat=new Vector3(native.x,0,native.z).normalized;
+            foreach(float step in new[]{20f,-20f,40f,-40f,60f,-60f,90f,-90f}) {
+                var dir=Quaternion.AngleAxis(r.WallSide<0?-step:step,Vector3.up)*flat;
+                if(flat.sqrMagnitude>.01&&!Physics.Raycast(eye,dir,3f,mask)) {
+                    options.Add(new(){Id="opening-"+step,Kind="wall",Aim=DP(root+dir*3),Clear=true});break;
+                }
+            }
+            r.ClearChecks=0;
+        }else if(!r.Wall&&r.Policy.Active&&r.Policy.Trace!.Kind=="wall"&&++r.ClearChecks<2)
+            options.Add(new(){Id="kept-wall",Kind="wall",Aim=r.Policy.Aim,Clear=true});
+        r.Candidates=options.ToArray();r.GeometryAt=Time.time;
+        f.GeometryAt=r.GeometryAt;f.Candidates=r.Candidates;f.WallBlocked=r.Wall||r.ClearChecks==1;
+    }
+    // R_F / zzap SAINSteeringClass: hold beyond the wall edge, at a level firing angle.
+    private static Vector3 SourceClampPitch(Vector3 from,Vector3 target,Vector3 forward)
+    {
+        var d=target-from;float h=new Vector3(d.x,0,d.z).magnitude;
+        if(h<.3f){var f=new Vector3(forward.x,0,forward.z);return from+(f.sqrMagnitude>.001f?f.normalized:Vector3.forward)*2;}
+        float rise=Mathf.Max(h,1.5f)*Mathf.Tan(10f*Mathf.Deg2Rad);
+        return new(target.x,from.y+Mathf.Clamp(d.y,-rise,rise),target.z);
+    }
+    private static Vector3 SourcePastCorner(Vector3 root,Vector3 corner,Vector3? enemy,Vector3 forward)
+    {
+        var p=corner;
+        if(enemy is Vector3 known) {
+            var d=known-corner;d.y=0;float len=d.magnitude;
+            if(len>.5f)p=corner+d/len*Mathf.Min(1,len);
+            var v=corner-root;v.y=0;var e=known-root;e.y=0;float dist=v.magnitude;
+            if(dist>.5f) {float cross=v.x*e.z-v.z*e.x;
+                if(Mathf.Abs(cross)>.01f)p+=new Vector3(-v.z,0,v.x)/dist*(cross>0?1:-1)*Mathf.Clamp(dist*.3f,.6f,1.5f);}
+        }
+        return SourceClampPitch(root,p+Vector3.up*1.3f,forward);
     }
     private static bool AngleLane(Vector3 origin,Vector3 point,float radius)
     {
@@ -184,8 +177,8 @@ public sealed partial class Plugin
         var r=s.AngleWatch;
         if(!r.Policy.Active||r.Policy.Side==0)return false;
         var f=AngleFrame(lean.Bot,s,lean.Bot.LookDirection);
-        if(f.Block.Length>0||Time.time-r.CallbackAt>.2f||Time.time-r.GeometryAt>config!.AngleWatch.Refresh+.1
-            ||lean.IsHoldingLean||lean.Bot.Cover.CoverInUse!=null||!lean.Bot.Info.FileSettings.Move.LEAN_TOGGLE||!SainPresetAccess.AllowsLean)
+        if(f.Block.Length>0
+            ||!lean.Bot.Info.FileSettings.Move.LEAN_TOGGLE||!SainPresetAccess.AllowsLean)
         {ReleaseAngleLean(s);return false;}
         r.Applied=r.Policy.Side<0?LeanSetting.Left:LeanSetting.Right;r.OwnLean=true;r.LeanOwner=lean;lean.FastLean(r.Applied);
         r.Policy.Trace!.LeanRequested=true;return true;

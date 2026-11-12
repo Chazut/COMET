@@ -7,17 +7,17 @@ namespace Comet.Core;
 public sealed class DoorSupportConfig
 {
     public bool Enabled { get; set; }=true;
-    public double MaxDistance { get; set; }=15;
+    public double MaxDistance { get; set; }=20;
     public int MaxSupports { get; set; }=2;
     public double OfferLifetime { get; set; }=3;
-    public double Duration { get; set; }=20;
+    public double Duration { get; set; }=150;
     public double Spacing { get; set; }=1.5;
     public void Validate()
     {
         CometConfig.Range(MaxDistance,3,25,nameof(MaxDistance));
         CometConfig.Range(MaxSupports,1,2,nameof(MaxSupports));
         CometConfig.Range(OfferLifetime,.5,5,nameof(OfferLifetime));
-        CometConfig.Range(Duration,3,30,nameof(Duration));
+        CometConfig.Range(Duration,3,300,nameof(Duration));
         CometConfig.Range(Spacing,1,3,nameof(Spacing));
     }
 }
@@ -86,7 +86,7 @@ public sealed class DoorSupportBoard
     {
         if(!operations.TryGetValue(id,out var o)||!Finite(now)||now>=o.Until||recipient==o.Leader||string.IsNullOrEmpty(recipient)
             ||role!="overwatch"&&role!="rear-guard"||o.Max==1&&role=="rear-guard"||leases.ContainsKey(recipient)
-            ||o.Tried.Contains(role+":"+recipient)||o.Attempts.TryGetValue(role,out var count)&&count>=2)return false;
+            )return false;
         return !leases.Values.Any(l=>l.Trace.Operation==id&&l.Trace.Role==role);
     }
     public bool Available(DoorPoint point,double spacing,string except="")
@@ -95,8 +95,8 @@ public sealed class DoorSupportBoard
     public DoorSupportTrace? Offer(string id,string recipient,string role,DoorPoint point,DoorPoint look,double length,double protection,double now,DoorSupportConfig c)
     {
         if(!CanOffer(id,role,recipient,now)||!point.Finite||!look.Finite||!Finite(length)||length<0
-            ||!Finite(protection)||protection<2d/3||protection>1||!Available(point,c.Spacing))return null;
-        var o=operations[id];if(length/1.2+.5>=o.Until-now)return null;
+            )return null;
+        var o=operations[id];
         o.Attempts.TryGetValue(role,out int attempts);o.Attempts[role]=attempts+1;o.Tried.Add(role+":"+recipient);
         var t=new DoorSupportTrace{Operation=id,Leader=o.Leader,Support=recipient,Door=o.Door,Target=o.Target,Role=role,
             X=point.X,Y=point.Y,Z=point.Z,LookX=look.X,LookY=look.Y,LookZ=look.Z,PathLength=length,Protection=protection,
@@ -126,10 +126,11 @@ public sealed class DoorSupportBoard
     public bool Arrive(string recipient,DoorPoint actual,bool nativeComplete,bool eyes,bool muzzle)
     {
         if(!leases.TryGetValue(recipient,out var l)||!l.Trace.Accepted)return false;
-        var t=l.Trace;if(!actual.Finite||(actual-new DoorPoint(t.X,t.Y,t.Z)).Length>.45
-            ||t.MovementRequested&&(!t.MovementAccepted||!nativeComplete))return false;
+        var t=l.Trace;if(!actual.Finite||Horizontal(actual-new DoorPoint(t.X,t.Y,t.Z))>=.6
+            )return false;
         t.Arrived=t.MovementAccepted;t.Retained=!t.MovementRequested;t.EyesClear=eyes;t.MuzzleClear=muzzle;t.AngleVerified=eyes&&muzzle;
-        t.State=t.AngleVerified?"holding":"angle-blocked";t.Reason=t.AngleVerified?"support-angle-confirmed":"support-actual-angle-blocked";return t.AngleVerified;
+        // Geometry observations describe the view; they do not veto the source Hold step.
+        t.State="holding";t.Reason="support-at-post";return true;
     }
     public void End(string recipient,string reason)
     {
@@ -140,4 +141,18 @@ public sealed class DoorSupportBoard
     {foreach(var recipient in leases.Where(x=>x.Value.Trace.Operation==id).Select(x=>x.Key).ToArray())End(recipient,reason);operations.Remove(id);}
     public void Clear(){foreach(var id in operations.Keys.ToArray())EndOperation(id,"support-raid-ended");}
     private static bool Finite(double n)=>DoorPolicy.Finite(n);
+    private static double Horizontal(DoorPoint p)=>Math.Sqrt(p.X*p.X+p.Z*p.Z);
+}
+
+// DoorTacticClass.LeaderStillOnDoor: death is immediate, leaving the door gets two seconds.
+public sealed class SourceDoorLeaderLifetime
+{
+    private double goneAt=-1;
+    public bool Continue(double now,bool alive,bool onDoor)
+    {
+        if(!alive)return false;
+        if(onDoor){goneAt=-1;return true;}
+        if(goneAt<0)goneAt=now;
+        return now-goneAt<=2;
+    }
 }

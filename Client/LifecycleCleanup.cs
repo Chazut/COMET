@@ -81,7 +81,6 @@ public sealed partial class Plugin
             Step("Maneuver",()=>EndManeuver(s,reason));
             Step("CoverMate",()=>EndCoverMate(s,reason));
             Step("SquadTrade",()=>EndSquadTrade(s,reason));
-            Step("Storm",()=>EndStorm(s,reason));
             Step("Entrance",()=>ReleaseEntrance(s));
             Step("Crossfire",()=>EndCrossfire(b,s,reason));
             Step("PostCombat",()=>EndPostCombat(b,s,reason,true));

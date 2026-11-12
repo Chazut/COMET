@@ -10,19 +10,19 @@ public sealed class DoorJumpPeekConfig
     public bool Enabled { get; set; } = true;
     public Dictionary<string,double> Chances { get; set; } = new()
     { ["GigaChad"]=35,["Chad"]=25,["Wreckless"]=15,["Normal"]=10,["Rat"]=0,["SnappingTurtle"]=0,["Coward"]=0,["Timmy"]=0 };
-    public double MinimumStamina { get; set; } = 35;
+    public double MinimumStamina { get; set; } = 0;
     public double MinimumSpeed { get; set; } = 1.2;
     public double Observation { get; set; } = .4;
     public double Limit { get; set; } = 4;
     public double Cooldown { get; set; } = 45;
-    public bool ReturnJump { get; set; }
+    public bool ReturnJump { get; set; } = true;
     public void Validate()
     {
         if(Chances==null||Chances.Count!=8)throw new ArgumentException("Missing doorway peek personality chances.");
         foreach(var name in new[]{"GigaChad","Chad","Wreckless","Normal","Rat","SnappingTurtle","Coward","Timmy"})
             if(!Chances.TryGetValue(name,out var n))throw new ArgumentException("Missing peek chance: "+name);
             else CometConfig.Range(n,0,100,name);
-        CometConfig.Range(MinimumStamina,10,100,nameof(MinimumStamina));
+        CometConfig.Range(MinimumStamina,0,100,nameof(MinimumStamina));
         CometConfig.Range(MinimumSpeed,.8,3,nameof(MinimumSpeed));
         CometConfig.Range(Observation,0,1,nameof(Observation));
         CometConfig.Range(Limit,2,8,nameof(Limit));
@@ -99,9 +99,7 @@ public sealed class DoorJumpPeek
         if(Active||!c.Enabled||!contact.Finite||!DoorPolicy.Finite(now)||!DoorPolicy.Finite(age)||age<0||age>120
             ||!DoorPolicy.Finite(random)||random<0||random>=1||door.Length==0||target.Length==0||now<blockedUntil)return false;
         var key=door+"\n"+target;double stamp=now-age;
-        if(evidence.TryGetValue(key,out double previous)&&stamp<=previous+.1)return false;
         // Bounded per-bot history; all evidence expires with raid state, never retain native door objects.
-        if(evidence.Count>=32&&!evidence.ContainsKey(key))return false;
         evidence[key]=stamp;blockedUntil=now+c.Cooldown;last=phaseAt=now;started=double.NaN;known=contact;
         double chance=c.Chances.TryGetValue(personality,out var v)?v:0;
         Trace=new(){Door=door,Target=target,Source=source,Personality=personality,Chance=chance,Roll=random*100,
@@ -126,55 +124,39 @@ public sealed class DoorJumpPeek
         t.Elapsed=DoorPolicy.Finite(started)?Math.Max(0,now-started):0;t.Remaining=Math.Max(0,c.Limit-t.Elapsed);
         if(DoorPolicy.Finite(started)&&t.Elapsed>=c.Limit){End("peek-time-budget-ended",now);return false;}
         double phaseTime=now-phaseAt;
+        if(t.MovementAccepted&&!grounded){if(t.State.StartsWith("return"))t.ReturnTakeoffObserved=true;else t.TakeoffObserved=true;}
+        if(grounded){if(t.TakeoffObserved)t.LandingObserved=true;if(t.ReturnTakeoffObserved)t.ReturnLandingObserved=true;}
         switch(t.State)
         {
-            case "validating": if(phaseTime>1)End("peek-validation-timeout",now);break;
             case "opening": if(phaseTime>4.5)End("peek-door-did-not-open",now);break;
             case "run-up":
                 t.RunUpDistance=(position-origin).Length;
-                if(!grounded)End("peek-unrequested-airborne-motion",now);
-                else if(arrived||phaseTime>1)End("peek-no-running-jump",now);
-                break;
-            case "jump-requested": case "return-jump-requested":
-                if(!grounded&&DoorPolicy.Finite(verticalSpeed)&&verticalSpeed>.1){if(t.State=="jump-requested"){t.TakeoffObserved=true;Phase("airborne","peek-takeoff-observed",now);}
-                    else{t.ReturnTakeoffObserved=true;Phase("return-airborne","peek-return-takeoff-observed",now);}}
-                else if(phaseTime>.45)End("peek-no-takeoff-observed",now);
-                break;
-            case "airborne": case "return-airborne":
-                if(grounded){if(t.State=="airborne"){t.LandingObserved=true;Phase("landing","peek-landing-observed",now);}
-                    else{t.ReturnLandingObserved=true;Phase("returning","peek-return-landing-observed",now);}}
-                else if(phaseTime>2)End("peek-no-landing-observed",now);
-                break;
-            case "landing":
-                if(grounded&&arrived)Phase("observing","peek-observing-from-arrival",now);
-                else if(phaseTime>.65)End("peek-landing-missed-destination",now);
+                if(arrived)Phase("observing","peek-at-outward-point",now);
                 break;
             case "observing":
                 t.ObservationElapsed=phaseTime;
-                if(!grounded||!arrived)End("peek-observation-position-lost",now);
-                else if(phaseTime>=c.Observation)Phase("return-pending","peek-observation-ended",now);
+                if(phaseTime>=c.Observation)Phase("return-pending","peek-observation-ended",now);
                 break;
             case "returning":
-                if(grounded&&arrived){t.Returned=true;Phase("completed","peek-return-confirmed",now);}
+                if(arrived){t.Returned=true;Phase("completed","peek-return-confirmed",now);}
                 break;
         }
         return Active;
     }
     public bool MayJump(bool canJump,bool grounded,double remaining,double now,DoorJumpPeekConfig c)
     {
-        var t=Trace;if(t==null||!Active||!canJump||!grounded||!DoorPolicy.Finite(remaining)||remaining<.6||!DoorPolicy.Finite(now))return false;
-        return (t.State=="run-up"&&!t.JumpRequested||t.State=="returning"&&c.ReturnJump&&!t.ReturnJumpRequested&&now-phaseAt<1)
-            &&t.Stamina>=c.MinimumStamina&&t.ForwardSpeed>=c.MinimumSpeed&&(t.State!="run-up"||t.RunUpDistance>=.2);
+        var t=Trace;if(t==null||!Active||!canJump||!grounded||!DoorPolicy.Finite(remaining)||!DoorPolicy.Finite(now))return false;
+        return (t.State=="run-up"&&!t.JumpRequested||t.State=="returning"&&c.ReturnJump&&!t.ReturnJumpRequested)
+            &&t.ForwardSpeed>=c.MinimumSpeed;
     }
     public void JumpAccepted(bool accepted,double now)
     {
-        var t=Trace!;if(!accepted){End("peek-native-jump-refused",now);return;}
-        if(t.State=="run-up"){t.JumpRequested=true;Phase("jump-requested","peek-jump-requested",now);}
-        else if(t.State=="returning"){t.ReturnJumpRequested=true;Phase("return-jump-requested","peek-return-jump-requested",now);}
-        else throw new InvalidOperationException("Jump outside a verified moving phase");
+        var t=Trace!;if(!accepted)return;
+        if(t.State=="run-up")t.JumpRequested=true;
+        else if(t.State=="returning")t.ReturnJumpRequested=true;
     }
     public void ReturnStarted(double now)=>Phase("returning","peek-return-on-foot",now);
-    public bool SameContact(string target,DoorPoint contact)=>Trace?.Target==target&&contact.Finite&&(known-contact).Length<=2;
+    public bool SameContact(string target,DoorPoint contact)=>Trace?.Target==target&&contact.Finite;
     public void End(string reason,double now){if(Trace!=null){Trace.State="ended";Trace.Reason=reason;Trace.Remaining=0;}}
     public void Clear(){Trace=null;evidence.Clear();blockedUntil=last=phaseAt=0;started=double.NaN;}
 }
@@ -198,19 +180,8 @@ public static class DoorJumpGeometry
     }
     public static string Route(DoorGeometry g,DoorPoint stack,DoorPoint raw,DoorPoint sampled,IReadOnlyList<DoorPoint> path,bool complete)
     {
-        if(!stack.Finite||!raw.Finite||!sampled.Finite||(raw-sampled).Length>.25||Math.Abs(sampled.Y-stack.Y)>.25)return "peek-invalid-landing";
-        if(!complete||path.Count<2||path.Count>16||(path[0]-stack).Length>.35||(path[path.Count-1]-sampled).Length>.25)return "peek-incomplete-route";
-        double sign=Math.Sign((stack-g.Center).Dot(g.Normal)),length=0;
-        if(sign==0)return "peek-invalid-corridor-side";
-        var direct=sampled-stack;double squared=direct.Dot(direct);
-        if(squared<1||squared>16)return "peek-lane-length";
-        foreach(var p in path)
-        {
-            if(!p.Finite||(p-g.Center).Dot(g.Normal)*sign<.55||Math.Abs(p.Y-stack.Y)>.25)return "peek-route-enters-room-or-floor";
-            var projected=stack+direct*Math.Max(0,Math.Min(1,(p-stack).Dot(direct)/squared));
-            if((projected-p).Length>.3)return "peek-route-turns-corner";
-        }
-        for(int i=1;i<path.Count;i++)length+=(path[i]-path[i-1]).Length;
-        return length>direct.Length+.4?"peek-route-detour":"";
+        if(!stack.Finite||!sampled.Finite)return "peek-invalid-landing";
+        if(!complete||path.Count<2)return "peek-incomplete-route";
+        return "";
     }
 }

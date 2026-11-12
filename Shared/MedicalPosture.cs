@@ -5,7 +5,7 @@ public sealed class MedicalPostureConfig
 {
     public bool Enabled { get; set; } = true;
     public double Interval { get; set; } = .1;
-    public double ResumeDelay { get; set; } = .2;
+    public double ResumeDelay { get; set; } = 0;
     public void Validate()
     {
         CometConfig.Range(Interval,.05,.5,nameof(Interval));
@@ -50,27 +50,11 @@ public sealed class MedicalPosture
         if(!medicine&&!Blocking)return false;
         if(!Blocking){Trace=new();stableAt=-1;lastAt=-1;}
         var t=Trace!;
-        // A missing sampling interval cannot count as continuously observed readiness.
-        if(lastAt>=0&&(f.Now<lastAt||f.Now-lastAt>Math.Max(.25,c.Interval*2+.01)))stableAt=-1;
-        lastAt=f.Now;
         t.Using=f.Using;t.MedicineHands=f.MedicineHands;t.WeaponReady=f.WeaponReady;
-        t.Tilt=MedicalChoice.Finite(f.Tilt)?f.Tilt:0;t.Neutral=MedicalChoice.Finite(f.Tilt)&&Math.Abs(f.Tilt)<=NeutralTolerance&&f.NeutralTarget;
-        t.Grounded=f.Grounded;t.ResumeDelay=c.ResumeDelay;t.Applied=true;t.ValidFor=1;
-        if(medicine){t.Treatment=f.Treatment;t.Item=f.Item;}
-        if(medicine||!f.WeaponReady||!t.Neutral)
-        {
-            stableAt=-1;t.StableFor=0;
-            t.State=medicine?"protecting":!f.WeaponReady?"waiting-weapon":"centering";
-            t.Reason=f.Using?"medical-posture-treatment":f.MedicineHands?"medical-posture-medicine-still-in-hands":!f.WeaponReady?"medical-posture-weapon-not-ready":"medical-posture-bust-not-centered";
-        }
-        else
-        {
-            if(stableAt<0)stableAt=f.Now;
-            t.StableFor=Math.Max(0,f.Now-stableAt);
-            bool ready=t.StableFor+1e-6>=c.ResumeDelay;
-            t.State=ready?"resumed":"settling";t.Reason=ready?"medical-posture-tactics-resumed":"medical-posture-stability-delay";
-            t.Applied=!ready;t.ValidFor=ready?0:1;
-        }
+        t.Tilt=f.Tilt;t.Neutral=f.NeutralTarget;t.Grounded=f.Grounded;t.Treatment=f.Treatment;t.Item=f.Item;
+        t.Applied=medicine;t.ValidFor=medicine?1:0;
+        t.State=medicine?"protecting":"resumed";
+        t.Reason=medicine?"medical-posture-treatment":"medical-posture-tactics-resumed";
         t.Alternatives=new[]{t.Applied?"COMET peeks, lean and new jumps: suspended":"COMET tactics: eligible again, normal checks still apply",
             "Native shooting and emergency travel: not blocked by this guard",
             f.Grounded?"Medicine and crouch/prone animations: native":"Already airborne: native landing preserved"};

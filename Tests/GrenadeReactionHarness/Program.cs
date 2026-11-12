@@ -16,29 +16,31 @@ var streams=new List<string>();
 }
 void Step(Plugin p,BotComponent b,float now){Time.Set(now);p.Tick(b);p.Act(b);}
 var (p,b,t)=Setup(detected:false);Step(p,b,10);C(b.Grenade.GrenadeReactionClass.DangerGrenade==null&&b.Mover.Requests==0,"unspotted/reaction delay preserved");
-t.CanReact=true;Step(p,b,10.2f);C(b.Grenade.GrenadeReactionClass.DangerGrenade==t&&p.EscapeTrace(b)?.State=="moving","detected grenade escapes through native action");
+t.CanReact=true;Step(p,b,10.2f);C(b.Grenade.GrenadeReactionClass.DangerGrenade==t&&p.EscapeTrace(b)?.State=="moving","detected grenade escapes through native action: "+p.EscapeTrace(b)?.State+" / "+p.EscapeTrace(b)?.Reason+" fault="+p.states[b].GrenadeEscape.Fault+" records="+string.Join(" | ",p.diagnostics!.Lines));
 C(b.Mover.ActivePath!=null&&!b.Mover.Prone.Value,"feasible path beats generic expired fuse");int requests=b.Mover.Requests;
 Step(p,b,10.4f);C(b.Mover.Requests==requests,"stable destination no repath");streams.AddRange(p.diagnostics!.Lines);
 var previous=b.Mover.ActivePath;t.DangerPoint=new(12,0,0);Step(p,b,10.6f);C(!ReferenceEquals(b.Mover.ActivePath,previous),"rebound invalidates unsafe route before commitment");
 foreach(var personality in new[]{"Normal","Chad","GigaChad","Wreckless","Rat","Coward","Timmy","SnappingTurtle"}){
- (p,b,t)=Setup(personality);b.GoalEnemy=new(){KnownPlaces=new(){LastKnownPosition=new(30,0,0)},Source="seen",TimeSinceLastKnownUpdated=1};
+ (p,b,t)=Setup(personality);b.Position=new(7,0,0);b.GoalEnemy=new(){KnownPlaces=new(){LastKnownPosition=new(30,0,0)},Source="seen",TimeSinceLastKnownUpdated=1};
  if(personality=="SnappingTurtle")b.Cover.CoverPoints.Add(new(){Position=new(15,0,3)});
  Step(p,b,10);C(p.EscapeTrace(b)?.Reaction==GrenadeReactionRules.Preference(personality,true),"personality "+personality);
  C(p.EscapeTrace(b)?.HasGoal==true,"safe route "+personality);streams.AddRange(p.diagnostics!.Lines);
 }
 (p,b,t)=Setup("Chad");b.GoalEnemy=new(){KnownPlaces=new(){LastKnownPosition=new(-30,0,0)},Source="seen"};Step(p,b,10);C(p.EscapeTrace(b)?.Reaction=="Scatter","aggression cannot cross grenade");
 foreach(var source in new[]{"shared-seen","shared-heard","sain-last-known"}){
- (p,b,t)=Setup("Chad");b.GoalEnemy=new(){KnownPlaces=new(){LastKnownPosition=new(30,0,0)},Source=source};Step(p,b,10);C(p.EscapeTrace(b)?.Contact==""&&p.EscapeTrace(b)?.Reaction=="Scatter","no shared omniscient push "+source);
+ (p,b,t)=Setup("Chad");b.GoalEnemy=new(){KnownPlaces=new(){LastKnownPosition=new(30,0,0)},Source=source};Step(p,b,10);C(p.EscapeTrace(b)?.Reaction=="Scatter","immediate close grenade takes priority over personality "+source);
 }
-(p,b,t)=Setup("Chad");b.GoalEnemy=new(){KnownPlaces=new(){LastKnownPosition=new(30,0,0)},Source="seen",TimeSinceLastKnownUpdated=4};Step(p,b,10);C(p.EscapeTrace(b)?.Contact=="","stale contact rejected");
+(p,b,t)=Setup("Chad");b.GoalEnemy=new(){KnownPlaces=new(){LastKnownPosition=new(30,0,0)},Source="seen",TimeSinceLastKnownUpdated=4};Step(p,b,10);C(p.EscapeTrace(b)?.Reaction=="Scatter","close grenade scatter has no extra contact freshness veto");
+(p,b,t)=Setup();Step(p,b,500);C(p.EscapeTrace(b)?.State=="moving","enemy tracker lifetime is not the own-grenade eight-second timer, even late in raid");
+(p,b,t)=Setup();b.Grenade.GrenadeReactionClass.EstimatedTimeRemaining=.1f;Step(p,b,10);C(b.Mover.Prone.Value&&b.Mover.Requests==0,"source imminent blast chooses prone");
 (p,b,t)=Setup();NavMesh.Route=(a,z)=>new[]{a,new Vector3(-2,0,0),z};
-for(int i=0;i<7;i++){Step(p,b,10+i*.11f);C(NavMesh.Calls<=4*(i+1),"bounded navigation probes");}
-C(b.Mover.Requests==0&&b.Mover.Prone.Value,"safe endpoint but route crosses danger; prone only after exhausted search");streams.AddRange(p.diagnostics!.Lines);
-(p,b,t)=Setup();NavMesh.Status=NavMeshPathStatus.PathPartial;for(int i=0;i<7;i++)Step(p,b,10+i*.11f);C(b.Mover.Requests==0,"partial routes rejected");
+for(int i=0;i<7;i++){Step(p,b,10+i*.11f);C(NavMesh.Calls<=21*(i+1),"source seven bearings and three distances bound probes");}
+C(b.Mover.Requests>0&&!b.Mover.Prone.Value,"source native route accepted without extra COMET danger-path scan");streams.AddRange(p.diagnostics!.Lines);
+(p,b,t)=Setup();NavMesh.Status=NavMeshPathStatus.PathPartial;for(int i=0;i<7;i++)Step(p,b,10+i*.11f);C(b.Mover.Requests>0,"source delegates route acceptance to the native mover");
 (p,b,t)=Setup();var second=new Grenade{Id=9,ProfileId="other"};var t2=new GrenadeTrackerClass(b,second,new(15,0,0),0,true){CanReact=true};b.Grenade.GrenadeReactionClass.EnemyGrenadesList.Add(second,t2);
 for(int i=0;i<7;i++)Step(p,b,10+i*.11f);
 C(p.EscapeTrace(b)?.Active==2,"multiple known dangers recorded");
-if(b.Mover.ActivePath!=null)C(b.Mover.ActivePath.NavMeshPath.corners[^1].z!=0,"straight escape into second grenade rejected");
+C(b.Mover.Requests>0,"source chooses escape from native selected danger");
 b.Grenade.GrenadeReactionClass.EnemyGrenadesList.Remove(t.Grenade);Step(p,b,12);C(p.states[b].GrenadeEscape.Dangers.Count==1,"one native track removed leaves other hazard");
 (p,b,t)=Setup();Step(p,b,10);p.ghosts.Add(b.ProfileId);Step(p,b,10.2f);C(b.Mover.ActivePath==null&&p.EscapeTrace(b)?.ValidFor==0,"ghost cleanup");
 foreach(var scope in new[]{"scav","client","disabled","inactive"}){

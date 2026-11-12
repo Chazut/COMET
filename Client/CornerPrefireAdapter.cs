@@ -42,7 +42,6 @@ public sealed partial class Plugin
         // Frozen plausible torso-height point beyond this verified corner, not a hidden target transform.
         r.Aim=s.CornerChase.Exit+Vector3.up*1.2f;
         var f=PrefireFrame(b,s,false);
-        if(b.ManualShoot.Reason!=EShootReason.None||b.ManualShoot.Shooting)f.Block="prefire-native-shooting-busy";
         r.Policy.Begin(f,config!.CornerPrefire,jumpRandom.NextDouble());RecordPrefire(s,true);
         if(!r.Policy.Active){r.Owner=null;r.Enemy=r.Weapon=null;}
     }
@@ -58,53 +57,11 @@ public sealed partial class Plugin
             KnownCornerDistance=Vector3.Distance(VP(chase.Policy.Known),chase.Corner),Fresh=false,
             Block=CornerChase.Gate(cf,config!.CornerChase,false)};
         if(!ReferenceEquals(r.Enemy,b.GoalEnemy)||!ReferenceEquals(b.CurrentAction,chase.Action)||!OwnChase(chase)
-            ||QueuedCombatMovement(b)||Time.time-chase.CallbackAt>.4f)f.Block="prefire-parent-ownership-lost";
-        if(!cf.Combat.Grounded||cf.Combat.Sprinting||weapon==null||!b.BotOwner.WeaponManager.IsWeaponReady
-            ||b.BotOwner.WeaponManager.Reload.Reloading||r.Policy.Trace?.Requested!=true&&!b.ManualShoot.CanShoot(false))f.Block="prefire-native-priority";
-        // Native burst modes cannot guarantee one cartridge per trigger: leave them to SAIN.
-        if(weapon!=null&&weapon.SelectedFireMode!=Weapon.EFireMode.fullauto&&weapon.SelectedFireMode!=Weapon.EFireMode.single
-            &&weapon.SelectedFireMode!=Weapon.EFireMode.doubleaction)f.Block="prefire-unsupported-fire-mode";
-        if(!safety||f.Block.Length>0)return f;
-        var geometry=CheckShotGeometry(b,s,r.Aim,"M06",f.Target);
-        if(geometry!=null)
-        {
-            f.Fresh=geometry.Fresh;f.Clear=geometry.Allowed;f.AllySafe=geometry.AllySafe;
-            f.Aligned=Vector3.Angle(b.Transform.WeaponData.PointDirection,r.Aim-b.Transform.WeaponData.FirePort)<=8&&b.Steering.AngleToPointFromLookDir(r.Aim)<=8;
-            return f;
-        }
-        if(!doorBudget.TryBegin(Time.frameCount,b))return f;
-        var watch=System.Diagnostics.Stopwatch.StartNew();
-        try {
-            var muzzle=b.Transform.WeaponData.FirePort;var ray=r.Aim-muzzle;float length=ray.magnitude;
-            f.Fresh=true;
-            if(length<.1f||!CornerChase.Point(DP(muzzle))){f.Block="prefire-invalid-muzzle";return f;}
-            var dir=ray.normalized;var actual=b.Transform.WeaponData.PointDirection;
-            f.Aligned=Vector3.Angle(actual,dir)<=8&&b.Steering.AngleToPointFromLookDir(r.Aim)<=8;
-            // Casts do not detect a collider that already contains their origin.
-            f.Clear=!Physics.CheckSphere(muzzle,.04f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore)
-                &&!Physics.SphereCast(muzzle,.04f,dir,out _,length,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore)
-                &&!Physics.SphereCast(muzzle,.04f,actual,out _,length,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore);
-            // SAIN's wrapper skips the ally test for solo bots; check physical bystanders ourselves too.
-            f.AllySafe=PrefireAllies(b,r,muzzle,dir,length)&&PrefireAllies(b,r,muzzle,actual,length);
-        }finally{watch.Stop();doorBudget.Charge(watch.Elapsed.TotalMilliseconds);}
+            ||QueuedCombatMovement(b))f.Block="prefire-parent-ownership-lost";
+        if(weapon==null||b.BotOwner.WeaponManager.Reload.Reloading)f.Block="prefire-native-priority";
+        // Native ManualShoot owns friendly-fire and aim checks, as in zzap. Observation cannot veto it.
+        f.Fresh=f.Clear=f.AllySafe=f.Aligned=true;
         return f;
-    }
-    private static bool PrefireAllies(BotComponent b,CornerPrefireRuntime r,Vector3 muzzle,Vector3 dir,float length)
-    {
-        int count=Physics.SphereCastNonAlloc(muzzle,.2f,dir,r.Hits,length,LayersMaskController.PlayerMask,QueryTriggerInteraction.Ignore);
-        if(count==r.Hits.Length)return false;
-        var world=GameWorldComponent.Instance?.GameWorld;if(world==null)return false;
-        int overlapCount=Physics.OverlapSphereNonAlloc(muzzle,.2f,r.Overlaps,LayersMaskController.PlayerMask,QueryTriggerInteraction.Ignore);
-        if(overlapCount==r.Overlaps.Length)return false;
-        for(int i=0;i<overlapCount;i++) {
-            var p=world.GetPlayerByCollider(r.Overlaps[i]);
-            if(p!=null&&p.ProfileId!=b.ProfileId&&!b.EnemyController.IsPlayerAnEnemy(p.ProfileId))return false;
-        }
-        for(int i=0;i<count;i++) {
-            var p=world.GetPlayerByCollider(r.Hits[i].collider);
-            if(p!=null&&p.ProfileId!=b.ProfileId&&!b.EnemyController.IsPlayerAnEnemy(p.ProfileId))return false;
-        }
-        return true;
     }
     private static bool OwnPrefire(CornerPrefireRuntime r)
     {
@@ -127,16 +84,11 @@ public sealed partial class Plugin
         var r=s.CornerPrefire;if(!r.Policy.Active)return;
         try {
             if(config==null||!config.Enabled||b==null||b.IsDead){EndPrefire(s,"prefire-out-of-scope");return;}
-            if(r.Policy.Trace!.Requested&&!OwnPrefire(r)){EndPrefire(s,"prefire-native-ownership-lost");return;}
+
             var f=PrefireFrame(b,s,true);
             r.Safety=f;r.SafetyFrame=Time.frameCount;
             if(!r.Policy.Observe(f,config.CornerPrefire)){FinishPrefire(s);return;}
-            if(r.Policy.Trace.Requested) {
-                if(!b.ManualShoot.Shooting)EndPrefire(s,"prefire-native-fire-ended");
-                else RecordPrefire(s);
-                return;
-            }
-            if(b.ManualShoot.Reason!=EShootReason.None||b.ManualShoot.Shooting){EndPrefire(s,"prefire-native-shooting-busy");return;}
+
             if(steering) {
                 b.Steering.LookToPoint(r.Aim);
                 if(r.Policy.Request(f,config.CornerPrefire)) {
@@ -182,7 +134,7 @@ public sealed partial class Plugin
     {
         var p=Instance;if(p==null||!p.states.TryGetValue(__instance.Bot,out var s))return;var r=s.CornerPrefire;
         if(r.Stopping||r.InRequest||!r.Policy.Active)return;
-        r.Owned=false;r.Policy.End("prefire-native-reset");p.RecordPrefire(s,true);r.Owner=null;r.Enemy=r.Weapon=null;r.Safety=null;
+        r.Owned=false;p.RecordPrefire(s,true); // Source retries ManualShoot on the next tactical tick.
     }
     private void EndPrefire(BotState s,string reason)
     {

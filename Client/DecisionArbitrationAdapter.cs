@@ -46,7 +46,6 @@ public sealed partial class Plugin
         // Choose creates the state if necessary. Its ordinary-priority check must use this
         // new commit (self=None), not the previous tick's CurrentSquadDecision.
         if (old == null) { old = new BotState(b, p.config!, p.session); p.states.Add(b, old); }
-        if (old.Execution.CoolingDown(Time.time)) return;
         var proposed = ECombatDecision.None; bool chosen = false;
         old.ArbitratingSquad = true;
         try
@@ -93,10 +92,5 @@ public sealed partial class Plugin
         string reason = s.Execution.Sample(Time.time, executed, paused);
         if (reason.Length == 0) return;
         ArbitrationEvent(s, reason, d.CurrentCombatDecision + "/" + (b.CurrentAction?.GetType().Name ?? "unobserved"));
-        if (s.Execution.Phase != "timed-out") return;
-        // Preserve a retry delay even through Release. No forced Stop/Reset/teleport of native work.
-        if (s.Feature == "A01" && Enum.TryParse<Tactic>(s.Decision, out var tactic)) s.Engine.Fail(tactic, Time.time, reason);
-        if (s.Feature == "A02") s.VisibleEngine.NotifyNativeRefusal();
-        YieldToSain(s, reason);
     }
 }

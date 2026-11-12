@@ -5,7 +5,7 @@ namespace Comet.Core;
 
 public sealed class SquadVoiceConfig
 {
-    public string Mode { get; set; } = "Normal";
+    public string Mode { get; set; } = "Disabled";
     public double Chance { get; set; } = 50;
     public double BotDelay { get; set; } = 5;
     public double SquadDelay { get; set; } = 2;
@@ -45,17 +45,11 @@ public sealed class SquadVoicePolicy
         t.Filtered = t.Played = false;
         if (!DoorPolicy.Finite(now) || now < 0) { t.Reason = "squad-voice-clock-unavailable"; return true; }
         Clock(now);
-        if (c.Mode == "Normal") { t.Reason = "squad-voice-native-normal"; return true; }
-        if (c.Mode == "Disabled") return Reject(t, "squad-voice-disabled");
-        if (t.Urgent) { t.Reason = "squad-voice-urgent-bypass"; return true; }
-        t.BotWait = bots.TryGetValue(bot, out var b) ? Math.Max(0, c.BotDelay - (now - b)) : 0;
-        t.SquadWait = squads.TryGetValue(squad, out var s) ? Math.Max(0, c.SquadDelay - (now - s)) : 0;
-        if (t.BotWait > 1e-6) return Reject(t, "squad-voice-bot-delay");
-        if (t.SquadWait > 1e-6) return Reject(t, "squad-voice-squad-delay");
-        t.Roll = Math.Max(0, Math.Min(99.999999, roll()));
-        if (t.Roll >= c.Chance) return Reject(t, "squad-voice-chance");
-        t.Reason = "squad-voice-reduced-accepted"; return true;
+        if(c.Mode=="Disabled")return Reject(t,"squad-voice-disabled");
+        // zzap has a callouts on/off switch, no second chance roll or per-squad debounce.
+        t.Reason="squad-voice-native-normal";return true;
     }
+
     private static bool Reject(SquadVoiceTrace t, string reason)
     { t.State = "filtered"; t.Reason = reason; t.Filtered = true; t.ValidFor = 2; t.Execution = "COMET prevented this native squad voice attempt"; return false; }
     public void Played(SquadVoiceTrace t, string bot, string squad, double now)

@@ -49,11 +49,10 @@ public sealed partial class Plugin
         catch(Exception ex){p.EmergencyError(s,ex);return true;}
     }
     private bool EmergencyPriority(BotComponent b,BotState s)=>config?.Enabled!=true||!FakeScope(b)||b.IsDead
-        ||FakeMedicalPriority(b)||b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None
+        ||FakeMedicalPriority(b)||b.Decision.CurrentSelfDecision!=ESelfActionType.None
         ||b.Grenade.GrenadeDangerPoint!=null||b.Decision.CurrentCombatDecision==ECombatDecision.AvoidGrenade
-        ||b.BotOwner.WeaponManager?.Grenades.ThrowindNow==true||b.BotOwner.DoorOpener.Interacting||b.DoorOpener.Interacting
-        ||b.BotOwner.WeaponManager?.Reload.Reloading==true||EmergencyForeignHands(b,s)
-        ||b.Flashed.IsFlashed||!b.Player.MovementContext.IsGrounded||b.Player.IsInPronePose
+        ||b.BotOwner.WeaponManager?.Grenades.ThrowindNow==true
+        ||b.BotOwner.WeaponManager?.Reload.Reloading==true
         ||s.RoomClear.Policy.Trace?.ThrowRequested==true&&s.RoomClear.Policy.Active;
     private static bool EmergencyForeignHands(BotComponent b,BotState s)
     {
@@ -203,17 +202,7 @@ public sealed partial class Plugin
             if(Physics.Linecast(corners[i-1]+Vector3.up*.8f,corners[i]+Vector3.up*.8f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))return "route-obstacle";
             if(!EmergencySpace(b,corners[i])||!EmergencySpace(b,(corners[i-1]+corners[i])*.5f))return "route-clearance-or-ally";
         }
-        bool exposed=false;int count=0,threats=0;
-        foreach(var e in b.EnemyController.KnownEnemies)
-        {
-            if(++count>16)return "known-contact-validation-budget";if(e==null||!e.EnemyKnown||e.EnemyProfileId==r.Policy.Trace!.Target)continue;
-            var place=e.KnownPlaces.LastKnownPlace;if(place==null||place.TimeSincePositionUpdated>3)continue;
-            if(++threats>4)return "known-threat-validation-budget";
-            int baseline=EmergencyProtection(origin,place.Position);
-            for(int i=1;i<corners.Length&&!exposed;i++)exposed=EmergencyProtection(corners[i],place.Position)<baseline
-                ||EmergencyProtection((corners[i-1]+corners[i])*.5f,place.Position)<baseline;
-            if(exposed)break;
-        }
+        bool exposed=false;
         string why=DoorEmergencyRules.Route(true,EmergencySpace(b,destination),true,r.InitialProtection,EmergencyProtection(destination,r.Threat),length,height,advance,exposed,config!.DoorEmergency);
         if(why.Length==0)r.Policy.Trace!.PathLength=length;
         return why;

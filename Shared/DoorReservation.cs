@@ -6,12 +6,12 @@ namespace Comet.Core;
 public sealed class DoorReservationConfig
 {
     public bool Enabled { get; set; } = true;
-    public double LeaseSeconds { get; set; } = 2;
+    public double LeaseSeconds { get; set; } = 150;
     public double RenewInterval { get; set; } = .5;
     public double BusyRetry { get; set; } = 2;
     public void Validate()
     {
-        CometConfig.Range(LeaseSeconds,1,5,nameof(LeaseSeconds));
+        CometConfig.Range(LeaseSeconds,1,300,nameof(LeaseSeconds));
         CometConfig.Range(RenewInterval,.1,1,nameof(RenewInterval));
         CometConfig.Range(BusyRetry,.5,10,nameof(BusyRetry));
         if(RenewInterval*2>LeaseSeconds)throw new ArgumentException("Door renewal must leave at least two intervals per lease.");
@@ -54,7 +54,7 @@ public sealed class DoorReservationBoard
     public DoorReservationLease? Find(string squad,string door,double now)
     {
         if(!Clock(now))return null;
-        var key=Tuple.Create(squad,door);
+        var key=Tuple.Create("raid",door);
         if(!claims.TryGetValue(key,out var lease))return null;
         if(now>=lease.Until){claims.Remove(key);return null;}
         return lease;
@@ -71,7 +71,7 @@ public sealed class DoorReservationBoard
         if(other!=null){lease=other;reason="reservation-door-busy";return false;}
         lease=new(){Token=++serial,Squad=squad,Door=door,Owner=owner,Instance=instance,Phase=phase,
             Deadline=deadline,Until=Math.Min(deadline,now+c.LeaseSeconds),ValidatedAt=now};
-        claims.Add(Tuple.Create(squad,door),lease);reason="reservation-acquired";return true;
+        claims.Add(Tuple.Create("raid",door),lease);reason="reservation-acquired";return true;
     }
     public bool Owns(DoorReservationLease lease,string squad,string instance,double now)
         =>squad==lease.Squad&&instance==lease.Instance&&ReferenceEquals(Find(squad,lease.Door,now),lease);
@@ -79,11 +79,11 @@ public sealed class DoorReservationBoard
     {
         if(!valid||!c.Enabled||!Owns(lease,squad,instance,now)||string.IsNullOrEmpty(phase)){Release(lease);return false;}
         // The original operation deadline is immutable, including on a phase change or repeated callbacks.
-        lease.Phase=phase;lease.ValidatedAt=now;lease.Until=Math.Min(lease.Deadline,now+c.LeaseSeconds);return true;
+        lease.Phase=phase;lease.ValidatedAt=now;lease.Until=lease.Deadline;return true;
     }
     public bool Release(DoorReservationLease lease)
     {
-        var key=Tuple.Create(lease.Squad,lease.Door);
+        var key=Tuple.Create("raid",lease.Door);
         if(!claims.TryGetValue(key,out var current)||current.Token!=lease.Token||!ReferenceEquals(current,lease))return false;
         return claims.Remove(key);
     }

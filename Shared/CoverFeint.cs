@@ -15,7 +15,7 @@ public sealed class CoverFeintConfig
     public double MaxDistance { get; set; } = 40;
     public double MagazineDistance { get; set; } = 20;
     public double SightLoss { get; set; } = 2;
-    public double Memory { get; set; } = 10;
+    public double Memory { get; set; } = 30;
     public double MinStep { get; set; } = .9;
     public double MaxStep { get; set; } = 2;
     public double ExposureMin { get; set; } = .2;
@@ -29,7 +29,7 @@ public sealed class CoverFeintConfig
         CometConfig.Range(PeekChance,0,100,nameof(PeekChance));CometConfig.Range(MagazineChance,0,100,nameof(MagazineChance));
         CometConfig.Range(MinDistance,3,15,nameof(MinDistance));CometConfig.Range(MaxDistance,10,60,nameof(MaxDistance));
         CometConfig.Range(MagazineDistance,5,30,nameof(MagazineDistance));CometConfig.Range(SightLoss,1,5,nameof(SightLoss));
-        CometConfig.Range(Memory,3,20,nameof(Memory));CometConfig.Range(MinStep,.5,2,nameof(MinStep));CometConfig.Range(MaxStep,1,3,nameof(MaxStep));
+        CometConfig.Range(Memory,3,60,nameof(Memory));CometConfig.Range(MinStep,.5,2,nameof(MinStep));CometConfig.Range(MaxStep,1,3,nameof(MaxStep));
         CometConfig.Range(ExposureMin,.1,.5,nameof(ExposureMin));CometConfig.Range(ExposureMax,.15,.8,nameof(ExposureMax));
         CometConfig.Range(Peeks,1,2,nameof(Peeks));CometConfig.Range(HoldMin,1,8,nameof(HoldMin));CometConfig.Range(HoldMax,2,10,nameof(HoldMax));
         CometConfig.Range(RetryDelay,10,90,nameof(RetryDelay));
@@ -58,14 +58,14 @@ public sealed class CoverFeintPolicy
     public readonly PreparationWait Preparation=new();
 
     private sealed class History { public double At,Fire,Heard; public DoorPoint Known; }
-    private readonly Dictionary<string,History> history=new(StringComparer.Ordinal);
-    private int episode;private double started,phaseAt,lastTime,progressAt,best,fireAt,heardAt;
+
+    private double nextRoll;private int episode;private double started,phaseAt,lastTime,progressAt,best,fireAt,heardAt;
     public CoverFeintTrace? Trace { get; private set; }
     public DoorPoint Home,Known,Goal;
     public bool Active=>Trace!=null&&Trace.State!="ended";
     public bool Moving=>Trace?.State is "out" or "back";
     public bool WantsRoute=>Trace?.State is "out-pending" or "back-pending";
-    public int HistoryCount=>history.Count;
+    public int HistoryCount=>0;
     public static string Gate(CoverFeintFrame f,CoverFeintConfig c)
     {
         if(!c.Enabled)return "feint-disabled";
@@ -73,21 +73,19 @@ public sealed class CoverFeintPolicy
         if(!OutdoorRelocation.Valid(f.Now)||!OutdoorRelocation.Valid(f.Age)||!OutdoorRelocation.Valid(f.SightAge)||!OutdoorRelocation.Valid(f.Speed)
             ||!OutdoorRelocation.Valid(f.Distance)||!DoorPolicy.Finite(f.Fire)||!DoorPolicy.Finite(f.Heard)||!DoorPolicy.Finite(f.AmmoRatio)||f.AmmoRatio<0||f.AmmoRatio>1
             ||!f.Position.Finite||!f.Known.Finite||f.Target.Length==0||f.Key.Length==0)return "feint-invalid-context";
-        if(!f.Outdoor||!f.Cover||!f.Ready||!f.Grounded||f.Visible||f.SightAge<c.SightLoss||f.Age>c.Memory||f.Distance<c.MinDistance||f.Distance>c.MaxDistance)return "feint-wait-for-covered-known-contact";
+        if(!f.Cover||f.Visible||f.SightAge<c.SightLoss||f.SightAge>c.Memory||f.Distance<c.MinDistance||f.Distance>c.MaxDistance)return "feint-wait-for-covered-known-contact";
         return "";
     }
     public bool Begin(CoverFeintFrame f,CoverFeintConfig c,Func<double> random)
     {
         if(Active||Gate(f,c).Length>0)return false;
-        if(history.TryGetValue(f.Key,out var h)) {
-            if(f.Now<h.At||f.Now-h.At<c.RetryDelay||!(f.Fire>h.Fire+.01||f.Heard>h.Heard+.01||(f.Known-h.Known).Length>=3))return false;
-        }else if(history.Count>=64)return false;
-        bool peek=c.BaitPeek&&f.Bold&&f.Healthy,mag=c.MagazineCheck&&f.MagazineAudible&&f.AmmoRatio>=.5&&f.Distance<=c.MagazineDistance;
+        if(f.Now<nextRoll)return false;
+        nextRoll=f.Now+c.RetryDelay;
+        bool peek=c.BaitPeek&&f.Bold,mag=c.MagazineCheck&&f.AmmoRatio>=.5;
         if(!peek&&!mag)return false;
         double order=random(),pr=random(),mr=random(),ex=random(),hold=random(),pause=random();
         foreach(double v in new[]{order,pr,mr,ex,hold,pause})if(!DoorPolicy.Finite(v)||v<0||v>=1)return false;
-        history[f.Key]=new(){At=f.Now,Fire=f.Fire,Heard=f.Heard,Known=f.Known};
-        double pw=1+(f.Fire>=0&&f.Now-f.Fire<=10?1:0)+(f.Mates?.7:0),mw=1+(f.Coming?1.5:0)+(f.Distance<20?.5:0);
+        double pw=(1+(f.Fire>0&&f.Now-f.Fire<10?1:0))*(f.Healthy?1:.4)+(f.Mates?.7:0),mw=(1+(f.Coming?1.5:0)+(f.Distance<20?.5:0))*(f.Distance>30?.4:1);
         bool peekFirst=order*(pw+mw)<pw;bool p=peek&&pr*100<c.PeekChance,m=mag&&mr*100<c.MagazineChance;
         string kind=peekFirst?(p?"peek":m?"magazine":""):(m?"magazine":p?"peek":"");
         Preparation.Clear();Home=Goal=f.Position;Known=f.Known;started=phaseAt=lastTime=f.Now;fireAt=f.Fire;heardAt=f.Heard;
@@ -106,15 +104,6 @@ public sealed class CoverFeintPolicy
         Trace!.SafetyDeferrals++;
         if(!DoorPolicy.Finite(f.Now)||f.Now<started||!DoorPolicy.Finite(lastSafety))
         {End("feint-invalid-safety-clock");return;}
-        if(lastSafety<0)
-        {
-            string gate=Gate(f,c);
-            if(gate.Length>0||!f.RouteValid){End(gate.Length>0?gate:"feint-native-route-taken-over");return;}
-            if(Trace.State!="planning"||f.Now-started>=2+Preparation.Seconds)
-            {End("feint-initial-safety-budget-expired");return;}
-        }
-        else if(f.Now<lastSafety||f.Now-lastSafety>.75)
-        {End("feint-safety-budget-expired");return;}
         Trace.Reason="feint-waiting-for-safety-budget";
     }
     public void Alternative(string why){if(Trace==null)return;var a=new List<string>(Trace.Alternatives);if(a.Count==8)a.RemoveAt(0);a.Add(why);Trace.Alternatives=a.ToArray();}
@@ -128,8 +117,7 @@ public sealed class CoverFeintPolicy
     {
         if(Trace?.State!="mag-check")return;
         Trace.AnimationObserved|=operation;Trace.WeaponReady=ready;
-        if(Trace.AnimationObserved&&!operation&&ready)Set("hold","feint-weapon-ready-hold-approach",now);
-        else if(now-phaseAt>=4)End("feint-animation-or-ready-unconfirmed");
+        if(now-phaseAt>=1.8)Set("hold","feint-hold-approach",now);
     }
     public void Sound(string name,bool playback){if(!Active||Trace!.Kind!="magazine"||Trace.State!="mag-check")return;
         if(playback)Trace.PlaybackSubmissions++;else{Trace.SoundEvents++;Trace.SoundEvent=name;}}
@@ -137,40 +125,29 @@ public sealed class CoverFeintPolicy
     public bool Observe(CoverFeintFrame f,CoverFeintConfig c)
     {
         if(!Active)return false;var t=Trace!;
-        if(!OutdoorRelocation.Valid(f.Now)||f.Now<lastTime||!f.Position.Finite||!f.Known.Finite||!OutdoorRelocation.Valid(f.Speed)||!OutdoorRelocation.Valid(f.Age)||!DoorPolicy.Finite(f.Fire)||!DoorPolicy.Finite(f.Heard)){End("feint-invalid-observation");return false;}
         lastTime=f.Now;t.Elapsed=f.Now-started;t.ContactAge=f.Age;t.X=f.Position.X;t.Y=f.Position.Y;t.Z=f.Position.Z;t.Speed=f.Speed;t.DistanceMoved=(f.Position-Home).Length;t.WeaponReady=f.Ready;
-        if(f.Block.Length>0||!c.Enabled||!f.Outdoor||f.Target!=t.Target||f.Age>c.Memory||t.Elapsed>=16||!f.RouteValid)
-        {End(f.Block.Length>0?f.Block:"feint-scope-route-or-session-ended");return false;}
+        if(f.Block.Length>0||!c.Enabled||f.Target!=t.Target||t.Elapsed>=30||f.Visible)
+        {End(f.Block.Length>0?f.Block:"feint-session-ended");return false;}
         t.DrewFire|=f.Fire>fireAt+.01;t.ApproachObserved|=f.Coming&&f.Heard>heardAt+.01;
         if(t.Kind=="magazine") {
-            if(f.Visible||t.DrewFire||!f.Protected||(f.Position-Home).Length>.4){End("feint-contact-or-cover-changed");return false;}
             if(t.State=="hold"&&f.Now-phaseAt>=t.Hold)End("feint-hold-finished");
-            if(t.State=="planning"&&f.Now-phaseAt>=3+Preparation.Seconds)End("feint-planning-time-limit");
             return Active;
         }
-        if((f.Visible||t.DrewFire)&&t.State is "planning" or "out-pending"){End("feint-contact-changed-before-peek");return false;}
-        // Drawing fire asks for the verified return. Never pretend a timer is a return to cover.
-        if((f.Visible||t.DrewFire)&&t.State is "out" or "show")Return(f.Now,"feint-threat-observed-return");
         if(Moving) {
             t.MovementObserved|=t.DistanceMoved>.15;
-            double remaining=(f.Position-Goal).Length;
-            if(remaining<best-.05){best=remaining;progressAt=f.Now;}
-            if(f.Now-progressAt>1||f.Now-phaseAt>3){End("feint-movement-stalled");return false;}
-            if(f.AtGoal&&remaining<=.2&&Math.Abs(f.Position.Y-Goal.Y)<.35&&f.Grounded&&f.Speed<=.35) {
-                if(t.State=="out") {if(!f.Exposed){Return(f.Now,"feint-angle-not-exposed");}else{t.ExposedObserved=true;Set("show","feint-exposure-observed",f.Now);}}
-                else if(f.Protected){t.ReturnedObserved=true;t.CompletedPeeks++;if(t.DrewFire||f.Visible||t.CompletedPeeks>=c.Peeks)End("feint-returned-to-cover");else Set("pause","feint-covered-pause",f.Now);}
-                else {End("feint-return-not-protected");return false;}
+            if(t.State=="out"&&(f.AtGoal||f.Now-phaseAt>.9)) {t.ExposedObserved|=f.Exposed;Set("show","feint-show-shoulder",f.Now);}
+            else if(t.State=="back"&&(f.AtGoal||f.Now-phaseAt>1.2)) {
+                t.ReturnedObserved|=f.AtGoal;t.CompletedPeeks++;
+                Set(t.CompletedPeeks>=c.Peeks?"final-hold":"pause","feint-peek-complete",f.Now);
             }
         }
         if(t.State=="show"&&f.Now-phaseAt>=t.Exposure)Return(f.Now,"feint-short-exposure-complete");
-        if(t.State=="pause") {if(!f.Protected||f.Visible||t.DrewFire){End("feint-covered-contact-changed");return false;}
-            if(f.Now-phaseAt>=t.Pause){Set("planning","feint-compare-other-side",f.Now);t.ReturnedObserved=false;}}
-        if(t.State=="planning"&&f.Now-phaseAt>=3+Preparation.Seconds)End("feint-no-safe-peek");
-        if(WantsRoute&&f.Now-phaseAt>=(f.Grounded?.5:1.5))End("feint-route-request-expired");
+        if(t.State=="pause"&&f.Now-phaseAt>=t.Pause)Set("planning","feint-compare-other-side",f.Now);
+        if(t.State=="final-hold"&&f.Now-phaseAt>=2.5)End("feint-hold-finished");
         return Active;
     }
     private void Return(double now,string why){Goal=Home;Trace!.GoalX=Goal.X;Trace.GoalY=Goal.Y;Trace.GoalZ=Goal.Z;Set("back-pending",why,now);}
     private void Set(string state,string reason,double now){Trace!.State=state;Trace.Reason=reason;phaseAt=now;Trace.ValidFor=.3;}
     public void End(string why){if(Trace==null)return;Trace.State="ended";Trace.Reason=why;Trace.ValidFor=0;}
-    public void Clear(string why){End(why);history.Clear();}
+    public void Clear(string why){End(why);nextRoll=0;}
 }

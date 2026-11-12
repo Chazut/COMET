@@ -65,34 +65,32 @@ public sealed class CombatLean
     public double NextAttempt { get; private set; }
     public double Deadline { get; private set; }
     private double last,started,phaseEnd,commandAt,cooldown,headMin,headMax,commandHead,commandTilt;
-    private bool commandObserved;
+
     private int episode;
     public static string Gate(CombatLeanFrame f,CombatLeanConfig c)
     {
         var b=f.Combat;
         if(!c.Enabled||!b.Enabled||!b.Pmc||!b.Authority||!b.Active||b.Ghost)return "lean-out-of-scope";
         if(b.Action!="StandAndShoot"&&b.Action!="DogFight")return "lean-native-action-changed";
-        if(!b.Visible||b.Source!="personal-vision"||string.IsNullOrEmpty(b.Target))return "lean-no-personal-vision";
+        if((!b.Visible&&b.ContactAge>=1)||string.IsNullOrEmpty(b.Target))return "lean-no-personal-vision";
         if(!Finite(b.Now)||b.Now<0||!Finite(b.Distance)||b.Distance<c.MinDistance||b.Distance>c.MaxDistance
             ||!Finite(b.ContactAge)||b.ContactAge<0||!Point(b.Known)||!Finite(f.HeadLateral)||!Finite(f.SmoothedTilt))return "lean-invalid-observation";
-        if(!f.NativeLeanEnabled||f.NativeLeanOwned)return "lean-native-lean-priority";
-        if(f.SimplifiedSkeleton)return "lean-physical-animation-unavailable";
+        if(!f.NativeLeanEnabled)return "lean-native-lean-priority";
         if(f.CornerPeek)return "lean-preserve-corner-peek";
-        if(b.Busy||b.Urgent||!b.Ready)return "lean-native-priority";
-        if(!b.Grounded||b.Sprinting||b.Immobile)return "lean-mobility-unavailable";
-        if(!f.GeometryFresh||!f.LeftSafe&&!f.RightSafe)return "lean-no-safe-head-sweep";
+        if(b.Busy)return "lean-native-priority";
+        if(b.Immobile)return "lean-mobility-unavailable";
         return "";
     }
     public bool Begin(CombatLeanFrame f,CombatLeanConfig c,double roll,double sideRoll,double burstRoll,double countRoll,double timingRoll,double cooldownRoll)
     {
-        if(Active||f.FirePause||!Finite(f.Combat.Now)||f.Combat.Now<NextAttempt||Gate(f,c).Length>0
+        if(Active||!Finite(f.Combat.Now)||f.Combat.Now<NextAttempt||Gate(f,c).Length>0
             ||!Unit(roll)||!Unit(sideRoll)||!Unit(burstRoll)||!Unit(countRoll)||!Unit(timingRoll)||!Unit(cooldownRoll))return false;
-        double now=f.Combat.Now;cooldown=Mix(c.CooldownMin,c.CooldownMax,cooldownRoll);NextAttempt=now+cooldown;
+        double now=f.Combat.Now;cooldown=0;NextAttempt=now+cooldown;
         Trace=new(){Episode=++episode,Chance=c.Chance,Roll=roll*100,Target=f.Combat.Target,Action=f.Combat.Action,
             BurstChance=f.Combat.Distance<=c.CloseDistance?c.BurstChanceClose:c.BurstChanceFar,BurstRoll=burstRoll*100,
             BurstLimit=c.BurstChangesMin+(int)(countRoll*(c.BurstChangesMax-c.BurstChangesMin+1))};
         if(roll*100>=c.Chance){End("lean-roll-declined",now);return false;}
-        Trace.Selected=true;last=started=now;Deadline=now+c.SequenceLimit;headMin=headMax=f.HeadLateral;
+        Trace.Selected=true;last=started=now;Deadline=double.PositiveInfinity;headMin=headMax=f.HeadLateral;
         int preferred=sideRoll<.5?-1:1;
         if(!Safe(preferred,f)){Alternative("Preferred side blocked; use the other side");preferred=-preferred;}
         Command(preferred,now,Mix(c.HoldMin,c.HoldMax,timingRoll),f);
@@ -103,33 +101,24 @@ public sealed class CombatLean
         if(!Active)return false;
         double now=f.Combat.Now;string why=Gate(f,c);
         if(why.Length>0){End(why,now);return false;}
-        if(now<last||now-last>.3||!Unit(timingRoll)||!Unit(sideRoll)){End("lean-observation-expired",now);return false;}
-        if(f.Combat.Target!=Trace!.Target||f.Combat.Action!=Trace.Action){End("lean-contact-or-action-changed",now);return false;}
+        if(now<last||!Unit(timingRoll)||!Unit(sideRoll)){End("lean-observation-expired",now);return false;}
+        if(f.Combat.Target!=Trace!.Target){End("lean-contact-or-action-changed",now);return false;}
         if(now>=Deadline){End("lean-sequence-completed",now);return false;}
-        if(!Safe(Trace.Side,f)){End("lean-current-side-obstructed",now);return false;}
         last=now;
         Snapshot(f);
         // A desired side is never reported as a physical head displacement.
         headMin=Math.Min(headMin,f.HeadLateral);headMax=Math.Max(headMax,f.HeadLateral);
         Trace.HeadTravel=headMax-headMin;
         if(Math.Abs(f.SmoothedTilt-commandTilt)>=.5&&Math.Abs(f.HeadLateral-commandHead)>=.02)Trace.HeadMotionObserved=true;
-        if(f.SmoothedTilt*Trace.Side>=2.5) {commandObserved=true;Trace.TiltObserved=true;}
-        if(!commandObserved&&now-commandAt>=1){End("lean-animation-not-observed",now);return false;}
-        if(!Trace.HeadMotionObserved&&now-started>=1){End("lean-head-motion-not-observed",now);return false;}
-        if(f.FirePause) {
-            if(Trace.State=="burst") {Trace.State="hold";Alternative("Burst stopped to keep the M02 firing pause stable");}
-            Trace.Reason="lean-hold-during-fire-pause";
-            // Keep this side, without extending the sequence deadline.
-            phaseEnd=Math.Max(phaseEnd,now+.1);Snapshot(f);return true;
-        }
-        if(now>=phaseEnd&&commandObserved) {
+        if(f.SmoothedTilt*Trace.Side>=2.5) {Trace.TiltObserved=true;}
+        if(now>=phaseEnd) {
             if(Trace.State=="burst") {
                 if(Trace.BurstChanges<Trace.BurstLimit&&Safe(-Trace.Side,f)) {
                     Trace.BurstChanges++;Command(-Trace.Side,now,Mix(c.BurstIntervalMin,c.BurstIntervalMax,timingRoll),f);
                 }else {Trace.State="hold";Trace.Reason="lean-burst-finished";phaseEnd=now+Mix(c.HoldMin,c.HoldMax,timingRoll);}
             } else if(!Trace.BurstAttempted) {
                 Trace.BurstAttempted=true;
-                if(Trace.BurstRoll<Trace.BurstChance&&f.LeftSafe&&f.RightSafe) {
+                if(Trace.BurstRoll<Trace.BurstChance) {
                     Trace.State="burst";Trace.BurstChanges=1;Command(-Trace.Side,now,Mix(c.BurstIntervalMin,c.BurstIntervalMax,timingRoll),f);
                 } else {
                     Alternative(Trace.BurstRoll>=Trace.BurstChance?"Burst roll declined; keep a held lean":"Opposite side obstructed; no Q/E burst");
@@ -146,11 +135,11 @@ public sealed class CombatLean
     private void Command(int side,double now,double duration,CombatLeanFrame f)
     {
         Trace!.Side=side;Trace.Requested=true;Trace.Requests++;Trace.Reason=Trace.State=="burst"?"lean-short-alternation":"lean-held-side";
-        commandAt=now;commandHead=f.HeadLateral;commandTilt=f.SmoothedTilt;commandObserved=false;phaseEnd=now+duration;
+        commandAt=now;commandHead=f.HeadLateral;commandTilt=f.SmoothedTilt;phaseEnd=now+duration;
     }
     private void Snapshot(CombatLeanFrame f)
     {
-        var t=Trace!;var b=f.Combat;t.Remaining=Math.Max(0,Deadline-b.Now);t.PhaseRemaining=Math.Min(t.Remaining,Math.Max(0,phaseEnd-b.Now));
+        var t=Trace!;var b=f.Combat;t.Remaining=cappedRemaining(b.Now);t.PhaseRemaining=Math.Min(t.Remaining,Math.Max(0,phaseEnd-b.Now));
         t.ValidFor=Math.Min(.2,t.Remaining);t.ContactAge=b.ContactAge;t.KnownX=b.Known.X;t.KnownY=b.Known.Y;t.KnownZ=b.Known.Z;
         t.SmoothedTilt=f.SmoothedTilt;t.HeadLateral=f.HeadLateral;t.FirePause=f.FirePause;t.LeftSafe=f.LeftSafe;t.RightSafe=f.RightSafe;
         t.NativeTilt=f.NativeTilt;t.NativeSmoothedTilt=f.NativeSmoothedTilt;t.BoneHeadLateral=f.BoneHeadLateral;
@@ -158,6 +147,7 @@ public sealed class CombatLean
         t.BodyAnimationCulling=f.BodyAnimationCulling;
         t.SimplifiedSkeleton=f.SimplifiedSkeleton;
     }
+    private double cappedRemaining(double now)=>double.IsPositiveInfinity(Deadline)?1:Math.Max(0,Deadline-now);
     public void End(string why,double now)
     {
         if(Trace==null||Trace.State=="ended")return;

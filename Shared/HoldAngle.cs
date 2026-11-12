@@ -67,63 +67,37 @@ public sealed class HoldAngle
     {
         if(!c.Enabled)return "hold-angle-disabled";
         if(f.Block.Length>0)return f.Block;
-        if(f.Target.Length==0||f.Source!="personal-vision"&&f.Source!="personal-hearing")return "hold-angle-no-personal-evidence";
+        if(f.Target.Length==0)return "hold-angle-no-personal-evidence";
         if(!DoorPolicy.Finite(f.Now)||!DoorPolicy.Finite(f.HoldStarted)||!DoorPolicy.Finite(f.ObservedAt)
             ||f.HoldStarted<0||f.ObservedAt<0||f.Now<f.HoldStarted||f.Now<f.ObservedAt
             ||!CornerChase.Point(f.Position)||!CornerChase.Point(f.Known)||!DoorPolicy.Finite(f.Pose)||f.Pose<0||f.Pose>1
             ||!DoorPolicy.Finite(f.Speed)||f.Speed<0)return "hold-angle-invalid-evidence";
-        if(f.Now-f.ObservedAt>=(f.Source=="personal-vision"?10:5))return "hold-angle-contact-expired";
         return "";
     }
     public bool Begin(HoldAngleFrame f,HoldAngleConfig c)
     {
-        if(Active||Gate(f,c).Length>0||f.Speed>.35||f.Now-f.HoldStarted<c.Delay||f.Now<NextAttempt
-            ||lastTarget==f.Target&&lastHold==f.HoldStarted)return false;
-        if(failedTarget==f.Target&&(f.Position-failedPosition).Length<1&&(f.Known-failedKnown).Length<2)return false;
+        if(Active||Gate(f,c).Length>0||f.Now-f.HoldStarted<c.Delay
+            )return false;
         Preparation.Clear();Origin=Goal=f.Position;Pose=basePose=f.Pose;hold=lastHold=f.HoldStarted;lastTarget=f.Target;last=f.Now;deadline=f.Now+c.Limit;
         Trace=new(){Episode=++episode,Target=f.Target,Source=f.Source,OriginX=Origin.X,OriginY=Origin.Y,OriginZ=Origin.Z,
             X=Origin.X,Y=Origin.Y,Z=Origin.Z,RequestedPose=Pose};
         UpdateTrace(f);return true;
     }
-    public bool Observe(HoldAngleFrame f,HoldAngleConfig c)
+    public void SourceObservation(bool moving,bool standing,DoorPoint goal,int tries)
     {
-        if(!Active)return false;
-        string reason=Gate(f,c);
-        if(reason.Length==0&&(f.Target!=Trace!.Target||f.HoldStarted!=hold||f.Now<last||f.Now-last>.5))reason="hold-angle-context-changed";
-        if(reason.Length==0&&(f.Position-Origin).Length>c.MaxStep+.05)reason="hold-angle-origin-limit";
-        if(reason.Length==0&&!f.RouteOwned)reason="hold-angle-native-route-taken-over";
-        if(reason.Length==0&&!c.AdjustPose&&Math.Abs(Pose-basePose)>.01)reason="hold-angle-posture-disabled";
-        if(reason.Length==0&&Trace!.State!="watching"&&f.Now>=deadline+Preparation.Seconds)reason="hold-angle-correction-timeout";
-        if(reason.Length==0&&Trace!.State!="planning"&&(!DoorPolicy.Finite(f.GeometryAt)||f.GeometryAt>f.Now||f.Now-f.GeometryAt>c.Refresh+.1))reason="hold-angle-safety-expired";
-        if(reason.Length>0){End(reason,f,c,true);return false;}
-        last=f.Now;UpdateTrace(f);
-        if(Trace!.State=="adjusting"&&f.Now-f.GeometryAt<.01&&(f.Position-Goal).Length<=.18&&f.Speed<=.35&&Math.Abs(f.Pose-Pose)<=.08
-            &&f.EyesClear&&f.MuzzleClear) {Trace.State="watching";Trace.Reason="hold-angle-open-observed";Trace.Arrived=true;UpdateTrace(f);}
-        if(Trace.State=="watching"&&(!f.EyesClear||!f.MuzzleClear||Math.Abs(f.Pose-Pose)>.15||(f.Position-Goal).Length>.25))
-        {End("hold-angle-opening-lost",f,c,true);return false;}
-        return true;
+        if(!Active)return;
+        Goal=goal;Pose=standing?1:basePose;
+        Trace!.State=moving?"adjusting":"watching";
+        Trace.Reason=moving?"hold-angle-step-to-opening":standing?"hold-angle-stand-to-see":"hold-angle-watch-corner";
+        Trace.MoveRequested=moving;Trace.PoseRequested=standing;Trace.Arrived=!moving;
+        Trace.X=goal.X;Trace.Y=goal.Y;Trace.Z=goal.Z;Trace.Candidate="peek-try-"+tries;
+        Trace.RequestedPose=Pose;Trace.ValidFor=.3;Trace.Remaining=0;
     }
-    public bool Choose(HoldAngleCandidate candidate,DoorPoint aim,HoldAngleFrame f,HoldAngleConfig c)
-    {
-        if(!Active||Trace!.State!="planning"||!Observe(f,c)||!candidate.Safe||candidate.Id.Length==0
-            ||!CornerChase.Point(candidate.Position)||!CornerChase.Point(aim)||(candidate.Position-Origin).Length>c.MaxStep+.001
-            ||!DoorPolicy.Finite(candidate.Pose)||candidate.Pose<0||candidate.Pose>1
-            ||!c.AdjustPose&&Math.Abs(candidate.Pose-Pose)>.01||!DoorPolicy.Finite(candidate.Cost))return false;
-        Goal=candidate.Position;Pose=candidate.Pose;Trace.State="adjusting";Trace.Reason="hold-angle-safe-correction-selected";
-        Trace.Candidate=candidate.Id;Trace.X=Goal.X;Trace.Y=Goal.Y;Trace.Z=Goal.Z;Trace.AimX=aim.X;Trace.AimY=aim.Y;Trace.AimZ=aim.Z;
-        Trace.RequestedPose=Pose;return true;
-    }
-    // The mover can snap a checked local destination by a few centimetres.
-    public void AcceptEndpoint(DoorPoint endpoint)
-    {if(Active&&endpoint.Finite&&(endpoint-Goal).Length<=.3){Goal=endpoint;Trace!.X=endpoint.X;Trace.Y=endpoint.Y;Trace.Z=endpoint.Z;}}
     public void Requested(bool pose,bool move){if(!Active)return;Trace!.PoseRequested|=pose;Trace.MoveRequested|=move;}
     public void End(string reason,HoldAngleFrame f,HoldAngleConfig c,bool failed)
     {
         if(!Active)return;
         UpdateTrace(f);Trace!.State="ended";Trace.Reason=reason;Trace.Remaining=Trace.ValidFor=0;
-        if(failed){failures=failedTarget==Trace.Target&&(failedPosition-Origin).Length<1?failures+1:1;
-            failedTarget=Trace.Target;failedPosition=Origin;failedKnown=CornerChase.Point(f.Known)?f.Known:new(Trace.KnownX,Trace.KnownY,Trace.KnownZ);
-            NextAttempt=(DoorPolicy.Finite(f.Now)?Math.Max(f.Now,last):last)+(failures>1?c.RepeatRetry:c.Retry);}
     }
     private void UpdateTrace(HoldAngleFrame f)
     {
@@ -134,7 +108,6 @@ public sealed class HoldAngle
         if(DoorPolicy.Finite(f.Pose))t.ObservedPose=Math.Max(0,Math.Min(1,f.Pose));
         if(CornerChase.Point(f.Position))t.Distance=(f.Position-Origin).Length;
         t.EyesClear=f.EyesClear;t.MuzzleClear=f.MuzzleClear;
-        t.Remaining=DoorPolicy.Finite(f.Now)&&DoorPolicy.Finite(f.ObservedAt)?Math.Max(0,(t.State=="watching"?f.ObservedAt+(t.Source=="personal-vision"?10:5):deadline)-f.Now):0;
-        t.ValidFor=Math.Min(.2,t.Remaining);
+        t.Remaining=0; t.ValidFor=Active?.3:0;
     }
 }

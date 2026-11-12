@@ -39,18 +39,18 @@ internal static class TacticalJumpTests
         p=new();p.Request(F(),c,High);p.Result(true,10);Takeoff(p);
         Check(p.HoldFire&&p.Trace!.FireHeld&&!p.Trace.AirShotAllowed,"25 boundary excluded");
         Check(!p.Request(F(10.2,"other"),c,Low)&&p.Trace!.Target=="known-contact"&&p.Trace.ConcurrentRefusals==1,"concurrent request preserves original flight and style");
-        p.Observe(false,11.2,new(14,.1,0),2,50,c);Check(p.HoldFire,"hold remains beyond fork 0.55 seconds while actually airborne");
+        p.Observe(false,11.2,new(14,.1,0),2,50,c);Check(!p.HoldFire,"source fire hold expires after 0.55 seconds even in flight");
         Land(p,11.21);Check(!p.HoldFire&&p.Trace!.LandingObserved,"actual landing ends hold without an extra timer");
-        p=new();p.Request(F(),c,High);p.Result(true,10);p.Observe(true,10.51,new(10,0,0),4,50,c);
+        p=new();p.Request(F(),c,High);p.Result(true,10);p.Observe(true,10.56,new(10,0,0),4,50,c);
         Check(!p.Active&&!p.HoldFire&&!p.Trace!.TakeoffObserved&&p.Trace.Reason=="jump-takeoff-not-observed","accepted input with no flight expires harmlessly");
         p=new();p.Request(F(),c,High);p.Result(true,10);Takeoff(p);Land(p,10.3);
         Check(!p.Request(F(10.4),c,Low)&&p.Trace!.Reason=="jump-native-retry-delay","minimum native retry interval");
         var stationary=F(11);stationary.Position=new(10.1,0,0);
-        Check(!p.Request(stationary,c,Low)&&p.Trace!.Reason=="jump-no-progress-since-last-takeoff","speed does not permit colliding hops at same place");
-        Check(p.Request(F(12),c,Low),"multiple meaningful jumps remain possible");
+        Check(p.Request(stationary,c,Low),"source native clearance decides a repeated jump without a COMET progress veto");
+        p.Result(false,11);Check(p.Request(F(12),c,Low),"multiple meaningful jumps remain possible");
         foreach(var mutate in new Action<TacticalJumpFrame>[] {f=>f.Block="ghost",f=>f.Block="non-pmc",f=>f.Block="remote",f=>f.Block="dead",f=>f.Block="medical",
             f=>f.Feature="unstuck",f=>f.Target="",f=>f.Kind="",f=>f.Grounded=false,f=>f.CanJump=false,f=>f.Speed=3.7,f=>f.ForwardSpeed=-5,
-            f=>f.ForwardSpeed=3.7,f=>f.Stamina=101,f=>f.MinStamina=61,f=>f.Clearance=false,f=>f.GeometryAge=.11,f=>f.GeometryAge=-1,
+            f=>f.ForwardSpeed=3.7,f=>f.Stamina=101,f=>f.Clearance=false,f=>f.GeometryAge=-1,
             f=>f.Now=double.NaN,f=>f.Speed=double.PositiveInfinity,f=>f.Position=new(double.NaN,0,0),f=>f.Landing=new(0,0,double.PositiveInfinity)}) {
             p=new();var f=F();mutate(f);before=rolls;Check(!p.Request(f,c,Low)&&!p.HoldFire&&!p.Active,"unsafe input refuses with no fire ownership");Check(rolls==before,"refusal does not draw style");
         }
@@ -59,7 +59,7 @@ internal static class TacticalJumpTests
             Check(TacticalJumpPolicy.Gate(f,c)=="","per-feature thresholds retained: "+source.Item1);
             f.ForwardSpeed-=.01;Check(TacticalJumpPolicy.Gate(f,c)=="jump-insufficient-directional-speed","directional threshold: "+source.Item1);
         }
-        var floor=new TacticalJumpConfig{MinimumStamina=65};Check(TacticalJumpPolicy.Gate(F(),floor)=="jump-insufficient-stamina","extra floor only raises native feature floors");
+        var floor=new TacticalJumpConfig{MinimumStamina=65};Check(TacticalJumpPolicy.Gate(F(),floor)=="","retired COMET stamina floor has no effect");
         var native=F();native.Feature="SAIN";Check(TacticalJumpPolicy.Gate(native,new(){NativeRush=false})=="jump-native-rush-disabled","native controller opt out");
         Check(TacticalJumpPolicy.Gate(F(),new(){Enabled=false})=="jump-control-disabled","module opt out");
         foreach(var chance in new[]{0d,100d}) {
@@ -67,7 +67,7 @@ internal static class TacticalJumpTests
             Check(p.HoldFire==(chance==0)&&p.Trace!.AirShotAllowed==(chance==100),"0 and 100 chance exact");
         }
         p=new();for(int i=0;i<70;i++){p.Request(F(10+i,"target-"+i),c,Low);p.Result(false,10+i);}
-        Check(p.StyleCount==64&&!p.Trace!.AirShotAllowed&&p.Trace.Roll== -1,"bounded IDs-only history falls back without eviction/reroll");
+        Check(p.StyleCount==70&&p.Trace!.AirShotAllowed,"source enemy styles are not capped at 64");
         p.Request(F(90,"target-0"),c,High);Check(p.Trace!.AirShotAllowed&&p.Trace.StyleCached,"oldest style remains stable");
         p.Clear("raid-ended");Check(p.StyleCount==0&&!p.Active&&!p.HoldFire,"raid cleanup");
         foreach(var reason in new[]{"ghost","authority-lost","bot-ended","raid-ended","adapter-error"}) {
@@ -124,8 +124,8 @@ internal static class TacticalJumpTests
             if(i%7==0){Check(!p.Active&&!p.HoldFire,"mixed failed jump");continue;}
             Takeoff(p);Check(p.HoldFire==(roll>=.25),"random style firing gate");
             double flight=.1+random.NextDouble()*1.3;p.Observe(false,10.1+flight,new(12,.2,0),4,55,c);
-            Check(p.HoldFire==(roll>=.25),"flight length does not change gate");
-            Land(p,10.2+flight);Check(!p.HoldFire&&!p.Active&&p.Trace!.LandingObserved,"every observed landing releases");
+            Check(p.HoldFire==(roll>=.25&&.1+flight<.55),"source 0.55-second timer controls fire during flight");
+            Land(p,10.2+flight);Check(!p.Active&&p.Trace!.LandingObserved&&p.HoldFire==(roll>=.25&&.2+flight<.55),"landing observation preserves the independent source fire timer");
         }
         Console.WriteLine($"M12: {n} assertions passed.");return n;
     }

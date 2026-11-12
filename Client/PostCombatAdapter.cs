@@ -17,12 +17,15 @@ namespace Comet.Client;
 internal sealed class PostCombatRuntime
 {
     internal readonly PostCombat Policy=new();
-    internal float Next,LogAt,ContactAt,MedicalNext,MoveAt,ProgressAt,BestDistance;
+    internal float Next,LogAt,ContactAt,MedicalNext,MoveAt,NextMoveOrder,ProgressAt,BestDistance;
     internal Vector3? Threat;
     internal string Contact="",Key="",RouteStage="";
     internal IBotPathData? Path;
     internal Vector3 Goal,ProtectedAt;
     internal int CoverCandidate,MedicalFailures;
+    internal bool ProneInOpen, Heard, Coming;
+    internal Vector3 HeardAt;
+    internal float NextListen;
     internal bool Protected,Layer,Fault,MedicalOwner,MedicalUseful,MedicalUrgent,MedicalDisabled;
 }
 public sealed partial class Plugin
@@ -32,13 +35,29 @@ public sealed partial class Plugin
     {
         h.Patch(AccessTools.Method(typeof(BotDecisionManager),nameof(BotDecisionManager.ManualUpdate)),
             postfix:new HarmonyMethod(typeof(Plugin),nameof(ObservePostCombat)));
+        h.Patch(AccessTools.Method(typeof(SAIN.Components.BotManagerComponent), "Activate"),
+            postfix:new HarmonyMethod(typeof(Plugin),nameof(PostSoundAttach)));
+        h.Patch(AccessTools.Method(typeof(SAIN.Components.BotManagerComponent), "Dispose"),
+            prefix:new HarmonyMethod(typeof(Plugin),nameof(PostSoundDetach)));
+        h.Patch(AccessTools.Method(typeof(SAIN.Components.PlayerComponentSpace.PlayerComponent), "OnMakingShot"),
+            postfix:new HarmonyMethod(typeof(Plugin),nameof(PostSoundShot)));
         BrainManager.AddCustomLayer(typeof(PostCombatLayer),new(){"PMC","PmcUsec","PmcBear","Assault","ExUsec","Knight","BigPipe","BirdEye"},21);
+    }
+    private static void PostSoundAttach(SAIN.Components.BotManagerComponent __instance)=>SourceSoundWatch.Attach(__instance.BotHearing);
+    private static void PostSoundDetach()=>SourceSoundWatch.Detach();
+    private static void PostSoundShot(SAIN.Components.PlayerComponentSpace.PlayerComponent __instance)=>SourceSoundWatch.OnShot(__instance,__instance.Player.Position);
+    private void ListenPostCombat(BotComponent b,PostCombatRuntime r)
+    {
+        if(Time.time<r.NextListen)return;
+        r.NextListen=Time.time+.4f;
+        r.Heard=SourceSoundWatch.Heard(b,out r.HeardAt,out r.Coming,out var why);
+        if(r.Heard&&r.Coming&&b.BotOwner.Medecine.Using&&Vector3.Distance(r.HeardAt,b.Position)<15)b.Medical.TryCancelHeal();
     }
     private bool PostScope(BotComponent b)=>config?.Enabled==true&&config.PostCombat.Enabled&&world!=null&&Authority
         &&b!=null&&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.IsDead&&!b.GameEnding&&!Ghost(b.ProfileId);
     private bool PostCombatMedicalScope(BotComponent b)=>states.TryGetValue(b,out var s)
         &&(s.PostCombat.Layer&&s.PostCombat.Policy.Active||s.PostCombat.MedicalOwner&&(s.Medical.Policy.Active||s.Medical.Interruption.Active));
-    private bool PostSurgeryTooSoon(BotComponent b,BotState s)=>PostCombatMedicalScope(b)&&Time.time-s.PostCombat.Policy.LastFight<config!.MedicalChoice.SurgeryQuiet;
+    private bool PostSurgeryTooSoon(BotComponent b,BotState s)=>false;
     private bool PostReachedCover(BotComponent b,BotState s)=>s.PostCombat.Layer&&s.PostCombat.Protected&&Vector3.Distance(b.Position,s.PostCombat.ProtectedAt)<1.5f;
     private static void ObservePostCombat(BotDecisionManager __instance)
     {
@@ -67,9 +86,9 @@ public sealed partial class Plugin
     private bool PostDanger(BotComponent b)
     {
         if(b.BotOwner.Memory.IsUnderFire||b.BotOwner.ShootData.Shooting||b.Grenade.GrenadeDangerPoint!=null||b.Flashed.IsFlashed)return true;
-        if(b.GoalEnemy?.EnemyKnown==true)return true;
-        int count=0;foreach(var e in b.EnemyController.KnownEnemies)
-        {if(++count>16)return true;if(e?.EnemyKnown==true)return true;}
+        if(b.GoalEnemy?.IsVisible==true)return true;
+        foreach(var e in b.EnemyController.KnownEnemies)
+        {if(e?.IsVisible==true)return true;}
         return false;
     }
     internal static bool PostCombatActive(BotOwner owner)
@@ -93,9 +112,10 @@ public sealed partial class Plugin
         {
             // A previous episode's reached cover or failed supply scan is not evidence for this fight.
             // Reset before building the frame: otherwise Tick can mark cover complete using stale protection.
-            r.Protected=b.Cover.CoverInUse?.BotInThisCover==true;r.ProtectedAt=b.Position;r.CoverCandidate=0;
+            r.ProneInOpen=false;r.Protected=b.Cover.CoverInUse!=null||!SourceOpenGround.IsOpen(b.Position,r.Threat);r.ProtectedAt=b.Position;r.CoverCandidate=0;
             r.MedicalFailures=0;r.MedicalDisabled=false;r.MedicalUseful=false;r.MedicalUrgent=false;r.MedicalNext=0;
         }
+        ListenPostCombat(b,r);
         InspectPostMedical(b,s);
         var w=(b.Player.HandsController as Player.FirearmController)?.Item;
         var mag=w?.GetCurrentMagazine();
@@ -104,9 +124,9 @@ public sealed partial class Plugin
         var leader=b.Squad.LeaderComponent;
         double distance=r.Threat.HasValue?Vector3.Distance(b.Position,r.Threat.Value):0;
         var f=new PostCombatFrame{Now=Time.time,AmmoPercent=ammo,Health=b.Player.HealthController.GetBodyPartHealth(EBodyPart.Common,false).Normalized,
-            Personality=b.Info.Personality.ToString(),MedicalBusy=b.BotOwner.Medecine.Using||b.Player.HandsController is IMedsController||s.Medical.Policy.Active,
+            Personality=b.Info.Personality.ToString(),MedicalBusy=b.BotOwner.Medecine.Using||b.Player.HandsController is IMedsController,
             MedicalUseful=r.MedicalUseful,MedicalUrgent=r.MedicalUrgent,Reloading=b.BotOwner.WeaponManager.Reload.Reloading,
-            HandsReady=WeaponHandsReady(b,b.Player.HandsController as Player.FirearmController)&&!MedicalPostureGuard(b),
+            HandsReady=true,Heard=r.Heard,Coming=r.Heard&&r.Coming,
             NeedsCover=r.Threat.HasValue&&!r.Protected,
             Regroup=!b.Squad.IAmLeader&&leader!=null&&!leader.IsDead&&Vector3.Distance(b.Position,leader.Position)>config.PostCombat.RegroupDistance,
             CanAdvance=r.Threat.HasValue&&distance>config.PostCombat.AdvanceMin&&distance<config.PostCombat.AdvanceMax};
@@ -140,6 +160,7 @@ public sealed partial class Plugin
         try {
             if(!p.PostScope(b)||p.PostDanger(b))return false;
             if(s.PostCombat.Path!=null)b.Steering.LookToMovingDirection();
+            else if(s.PostCombat.Heard)b.Steering.LookToPoint(s.PostCombat.HeardAt+Vector3.up);
             else if(s.PostCombat.Threat.HasValue)b.Steering.LookToPoint(s.PostCombat.Threat.Value+Vector3.up);
             else b.Steering.LookToRandomPosition();
             return true;

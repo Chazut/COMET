@@ -15,14 +15,8 @@ public sealed partial class Plugin
     private static PropertyInfo actionBot = null!;
     private static void PatchSightContinuity(Harmony harmony)
     {
-        // Keep the native path already in progress, without a hidden-target rush update or new jump.
-        var rushType = typeof(BotComponent).Assembly.GetType("SAIN.Layers.Combat.Solo.RushEnemyAction", true);
-        var rushUpdate = AccessTools.Method(rushType, "updateRushBehavior") ?? throw new MissingMethodException("SAIN rush update");
-        actionBot = AccessTools.Property(rushType, "Bot") ?? throw new MissingMemberException("SAIN action Bot");
-        harmony.Patch(rushUpdate, prefix: new HarmonyMethod(typeof(Plugin), nameof(ContinueFrozenRush)));
         harmony.Patch(AccessTools.Method(typeof(SAINSteeringClass), "SteerByPriority"), prefix: new HarmonyMethod(typeof(Plugin), nameof(SteerFrozenSight)));
         harmony.Patch(AccessTools.Method(typeof(SAINSteeringClass), "LookToEnemy"), prefix: new HarmonyMethod(typeof(Plugin), nameof(LookFrozenSight)));
-        harmony.Patch(AccessTools.Method(typeof(ManualShootClass), "TryShoot"), prefix: new HarmonyMethod(typeof(Plugin), nameof(NoBlindContinuityFire)));
     }
     private void RefreshSight(BotComponent bot, BotState state)
     {

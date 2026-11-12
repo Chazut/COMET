@@ -90,7 +90,7 @@ internal static class EnvironmentContextTests
             var calls=Calls("Plugin","RefreshEnvironment");
             foreach(var required in new[]{"IsSupportedAi","get_Authority","Ghost","get_BotActive","get_GameEnding","get_GoalEnemy","get_Environment","NeedsCeiling","RaycastNonAlloc","Clear","Charge"})Check(calls.Contains(required),"live adapter contract: "+required);
             Check(Calls("NativeAdapter","GrenadeCapability").Contains("RefreshEnvironment"),"actual grenade preparation requests geometry");
-            Check(Calls("Plugin","RelocationFrame").Contains("ReadEnvironment")&&Calls("Plugin","FeintFrame").Contains("ReadEnvironment"),"both outdoor tactics read refreshed native context");
+            Check(!Calls("Plugin","RelocationFrame").Contains("ReadEnvironment")&&!Calls("Plugin","FeintFrame").Contains("ReadEnvironment"),"outdoor tactics use source environment without extra COMET classifier gate");
             var freshRead=Calls("Plugin","ReadEnvironment");
             Check(freshRead.IndexOf("RefreshEnvironment")>=0&&freshRead.IndexOf("Read")>freshRead.IndexOf("RefreshEnvironment"),"refresh precedes consumer read");
             Check(!Calls("Plugin","Update").Contains("RaycastNonAlloc"),"ordinary sweep does not directly cast");

@@ -15,7 +15,7 @@
         @if (Field.Boolean) {
             <label class="toggle"><input id="@Id" type="checkbox" aria-label="@Field.Label" checked="@Editor.IsOn(Field)" @onchange="Toggle" /><span>@(Editor.IsOn(Field) ? "On" : "Off")</span></label>
         } else if (Field.Text) {
-            <select id="@Id" value="@Editor.Input(Field)" @onchange="Edit"><option>Normal</option><option>Reduced</option><option>Disabled</option></select>
+            <select id="@Id" value="@Editor.Input(Field)" @onchange="Edit"><option>Normal</option><option>Disabled</option></select>
         } else {
             <div class="number-value"><input id="@Id" type="number" step="@(Field.Integer ? "1" : "any")" min="@(Field.Min?.ToString(System.Globalization.CultureInfo.InvariantCulture))" max="@(Field.Max?.ToString(System.Globalization.CultureInfo.InvariantCulture))" value="@Editor.Input(Field)"
                 @oninput="Edit" aria-invalid="@(Editor.Error(Field).Length > 0 ? "true" : "false")" aria-describedby="@DescriptionIds" />

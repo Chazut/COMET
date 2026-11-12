@@ -21,6 +21,7 @@ internal sealed class MedicalRuntime
 {
     internal readonly MedicalChoice Policy = new();
     internal readonly SurgeryInterruption Interruption = new();
+    internal readonly SourceSurgery SourceSurgery = new();
     internal float InterruptionAt, InterruptionLogAt;
     internal string InterruptionKey = "";
     internal readonly List<Meds> Items = new();
@@ -84,11 +85,7 @@ public sealed partial class Plugin
     private string MedicalPriority(BotComponent b,BotState s)
     {
         if(!b.BotOwner.Settings.FileSettings.Mind.CAN_USE_MEDS)return "medical-disabled-by-sain";
-        if(b.Grenade.GrenadeDangerPoint!=null||b.Decision.CurrentCombatDecision==ECombatDecision.AvoidGrenade)return "medical-grenade-escape";
         if(b.BotOwner.Medecine==null||b.BotOwner.Medecine.Using||b.Player.HandsController is IMedsController)return "medical-already-in-use";
-        if(b.BotOwner.WeaponManager.Reload.Reloading||b.BotOwner.WeaponManager.Selector.IsChanging||b.BotOwner.DoorOpener.Interacting
-            ||b.BotOwner.WeaponManager.Grenades.ThrowindNow||b.Player.HandsController==null||b.Player.HandsController.IsInInteractionStrictCheck()
-            ||s.HandsRecovery.Policy.BlocksSwitch||s.Fake.Policy.Active)return "medical-hands-busy";
         return "";
     }
     private static bool ChooseMedical(SelfActionDecisionClass __instance,ref ESelfActionType Decision,ref bool __result)
@@ -100,11 +97,9 @@ public sealed partial class Plugin
             if(!p.states.TryGetValue(b,out s)){if(p.states.Count>=512)return true;s=new BotState(b,p.config!,p.session);p.states.Add(b,s);}
             var r=s.Medical;if(r.Fault)return true;
             Decision=ESelfActionType.None;__result=false;
-            if(r.Interruption.Cancelling)return false;
             if(r.Policy.Active){Decision=MedicalAction(r.Policy.Trace!.Choice);__result=true;return false;}
             if(Time.time<r.Next)return false;
             r.Next=Time.time+(float)p.config!.MedicalChoice.Interval;
-            if(!p.doorBudget.TryBegin(Time.frameCount,b))return false;
             p.doorClock.Restart();
             try
             {
@@ -129,23 +124,26 @@ public sealed partial class Plugin
         f.Vital=health.GetBodyPartHealth(EBodyPart.Head,false).Normalized<=.25||health.GetBodyPartHealth(EBodyPart.Chest,false).Normalized<=.25;
         if(config!.Aggression.TryGetValue(b.Info.Personality.ToString(),out var aggression))f.Aggression=aggression;
         f.ReachedCover=b.Cover.CoverInUse?.BotInThisCover==true||PostReachedCover(b,s);f.ProtectiveCover=f.ReachedCover;
-        int count=0,rays=0;
+        f.Health=b.Memory.Health.HealthStatus switch { ETagStatus.Injured=>.7, ETagStatus.BadlyInjured=>.35, ETagStatus.Dying=>.1, _=>1 };
+        f.RunningToCover=!f.ReachedCover&&b.Player.Velocity.magnitude>.5f&&b.Decision.CurrentCombatDecision is ECombatDecision.SeekCover or ECombatDecision.Retreat or ECombatDecision.RunAway;
+        f.LegsHold=!b.Player.MovementContext.CanSprint;
+        Vector3? nearest=null,fresh=null;double freshDistance=double.MaxValue,freshAge=999;
         foreach(var e in b.EnemyController.KnownEnemies)
         {
-            if(++count>16){f.ThreatsIncomplete=true;f.ProtectiveCover=false;break;}
-            if(e==null||!e.EnemyKnown)continue;
-            f.Visible|=e.IsVisible;
-            var place=e.KnownPlaces.LastSeenPlace;var heard=e.KnownPlaces.LastHeardPlace;
-            if(heard!=null&&(place==null||heard.TimeSincePositionUpdated<place.TimeSincePositionUpdated))place=heard;
-            if(place==null||!ValidPoint(place.Position)||place.TimeSincePositionUpdated<0){f.ThreatsIncomplete=true;f.ProtectiveCover=false;continue;}
-            double age=place.TimeSincePositionUpdated;if(age>120&&!e.IsVisible)continue;
-            var pos=place.Position;double distance=Vector3.Distance(b.Position,pos);f.Contacts++;
-            // Aggregate all fresh threats. An old close contact cannot hide a fresh, farther one.
-            if(age<f.Quiet){f.Quiet=age;f.Contact=e.EnemyProfileId;f.X=pos.x;f.Y=pos.y;f.Z=pos.z;}
-            f.Nearest=Math.Min(f.Nearest,distance);
-            if(f.ReachedCover&&f.ProtectiveCover)
-            {if(rays++>=4||CombatProtection(b.Position,pos)!=7)f.ProtectiveCover=false;}
-
+            if(e?.KnownPlaces.LastKnownPosition is not Vector3 pos||e.TimeSinceLastKnownUpdated>120)continue;
+            double age=e.TimeSinceLastKnownUpdated;
+            double distance=Math.Min(e.Path.PathLength,Vector3.Distance(b.Position,pos)*1.3);
+            f.Contacts++;f.Visible|=e.IsVisible||e.InLineOfSight;
+            if(distance<f.Nearest){f.Nearest=distance;f.Quiet=age;f.Contact=e.EnemyProfileId;nearest=pos;}
+            if(age<30&&distance<40&&distance<freshDistance){freshDistance=distance;freshAge=age;fresh=pos;}
+        }
+        if(f.Quiet>=30&&fresh.HasValue){nearest=fresh;f.Nearest=freshDistance;f.Quiet=freshAge;}
+        if(nearest is Vector3 point)
+        {
+            f.X=point.x;f.Y=point.y;f.Z=point.z;
+            f.InHisView=f.Quiet<30&&!Physics.Linecast(point+Vector3.up*1.5f,b.Position+Vector3.up*1.3f,LayersMaskController.HighPolyWithTerrainMask);
+            var cover=b.Cover.CoverInUse;
+            f.CoverTowardHim=!f.ReachedCover&&cover!=null&&f.Quiet<30&&Vector3.Distance(cover.Position,point)<Vector3.Distance(b.Position,point)-1.5f;
         }
         foreach(var step in s.Medical.Steps)if(Time.time>=step.at&&Time.time-step.at<=config.MedicalChoice.FootstepAge&&Vector3.Distance(b.Position,step.position)<=config.MedicalChoice.FootstepDistance)f.Footsteps=true;
         if(!MedicalChoice.Finite(f.Health)||!MedicalChoice.Finite(f.SinceHit))f.Priority="medical-invalid-state";
@@ -173,10 +171,9 @@ public sealed partial class Plugin
     {
         var med=b.BotOwner.Medecine;var r=s.Medical;
         b.Player.InventoryController.GetAcceptableItemsNonAlloc<Meds>(LoadoutAdapter.Carried,r.Items);
-        var best=new Dictionary<string,MedicalOption>();int checkedItems=0;
+        var best=new Dictionary<string,MedicalOption>();f.Meds=r.Items.Count;
         foreach(var item in r.Items)
         {
-            if(++checkedItems>64)break;
             var slot=LoadoutAdapter.RootSlot(item,b.Player.Inventory.Equipment);if(slot==null)continue;
             foreach(var part in medicalParts)
             {
@@ -193,7 +190,8 @@ public sealed partial class Plugin
                 }
                 else if(destroyed&&part!=EBodyPart.Head&&part!=EBodyPart.Chest&&Treats(item,EDamageEffectType.DestroyedPart))
                 {
-                    if(Time.time<r.Interruption.RetryAt||Time.time<med.SurgicalKit._nextPosibleUseTime||b.BotOwner.Settings.FileSettings.Mind.SURGE_KIT_ONLY_SAFE_CONTAINER&&slot!=EquipmentSlot.SecuredContainer)continue;
+                    if(Time.time<med.SurgicalKit._nextPosibleUseTime||b.BotOwner.Settings.FileSettings.Mind.SURGE_KIT_ONLY_SAFE_CONTAINER&&slot!=EquipmentSlot.SecuredContainer)continue;
+                    if(!SourceSurgeryAllowed(b,s))continue;
                     action="Surgery";need="destroyed-limb";rank=1;
                 }
                 else
@@ -225,7 +223,6 @@ public sealed partial class Plugin
         {
             p.SampleMedical(b,s);var r=s.Medical;
             if(r.Interruption.Cancelling){Decision=ESelfActionType.None;__result=false;return false;}
-            if(r.Interruption.Cancelling)return false;
             if(r.Policy.Active){Decision=MedicalAction(r.Policy.Trace!.Choice);__result=true;return false;}
             if(r.Policy.Trace?.State=="ended"&&b.Decision.CurrentSelfDecision==MedicalAction(r.Policy.Trace.Choice))
             {Decision=ESelfActionType.None;__result=false;return false;}
@@ -258,7 +255,7 @@ public sealed partial class Plugin
         if(r.Item==null||!r.Item.TryGetTarget(out var item)||item.Id.ToString()!=t.Item||!MedicalUsable(b,item,r.Part))
         {EndMedical(s,"medical-item-no-longer-usable");return;}
         if(t.Choice=="Surgery"&&PostSurgeryTooSoon(b,s)){EndMedical(s,"medical-post-combat-quiet-time");return;}
-        if(t.Choice=="Surgery"&&Time.time<r.Interruption.RetryAt){EndMedical(s,"medical-surgery-retry-delay");return;}
+
         var health=b.Player.HealthController;
         bool stillNeeded=t.Need=="heavy-bleed"?health.FindExistingEffect<IHeavyBleeding>(r.Part)!=null
             :t.Need=="light-bleed"?health.FindExistingEffect<ILightBleeding>(r.Part)!=null
@@ -306,7 +303,7 @@ public sealed partial class Plugin
             EndMedical(s,t.Started?"medical-use-ended":"medical-start-not-observed",outcome);return;
         }
         if(t.State=="requested"&&Time.time-r.Policy.RequestedAt>5||t.Started&&Time.time-r.Policy.StartedAt>Math.Max(30,t.Duration+20))
-        {EndMedical(s,"medical-native-operation-stalled");r.Fault=true;Logger.LogWarning("H01: medical operation stalled for "+s.ProfileId+"; native recovery retains control.");return;}
+        {EndMedical(s,"medical-native-operation-stalled");Logger.LogWarning("H01: medical observation expired for "+s.ProfileId+"; native recovery retains control.");return;}
         if(t.Started){t.Applied=hands;t.ValidFor=hands?1:0;RecordMedical(s,false);}
     }
     private void EndMedical(BotState s,string reason,string outcome="unconfirmed")

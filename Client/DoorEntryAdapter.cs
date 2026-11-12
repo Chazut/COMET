@@ -99,25 +99,10 @@ public sealed partial class Plugin
     {
         if(config?.Enabled!=true||!config.DoorEntry.Enabled||s.Entry.Fault||!FakeScope(b)||b.IsDead||!b.SAINLayersActive)return "entry-out-of-scope";
         var e=b.GoalEnemy;var r=s.Entry;
-        if(e==null||!e.EnemyKnown||!e.KnownPlaces.LastKnownPosition.HasValue||e.TimeSinceLastKnownUpdated>Math.Min(30,config.ContactLifetime))return "entry-contact-unavailable";
-        if(b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None||b.Grenade.GrenadeDangerPoint!=null
-            ||b.Flashed.IsFlashed||!b.Player.MovementContext.IsGrounded||b.Player.IsInPronePose||s.Impact.Owned||s.Emergency.Policy.Active
-            ||!(r.Policy.Active&&r.Policy.Trace?.State=="interacting")&&!FakeWeaponReady(b)||MedicalPostureGuard(b)||FakeMedicalPriority(b))return "entry-native-priority";
-        if(r.Policy.Active)
-        {
-            if(r.Policy.Trace!.State!="interacting"&&(JumpInteractionState(b)||b.Player.CurrentState.Name==EPlayerState.BreachDoor))return "entry-foreign-interaction";
-            var interacting=b.Player.MovementContext.InteractionInfo.WorldInteractiveObject;
-            if(r.Policy.Trace.State=="interacting"&&interacting!=null&&!ReferenceEquals(interacting,r.Door?.Data.Door))return "entry-foreign-interaction";
-            if(e.EnemyProfileId!=r.Policy.Trace!.Target
-                ||Vector3.Distance(e.KnownPlaces.LastKnownPosition.Value,r.Contact)>2)return "entry-contact-changed";
-            if(b.Decision.CurrentCombatDecision!=r.Decision)return "entry-action-replaced";
-            context=r.Policy.Trace.Context;
-        }
-        if(context is "prepared" or "search" or "move")
-        {
-            if(e.IsVisible||b.EnemyController.VisibleEnemies.Count>0)return "entry-visible-contact-native-combat";
-            if(b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed||s.Fear.Current.Panic||b.Medical.TimeSinceShot<3)return "entry-native-priority";
-        }
+        if(e==null)return "entry-contact-unavailable";
+        // Keep the current door session through target visibility, position and
+        // combat-decision changes. The source ram has its own short execution window.
+        if(context=="search"&&!r.Policy.Active&&e.IsVisible)return "entry-search-visible";
         return nativeEntryReady?"":"entry-native-hooks-unavailable";
     }
     private bool TryStartDoorEntry(BotComponent b,BotState s,DoorWork door,string context,bool prepared)
@@ -137,10 +122,7 @@ public sealed partial class Plugin
             r.EnemyInstance=System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e);r.Decision=b.Decision.CurrentCombatDecision;
             string geometry=PlanEntry(b,r);
             if(geometry.Length>0){r.Drop();return RefuseDoorEntry(b,s,door,context,geometry);}
-            double? parent=prepared||s.ActiveLabel.Length>0?s.LastSelection+config.PlanLimit:null;
-            if(s.Reservation.Lease!=null)parent=Math.Min(parent??double.PositiveInfinity,s.Reservation.Lease.Deadline);
-            double deadline=DoorEntry.Budget(Time.time,Math.Min(30,config.ContactLifetime)-e.TimeSinceLastKnownUpdated,parent,config.DoorEntry);
-            if(deadline<=Time.time){r.Drop();return RefuseDoorEntry(b,s,door,context,"entry-original-budget-ended");}
+            double deadline=DoorEntry.Budget(Time.time,double.PositiveInfinity,null,config.DoorEntry);
             var previous=r.Policy.Trace;
             bool selected=r.Policy.Begin(door.Geometry.Id,e.EnemyProfileId,context,Time.time,deadline,jumpRandom.NextDouble(),config.DoorEntry);
             if(ReferenceEquals(previous,r.Policy.Trace)){r.Drop();return false;}
@@ -236,7 +218,7 @@ public sealed partial class Plugin
                 ||b.Mover.ActivePath==null&&r.OwnedPath.Status!=EBotMoveStatus.Complete)){EndDoorEntry(s,"entry-route-replaced");return;}
             if(Time.time-r.LastSafety>=.2f)
             {
-                if(!doorBudget.TryBegin(Time.frameCount,b)){if(Time.time-r.LastSafety>.5f)EndDoorEntry(s,"entry-safety-budget-expired");return;}
+                if(!doorBudget.TryBegin(Time.frameCount,b)){return;}
                 doorClock.Restart();try{gate=EntrySafety(b,r);r.LastSafety=Time.time;}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
                 if(gate.Length>0){EndDoorEntry(s,gate);return;}
             }

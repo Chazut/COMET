@@ -9,6 +9,8 @@ namespace UnityEngine {
  public struct RaycastHit {public Collider collider;}
  public enum QueryTriggerInteraction {Ignore}
  public static class Physics {
+  public static bool Raycast(Vector3 a,Vector3 b,float d,int mask)=>Cast.Any(c=>(c.Mask&mask)!=0);
+  public static bool Linecast(Vector3 a,Vector3 b,int mask)=>Cast.Any(c=>(c.Mask&mask)!=0);
   public static readonly List<Collider> Overlap=new(),Cast=new();public static int Queries;public static bool Throw;
   public static int OverlapCapsuleNonAlloc(Vector3 a,Vector3 b,float radius,Collider[] output,int mask,QueryTriggerInteraction trigger){Queries++;if(Throw)throw new InvalidOperationException("unavailable");int n=0;foreach(var c in Overlap){if((c.Mask&mask)==0||c.Bottom>b.y+radius)continue;if(n==output.Length)break;output[n++]=c;}return n;}
   public static int CapsuleCastNonAlloc(Vector3 a,Vector3 b,float radius,Vector3 dir,RaycastHit[] output,float distance,int mask,QueryTriggerInteraction trigger){Queries++;int n=0;foreach(var c in Cast){if((c.Mask&mask)==0||c.Bottom>b.y+radius)continue;if(n==output.Length)break;output[n++]=new(){collider=c};}return n;}

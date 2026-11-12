@@ -4,7 +4,7 @@ namespace Comet.Core;
 public sealed class ReadyStanceConfig
 {
     public bool Enabled { get; set; } = true;
-    public double OrdinaryDuration { get; set; } = 15;
+    public double OrdinaryDuration { get; set; } = 25;
     public double NearbyDuration { get; set; } = 25;
     public double NearbyDistance { get; set; } = 40;
     public double CueFreshness { get; set; } = 5;
@@ -12,9 +12,6 @@ public sealed class ReadyStanceConfig
     public void Validate()
     {
         CometConfig.Range(OrdinaryDuration,1,60,nameof(OrdinaryDuration));
-        CometConfig.Range(NearbyDuration,OrdinaryDuration,90,nameof(NearbyDuration));
-        CometConfig.Range(NearbyDistance,5,100,nameof(NearbyDistance));
-        CometConfig.Range(CueFreshness,.5,10,nameof(CueFreshness));
         CometConfig.Range(Interval,.05,1,nameof(Interval));
     }
 }
@@ -41,29 +38,14 @@ public sealed class ReadyStance
     public ReadyStanceTrace? Trace { get; private set; }
     public double Deadline { get; private set; }=-1;
     private double lastFight=-1,lastCue=-1,lastNow=-1;
-    public bool Pending(double now)=>MedicalChoice.Finite(now)&&now>=lastFight&&lastFight>=0&&now<Deadline;
-    public bool Observe(double now,double cueAt,string evidence,string contact,double? distance,bool fight,ReadyStanceConfig c)
+    public bool Pending(double now)=>MedicalChoice.Finite(now)&&now>=lastFight&&lastFight>=0&&now<=Deadline;
+    public void ObserveCombatAge(double now,double age,ReadyStanceConfig c)
     {
-        if(!c.Enabled||!MedicalChoice.Finite(now)||now<0||lastNow>=0&&now<lastNow){Clear("ready-stance-invalid-or-disabled");return false;}
-        lastNow=now;
-        bool fresh=MedicalChoice.Finite(cueAt)&&cueAt>=0&&cueAt<=now&&now-cueAt<=c.CueFreshness;
-        bool nearby=fresh&&distance.HasValue&&MedicalChoice.Finite(distance.Value)&&distance.Value>=0&&distance.Value<=c.NearbyDistance;
-        // Heard cues extend only a recent real fight. Their original timestamp, not polling time, determines expiry.
-        if(!fight&&(!Pending(now)||!nearby||cueAt<=lastCue))return false;
-        if(fight)lastFight=now;
-        double until=fight?now+c.OrdinaryDuration:Deadline;
-        if(nearby)until=Math.Max(until,cueAt+c.NearbyDuration);
-        Deadline=Math.Max(Deadline,until);
-        if(Trace==null)Trace=new();
-        if(fight||cueAt>lastCue)
-        {
-            lastCue=fresh?cueAt:now;
-            Trace.Evidence=nearby?evidence+" nearby":evidence;
-            Trace.Contact=fresh?contact:"";
-            Trace.Distance=fresh&&distance.HasValue&&MedicalChoice.Finite(distance.Value)&&distance.Value>=0?distance:null;
-        }
-        return true;
+        lastNow=now;lastFight=now-age;lastCue=lastFight;Deadline=lastFight+c.OrdinaryDuration;
+        Trace??=new();Trace.Evidence="time since combat layer";
     }
+    public bool Observe(double now,double cueAt,string evidence,string contact,double? distance,bool fight,ReadyStanceConfig c)
+    {if(fight)ObserveCombatAge(now,0,c);return fight;}
     public bool Evaluate(double now,bool nativePatrol,string block,ReadyStanceConfig c)
     {
         if(!MedicalChoice.Finite(now)||now<0||lastNow>=0&&now<lastNow){Clear("ready-stance-clock-reset");return false;}

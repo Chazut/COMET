@@ -64,9 +64,7 @@ public sealed partial class Plugin
             {
                 if(!p.states.TryGetValue(b,out s)){s=new BotState(b,p.config!,p.session);p.states.Add(b,s);}
                 var r=s.QuickReload;
-                // Another caller cannot start an overlapping native operation, even before animation observation.
-                if(r.Policy.Active){callback?.Fail("COMET quick reload already pending");return;}
-                if(!r.Fault&&p.doorBudget.TryBegin(Time.frameCount,b))
+                if(!r.Fault)
                 {
                     p.doorClock.Restart();
                     try{quick=r.Policy.Evaluate(p.QuickReloadFrameFor(b,s,firearm,magazine),p.config!.QuickReload);}
@@ -97,41 +95,16 @@ public sealed partial class Plugin
     }
     private QuickReloadFrame QuickReloadFrameFor(BotComponent b,BotState s,Player.FirearmController firearm,Magazine replacement)
     {
-        var w=firearm.Item;var old=w.GetCurrentMagazine();var r=s.QuickReload;var wm=b.BotOwner.WeaponManager;
+        var w=firearm.Item;var old=w.GetCurrentMagazine();var e=b.GoalEnemy;bool underFire=b.BotOwner.Memory.IsUnderFire;
         var f=new QuickReloadFrame{Now=Time.time,Weapon=w.Id.ToString(),OldMagazine=old?.Id.ToString()??"",Replacement=replacement.Id.ToString(),
             Loaded=ReloadLoaded(w),Capacity=(old?.MaxCount??0)+w.Chambers.Length,OldRounds=old?.Count??0,ReplacementRounds=replacement.Count,
-            External=w is not Revolver&&w.ReloadMode is Weapon.EReloadMode.ExternalMagazine or Weapon.EReloadMode.ExternalMagazineWithInternalReloadSupport,
-            Ready=ReferenceEquals(b.Player.HandsController,firearm)&&ReferenceEquals(wm.CurrentWeapon,w)&&wm.IsReady&&!wm.Selector.IsChanging
-                &&!s.PistolSwap.Policy.Active&&!s.WeaponReturn.Policy.Active&&!firearm.Blindfire&&!firearm.IsInInteraction()&&!firearm.IsInReloadOperation()
-                &&firearm.CanStartReload()&&b.BotOwner.Medecine?.Using!=true&&w.MalfState.State==Weapon.EMalfunctionState.None,
-            Incoming=b.BotOwner.Memory.IsUnderFire||b.Medical.TimeSinceShot<1.5};
-        if(!f.External||!f.Ready)return f;
-        var enemy=b.GoalEnemy;
-        if(enemy!=null)
-        {
-            var context=ReloadFrame(b,enemy,s,w);f.Target=context.Target;f.Source=context.Source;f.ContactAge=context.ContactAge;f.Distance=context.Distance;
-            f.Protected=context.Protected;f.Incoming|=context.Incoming;
-            if(context.ThreatsTruncated)f.Block="quick-threat-budget";
-        }
-        int seen=0;
-        foreach(var e in b.EnemyController.KnownEnemies)
-        {
-            if(++seen>16){f.Block="quick-threat-budget";break;}
-            if(e==null||!e.EnemyKnown)continue;
-            f.Incoming|=e.Status.ShotAtMeRecently;
-            var place=e.KnownPlaces.LastSeenPlace;var heard=e.KnownPlaces.LastHeardPlace;
-            if(heard!=null&&(place==null||heard.TimeSincePositionUpdated<place.TimeSincePositionUpdated))place=heard;
-            if(place==null)continue;
-            double age=Math.Max(0,place.TimeSincePositionUpdated),distance=Vector3.Distance(b.Position,place.Position);
-            if(age<=config!.QuickReload.ContactMemory&&distance<=config.QuickReload.ThreatDistance
-                &&(f.ContactAge>config.QuickReload.ContactMemory||f.Distance>config.QuickReload.ThreatDistance||distance<f.Distance))
-            {f.Target=e.EnemyProfileId;f.Source=ReferenceEquals(place,heard)?"personal-hearing":"personal-vision";f.ContactAge=age;f.Distance=distance;f.Protected=false;}
-        }
-        var slot=w.GetMagazineSlot();
-        if(!ReloadInventory.ReadMagazines(b.Player.InventoryController,r.Magazines)){f.Block="quick-inventory-budget";return f;}
-        foreach(var m in r.Magazines)
-            if(!ReferenceEquals(m,old)&&m.Count>0&&m.IsAmmoCompatible(w.Chambers)&&slot!=null&&ItemManipulator.CheckMoveIgnoringTargetItem(m,slot,b.Player.InventoryController).Succeeded)
-            {f.SpareMagazines++;if(ReferenceEquals(m,replacement))f.Reachable=true;}
+            Target=e?.EnemyProfileId??"",Distance=e?.RealDistance??0,ContactAge=e?.TimeSinceSeen??999,
+            InFight=underFire||e!=null&&e.Seen&&e.TimeSinceSeen<10,
+            Urgent=underFire||e!=null&&(e.IsVisible||e.Seen&&e.TimeSinceSeen<config!.QuickReload.ContactMemory&&e.RealDistance<config.QuickReload.ThreatDistance),
+            Incoming=underFire,UtilityReload=config!.ReloadTiming.Enabled};
+        var slot=w.GetMagazineSlot();var equipment=b.Player.Inventory?.Equipment;
+        if(slot!=null&&equipment!=null)foreach(var item in equipment.GetAllItems())
+            if(item is Magazine m&&!ReferenceEquals(m,old)&&slot.CanAccept(m))f.SpareMagazines++;
         return f;
     }
     private static void ObserveDroppedReloadMagazine(Item item,IPlayer player,LootItem __result)

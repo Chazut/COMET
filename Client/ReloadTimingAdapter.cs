@@ -23,6 +23,7 @@ internal sealed class ReloadTimingRuntime
     internal readonly List<Magazine> BeltMagazines=new();
     internal float BeltRefillAt;
     internal bool InventoryFault;
+    internal TacticalMistakes? Mistakes;
     internal ReloadTimingFrame? LastFrame;
     internal Player.FirearmController? Firearm;
     internal float Next,SampleAt,LogAt=-1000;
@@ -80,84 +81,65 @@ public sealed partial class Plugin
             if(reload==null||firearm==null)return true;
             __result=false;
             // Native continuation (including its own cancellation rules) runs before this hook.
-            if(s.HandsRecovery.Policy.BlocksSwitch||r.Policy.Active||s.QuickReload.Policy.Active||s.PistolSwap.Policy.Active||s.WeaponReturn.Policy.Active||reload.Reloading||firearm.IsInReloadOperation()||firearm.IsInInteraction()
-                ||bot.BotOwner.Medecine?.Using==true||!wm.IsReady||wm.ShootController?.CanStartReload()!=true
-                ||wm.Selector.IsChanging||Time.time-(float)reloadLastTime.GetValue(__instance)<1)return false;
+            if(reload.Reloading||firearm.IsInReloadOperation()||firearm.IsInInteraction()||bot.BotOwner.Medecine?.Using==true
+                ||!wm.IsReady||wm.ShootController?.CanStartReload()!=true||Time.time-(float)reloadLastTime.GetValue(__instance)<1)return false;
             if(wm.Malfunctions.HaveMalfunction()&&wm.Malfunctions.MalfunctionType()!=Weapon.EMalfunctionState.Misfire)return true;
-            // Let GetDecision continue into SAIN's healing decision when a medical emergency exists.
-            if(FakeMedicalPriority(bot)||bot.Grenade.GrenadeDangerPoint!=null||bot.Flashed.IsFlashed)return false;
+            if(enemy.Events.OnSearch.Value)return true;
             var weapon=firearm.Item;var id=weapon.Id.ToString();int loaded=ReloadLoaded(weapon);
-            string key=id+":"+loaded;
-            if(Time.time<r.Next&&key==r.Key)return false;
-            if(!p.doorBudget.TryBegin(Time.frameCount,bot))return false;
-            p.doorClock.Restart();
-            ReloadTimingFrame f;
-            try{f=p.ReloadFrame(bot,enemy,s,weapon);}
-            finally{p.doorClock.Stop();p.doorBudget.Charge(p.doorClock.Elapsed.TotalMilliseconds);r.Magazines.Clear();r.Ammo.Clear();}
-            r.Next=Time.time+.25f;r.Key=key;r.LastFrame=f;
+            var f=p.ReloadFrame(bot,enemy,s,weapon);r.LastFrame=f;
             string choice=r.Policy.Evaluate(f,p.config!.ReloadTiming);
-            if(p.config.ReloadTiming.Enabled)p.RecordReloadTiming(bot,s);
-            try{if(p.TryPistolSwap(bot,s,f,ref invoked))return false;}
-            catch(Exception ex){p.PistolSwapError(s,ex);if(invoked)return false;}
-            if(!p.config.ReloadTiming.Enabled)return true;
-            if(choice=="Native"){
-                // Preserve SAIN's empty-weapon / equipment fallback, but do not spam its inventory queries.
-                if(r.Policy.RetryBlocked(f))return false;
-                r.Policy.Refuse(f,p.config.ReloadTiming);r.Next=Time.time+(float)p.config.ReloadTiming.RetryDelay;
+            if(choice=="Native")return true;
+            p.RecordReloadTiming(bot,s);
+            // The source ranks Reload / Hold / Pistol together, then tries each in that order.
+            p.ObserveWeaponReturn(bot,s);
+            var pistol=ReadPistol(bot,weapon);
+            bool pistolReady=p.config.PistolSwap.Enabled&&pistol.PrimaryInHands&&pistol.Loaded>0&&!s.PistolSwap.Policy.RetryBlocked(Time.time)&&s.WeaponReturn.Policy.PistolBlockedFor(Time.time)==0;
+            double ratio=r.Policy.Trace!.Ratio;
+            double pistolScore=pistolReady&&f.Visible&&f.Distance<p.config.PistolSwap.MaxDistance
+                ?.2+.6*(1-ratio)+(f.Distance<15?.2:0)+(f.Looking?.15:0)-(ratio>.1?.6:0):0;
+            var ranked=new List<Candidate>{new(){Decision="Reload",Score=r.Policy.Trace.ReloadScore*100,Eligible=true},
+                new(){Decision="Hold",Score=r.Policy.Trace.HoldScore*100,Eligible=true},new(){Decision="Pistol",Score=pistolScore*100,Eligible=true}};
+            ranked=ranked.OrderByDescending(x=>x.Score).ToList();
+            r.Mistakes??=new TacticalMistakes(p.config.TacticalMistakes,s.Id+"|reload");
+            var selected=r.Mistakes.Select(ranked,ranked[0],new MixTrace(),bot.Info.Personality.ToString(),false,Time.time,false,false);
+            if(selected!=null&&selected!=ranked[0]){ranked.Remove(selected);ranked.Insert(0,selected);}
+            foreach(var option in ranked){
+                if(option.Decision=="Hold")break;
+                if(option.Decision=="Pistol"&&pistolScore>0&&pistolReady){
+                    var noCompetition=new ReloadTimingTrace{ReloadScore=-100,HoldScore=-100};
+                    if(s.PistolSwap.Policy.Evaluate(f,pistol,noCompetition,p.config.PistolSwap)&&p.TrySourcePistol(bot,s,f,ref invoked))return false;
+                }
+                if(option.Decision=="Reload"&&!r.Policy.RetryBlocked(f)&&p.SourceReloadNow(__instance,bot,s,firearm,weapon,f)){__result=true;return false;}
+            }
+            if(loaded<=0){
+                if(p.TryPistolSwap(bot,s,f,ref invoked))return false;
+                // The native empty-weapon fallback retains magazine filling and ammo-aware weapon selection.
                 return true;
             }
-            if(choice!="Reload")return false;
-            r.Policy.Request(f);r.Firearm=firearm;
-            // CanReload is not a read-only query in EFT. Call it only for an actual attempt.
-            bool available=reload.CanReload(true,out var mag,out var ammo);
-            bool same=ReferenceEquals(bot.Player.HandsController,firearm)&&ReferenceEquals(wm.CurrentWeapon,weapon);
-            bool improves=mag!=null?mag.Count>(weapon.GetCurrentMagazine()?.Count??0):ammo!=null&&ammo.Count>0;
-            if(!available||!same||!improves||!firearm.CanStartReload()){
-                r.Policy.Result(false,f,p.config.ReloadTiming);r.Drop();p.RecordReloadTiming(bot,s,true);return false;
-            }
-            // W04 selects normal/quick inside the native magazine route; no synthetic ammo, speed changes or cancellation.
-            invoked=true;bot.BotOwner.ShootData.EndShoot();reload.Reloading=true;reloadLastTime.SetValue(__instance,Time.time);
-            if(mag!=null)reload.ReloadMagazine(mag);
-            else {
-                var previous=barrelReloadRequest;barrelReloadRequest=weapon;
-                try{reload.ReloadAmmo(ammo);}finally{barrelReloadRequest=previous;}
-            }
-            r.Policy.Result(true,f,p.config.ReloadTiming);__result=true;
-            r.Policy.Observe(Time.time,firearm.IsInReloadOperation(),reload.Reloading,ReloadLoaded(weapon),true);
-            p.RecordReloadTiming(bot,s,true);return false;
+            return false;
         }catch(Exception ex){if(s!=null)p.ReloadTimingError(s,ex);return !invoked;}
+    }
+    private bool SourceReloadNow(SelfActionDecisionClass decision,BotComponent bot,BotState s,Player.FirearmController firearm,Weapon weapon,ReloadTimingFrame f)
+    {
+        var r=s.ReloadTiming;var reload=bot.BotOwner.WeaponManager.Reload;
+            if(r.Policy.Trace!=null)r.Policy.Trace.Choice="Reload";
+            r.Policy.Request(f);r.Firearm=firearm;
+            bool available=reload.CanReload(true,out var mag,out var ammo);
+            if(!available){r.Policy.Result(false,f,config!.ReloadTiming);RecordReloadTiming(bot,s,true);return false;}
+            bot.BotOwner.ShootData.EndShoot();reload.Reloading=true;reloadLastTime.SetValue(decision,Time.time);
+            if(mag!=null)reload.ReloadMagazine(mag);
+            else if(ammo!=null&&ammo.Count>0){var previous=barrelReloadRequest;barrelReloadRequest=weapon;try{reload.ReloadAmmo(ammo);}finally{barrelReloadRequest=previous;}}
+            r.Policy.Result(true,f,config!.ReloadTiming);RecordReloadTiming(bot,s,true);return true;
     }
     private ReloadTimingFrame ReloadFrame(BotComponent b,Enemy e,BotState s,Weapon w)
     {
-        var r=s.ReloadTiming;var mag=w.GetCurrentMagazine();
-        var place=e.KnownPlaces.LastSeenPlace;var heard=e.KnownPlaces.LastHeardPlace;
-        // LastSeenPlace is personal; choose a newer personal heard place, never RealDistance when hidden.
-        if(heard!=null&&(place==null||heard.TimeSincePositionUpdated<place.TimeSincePositionUpdated))place=heard;
-        var known=place?.Position??b.Position;
-        var f=new ReloadTimingFrame{Now=Time.time,Weapon=w.Id.ToString(),WeaponClass=w.WeapClass,Target=e.EnemyProfileId,
-            Source=ReferenceEquals(place,heard)?"personal-hearing":"personal-vision",Distance=Vector3.Distance(b.Position,known),
-            ContactAge=place?.TimeSincePositionUpdated??999,SightAge=e.Seen?e.TimeSinceSeen:999,Visible=e.IsVisible,
-            Looking=e.IsVisible&&e.EnemyLookingAtMe,Incoming=b.BotOwner.Memory.IsUnderFire||b.Medical.TimeSinceShot<1.5,
+        var mag=w.GetCurrentMagazine();var f=new ReloadTimingFrame{Now=Time.time,Weapon=w.Id.ToString(),WeaponClass=w.WeapClass,
+            Target=e.EnemyProfileId,Distance=e.RealDistance,ContactAge=e.TimeSinceLastKnownUpdated,SightAge=e.Seen?e.TimeSinceSeen:999,
+            Visible=e.IsVisible,Looking=e.IsVisible&&e.EnemyLookingAtMe,Incoming=b.Medical.TimeSinceShot<1.5,
+            Protected=b.Cover.CoverInUse?.BotInThisCover==true,BusyObserved=e.Status.VulnerableAction!=SAIN.Models.Enums.EEnemyAction.None,
             Chamber=w.ChamberAmmoCount,Magazine=w.ReloadMode==Weapon.EReloadMode.OnlyBarrel?0:mag?.Count??0,
             Capacity=w.ReloadMode==Weapon.EReloadMode.OnlyBarrel?w.Chambers.Length:(mag?.MaxCount??0)+w.Chambers.Length};
-        f.Loaded=f.Chamber+f.Magazine;
-        if(place==null||!e.EnemyKnown){f.Block="reload-no-personal-contact";return f;}
-        if(config!.Aggression.TryGetValue(b.Info.Personality.ToString(),out var aggression))f.Aggression=aggression;
-        var cover=b.Cover.CoverInUse;
-        f.Protected=cover?.BotInThisCover==true&&b.Player.Velocity.magnitude<.35f&&CombatProtection(b.Position,known)==7;
-        int count=0;
-        foreach(var other in b.EnemyController.KnownEnemies){
-            if(++count>16){f.ThreatsTruncated=true;f.Protected=false;break;}
-            if(other==null||ReferenceEquals(other,e)||!other.EnemyKnown)continue;
-            var p=other.KnownPlaces.LastSeenPlace;var h=other.KnownPlaces.LastHeardPlace;
-            if(h!=null&&(p==null||h.TimeSincePositionUpdated<p.TimeSincePositionUpdated))p=h;
-            if(other.IsVisible||other.Status.ShotAtMeRecently||p!=null&&p.TimeSincePositionUpdated<config.ReloadTiming.LostContactDelay
-                &&Vector3.Distance(b.Position,p.Position)<config.ReloadTiming.CloseDistance){f.Threats++;f.Protected=false;}
-        }
-        // A personal cue is an estimate, not access to the opponent's hidden action status.
-        var opportunity=s.Opportunity.Snapshot(e.EnemyProfileId,System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e),Time.time,config.Opportunity);
-        f.BusyObserved=e.IsVisible&&opportunity.State=="assess"&&opportunity.Cue is "reload" or "heal" or "surgery";
-        return ReloadResources(b,s,w,f);
+        f.Loaded=f.Chamber+f.Magazine;return f;
     }
     private ReloadTimingFrame ReloadResources(BotComponent b,BotState s,Weapon w,ReloadTimingFrame f,bool force=false)
     {

@@ -8,16 +8,16 @@ using SAIN.SAINComponent.Classes.Decision;
 using SAIN.SAINComponent.Classes.EnemyClasses;
 using UnityEngine;
 namespace UnityEngine {
- public struct Vector3(float x,float y,float z){public static Vector3 up=>new(0,1,0);public static Vector3 operator +(Vector3 a,Vector3 b)=>new(a.x+b.x,a.y+b.y,a.z+b.z);public static Vector3 operator *(Vector3 a,float b)=>new(a.x*b,a.y*b,a.z*b);public float x=x,y=y,z=z;public float magnitude=>(float)Math.Sqrt(x*x+y*y+z*z);public static float Distance(Vector3 a,Vector3 b)=>new Vector3(a.x-b.x,a.y-b.y,a.z-b.z).magnitude;}
+ public struct Vector3(float x,float y,float z){public static Vector3 operator -(Vector3 a,Vector3 b)=>new(a.x-b.x,a.y-b.y,a.z-b.z);public static Vector3 forward=>new(0,0,1);public Vector3 normalized=>magnitude==0?new():this*(1/magnitude);public static float Dot(Vector3 a,Vector3 b)=>a.x*b.x+a.y*b.y+a.z*b.z;public static Vector3 up=>new(0,1,0);public static Vector3 operator +(Vector3 a,Vector3 b)=>new(a.x+b.x,a.y+b.y,a.z+b.z);public static Vector3 operator *(Vector3 a,float b)=>new(a.x*b,a.y*b,a.z*b);public float x=x,y=y,z=z;public float magnitude=>(float)Math.Sqrt(x*x+y*y+z*z);public static float Distance(Vector3 a,Vector3 b)=>new Vector3(a.x-b.x,a.y-b.y,a.z-b.z).magnitude;}
  public static class Time{public static float time=10,realtimeSinceStartup=10;public static int frameCount;}
 }
 namespace EFT {
  public enum EBodyPart{Head,Chest,Stomach,LeftArm,RightArm,LeftLeg,RightLeg,Common}
- public enum ETagStatus{Healthy,Dying}
+ public enum ETagStatus{Healthy,Injured,BadlyInjured,Dying}
  public interface IMedsController{}
  public class Hands{public Item? Item;public bool Busy;public bool IsInInteractionStrictCheck()=>Busy;}
  public class MedHands:Hands,IMedsController{}
- public class Player{public bool IsAI=true;public Movement MovementContext=new();public class FirearmController:Hands{public new Weapon Item=new();public bool Ready=true;}public Hands HandsController=new();public Vector3 Velocity;public bool IsSprintEnabled;public ActiveHealthController HealthController=new();public Inventory Inventory=new();public InventoryController InventoryController=new();}
+ public class Player{public Vector3 Position;public bool IsAI=true;public Movement MovementContext=new();public class FirearmController:Hands{public new Weapon Item=new();public bool Ready=true;}public Hands HandsController=new();public Vector3 Velocity;public bool IsSprintEnabled;public ActiveHealthController HealthController=new();public Inventory Inventory=new();public InventoryController InventoryController=new();}
  public class Inventory{public object Equipment=new();}
  public class InventoryController{public List<Meds> Items=new();public void GetAcceptableItemsNonAlloc<T>(EquipmentSlot[] slots,List<T> list){list.AddRange(Items.OfType<T>());}}
  public class BotOwner {
@@ -37,7 +37,7 @@ namespace EFT.HealthSystem {
  public class Heavy(EBodyPart p):IHeavyBleeding{public EBodyPart BodyPart=>p;}
  public class Light(EBodyPart p):ILightBleeding{public EBodyPart BodyPart=>p;}
  public enum EStimulatorBuffType{HealthRate,RemoveAllBloodLosses,SkillRate}
- public class ActiveHealthController{
+ public class ActiveHealthController{public bool IsAlive=true;
   public Dictionary<EBodyPart,ValueStruct> Parts=Enum.GetValues<EBodyPart>().ToDictionary(x=>x,x=>new ValueStruct());public List<IEffect> Effects=new();public HashSet<EBodyPart> Destroyed=new();public int Restores;
   public ValueStruct GetBodyPartHealth(EBodyPart p,bool ignored=false)=>Parts[p];
   public T? FindExistingEffect<T>(EBodyPart p=EBodyPart.Common)where T:class=>Effects.Where(x=>p==EBodyPart.Common||x.BodyPart==p).OfType<T>().FirstOrDefault();
@@ -70,20 +70,20 @@ public class NativeMed(Player p){public bool _lastIsCanceled; public bool _using
  if(Bhf){Using=false;Done?.Invoke();}else{Done?.Invoke();Using=false;}
  Player.HandsController=new();}
 }
-public class BotFirstAid(Player p):NativeMed(p){public bool CanUseByTime()=>Time.time>=_nextPosibleUseTime;public void TryApplyToCurrentPart(int? animation=null,Action? callback=null)=>Begin(CurUsingMeds,callback);}
-public class BotSurgicalKit(Player p):NativeMed(p){public void ApplyToCurrentPart(Action? callback=null)=>Begin(CurUsingMeds,callback);}
+public class BotFirstAid(Player p):NativeMed(p){public bool IsBleeding;public bool ShallStartUse()=>CurUsingMeds!=null&&!Using;public bool CanUseByTime()=>Time.time>=_nextPosibleUseTime;public void TryApplyToCurrentPart(int? animation=null,Action? callback=null)=>Begin(CurUsingMeds,callback);}
+public class BotSurgicalKit(Player p):NativeMed(p){public bool ShallStartUse()=>CurUsingMeds!=null&&!Using;public void ApplyToCurrentPart(Action? callback=null)=>Begin(CurUsingMeds,callback);}
 public class BotStimulators(Player p):NativeMed(p){public Stimulator? _stimulator;public float LastEndUseTime;public bool CanUseNow()=>Time.time>=_nextPosibleUseTime;public void TryApply(bool noCheckDelay=false,int? animation=null,Action<bool>? callback=null)=>Begin(_stimulator,()=>callback?.Invoke(true));}
-namespace SAIN.Preset.Shared.Enums{public enum ESquadDecision{None,Regroup}public enum ESelfActionType{None,Reload,FirstAid,Stims,Surgery}public enum ECombatDecision{None,AvoidGrenade}public enum SAINSoundType{FootStep,Sprint,Shot}}
+namespace SAIN.Preset.Shared.Enums{public enum ESquadDecision{None,Regroup}public enum ESelfActionType{None,Reload,FirstAid,Stims,Surgery}public enum ECombatDecision{None,AvoidGrenade,SeekCover,Retreat,RunAway}public enum SAINSoundType{FootStep,Sprint,Shot,SuppressedShot,Jump,Land,Door,DoorBreach}}
 namespace SAIN.Components{
- public class BotComponent{public string ProfileId="pmc";public bool Pmc=true,BotActive=true,IsDead,GameEnding,SAINLayersActive=true;public Player Player=new();public BotOwner BotOwner;public Medical Medical=new();public Info Info=new();public Cover Cover=new();public Vector3 Position;public EnemyController EnemyController=new();public Decision Decision=new();public Grenade Grenade=new();public Mover Mover=new();public Steering Steering=new();public Enemy? GoalEnemy;public Squad Squad=new();public Flashed Flashed=new();public BotComponent(){BotOwner=new(Player);SAIN.SAINEnableClass.Bots[ProfileId]=this;}}
- public class Medical{private float hitAt=Time.time-10;public float TimeSinceShot{get=>Time.time-hitAt;set=>hitAt=Time.time-value;}}public class Info{public string Personality="Normal";}public class Cover{public Point? CoverInUse;public List<Point> CoverPoints=new();}public class Point{public Vector3 Position;public CoverData CoverData=new();public bool BotInThisCover=true;}
+ public class SelfActions(BotOwner owner){public bool DoFirstAid(){owner.Medecine.FirstAid.TryApplyToCurrentPart();return true;}public bool DoSurgery(){owner.Medecine.SurgicalKit.ApplyToCurrentPart();return true;}}public class BotComponent{public SelfActions SelfActions;public HealthMemory Memory=new();public string ProfileId="pmc";public bool Pmc=true,BotActive=true,IsDead,GameEnding,SAINLayersActive=true;public Player Player=new();public BotOwner BotOwner;public Medical Medical=new();public Info Info=new();public Cover Cover=new();public Vector3 Position;public EnemyController EnemyController=new();public Decision Decision=new();public Grenade Grenade=new();public Mover Mover=new();public Steering Steering=new();public Enemy? GoalEnemy;public Squad Squad=new();public Flashed Flashed=new();public BotComponent(){BotOwner=new(Player);SelfActions=new(BotOwner);SAIN.SAINEnableClass.Bots[ProfileId]=this;}}
+ public class Medical{public void TryCancelHeal(){}private float hitAt=Time.time-10;public float TimeSinceShot{get=>Time.time-hitAt;set=>hitAt=Time.time-value;}}public class Info{public string Personality="Normal";}public class Cover{public Point? CoverInUse;public List<Point> CoverPoints=new();}public class Point{public Vector3 Position;public CoverData CoverData=new();public bool BotInThisCover=true;}
  public class EnemyController{public List<Enemy> KnownEnemies=new();}public class Decision{public ESelfActionType CurrentSelfDecision;public ECombatDecision CurrentCombatDecision;public ESquadDecision CurrentSquadDecision;}
- public class Grenade{public object? GrenadeDangerPoint;}public class Mover{public SAIN.SAINComponent.Classes.Mover.IBotPathData? ActivePath;public bool CanPath=true,Walk=true,Complete=true;public int Routes;public int Stops;public void Stop()=>Stops++;public bool CanGoToPoint(Vector3 target,out UnityEngine.AI.NavMeshPath route,bool check,float radius){route=new(){status=Complete?UnityEngine.AI.NavMeshPathStatus.PathComplete:UnityEngine.AI.NavMeshPathStatus.PathPartial,corners=new[]{new Vector3(0,0,0),target}};return CanPath;}public bool WalkToPointByWay(UnityEngine.AI.NavMeshPath route,bool slow,float reach,bool crawl){Routes++;if(Walk)ActivePath=new SAIN.SAINComponent.Classes.Mover.BotPathDataManual();return Walk;}}
+ public class Grenade{public object? GrenadeDangerPoint;}public class ProneController{public bool Value;public void SetProne(bool v)=>Value=v;}public class Mover{public ProneController Prone=new();public float Pose,Speed;public void SetTargetPose(float p)=>Pose=p;public void SetTargetMoveSpeed(float p)=>Speed=p;public bool WalkToPoint(Vector3 p,float reach=1,bool crawl=false){Routes++;if(Walk)ActivePath=new SAIN.SAINComponent.Classes.Mover.BotPathDataManual();return Walk;}public SAIN.SAINComponent.Classes.Mover.IBotPathData? ActivePath;public bool CanPath=true,Walk=true,Complete=true;public int Routes;public int Stops;public void Stop()=>Stops++;public bool CanGoToPoint(Vector3 target,out UnityEngine.AI.NavMeshPath route,bool check,float radius){route=new(){status=Complete?UnityEngine.AI.NavMeshPathStatus.PathComplete:UnityEngine.AI.NavMeshPathStatus.PathPartial,corners=new[]{new Vector3(0,0,0),target}};return CanPath;}public bool WalkToPointByWay(UnityEngine.AI.NavMeshPath route,bool slow,float reach,bool crawl){Routes++;if(Walk)ActivePath=new SAIN.SAINComponent.Classes.Mover.BotPathDataManual();return Walk;}}
 }
 namespace SAIN.SAINComponent.Classes.Decision{public class SelfActionDecisionClass(BotComponent bot){public BotComponent Bot=bot;}public class SAINSelfActionClass(BotComponent bot){public BotComponent Bot=bot;public void DoFirstAid(){}public void DoStims(){}public void DoSurgery(){}}}
 namespace SAIN.SAINComponent.Classes.EnemyClasses{
- public class Enemy(BotComponent b){public BotComponent Bot=b;public bool EnemyKnown=true,IsVisible;public string EnemyProfileId="enemy";public Places KnownPlaces=new();}
- public class Places{public EnemyPlace? LastSeenPlace=new();public EnemyPlace? LastHeardPlace;}
+ public class Enemy(BotComponent b){public BotComponent Bot=b;public bool Seen; public float TimeSinceSeen=100; public bool EnemyKnown=true,IsVisible,InLineOfSight;public float TimeSinceLastKnownUpdated=>KnownPlaces.LastSeenPlace?.TimeSincePositionUpdated??0;public EnemyPath Path=new();public string EnemyProfileId="enemy";public Places KnownPlaces=new();}
+ public class Places{public Vector3? LastKnownPosition=>LastSeenPlace?.Position??LastHeardPlace?.Position;public EnemyPlace? LastSeenPlace=new();public EnemyPlace? LastHeardPlace;}
  public class EnemyPlace{public Vector3 Position=new(60,0,0);public float TimeSincePositionUpdated=30;}
  public class EnemyEvents{public void EnemyHeard(SAINSoundType type,bool report,EnemyPlace p){}}
 }
@@ -120,13 +120,13 @@ namespace Comet.Client{
 namespace UnityEngine {
  public static class Mathf {public const float PI=(float)Math.PI;public static float Cos(float v)=>(float)Math.Cos(v);public static float Sin(float v)=>(float)Math.Sin(v);}
  public enum QueryTriggerInteraction{Ignore}public struct RaycastHit{public Vector3 point,normal;}
- public static class Physics{public static int Rays;public static bool Raycast(Vector3 start,Vector3 dir,out RaycastHit hit,float distance,int mask,QueryTriggerInteraction trigger){Rays++;hit=new();return false;}}
+ public static class Physics{public static bool Raycast(Vector3 a,Vector3 d,float max,int mask)=>Raycast(a,d,out _,max,mask,QueryTriggerInteraction.Ignore);public static bool Linecast(Vector3 a,Vector3 b,int mask)=>false;public static int Rays;public static bool Raycast(Vector3 start,Vector3 dir,out RaycastHit hit,float distance,int mask,QueryTriggerInteraction trigger){Rays++;hit=new();return false;}}
 }
-namespace UnityEngine.AI{public enum NavMeshPathStatus{PathComplete,PathPartial}public class NavMeshPath{public NavMeshPathStatus status;public Vector3[] corners=[];}public struct NavMeshHit{public Vector3 position;}public static class NavMesh{public const int AllAreas=-1;public static bool SamplePosition(Vector3 point,out NavMeshHit hit,float radius,int areas){hit=new(){position=point};return true;}}}
+namespace UnityEngine.AI{public enum NavMeshPathStatus{PathComplete,PathPartial}public class NavMeshPath{public NavMeshPathStatus status;public Vector3[] corners=[];}public struct NavMeshHit{public Vector3 position;}public static class NavMesh{public const int AllAreas=-1;public static bool CalculatePath(Vector3 a,Vector3 b,int mask,NavMeshPath p){p.corners=[a,b];p.status=NavMeshPathStatus.PathComplete;return true;}public static bool SamplePosition(Vector3 point,out NavMeshHit hit,float radius,int areas){hit=new(){position=point};return true;}}}
 public static class LayersMaskController{public const int HighPolyWithTerrainMask=1;}
-namespace EFT{public class Movement{public bool IsGrounded=true;}public class Memory{public bool IsUnderFire;}public class ShootData{public bool Shooting;public int Ends;public void EndShoot(){Shooting=false;Ends++;}}public class Patrol{public int Pauses;public void Pause()=>Pauses++;}}
+namespace EFT{public class Movement{public bool CanSprint=true;public bool IsGrounded=true;}public class Memory{public bool IsUnderFire;}public class ShootData{public bool Shooting;public int Ends;public void EndShoot(){Shooting=false;Ends++;}}public class Patrol{public int Pauses;public void Pause()=>Pauses++;}}
 namespace EFT.InventoryLogic{public class Weapon:Item{public object[] Chambers=new object[1];public int ChamberAmmoCount;public Magazine Magazine=new();public Magazine GetCurrentMagazine()=>Magazine;}public class Magazine{public int Count=30,MaxCount=30;}}
-namespace SAIN.Components{public class Squad{public BotComponent? LeaderComponent;public bool IAmLeader=true;}public class Flashed{public bool IsFlashed;}public class CoverData{public bool IsBad;}public class Steering{public int Moving,Points,Random;public Vector3 LastPoint;public void LookToMovingDirection()=>Moving++;public void LookToPoint(Vector3 p){Points++;LastPoint=p;}public void LookToRandomPosition()=>Random++;}}
+namespace SAIN.Components{public class Squad{public Dictionary<string,BotComponent> Members=new();public BotComponent? LeaderComponent;public bool IAmLeader=true;}public class Flashed{public bool IsFlashed;}public class CoverData{public bool IsBad;}public class Steering{public int Moving,Points,Random;public Vector3 LastPoint;public void LookToMovingDirection()=>Moving++;public void LookToPoint(Vector3 p){Points++;LastPoint=p;}public void LookToRandomPosition()=>Random++;}}
 namespace SAIN.SAINComponent.Classes.Decision{public class BotDecisionManager(BotComponent b){public BotComponent Bot=b;public void ManualUpdate(){}}}
 namespace SAIN.SAINComponent.Classes.Mover{public interface IBotPathData{}public class BotPathDataManual:IBotPathData{public int Stops;public void Stop(bool warp,string why){Stops++;}}}
 namespace SAIN{public static class SAINEnableClass{public static Dictionary<string,BotComponent>Bots=new();public static bool GetSAIN(string id,out BotComponent? b)=>Bots.TryGetValue(id,out b);}}
@@ -137,7 +137,18 @@ namespace SAIN.Layers{
  public class BotAction{protected BotOwner BotOwner;public int Starts,NativeSteering;public BotAction(BotOwner owner,string name){BotOwner=owner;}public virtual void Start(){Starts++;}public virtual void Stop(){}public virtual void Update(DrakiaXYZ.BigBrain.Brains.CustomLayer.ActionData d){}public virtual void OnSteeringTicked(){NativeSteering++;}}
 }
 namespace Comet.Client{public sealed partial class Plugin{
- private Random jumpRandom=new(7);private static System.Reflection.MethodInfo combatStopPath=typeof(SAIN.SAINComponent.Classes.Mover.BotPathDataManual).GetMethod("Stop")!;
+ private System.Random jumpRandom=new(7);private static System.Reflection.MethodInfo combatStopPath=typeof(SAIN.SAINComponent.Classes.Mover.BotPathDataManual).GetMethod("Stop")!;
  internal bool Guard,Queued;private bool MedicalPostureGuard(BotComponent b)=>Guard;private bool QueuedCombatMovement(BotComponent b)=>Queued;
  internal void Observe(BotComponent b)=>ObservePostCombat(new(b));internal void Cleanup(BotComponent b)=>EndPostCombat(b,states[b],"post-combat-raid-ended",true);
  }}
+
+namespace SAIN.Components {public class HealthMemory {public HealthMemoryStatus Health=new();}public class HealthMemoryStatus {public EFT.ETagStatus HealthStatus=EFT.ETagStatus.Injured;}}
+namespace SAIN.SAINComponent.Classes.EnemyClasses {public class EnemyPath {public float PathLength=60;}}
+
+namespace SAIN.Components {public class BotManagerComponent {public SAIN.Components.BotControllerSpace.Classes.BotHearingClass BotHearing=new();public void Activate(object world){}public void Dispose(){}}}
+namespace SAIN.Components.PlayerComponentSpace {public class PlayerComponent {public string ProfileId="sound";public EFT.Player Player=new();public void OnMakingShot(){}}}
+namespace SAIN.Components.BotControllerSpace.Classes {public class BotHearingClass {public event System.Action<SAIN.Preset.Shared.Enums.SAINSoundType,UnityEngine.Vector3,SAIN.Components.PlayerComponentSpace.PlayerComponent,float,float>? AISoundPlayed;public void Emit(SAIN.Preset.Shared.Enums.SAINSoundType t,UnityEngine.Vector3 p,SAIN.Components.PlayerComponentSpace.PlayerComponent s)=>AISoundPlayed?.Invoke(t,p,s,0,1);}}
+
+namespace UnityEngine{public struct Quaternion(float angle){public static Quaternion AngleAxis(float a,Vector3 axis)=>new(a);public static Vector3 operator*(Quaternion q,Vector3 v){double a=q.angle*Math.PI/180;return new((float)(v.x*Math.Cos(a)+v.z*Math.Sin(a)),v.y,(float)(v.z*Math.Cos(a)-v.x*Math.Sin(a)));}private float angle=angle;}}
+
+namespace UnityEngine { public static class Random { public static float Range(float min,float max)=>min; } }

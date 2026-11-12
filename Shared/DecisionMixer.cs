@@ -50,15 +50,15 @@ public sealed class DecisionMixer
             target = contact; encounter++; draw = 0;
             state = Hash(stream + "|" + (visible ? "visible" : "hidden") + "|" + contact + "|" + encounter);
         }
-        var ranked = candidates.Where(x => x.Eligible && Finite(x.Score) && x.Score >= 0)
-            .OrderByDescending(x => x.Score).ThenBy(x => x.Decision, StringComparer.Ordinal).ToList();
+        var ranked = candidates.Where(x => x.Eligible && Finite(x.Score) )
+            .OrderByDescending(x => x.Score).ToList();
         var best = ranked.FirstOrDefault();
-        double gap = visible ? config.VisibleScoreGap : config.HiddenScoreGap;
+        double gap = 0; // zzap has no relative score-band veto.
         double intensity = visible ? config.VisibleIntensity : config.HiddenIntensity;
-        double temperature = (best?.Score ?? 0) * .05 * intensity * PersonalityScale(personality);
-        var pool = ranked.Where(x => x.Score >= (best?.Score ?? 0) * (1 - gap)).Take(config.MaxOptions).ToList();
-        bool deterministic = !config.Enabled || intensity == 0 || urgent || retry || temperature <= 0 || pool.Count <= 1;
-        string mode = urgent ? "urgent-best" : retry ? "native-retry-best" : !config.Enabled || intensity == 0 ? "disabled-best"
+        double temperature = 6 * intensity * PersonalityScale(personality);
+        var pool = ranked.Take(3).Where((x,i) => i == 0 || x.Score > 5).ToList();
+        bool deterministic = visible || !config.Enabled || intensity == 0 || temperature <= 0 || pool.Count <= 1;
+        string mode = visible ? "zzap-visible-best" : !config.Enabled || intensity == 0 ? "disabled-best"
             : pool.Count <= 1 || temperature <= 0 ? "single-option" : "weighted-roll";
         var trace = new MixTrace { Seed = state.ToString("x8"), Encounter = encounter, Opportunity = ++opportunity,
             DrawIndex = draw, State = mode, Trigger = trigger, Temperature = temperature, ScoreGap = gap };
@@ -69,7 +69,7 @@ public sealed class DecisionMixer
             double probability = deterministic ? (ReferenceEquals(c, best) ? 1 : 0)
                 : included ? Math.Exp((c.Score - best!.Score) / temperature) / total : 0;
             trace.Options.Add(new MixOption { Decision = c.Decision, Score = Finite(c.Score) ? c.Score : 0, Probability = probability,
-                Reason = !valid ? c.Eligible ? "invalid-score" : c.Reason : !included ? c.Score < best!.Score * (1-gap) ? "outside-score-gap" : "outside-top-options"
+                Reason = !valid ? c.Eligible ? "invalid-score" : c.Reason : !included ? "outside-positive-top-three"
                 : deterministic && !ReferenceEquals(c, best) ? mode : "in-pool" });
         }
         var chosen = best;
@@ -87,11 +87,11 @@ public sealed class DecisionMixer
         return mistakes == null ? chosen : mistakes.Select(candidates, chosen, trace, personality, visible, now, urgent, retry);
     }
 
-    public MixTrace? Retain(string reason)
+    public MixTrace? Retain(string reason, string? selected = null)
     {
         var t = Last;
         if (t == null || t.State == reason) return t;
-        return Last = new MixTrace { Seed = t.Seed, State = reason, Trigger = t.Trigger, Selected = t.Selected,
+        return Last = new MixTrace { Seed = t.Seed, State = reason, Trigger = t.Trigger, Selected = selected ?? t.Selected,
             Encounter = t.Encounter, Opportunity = t.Opportunity, DrawIndex = t.DrawIndex, Roll = t.Roll,
             Temperature = t.Temperature, ScoreGap = t.ScoreGap, Options = t.Options, Mistake = t.Mistake };
     }

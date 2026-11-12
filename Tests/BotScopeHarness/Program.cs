@@ -24,7 +24,7 @@ foreach (string? nickname in new[] { null, "Scav", "Scav (Player)" })
     Check(ThreatSelection.Scope(frame) == eligible, "threat selection matches scope");
     frame.Ghost = true; Check(!ThreatSelection.Scope(frame), "ghosts excluded");
     frame.Ghost = false; frame.IsAuthority = false; Check(!ThreatSelection.Scope(frame), "Fika clients excluded");
-    frame.IsAuthority = true; frame.NativeUrgency = true; Check(!ThreatSelection.Scope(frame), "native urgency preserved");
+    frame.IsAuthority = true; frame.NativeUrgency = true; Check(ThreatSelection.Scope(frame)==eligible, "target selection remains available during native urgency");
 }
 Check(!BotEligibility.Supports(null), "missing player");
 var missing = new Player { Profile = null }; Check(!BotEligibility.Supports(missing), "missing profile");

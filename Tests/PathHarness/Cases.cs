@@ -33,51 +33,29 @@ namespace Comet.Client
                 Check(metric.Count==3 && Near(metric.Length,7) && Near(metric.Vertical,4),"A10 travel length and vertical travel exclude tail");
                 var quiet=Probe.Quiet(bot,enemy);
                 Check(quiet.Complete && Near(quiet.Length,7),"P02 approach accepts and measures counted path");
-                Probe.Samples.Clear();
-                double risk=Probe.RouteRisk(slice,start,end,new(),30,1,out var samples);
-                Check(Near(risk,.5) && samples.All(x=>x==1),"A02 route risk uses seven metres, no tail detour");
-                Check(Probe.Samples.Count==2 && Near(Probe.Samples[0].x,102+1d/3) && Near(Probe.Samples[0].y,10)
-                    && Near(Probe.Samples[1].x,103) && Near(Probe.Samples[1].y,11+2d/3),"A02 samples are on actual route");
                 // SAIN keeps old corners after shrinking or clearing the route.
-                path.PathCornerCount=2;enemy.KnownPlaces.LastKnownPosition=corner;
+                path.PathCornerCount=2;path.PathLength=3;enemy.KnownPlaces.LastKnownPosition=corner;
                 Check(!Probe.Capabilities(bot,enemy,config).Unavailable.ContainsKey(Tactic.Push),"shortened route ignores previous endpoint");
                 Check(Near(Probe.Opportunity(enemy).Length,3)&&Near(Probe.Quiet(bot,enemy).Length,3),"shorter route not measured using old tail");
                 path.PathCornerCount=0;
                 Check(EnemyPathCorners.Read(path).IsEmpty,"Clear count discards all old points");
-                Check(Probe.Capabilities(bot,enemy,config).Unavailable.ContainsKey(Tactic.Search)&&!Probe.Quiet(bot,enemy).Complete,"cleared path cannot enable movement");
-                Check(Probe.Opportunity(enemy)==(0,0d,0d),"cleared path cannot supply old travel estimates");
-                enemy.KnownPlaces.LastKnownPosition=end;
+                Check(Probe.Capabilities(bot,enemy,config).Unavailable.Count==0&&Probe.Quiet(bot,enemy).Complete,"native status is authoritative, no independent corner freshness veto");
             }
-            path.PathCorners=new[]{start,corner,end};path.PathCornerCount=3;
-            foreach(var status in new[]{NavMeshPathStatus.PathPartial,NavMeshPathStatus.PathInvalid})
-            {
+            foreach(var status in new[]{NavMeshPathStatus.PathPartial,NavMeshPathStatus.PathInvalid}) {
                 path.PathToEnemy!.status=status;
-                Check(Probe.Capabilities(bot,enemy,config).Unavailable.Count==2&&!Probe.Quiet(bot,enemy).Complete,"partial/invalid routes remain blocked");
+                Check(Probe.Capabilities(bot,enemy,config).Unavailable.ContainsKey(Tactic.Push)&&!Probe.Quiet(bot,enemy).Complete,"native incomplete path disables push");
             }
             path.PathToEnemy=null;
-            Check(Probe.Capabilities(bot,enemy,config).Unavailable.Count==2&&!Probe.Quiet(bot,enemy).Complete,"missing native path remains blocked");
-            path.PathToEnemy=new();
-            foreach(int count in new[]{-1,0,1,4,int.MaxValue})
-            {
-                path.PathCornerCount=count;
-                Check(Probe.Capabilities(bot,enemy,config).Unavailable.Count==2&&!Probe.Quiet(bot,enemy).Complete,"invalid or too-short prefix fails closed: "+count);
-            }
-            path.PathCornerCount=3;path.PathCorners=null;
-            Check(EnemyPathCorners.Read(path).IsEmpty && EnemyPathCorners.Read(null).IsEmpty,"null sources are empty");
-            path.PathCorners=new[]{start,corner,end};
-            enemy.KnownPlaces.LastKnownPosition=end+new Vector3(0,0,2.01f);
-            Check(Probe.Capabilities(bot,enemy,config).Unavailable.Count==2&&!Probe.Quiet(bot,enemy).Complete,"stale destination safety preserved");
-            enemy.KnownPlaces.LastKnownPosition=end;bot.Position=start+new Vector3(0,0,4.01f);
-            Check(Probe.Capabilities(bot,enemy,config).Unavailable.Count==2&&!Probe.Quiet(bot,enemy).Complete,"stale start safety preserved");
+            Check(Probe.Capabilities(bot,enemy,config).Unavailable.ContainsKey(Tactic.Push),"missing native path disables push");
+            path.PathToEnemy=new(){status=NavMeshPathStatus.PathComplete};
+            Check(EnemyPathCorners.Read(null).IsEmpty,"null path is safe");
+            path.PathCorners=new[]{start,corner,end};path.PathCornerCount=3;
+            enemy.KnownPlaces.LastKnownPosition=end+new Vector3(0,0,20);
+            bot.Position=start+new Vector3(0,0,20);
+            Check(Probe.Capabilities(bot,enemy,config).Unavailable.Count==0,"no COMET endpoint/start distance veto over native path");
             bot.Position=start;path.PathLength=(float)config.PushMaxDistance+1;
             var distant=Probe.Capabilities(bot,enemy,config);
-            Check(distant.Unavailable[Tactic.Push]=="push-path-too-long"&&!distant.Unavailable.ContainsKey(Tactic.Search),"push distance still limited independently of search");
-            enemy.KnownPlaces.LastKnownPosition=null;
-            Check(!Probe.Quiet(bot,enemy).Complete,"quiet approach requires a known destination");
-            enemy.KnownPlaces.LastKnownPosition=end;
-            path.PathCorners=new Vector3[256];path.PathCornerCount=129;
-            Check(Probe.Opportunity(enemy).Count==0&&!Probe.Quiet(bot,enemy).Complete,"bounded travel processing still rejects excessive actual count");
-            Check(Probe.RouteRisk(EnemyPathCorners.Read(path),start,end,new(),30,1,out _)==1,"bounded risk calculation rejects excessive actual count");
+            Check(distant.Unavailable[Tactic.Push]=="push-path-too-long"&&!distant.Unavailable.ContainsKey(Tactic.Search),"source push distance limit does not veto search");
             path.PathCorners=new[]{start,corner,end};path.PathCornerCount=3;
             // A borrowed slice must not allocate in the per-bot hot path.
             for(int i=0;i<10000;i++)_ = EnemyPathCorners.Read(path).Length;

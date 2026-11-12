@@ -100,46 +100,7 @@ public static class OpponentAssessment
 {
     public static void Adjust(List<Candidate> choices, Situation s, OpponentConfig c)
     {
-        foreach (var a in choices) { a.ScoreBeforeOpponent = a.Score; a.OpponentDelta = 0; a.OpponentReason = "opponent-neutral"; }
-        var t = s.Opponent;
-        if (t != null) t.Advantage = 0;
-        if (!c.Enabled || !s.IsAi || !s.IsSupportedBot || !s.IsAuthority || !s.IsActive || s.Ghost || !s.HasContact
-            || t == null || t.Target != s.Target || t.State != "estimated" || !OpponentMemory.ValidAge(s.Now - t.At, .5)
-            || !OpponentMemory.Finite(s.KnownDistance) || s.KnownDistance < 0) return;
-        double advantage = 0;
-        var reasons = new List<string>();
-        bool ownKnown = s.Loadout?.State == "ready" && s.Loadout.Ready && OpponentMemory.ValidAge(s.Now - s.Loadout.At, .5);
-        bool ownLonger = ownKnown && (s.Loadout!.WeaponClass == "assaultRifle" || s.Loadout.WeaponClass == "assaultCarbine"
-            || s.Loadout.WeaponClass == "marksmanRifle" || s.Loadout.WeaponClass == "sniperRifle" || s.Loadout.WeaponClass == "machinegun");
-        foreach (var e in t.Evidence)
-        {
-            double life = e.Kind == "weapon" ? c.WeaponMemory : e.Kind == "injury" ? c.InjuryMemory : c.ProtectionMemory;
-            if (!e.Active || !OpponentMemory.Finite(e.Confidence) || e.Confidence <= 0 || e.Confidence > 1
-                || !OpponentMemory.ValidAge(s.Now - e.ObservedAt, life)) continue;
-            double v = 0;
-            if (e.Kind == "injury" && e.Value == "possibly-injured") v = .25;
-            else if (e.Kind == "body") v = e.Value == "none-visible" ? .15 : e.Value == "visible-protection" ? -.08 : 0;
-            else if (e.Kind == "head") v = e.Value == "none-visible" ? .10 : e.Value == "visible-protection" ? -.04 : 0;
-            else if (e.Kind == "weapon")
-            {
-                double near = Math.Max(0, 1 - s.KnownDistance / 20);
-                if (e.Value == "shotgun") v = -.65 * near; // Ammunition is unknown: no assumed safe distance.
-                else if (e.Value == "smg") v = -.25 * near;
-                else if (e.Value == "pistol" && ownLonger) v = .25 * Math.Min(1, Math.Max(0, (s.KnownDistance - 10) / 20));
-                else if (e.Value == "sniperRifle" && ownKnown && s.Loadout!.Cqb > .5) v = .4 * near;
-            }
-            if (v != 0) { advantage += v * e.Confidence; reasons.Add(e.Kind + ":" + e.Value); }
-        }
-        t.Advantage = Math.Max(-1, Math.Min(1, advantage));
-        foreach (var a in choices)
-        {
-            if (!a.Eligible) { a.OpponentReason = "opponent-native-refusal-kept"; continue; }
-            double factor = a.Decision == "Push" ? 1 : a.Decision == "Shoot" ? .35 : a.Decision == "Cover" || a.Decision == "FallBack" ? -.5 : a.Decision == "Hold" ? -.25 : 0;
-            double delta = Math.Max(-c.ScoreCap, Math.Min(c.ScoreCap, t.Advantage * factor * c.ScoreCap));
-            double rounded = Math.Round(Math.Max(0, a.Score + delta), 2);
-            a.Score = a.ScoreBeforeOpponent + Math.Max(-c.ScoreCap, Math.Min(c.ScoreCap, rounded - a.ScoreBeforeOpponent));
-            a.OpponentDelta = a.Score - a.ScoreBeforeOpponent;
-            if (a.OpponentDelta != 0) a.OpponentReason = "perceived-advantage:" + string.Join(",", reasons);
-        }
+        // Diagnostic API retained for recorded data; source utility already includes enemy weakness.
+        foreach(var a in choices){a.ScoreBeforeOpponent=a.Score;a.OpponentDelta=0;}
     }
 }

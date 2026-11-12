@@ -10,18 +10,18 @@ public sealed class CornerChaseConfig
     public double LostSightMin { get; set; }=.3;
     public double ObservationMaxAge { get; set; }=6;
     public double PathLimit { get; set; }=15;
-    public double SequenceLimit { get; set; }=4;
+    public double SequenceLimit { get; set; }=6;
     public double WideOffset { get; set; }=1.8;
     public double JumpMinSpeed { get; set; }=2.2;
-    public double JumpMinStamina { get; set; }=35;
-    public double Cooldown { get; set; }=6;
+    public double JumpMinStamina { get; set; }=0;
+    public double Cooldown { get; set; }=0;
     public Dictionary<string,double> Chances { get; set; }=new() {
         ["GigaChad"]=90,["Wreckless"]=85,["Chad"]=75,["Normal"]=40,["Rat"]=0,["SnappingTurtle"]=0,["Coward"]=0,["Timmy"]=0 };
     public void Validate()
     {
         void R(double v,double a,double b){if(!DoorPolicy.Finite(v)||v<a||v>b)throw new ArgumentException("Corner chase: invalid limit.");}
-        R(LostSightMin,.2,1);R(ObservationMaxAge,1,6);R(PathLimit,3,20);R(SequenceLimit,1,5);R(WideOffset,.5,2);
-        R(JumpMinSpeed,2.2,4);R(JumpMinStamina,35,90);R(Cooldown,3,30);
+        R(LostSightMin,.2,1);R(ObservationMaxAge,1,6);R(PathLimit,3,20);R(SequenceLimit,1,10);R(WideOffset,.5,2);
+        R(JumpMinSpeed,2.2,4);R(JumpMinStamina,0,90);R(Cooldown,0,30);
         if(LostSightMin>=ObservationMaxAge||Chances==null||Chances.Count!=8||new[]{"GigaChad","Wreckless","Chad","Normal","Rat","SnappingTurtle","Coward","Timmy"}.Any(x=>!Chances.ContainsKey(x)))
             throw new ArgumentException("Corner chase: incomplete personality chances.");
         foreach(double v in Chances.Values)R(v,0,100);
@@ -61,6 +61,8 @@ public sealed class CornerChaseFrame
     public string GeometryReason="";
     public int ObservationEpisode;
     public double SeenAt,PathLength,Speed,Stamina=100;
+    public double Weakness=.2,AmmoRatio=1,PrefireChance=60,JumpChance=30;
+    public bool Healthy=true,Hurt,Confident,AmmoOk,AngleHeld,PrefireEnabled=true;
     public bool RealCorner,RouteValid=true,GeometryFresh=true,LaneSafe=true,AtGoal,CanJump,Fleeing,NativeLeanOwned;
 }
 public sealed class CornerChaseTrace
@@ -87,11 +89,10 @@ public sealed class CornerChase
         if(!c.Enabled||!b.Enabled||!b.Pmc||!b.Authority||!b.Active||b.Ghost)return "chase-out-of-scope";
         if(b.Action!="RushEnemy")return "chase-native-action-changed";
         if(b.Visible)return "chase-contact-reacquired";
-        if(b.Busy||b.Urgent||!b.Ready||b.Immobile||b.ProtectedCover||f.NativeLeanOwned)return "chase-native-priority";
-        if(b.Source!="personal-vision"||b.Target.Length==0||!Point(b.Known)||!Point(b.Position)
+        if(b.Busy||b.Urgent)return "chase-native-priority";
+        if(b.Target.Length==0||!Point(b.Known)||!Point(b.Position)
             ||!DoorPolicy.Finite(b.Now)||!DoorPolicy.Finite(f.SeenAt)||f.SeenAt<0||b.Now<f.SeenAt||!DoorPolicy.Finite(f.Speed)||f.Speed<0)return "chase-no-personal-observation";
-        if(starting&&(b.Now-f.SeenAt<c.LostSightMin||b.Now-f.SeenAt>c.ObservationMaxAge||!b.Grounded))return "chase-observation-window";
-        if(!f.RouteValid||!f.GeometryFresh||!f.LaneSafe)return "chase-route-no-longer-safe";
+        if(b.Now-f.SeenAt<c.LostSightMin||b.Now-f.SeenAt>c.ObservationMaxAge)return "chase-observation-window";
         return "";
     }
     public bool Eligible(CornerChaseFrame f,CornerChaseConfig c)=>!Active&&f.Combat.Now>=NextAttempt&&f.ObservationEpisode!=consumed&&Gate(f,c,true).Length==0;
@@ -102,12 +103,21 @@ public sealed class CornerChase
         Known=f.Combat.Known;seenAt=f.SeenAt;last=f.Combat.Now;previous=f.Combat.Position;
         Trace=new(){Episode=++episode,ObservationEpisode=consumed,Target=f.Combat.Target,Chance=c.Chances.TryGetValue(f.Combat.Personality,out var chance)?chance:0,
             Roll=roll*100,PathLength=DoorPolicy.Finite(f.PathLength)?Math.Max(0,f.PathLength):0,Side=side,GeometryReason=f.GeometryReason};Snapshot(f);
+        Trace.Chance*=f.Weakness>=.4?1.3:f.Weakness<.15?.8:1;
+        if(!f.Healthy)Trace.Chance*=.5;
+        if(f.AmmoRatio<.6)Trace.Chance*=.6;
         if(roll*100>=Trace.Chance){End("chase-roll-declined",last);return false;}
-        if(!f.RealCorner||!DoorPolicy.Finite(f.PathLength)||f.PathLength<=0||f.PathLength>c.PathLimit||Math.Abs(side)!=1)
+        if(!DoorPolicy.Finite(f.PathLength)||f.PathLength>c.PathLimit)
         {End("chase-no-real-reachable-corner",last);return false;}
-        Trace.Selected=true;Deadline=last+c.SequenceLimit;
+        Trace.Selected=true;Deadline=seenAt+c.ObservationMaxAge;
         bool bold=f.Combat.Personality is "GigaChad" or "Chad" or "Wreckless";
-        Trace.Style=f.Fleeing?(bold&&f.CanJump&&styleRoll<.3?"jump":"lean-in"):"pie";
+        double prefire=f.PrefireEnabled&&f.Confident&&f.AmmoOk?1.5*f.PrefireChance/60+(last-seenAt<1.5?1.5:0)+(f.AngleHeld?1:0):0;
+        double jump=bold&&f.CanJump?(f.JumpChance/30+(f.AngleHeld?1.5:0))*(f.Hurt?.4:1):0;
+        double lean=1+(!f.Hurt&&f.AmmoRatio>.6?1:0)+(f.Fleeing?1.5:0)+(f.Combat.Personality is "GigaChad" or "Wreckless"?1:0)+(f.Weakness>=.5?1:0);
+        double pie=1+(f.Hurt||f.AmmoRatio<.6?2:0)+(f.Weakness<.2?1.5:0)+(f.Combat.Personality=="Normal"?.5:0);
+        double draw=styleRoll*(prefire+jump+lean+pie);
+        Trace.Style=draw<prefire?"prefire":draw<prefire+jump?"jump":draw<prefire+jump+lean?"lean-in":"pie";
+        Alternative($"Style weights: prefire {prefire:0.##}, jump {jump:0.##}, lean {lean:0.##}, pie {pie:0.##}");
         Alternative(f.Fleeing?"Recent personal movement suggests retreat; direct angle preferred":"No fresh retreat evidence; reveal the angle progressively");
         if(Trace.Style!="jump")Alternative("Jump not selected: context, personality, space or style roll");
         Snapshot(f);return true;
@@ -117,25 +127,24 @@ public sealed class CornerChase
         if(!Active)return false;
         var b=f.Combat;string gate=Gate(f,c,false);
         if(gate.Length>0){End(gate,b.Now);return false;}
-        if(b.Target!=Trace!.Target||f.ObservationEpisode!=Trace.ObservationEpisode||b.Now<last||b.Now-last>.4)
+        if(b.Target!=Trace!.Target||f.ObservationEpisode!=Trace.ObservationEpisode||b.Now<last)
         {End("chase-contact-or-callback-expired",b.Now);return false;}
         if(b.Now>=Deadline){End("chase-time-limit",b.Now);return false;}
-        if(!b.Grounded&&!Trace.JumpAccepted){End("chase-unexpected-airborne",b.Now);return false;}
+
         if(Trace.JumpAccepted) {
             if(!b.Grounded)Trace.TakeoffObserved=true;
             else if(Trace.TakeoffObserved)Trace.LandingObserved=true;
-            else if(b.Now-jumpAt>.5)Fallback("Jump input accepted but takeoff not observed");
+
         }
         var delta=(b.Position-previous).Length;
-        if(delta>Math.Max(1.5,(b.Now-last)*12)){End("chase-movement-discontinuity",b.Now);return false;}
         if(Trace.Requested){Trace.Travel+=delta;Trace.MovementObserved|=Trace.Travel>=.2;}
         previous=b.Position;last=b.Now;Snapshot(f);return true;
     }
     public void Request(DoorPoint goal){if(!Active)return;Trace!.Requested=true;Trace.Requests++;Trace.State="moving";Trace.Reason="chase-route-requested";Trace.GoalX=goal.X;Trace.GoalY=goal.Y;Trace.GoalZ=goal.Z;}
     public bool MayJump(double now,double forwardSpeed,double distance,bool grounded,bool canJump,double stamina,CornerChaseConfig c)=>Active&&Trace!.Style=="jump"&&!Trace.JumpRequested
         &&DoorPolicy.Finite(now)&&now<Deadline&&DoorPolicy.Finite(forwardSpeed)&&forwardSpeed>=c.JumpMinSpeed
-        &&DoorPolicy.Finite(distance)&&distance>=.5&&distance<=Math.Min(3,Math.Max(1.6,forwardSpeed*.42))
-        &&grounded&&canJump&&DoorPolicy.Finite(stamina)&&stamina>=c.JumpMinStamina;
+        &&DoorPolicy.Finite(distance)&&distance<=Math.Min(3,Math.Max(1.6,forwardSpeed*.42))
+        &&grounded&&canJump;
     public void JumpResult(bool accepted,double now){if(!Active||Trace!.JumpRequested)return;Trace.JumpRequested=true;Trace.JumpAccepted=accepted;Trace.Jumps=accepted?1:0;jumpAt=now;if(!accepted)Fallback("Native jump refused");}
     public void Fallback(string reason){if(!Active)return;Trace!.Style="lean-in";Trace.Reason="chase-walking-fallback";Alternative(reason);}
     public void Alternative(string reason){if(Trace!=null)Trace.Alternatives=Trace.Alternatives.Concat(new[]{reason}).TakeLast(6).ToArray();}
@@ -146,9 +155,9 @@ public sealed class CornerChase
     // A real navigation turn is required in addition to the adapter's solid-wall test.
     public static bool Route(DoorPoint start,DoorPoint end,DoorPoint[] points,bool complete,double limit,out double length)
     {
-        length=0;if(!complete||points.Length<2||points.Length>8||!Point(start)||!Point(end)||points.Any(p=>!Point(p))
-            ||(points[0]-start).Length>.3||(points[points.Length-1]-end).Length>.3)return false;
-        for(int i=1;i<points.Length;i++){if(Math.Abs(points[i].Y-points[i-1].Y)>1)return false;length+=(points[i]-points[i-1]).Length;}
+        length=0;if(!complete||points.Length<2||!Point(start)||!Point(end)||points.Any(p=>!Point(p))
+            )return false;
+        for(int i=1;i<points.Length;i++){length+=(points[i]-points[i-1]).Length;}
         return DoorPolicy.Finite(limit)&&length>.1&&length<=limit;
     }
 }

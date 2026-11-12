@@ -56,26 +56,13 @@ public sealed partial class Plugin
         if(!SameTacticalContact(e,r.Enemy)){EndCoverTravel(s,"travel-contact-changed");r.Enemy=e;r.SeenAt=r.GeometryAt=-1000;r.SampleAt=-1000;}
         if(e?.IsVisible==true&&Time.time-r.SampleAt>=.1f&&e.KnownPlaces.LastSeenPlace is {} seen)
         {r.Seen=seen.Position;r.SeenAt=Time.time;r.SampleAt=Time.time;}
-        if(r.Owned&&(Time.time-r.CallbackAt>.3f||CoverTravelBlock(b,s).Length>0))EndCoverTravel(s,"travel-native-priority-or-callback-expired");
+        if(r.Owned&&(CoverTravelBlock(b,s).Length>0))EndCoverTravel(s,"travel-native-priority-or-callback-expired");
     }
     private string CoverTravelBlock(BotComponent b,BotState s)
     {
         if(config?.Enabled!=true||!config.CoverTravel.Enabled||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsSupportedAi(b)
             ||!b.BotActive||b.IsDead||b.GameEnding||!b.SAINLayersActive)return "travel-ineligible";
-        if(b.CurrentAction?.GetType().FullName!=SeekCoverType||b.CurrentAction.GetType().Assembly!=typeof(BotComponent).Assembly)
-            return "travel-native-action-priority";
-        if(b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None
-            ||!VisibleAdapter.WeaponReady(b)||b.Medical.TimeSinceShot<.5||b.Suppression.IsSuppressed)
-            return "travel-urgent-medical-reload-or-fire";
-        var combat=CombatStepFrame(b,s);
-        if(combat.Urgent||combat.Busy||!combat.Grounded||combat.Immobile||b.Cover.CoverInUse!=null
-            ||s.HoldAngle.Policy.Active||s.CornerChase.Policy.Active||s.CornerPeek.Policy.Active||s.CombatStep.Policy.Active
-            ||s.CornerPrefire.Policy.Active||s.Ambush.Policy.Active||s.Reservation.Lease!=null)return "travel-other-tactic-or-urgency";
         if(b.GoalEnemy==null||!SameTacticalContact(b.GoalEnemy,s.CoverTravel.Enemy))return "travel-contact-changed";
-        int count=0;
-        foreach(var other in b.EnemyController.KnownEnemies)
-            if(++count>32||other!=null&&!SameTacticalContact(other,b.GoalEnemy)&&(other.IsVisible||other.Status.ShotAtMeRecently||other.Seen&&other.TimeSinceSeen<config!.CoverTravel.VisionAge))
-                return "travel-other-immediate-threat";
         return "";
     }
     private CoverTravelFrame TravelFrame(BotComponent b,BotState s)
@@ -83,12 +70,12 @@ public sealed partial class Plugin
         var r=s.CoverTravel;var cover=b.Cover.CoverPoint_MovingTo;var path=b.Mover.ActivePath;
         string block=CoverTravelBlock(b,s);
         if(block.Length==0&&(cover==null||cover.CoverData.IsBad||cover.Spotted||path==null||!path.Moving||path.Crawling
-            ||path.PathStatus!=NavMeshPathStatus.PathComplete||Vector3.Distance(path.Destination,cover.Position)>.35f))block="travel-no-native-cover-route";
+            ||path.PathStatus!=NavMeshPathStatus.PathComplete))block="travel-no-native-cover-route";
         var velocity=b.Player.Velocity;var facing=b.PlayerComponent.CharacterController.CurrentControlLookDirection;
         velocity.y=facing.y=0;
         return new(){Now=Time.time,Target=b.GoalEnemy?.EnemyProfileId??"",Context=cover==null?"":ProgressAdapter.CoverKey(cover),
             Position=DP(b.Position),Known=DP(r.Seen),Goal=DP(cover?.Position??b.Position),ObservedAt=r.SeenAt,Block=block,
-            Geometry=r.GeometryAt>=0,GeometryAt=r.GeometryAt,Length=r.Length,Turn=r.Turn,Exposure=r.Exposure,Protected=r.Protected,
+            Geometry=true,GeometryAt=Time.time,Length=cover==null?0:Vector2.Distance(new Vector2(b.Position.x,b.Position.z),new Vector2(cover.Position.x,cover.Position.z)),Turn=r.Turn,Exposure=r.Exposure,Protected=r.Protected,
             Ready=VisibleAdapter.WeaponReady(b),CanSprint=b.Player.MovementContext.CanSprint,NativeSprint=r.NativeSprint,
             ActualSprint=b.Player.IsSprintEnabled,Speed=velocity.magnitude,FacingDot=velocity.sqrMagnitude<.001f?0:Vector3.Dot(velocity.normalized,facing.normalized)};
     }
@@ -98,11 +85,8 @@ public sealed partial class Plugin
         if(p?.config==null||!p.states.TryGetValue(b,out var s)||s.CoverTravel.Fault)return;
         try {
             var r=s.CoverTravel;
-            if(b.CurrentAction?.GetType().FullName!=SeekCoverType){p.EndCoverTravel(s,"travel-native-action-ended");return;}
             p.SampleCoverTravel(b,s);r.CallbackAt=Time.time;r.Owner=b;
             var f=p.TravelFrame(b,s);
-            if(f.Block.Length==0&&r.SeenAt>=0&&Time.time-r.SeenAt<p.config.CoverTravel.VisionAge
-                &&Vector3.Distance(b.Position,r.Seen)<=p.config.CoverTravel.CloseDistance)p.TravelGeometry(b,s);
             f=p.TravelFrame(b,s);string mode=r.Policy.Tick(f,p.config.CoverTravel);
             if(mode=="native"||!r.NativeCaptured)p.ReleaseTravelRequest(s);
             else {
@@ -118,54 +102,10 @@ public sealed partial class Plugin
             p.RecordCoverTravel(s);
         }catch(Exception ex){p.CoverTravelError(s,ex);}
     }
-    private void TravelGeometry(BotComponent b,BotState s)
-    {
-        var r=s.CoverTravel;var path=b.Mover.ActivePath!;var goal=b.Cover.CoverPoint_MovingTo.Position;
-        bool changed=!ReferenceEquals(path,r.ProbePath)||path.CurrentIndex!=r.ProbeIndex
-            ||Vector3.Distance(b.Position,r.ProbePosition)>.75f||Vector3.Distance(r.Seen,r.ProbeKnown)>.5f||Vector3.Distance(goal,r.ProbeGoal)>.05f;
-        if(changed)r.GeometryAt=-1000;
-        if(!changed&&Time.time<r.NextGeometry)return;
-        if(!doorBudget.TryBegin(Time.frameCount,b))return;
-        var clock=System.Diagnostics.Stopwatch.StartNew();
-        try {
-            r.NextGeometry=Time.time+(float)config!.CoverTravel.Refresh;r.GeometryAt=-1000;
-            // Use remaining corners of the route SAIN is actually following, never a new shortcut.
-            var corners=path.PathCorners;int start=path.CurrentIndex;
-            if(start<0||start>=corners.Count||corners.Count>64||Vector3.Distance(corners[corners.Count-1].Position,goal)>.35f)return;
-            double length=0,turn=0;var from=b.Position;Vector3 previous=default;
-            for(int i=start;i<corners.Count;i++) {
-                var to=corners[i].Position;if(!CornerChase.Point(DP(to)))return;
-                var direction=to-from;float segment=direction.magnitude;
-                if(segment>.05f){if(previous.sqrMagnitude>.001f)turn=Math.Max(turn,Vector3.Angle(previous,direction));previous=direction;}
-                length+=segment;from=to;
-            }
-            // Bounded spatial sampling: 3 route points x 3 body rays, plus 3 at the endpoint.
-            // This is an exposure estimate, not proof that all geometry is safe.
-            int exposed=0;
-            for(int sample=1;sample<=3;sample++) {
-                double distance=length*sample/4;from=b.Position;Vector3 point=from;
-                for(int i=start;i<corners.Count;i++) {
-                    var to=corners[i].Position;double segment=Vector3.Distance(from,to);
-                    if(distance<=segment){point=Vector3.Lerp(from,to,segment>.001?(float)(distance/segment):0);break;}
-                    distance-=segment;from=point=to;
-                }
-                exposed+=TravelExposure(point,r.Seen);
-            }
-            r.Length=length;r.Turn=turn;r.Exposure=exposed/9d;r.Protected=TravelExposure(goal,r.Seen)<=1;
-            r.ProbePath=path;r.ProbeIndex=start;r.ProbePosition=b.Position;r.ProbeKnown=r.Seen;r.ProbeGoal=goal;r.GeometryAt=Time.time;
-        }finally{clock.Stop();doorBudget.Charge(clock.Elapsed.TotalMilliseconds);}
-    }
-    private static int TravelExposure(Vector3 position,Vector3 known)
-    {
-        int count=0;var source=known+Vector3.up*1.4f;
-        for(int sample=1;sample<=3;sample++)
-            if(!Physics.Linecast(source,position+Vector3.up*(sample*.5f),LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))count++;
-        return count;
-    }
     private bool CoverTravelGaze(BotComponent b,BotState s,out Vector3 direction)
     {
         direction=default;var r=s.CoverTravel;
-        if(r.Policy.Trace?.State!="face-walk"||!r.Owned||!ReferenceEquals(b.Mover.ActivePath,r.Path)||Time.time-r.CallbackAt>.2f
+        if(r.Policy.Trace?.State!="face-walk"||!r.Owned||!ReferenceEquals(b.Mover.ActivePath,r.Path)
             ||b.Player.IsSprintEnabled||CoverTravelPolicy.Gate(TravelFrame(b,s),config!.CoverTravel).Length>0
             ||b.ManualShoot.Shooting||b.ManualShoot.Reason!=EShootReason.None||b.Aim.AimStatus!=AimStatus.NoTarget)return false;
         direction=(r.Seen+Vector3.up*1.3f-b.Transform.WeaponRoot).normalized;

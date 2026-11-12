@@ -42,73 +42,32 @@ public sealed class SuppressionDisciplinePolicy
     public bool Active=>Trace!=null&&Trace.State!="ended"&&Trace.State!="rejected";
     public bool MayFire=>Active&&Trace!.State=="firing";
     public DoorPoint Aim { get; private set; }
-    private readonly Dictionary<string,double> consumed=new();
+
     private string identity="";
     private double started,last=-1,latestCue=-1,pauseUntil;
-    private int episode,quotaRemaining;
-    public bool Evaluate(SuppressionDisciplineFrame f,SuppressionDisciplineConfig c)
+    private int episode;
+    private double lastShot=-1000;
+    public void SetAim(DoorPoint aim) { Aim=aim; }
+    // Observe native SuppressPosition calls, as TrackBurst in zzap does. Native
+    // CanSuppressEnemy/TrySuppressAnyEnemy own eligibility; telemetry is not a veto.
+    private int burstStartAmmo;
+    public void NativeCall(SuppressionDisciplineFrame f,SuppressionDisciplineConfig c,bool accepted,DoorPoint aim,double roll)
     {
-        if(last>=0&&f.Now<last){End("suppression-clock-reset");consumed.Clear();}
-        last=f.Now;
-        if(Active&&(identity!=f.Identity||Trace!.Weapon!=f.Weapon||Trace.Mode!=f.Mode||Trace.Action!=f.Action||Trace.SupportPlan!=f.SupportPlan))End("suppression-context-changed");
-        string gate=Gate(f,c);
-        if(!Active)
-        {
-            if(gate.Length==0&&consumed.TryGetValue(f.Identity,out var used)&&f.ObservedAt<=used+.001)gate="suppression-needs-new-contact";
-            Trace=new(){Episode=episode,Target=f.Target,Weapon=f.Weapon,Mode=f.Mode,Source=f.Source,Action=f.Action,SupportPlan=f.SupportPlan,
-                State="rejected",Reason=gate,Capacity=Math.Max(0,f.Capacity),Reserve=c.Reserve(Math.Max(0,f.Capacity)),BurstLimit=c.BurstRounds};
-            if(gate.Length>0){Snapshot(f);return false;}
-            identity=f.Identity;started=f.Now;latestCue=f.ObservedAt;pauseUntil=0;Trace.State="waiting";Trace.Episode=++episode;
-            Aim=f.Known+new DoorPoint(0,1.2,0);quotaRemaining=Math.Max(0,f.Loaded-Trace.Reserve);
+        bool same=Trace!=null;
+        if(!same){identity=f.Identity;started=f.Now;lastShot=-1000;pauseUntil=0;burstStartAmmo=f.Loaded;
+            Trace=new(){Episode=++episode,Target=f.Target,Weapon=f.Weapon,Mode=f.Mode,BurstLimit=c.BurstRounds};}
+        SetAim(aim);Trace!.Target=f.Target;Trace.Weapon=f.Weapon;Trace.Mode=f.Mode;Trace.Requested=true;Trace.Accepted=accepted;Trace.Action=f.Action;Trace.SupportPlan=f.SupportPlan;
+        Trace.Capacity=f.Capacity;Trace.Reserve=c.Reserve(Math.Max(0,f.Capacity));
+        Trace.State=accepted?"firing":"waiting";Trace.Reason=accepted?"suppression-native-accepted":"suppression-native-refused";
+        if(accepted){
+            if(f.Now-lastShot>1.5||f.Loaded>burstStartAmmo)burstStartAmmo=f.Loaded;
+            lastShot=f.Now;Trace.BurstShots=Math.Max(0,burstStartAmmo-f.Loaded);
+            if(Trace.BurstShots>=c.BurstRounds){pauseUntil=f.Now+c.PauseSeconds*(.7+.6*Math.Max(0,Math.Min(1,roll)));burstStartAmmo=f.Loaded;}
         }
-        if(gate.Length>0){Snapshot(f);End(gate);return false;}
-        latestCue=Math.Max(latestCue,f.ObservedAt);
-        if(f.Now-started>=c.SequenceSeconds){Snapshot(f);End("suppression-sequence-limit");return false;}
-        if(quotaRemaining<=0){Snapshot(f);End("suppression-ammo-reserve");return false;}
-        Snapshot(f);Trace!.Remaining=Math.Max(0,c.SequenceSeconds-(f.Now-started));Trace.ValidFor=Math.Min(.3,Trace.Remaining);
-        if(f.Now<pauseUntil){Trace.State="paused";Trace.Reason="suppression-burst-pause";return false;}
-        if(Trace.State=="paused")
-        {Trace.BurstShots=0;Trace.Requested=Trace.Accepted=false;Aim=f.Known+new DoorPoint(0,1.2,0);Snapshot(f);}
-        // Geometry may be deferred by the common budget. This is never permission to keep firing on old checks.
-        if(!f.FreshGeometry||!f.Clear||!f.AllySafe||!f.Aligned)
-        {Trace.State="waiting";Trace.Reason=!f.FreshGeometry?"suppression-check-deferred":!f.AllySafe?"suppression-ally-in-line":!f.Clear?"suppression-blocked-angle":"suppression-aligning";return false;}
-        Trace.State="firing";Trace.Reason="suppression-permitted";return true;
+        if(f.Now<pauseUntil){Trace.State="paused";Trace.Reason="suppression-burst-pause";}
+        Trace.ValidFor=.3;Snapshot(f);
     }
-    public static string Gate(SuppressionDisciplineFrame f,SuppressionDisciplineConfig c)
-    {
-        if(!c.Enabled)return "suppression-disabled";
-        if(f.Block.Length>0)return f.Block;
-        if(f.Visible)return "suppression-visible-target";
-        if(!f.SupportUseful)return "suppression-support-ended";
-        if(!f.KnownContact||f.Target.Length==0||f.Identity.Length==0||f.Weapon.Length==0
-            ||!DoorPolicy.Finite(f.Now)||!DoorPolicy.Finite(f.ObservedAt)||f.ObservedAt<0||f.Now<f.ObservedAt
-            ||!CornerChase.Point(f.Known)||f.Source is not ("personal-vision" or "personal-incoming"))return "suppression-no-personal-contact";
-        if(f.Now-f.ObservedAt>c.ContactAge)return "suppression-contact-expired";
-        if(f.Capacity<=0||f.Loaded<0||f.Loaded>f.Capacity)return "suppression-ammo-unknown";
-        if(f.Loaded<=c.Reserve(f.Capacity))return "suppression-ammo-reserve";
-        return "";
-    }
-    public void Request(){if(MayFire)Trace!.Requested=true;}
-    public void Result(bool accepted)
-    {if(Trace?.Requested!=true)return;Trace.Accepted|=accepted;if(Active&&!accepted){Trace.State="waiting";Trace.Reason="suppression-native-refused";}}
-    public void Shot(SuppressionDisciplineFrame f,SuppressionDisciplineConfig c,double random)
-    {
-        if(!Active||Trace!.Requested!=true)return;
-        bool outsidePermission=!MayFire;
-        Trace.ActualShots++;Trace.BurstShots++;quotaRemaining--;Snapshot(f);
-        if(outsidePermission){End("suppression-shot-outside-permission");return;}
-        Trace.Remaining=Math.Max(0,c.SequenceSeconds-Trace.Elapsed);Trace.ValidFor=Math.Min(.3,Trace.Remaining);
-        if(Trace.Remaining<=0){End("suppression-sequence-limit");return;}
-        // Own shot callbacks can run before ammo is consumed: the quota makes that ordering safe.
-        if(quotaRemaining<=0||f.Loaded-1<=Trace.Reserve){End("suppression-ammo-reserve");return;}
-        if(Trace.BurstShots>=c.BurstRounds)
-        {
-            var roll=DoorPolicy.Finite(random)?Math.Max(0,Math.Min(1,random)):.5;
-            pauseUntil=f.Now+c.PauseSeconds*(.7+.6*roll);Trace.State="paused";Trace.Reason="suppression-burst-pause";
-            Trace.PauseRemaining=pauseUntil-f.Now;return;
-        }
-        Trace.Reason="suppression-shot-observed";
-    }
+    public bool NativePaused(double now)=>now<pauseUntil;
     private void Snapshot(SuppressionDisciplineFrame f)
     {
         var t=Trace!;t.Loaded=Math.Max(0,f.Loaded);t.ContactAge=DoorPolicy.Finite(f.Now)&&DoorPolicy.Finite(f.ObservedAt)&&f.ObservedAt>=0?Math.Max(0,f.Now-f.ObservedAt):0;
@@ -120,7 +79,6 @@ public sealed class SuppressionDisciplinePolicy
     public void End(string reason)
     {
         if(!Active)return;
-        if(consumed.Count>=16&&!consumed.ContainsKey(identity)) {string? oldest=null;double at=double.MaxValue;foreach(var e in consumed)if(e.Value<at){oldest=e.Key;at=e.Value;}if(oldest!=null)consumed.Remove(oldest);}
-        consumed[identity]=latestCue;Trace!.State="ended";Trace.Reason=reason;Trace.ValidFor=Trace.Remaining=Trace.PauseRemaining=0;
+        Trace!.State="ended";Trace.Reason=reason;Trace.ValidFor=Trace.Remaining=Trace.PauseRemaining=0;
     }
 }

@@ -27,13 +27,13 @@ internal static class SquadManeuverTests
   C(p.Tick(10.5,c)&&p.SupportReady(10.5)&&!p.MaySuppress,"support confirmed but no observed movement");
   var mover=p.Member("p1")!;mover.Confirmed=mover.Applied=true;mover.Status="moving";mover.LastSeen=10.5;
   C(p.Tick(10.6,c)&&p.MaySuppress,"moving plus confirmed support");mover.Status="holding";C(!p.MaySuppress,"arrival stops support fire");
-  p.Drop("p1","arrived");C(p.Active,"other flankers continue");p.Drop("p0","reloading");C(!p.Active&&!p.MaySuppress,"support loss ends plan");
+  p.Drop("p1","arrived");C(p.Active,"other flankers continue");p.Drop("p0","reloading");C(p.Active&&!p.MaySuppress,"support loss leaves remaining flankers active");
   board.Finish(p,11,c,"ended");C(board.TryStart("a","e",35,35,0,Team(),c,70)==null,"retry timer");
-  C(board.TryStart("a","e",36,10,0,Team(),c,70)==null,"old evidence cannot restart");C(board.TryStart("a","e",36,36,0,Team(),c,70)!=null,"new evidence and cooldown");
+  C(board.TryStart("a","e",36,30,0,Team(),c,70)!=null,"same known contact can be retried after cooldown");C(board.TryStart("a","e",36,36,0,Team(),c,70)!=null,"new evidence and cooldown");
   board.Clear();C(board.Count==0,"raid cleanup");C(board.TryStart("a","e",10,10,.6,Team(),c,70)==null,"exact roll boundary");
   C(board.TryStart("a","e",10.1,10.1,0,Team(),c,70)==null,"failed plan roll not retried each frame");
   board.Clear();C(board.TryStart("a","e",10,10,0,Team(),c,0)==null,"all members can keep their plan");
-  foreach(var why in new[]{"timeout","callback","confirm","clock","disabled","all-flankers"})
+  foreach(var why in new[]{"timeout","clock","disabled","all-flankers"})
   {
    board.Clear();p=board.TryStart("a","e",10,10,0,Team(2),c,100)!;
    switch(why){case "timeout":p.Tick(35,c);break;case "callback":p.Member("p0")!.Confirmed=true;p.Tick(11,c);break;case "confirm":p.Tick(13,c);break;case "clock":p.Tick(9,c);break;case "disabled":var off=new SquadManeuverConfig{Enabled=false};p.Tick(10,off);break;case "all-flankers":p.Drop("p1","route-failed");break;}
@@ -46,18 +46,12 @@ internal static class SquadManeuverTests
   C(SquadManeuverBoard.Score("Chad",true,100,c)>SquadManeuverBoard.Score("Normal",true,100,c),"aggressive priority");
   C(p.Trace("p1",10,c).Members.Length==4&&p.Trace("p1",10,c).Shots==0,"detached complete trace");
 
-  // Repeated support requests share W07's episode, real-shot quota and consumed-cue ledger.
+  // A new support plan does not reset the suppressor's source burst pause.
   var fire=new SuppressionDisciplinePolicy();var limits=new SuppressionDisciplineConfig();
-  var frame=new SuppressionDisciplineFrame{Now=10,ObservedAt=10,Target="e",Identity="e:instance",Weapon="gun",Mode="single",Action="Freeze",SupportPlan="maneuver-1",KnownContact=true,Source="personal-vision",Known=new(0,0,30),Loaded=30,Capacity=30,FreshGeometry=true,Clear=true,AllySafe=true,Aligned=true};
-  C(fire.Evaluate(frame,limits),"support accepted by W07");int episode=fire.Trace!.Episode;
-  for(int i=0;i<5;i++){C(fire.Evaluate(frame,limits),"shot permission "+i);fire.Request();fire.Result(true);fire.Shot(frame,limits,.5);frame.Loaded--;frame.Now+=.1;}
-  C(fire.Trace.ActualShots==5&&fire.Trace.State=="paused","only five actual shots before pause");
-  for(int i=0;i<20;i++){C(!fire.Evaluate(frame,limits),"repeated plan request respects pause");C(fire.Trace.Episode==episode&&fire.Trace.ActualShots==5,"no resetting shot quota");frame.Now+=.01;}
-  frame.SupportUseful=false;C(!fire.Evaluate(frame,limits)&&!fire.Active,"plan ending cancels suppression");
-  frame.SupportUseful=true;frame.SupportPlan="maneuver-2";C(!fire.Evaluate(frame,limits),"new plan cannot recycle consumed observation");
-  frame.ObservedAt=frame.Now;frame.AllySafe=false;C(!fire.Evaluate(frame,limits),"ally crossing blocks fire");
-  frame.AllySafe=true;frame.Loaded=18;C(!fire.Evaluate(frame,limits),"sixty percent reserve retained");
-  frame.Loaded=30;frame.Source="shared";C(!fire.Evaluate(frame,limits),"shared cue cannot authorize blind fire");
+  var frame=new SuppressionDisciplineFrame{Now=10,Loaded=30,Capacity=30,Target="e",Identity="e:1",SupportPlan="one"};
+  fire.NativeCall(frame,limits,true,default,.5);frame.Now=10.1;frame.Loaded=25;fire.NativeCall(frame,limits,true,default,.5);
+  frame.SupportPlan="two";C(fire.NativePaused(11),"plan changes cannot bypass source burst pause");
+  C(!fire.NativePaused(13.2),"source pause expires without new-contact ledger");
   Console.WriteLine($"{checks} S03 policy/config checks passed");return checks;
  }
 }

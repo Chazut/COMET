@@ -4,6 +4,21 @@ using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Text.Json;
 
+// Run one policy suite independently while updating the source-parity baseline.
+// The normal invocation still runs every suite and integration check below.
+if(args.Length==2 && args[0]=="--suite")
+{
+    try
+    {
+        var type=typeof(CometConfig).Assembly.GetType(args[1]) ?? System.Reflection.Assembly.GetExecutingAssembly().GetType(args[1],true)!;
+        var method=type.GetMethod("Run",System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static)!;
+        var result=method.Invoke(null,method.GetParameters().Select(p => p.HasDefaultValue ? p.DefaultValue : Type.Missing).ToArray());
+        if(result is Task<int> task)await task;
+    }
+    catch(Exception ex){Console.Error.WriteLine(ex.InnerException ?? ex);Environment.ExitCode=1;}
+    return;
+}
+
 int checks = 0;
 checks += DiagnosticWarmupTests.Run();
 checks += PlanContinuityTests.Run();
@@ -129,7 +144,7 @@ CometConfig Only(params Tactic[] enabled)
 foreach (var mutation in new Action<Situation>[] {
     s => s.IsAi = false, s => s.IsSupportedBot = false, s => s.IsAuthority = false, s => s.IsActive = false,
     s => s.Ghost = true, s => s.Visible = true, s => s.HasContact = false, s => s.Target = "",
-    s => s.ContactAge = 26, s => s.ContactAge = double.NaN, s => s.KnownDistance = double.PositiveInfinity,
+    s => s.ContactAge = 61, s => s.ContactAge = double.NaN, s => s.KnownDistance = double.PositiveInfinity,
     s => s.ContactAge = -1, s => s.Now = double.NaN
 })
 {
@@ -139,68 +154,45 @@ foreach (var mutation in new Action<Situation>[] {
     Check(choice.Decision == null && choice.Changed && engine.Current == null, "eligibility revocation");
 }
 
-// Each of the six actions can be selected, but unavailable actions can never win a high weight.
+// Source selection timing and eligibility. Native feasibility is refreshed on
+// zzap's rescore cadence, rather than an additional COMET snapshot invalidator.
 foreach (Tactic tactic in Enum.GetValues<Tactic>())
 {
-    var config = Only(tactic); var engine = new HiddenEnemyDecision(config); var s = Contact();
-    Check(engine.Evaluate(s).Decision == tactic, "available " + tactic);
-    s.Unavailable[tactic] = "test-route-blocked";
-    var result = engine.Evaluate(s);
-    Check(result.Decision == null && result.Candidates.Single(c => c.Decision == tactic.ToString()).Reason == "test-route-blocked", "reject unavailable " + tactic);
+    var config=Only(tactic);var engine=new HiddenEnemyDecision(config);var s=Contact();
+    Check(engine.Evaluate(s).Decision==tactic,"source selectable "+tactic);
+    s.Unavailable[tactic]="test-route-blocked";s.Now+=8;
+    var result=engine.Evaluate(s);
+    Check(result.Decision==null && result.Candidates.Single(c=>c.Decision==tactic.ToString()).Reason=="test-route-blocked","native feasibility at rescore "+tactic);
 }
 {
-    var engine = new HiddenEnemyDecision(Only(Tactic.Hold, Tactic.Search)); var s = Contact(); s.InCover = true;
-    Check(engine.Evaluate(s).Decision == Tactic.Hold, "fresh contact held");
-    s.Now += .5; s.ContactAge = 20;
-    Check(engine.Evaluate(s).Decision == Tactic.Hold, "commitment protects from score jitter");
-    s.Unavailable[Tactic.Hold] = "unsafe";
-    Check(engine.Evaluate(s).Decision == Tactic.Search, "invalid current action bypasses commitment");
+    var engine=new HiddenEnemyDecision(Only(Tactic.Hold));var s=Contact();
+    Check(engine.Evaluate(s).Decision==Tactic.Hold,"initial hold");
+    s.Now+=3.9;
+    Check(!engine.NeedsEvidence(s)&&engine.Evaluate(s).Reason=="zzap-ranked-memory","source hold lasts at least four seconds");
+    s.Now=17.01;
+    Check(engine.NeedsEvidence(s)&&engine.Evaluate(s).Decision==Tactic.Hold,"source rescores by seven seconds without COMET's forced release");
 }
 {
-    var config = Only(Tactic.Hold, Tactic.Search); config.SwitchMargin = 100;
-    var engine = new HiddenEnemyDecision(config); var s = Contact(); s.InCover = true; engine.Evaluate(s);
-    s.Now += 3; s.ContactAge = 20;
-    Check(engine.Evaluate(s).Decision == Tactic.Hold, "hysteresis after commitment");
-    s.Now += 3;
-    Check(engine.Evaluate(s).Decision == Tactic.Search, "hold time limit defeats hysteresis");
+    var engine=new HiddenEnemyDecision(Only(Tactic.Grenade));var s=Contact();
+    Check(engine.Evaluate(s).Decision==Tactic.Grenade,"prepared grenade selected");
+    engine.Fail(Tactic.Grenade,s.Now,"native-refusal");
+    Check(engine.Evaluate(s).Decision==Tactic.Grenade,"no COMET resource retry ban");
+    s.Target="other";
+    Check(engine.Evaluate(s).Decision==Tactic.Grenade,"source can reevaluate another contact immediately");
 }
 {
-    var engine = new HiddenEnemyDecision(Only(Tactic.Grenade, Tactic.Hold)); var s = Contact();
-    Check(engine.Evaluate(s).Decision == Tactic.Grenade, "prepared grenade selected");
-    engine.Fail(Tactic.Grenade, s.Now, "native-refusal");
-    Check(engine.Evaluate(s).Decision == Tactic.Hold, "failed throw reroutes");
-    s.Target = "different-enemy";
-    Check(engine.Evaluate(s).Decision == Tactic.Hold, "changing enemy cannot bypass resource retry cooldown");
-    s.Now += 6;
-    Check(engine.Evaluate(s).Decision == Tactic.Grenade, "retry after cooldown");
+    var s=Contact();s.KnownDistance=30;
+    Check(new HiddenEnemyDecision(Only(Tactic.Push)).Evaluate(s).Decision==Tactic.Push,"distance affects source utility; native route remains responsible for feasibility");
+    s.ContactAge=9;
+    Check(new HiddenEnemyDecision(Only(Tactic.Grenade)).Evaluate(s).Decision==Tactic.Grenade,"no added short grenade contact lifetime");
+    s.ContactAge=59;
+    Check(new HiddenEnemyDecision(Only(Tactic.Search)).Evaluate(s).Decision==Tactic.Search,"source sixty-second known contact window");
 }
 {
-    var engine = new HiddenEnemyDecision(Only(Tactic.Hold)); var s = Contact(); engine.Evaluate(s);
-    s.Now += 5;
-    Check(engine.Evaluate(s).Decision == null, "bounded hold yields to native when no alternative");
-    s.Now += 1;
-    Check(engine.Evaluate(s).Decision == null, "no rapid hold restart");
-}
-{
-    var engine = new HiddenEnemyDecision(new()); var s = Contact(); s.Hurt = true; s.LowAmmo = true;
-    Check(engine.Evaluate(s).Decision == Tactic.FallBack, "hurt low-ammo bot favors cover");
-    s.Unavailable[Tactic.FallBack] = "no-cover";
-    Check(engine.Evaluate(s).Decision != Tactic.FallBack, "no invented retreat destination");
-    s = Contact(); s.KnownDistance = 30;
-    Check(new HiddenEnemyDecision(Only(Tactic.Push)).Evaluate(s).Decision == null, "push distance limit");
-    s = Contact(); s.ContactAge = 9;
-    Check(new HiddenEnemyDecision(Only(Tactic.Grenade)).Evaluate(s).Decision == null, "grenade fresh contact limit");
-    s = Contact(); s.Personality = "GigaChad"; s.Unavailable[Tactic.Grenade] = "none";
-    Check(new HiddenEnemyDecision(new()).Evaluate(s).Decision == Tactic.Push, "aggressive PMC pushes");
-    s.Personality = "Coward"; s.InCover = true;
-    Check(new HiddenEnemyDecision(new()).Evaluate(s).Decision == Tactic.Hold, "cautious PMC holds cover");
-}
-
-// Regression from the fork audit: target churn must not restart continuous holding.
-{
-    var engine = new HiddenEnemyDecision(Only(Tactic.Hold)); var s = Contact(); engine.Evaluate(s);
-    for (int i = 1; i <= 5; i++) { s.Now = 10 + i; s.Target = "enemy-" + i; engine.Evaluate(s); }
-    Check(engine.Current == null, "alternating targets cannot reset the continuous hold limit");
+    var s=Contact();s.Health=.2;s.Ammo=.1;s.Fear=new FearTrace{Level=.9};
+    var scores=ZzapUtility.Hidden(s,.5,0,false);
+    Check(scores[Tactic.FallBack]>scores[Tactic.Push],"source injured empty scared bot favors retreat");
+    Check(ZzapUtility.Hidden(s,.5,40,true)[Tactic.Hold]==-100,"source hold ban is a utility penalty, not COMET's no-action veto");
 }
 
 // Reproducible long-running state machine: actual production engine, not a reimplementation.
@@ -241,7 +233,7 @@ Check(JsonSerializer.Deserialize<CometConfig>(store.ForGame())!.Weights["Hold"] 
 var before = File.ReadAllText(path); saved.ContactLifetime = -10;
 Throws(() => store.Save(saved, 3), "invalid save must fail"); Check(File.ReadAllText(path) == before, "invalid save preserves file");
 File.WriteAllText(path, "[]");
-try { store.Read(); throw new Exception("corrupt configuration was silently replaced"); } catch (JsonException) { checks++; }
+try { store.Read(); throw new Exception("corrupt configuration was silently replaced"); } catch (Exception ex) when (ex is JsonException or InvalidDataException) { checks++; }
 Check(File.ReadAllText(path) == "[]", "corrupt config preserved for recovery");
 
 // Private runtime hooks checked against the real official DLL metadata without initializing Unity.

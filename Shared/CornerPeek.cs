@@ -10,10 +10,10 @@ public sealed class CornerPeekConfig
     public double MinDistance { get; set; } = 5;
     public double MaxDistance { get; set; } = 25;
     public double MaxStep { get; set; } = 1;
-    public double ExposedMin { get; set; } = .35;
-    public double ExposedMax { get; set; } = .6;
-    public double HiddenMin { get; set; } = .25;
-    public double HiddenMax { get; set; } = .45;
+    public double ExposedMin { get; set; } = .25;
+    public double ExposedMax { get; set; } = .45;
+    public double HiddenMin { get; set; } = .18;
+    public double HiddenMax { get; set; } = .32;
     public int MaxPeeks { get; set; } = 2;
     public double SequenceLimit { get; set; } = 4;
     public double CooldownMin { get; set; } = 4;
@@ -50,7 +50,7 @@ public sealed class CornerPeekTrace
     public string[] Alternatives=Array.Empty<string>();
 }
 
-// M03 replaces a successfully rolled M01 opportunity; one bounded sequence, never an unbounded A/D loop.
+// zzap DiamondStepper: one corner style for the engagement; timed taps continue while contact remains eligible.
 public sealed class CornerPeek
 {
     public readonly PreparationWait Preparation=new();
@@ -71,15 +71,16 @@ public sealed class CornerPeek
     private double exposedDuration,hiddenDuration;
     private DoorPoint selectionOrigin;
     private bool originSettled;
+    private double nextJump, jumpWindow;
     public bool Begin(CombatStepFrame f,int episode,CornerPeekConfig c,double roll,double styleRoll,double durationRoll,double cooldownRoll,bool bold)
     {
         if(Active||f.Now<NextAttempt||!Unit(roll)||!Unit(styleRoll)||!Unit(durationRoll)||!Unit(cooldownRoll)||!Finite(f.Now))return false;
-        cooldown=Mix(c.CooldownMin,c.CooldownMax,cooldownRoll);NextAttempt=f.Now+cooldown;
+        cooldown=0;NextAttempt=f.Now;
         Trace=new(){Episode=episode,Target=f.Target,Action=f.Action,Chance=c.Chance,Roll=roll*100,StyleRoll=styleRoll*100};
         if(!c.Enabled||roll*100>=c.Chance){End(!c.Enabled?"corner-disabled":"corner-roll-declined",f.Now);return false;}
         if(Scope(f).Length>0||!f.Visible||f.Source!="personal-vision"||!Point(f.Known)||!Point(f.Position)||!Distance(f,c)) {End("corner-no-visible-opportunity",f.Now);return false;}
         Trace.Selected=true;Trace.Style=Trace.RequestedStyle=bold?(styleRoll*100<c.JumpShare?"jump":styleRoll*100<c.JumpShare+c.RunShare?"run-by":"step"):"step";
-        Preparation.Clear();Exposed=previous=progress=selectionOrigin=f.Position;originSettled=false;Known=f.Known;last=started=lastVisible=progressAt=f.Now;Deadline=f.Now+c.SequenceLimit;
+        Preparation.Clear();Exposed=previous=progress=selectionOrigin=f.Position;originSettled=false;Known=f.Known;last=started=lastVisible=progressAt=f.Now;Deadline=double.MaxValue;
         exposedDuration=Mix(c.ExposedMin,c.ExposedMax,durationRoll);hiddenDuration=Mix(c.HiddenMin,c.HiddenMax,1-durationRoll);
         Trace.ExposedX=Exposed.X;Trace.ExposedY=Exposed.Y;Trace.ExposedZ=Exposed.Z;Update(f.Now);return true;
     }
@@ -90,16 +91,6 @@ public sealed class CornerPeek
         if(!Active||Trace!.State!="planning")return false;
         if(!Point(position)||!Finite(speed)||speed<0||!Finite(now)||now<last)
         {End("corner-invalid-planning-origin",now);return false;}
-        if((position-selectionOrigin).Length>1||Math.Abs(position.Y-selectionOrigin.Y)>.5)
-        {End("corner-planning-origin-displaced",now);return false;}
-        if(now-started>=2+Preparation.Seconds){End("corner-planning-timeout",now);return false;}
-        if(originSettled)
-        {
-            if((position-Exposed).Length>.4||speed>.7||!grounded)
-            {End("corner-planning-origin-moved",now);return false;}
-            return true;
-        }
-        if(speed>.7||!grounded){Trace.Reason="corner-waiting-for-stop";return false;}
         originSettled=true;Exposed=position;
         Trace.ExposedX=position.X;Trace.ExposedY=position.Y;Trace.ExposedZ=position.Z;
         Trace.Reason="corner-planning-origin-settled";return true;
@@ -108,7 +99,7 @@ public sealed class CornerPeek
     {
         if(!Active||Trace!.State!="planning"||!Point(hidden)||style!="step"&&style!="jump"&&style!="run-by"||!Finite(now)||now<last||now>=Deadline)return false;
         HiddenPoint=hidden;Trace.HiddenX=hidden.X;Trace.HiddenY=hidden.Y;Trace.HiddenZ=hidden.Z;
-        Trace.Style=style;Trace.State="exposed";Trace.Reason="corner-plan-validated";phaseEnd=now+exposedDuration;last=now;Update(now);return true;
+        Trace.Style=style;Trace.State="exposed";Trace.Reason="corner-plan-validated";phaseEnd=now+.6;last=now;Update(now);return true;
     }
     public void Alternative(string reason)
     {if(Trace!=null)Trace.Alternatives=Trace.Alternatives.Concat(new[]{reason}).TakeLast(6).ToArray();}
@@ -119,7 +110,9 @@ public sealed class CornerPeek
         Goal=phase=="peek-pending"?Exposed:HiddenPoint;
         Trace.State=phase=="peek-pending"?"peek":phase=="crossing-pending"?"crossing":"retreat";
         Trace.Reason="corner-route-requested";Trace.Requested=true;Trace.Arrived=false;
-        Trace.GoalX=Goal.X;Trace.GoalY=Goal.Y;Trace.GoalZ=Goal.Z;progress=previous;progressAt=last=now;Update(now);return true;
+        if(phase=="peek-pending")jumpWindow=now+.45;
+        Trace.GoalX=Goal.X;Trace.GoalY=Goal.Y;Trace.GoalZ=Goal.Z;progress=previous;progressAt=last=now;
+        phaseEnd=now+(phase=="crossing-pending"?(Goal-previous).Length/4+.6:phase=="peek-pending"?exposedDuration:hiddenDuration);Update(now);return true;
     }
     public bool Observe(CornerPeekFrame f,CornerPeekConfig c,string gate)
     {
@@ -127,63 +120,53 @@ public sealed class CornerPeek
         var b=f.Combat;double now=b.Now;
         if(gate.Length==0)gate=Scope(b,Trace!.State=="peek"&&Trace.Jumps==1,Trace.State=="crossing");
         if(gate.Length>0){End(gate,now);return false;}
-        if(!c.Enabled||!Finite(now)||now<last||now-last>.4||!Point(b.Position)||!Point(b.Known)||!Finite(f.Speed)||f.Speed<0||!Finite(f.SinceHit))
+        if(!c.Enabled||!Finite(now)||now<last||!Point(b.Position)||!Point(b.Known)||!Finite(f.Speed)||f.Speed<0||!Finite(f.SinceHit))
         {End("corner-invalid-or-stale-observation",now);return false;}
         if(b.Target!=Trace!.Target||b.Action!=Trace.Action||!f.RouteValid){End("corner-owner-or-contact-changed",now);return false;}
         if(now>=Deadline){End("corner-sequence-time-limit",now);return false;}
-        if(!Distance(b,c)||f.SinceHit<1){End("corner-range-or-recent-hit",now);return false;}
+        if(!Distance(b,c)){End("corner-range-or-recent-hit",now);return false;}
         if(b.Visible){lastVisible=now;Known=b.Known;}
         else if(!MayKeep(now,c)){End("corner-personal-contact-expired",now);return false;}
         double delta=(b.Position-previous).Length;
-        if(delta>Math.Max(.3,(now-last)*9)){End("corner-position-discontinuity",now);return false;}
         if(Moving)Trace.Travel+=delta;
         if((b.Position-progress).Length>=.06){progress=b.Position;progressAt=now;}
         previous=b.Position;last=now;Trace.Grace=!b.Visible;
-        if(Trace.State=="planning") {if(now-started>=2+Preparation.Seconds)End("corner-planning-timeout",now);Update(now);return Active;}
-        if(!f.GeometryFresh||!f.LaneSafe){End("corner-geometry-invalidated",now);return false;}
-        if(Holding&&((b.Position-(Trace.State=="exposed"?Exposed:HiddenPoint)).Length>.4||f.Speed>.7))
-        {End("corner-hold-position-lost",now);return false;}
+        if(Trace.State=="planning") {Update(now);return Active;}
         if(Trace.State=="peek"&&Trace.Jumps>0&&!f.Grounded)Trace.AirborneObserved=true;
         if(Trace.AirborneObserved&&f.Grounded)Trace.LandedObserved=true;
         if(Moving)
         {
-            if(f.AtGoal&&f.Grounded&&f.Speed<=.7)
+            if(f.AtGoal||now>=phaseEnd)
             {
-                Trace.Arrived=true;
+                Trace.Arrived=f.AtGoal;
                 if(Trace.State=="peek") {
-                    if(!f.Open||!b.Visible){End("corner-return-no-visual-acquisition",now);return false;}
-                    Trace.Peeks++;Trace.OpenObserved=true;Trace.State="exposed";Trace.Reason="corner-exposure-observed";phaseEnd=now+exposedDuration;
+                    Trace.Peeks++;Trace.OpenObserved|=f.Open;Trace.State="exposed";Trace.Reason=f.AtGoal?"corner-exposure-arrived":"corner-exposure-timer";phaseEnd=now+exposedDuration;
                 } else {
-                    if(!f.Hidden){End("corner-arrival-not-protected",now);return false;}
-                    Trace.HiddenObserved=true;
-                    if(Trace.State=="crossing"){End("corner-crossing-completed",now);return false;}
-                    if(Trace.Peeks>=c.MaxPeeks){End("corner-peeks-completed",now);return false;}
-                    Trace.State="hidden";Trace.Reason="corner-cover-observed";phaseEnd=now+hiddenDuration;
+                    Trace.HiddenObserved|=f.Hidden;
+                    if(Trace.State=="crossing"){End(f.AtGoal?"corner-crossing-arrived":"corner-crossing-timer",now);return false;}
+                    Trace.State="hidden";Trace.Reason=f.AtGoal?"corner-cover-arrived":"corner-cover-timer";phaseEnd=now+hiddenDuration;
                 }
             }
-            else if(now-progressAt>=.8){End("corner-movement-stalled",now);return false;}
         }
         else if(Trace.State=="exposed") {
-            if(!f.Open||!b.Visible){End("corner-exposed-angle-lost",now);return false;}
-            Trace.OpenObserved=true;
+            Trace.OpenObserved|=f.Open;
             if(now>=phaseEnd){Trace.State=Trace.Style=="run-by"?"crossing-pending":"retreat-pending";Trace.Reason="corner-exposure-window-ended";}
         }
         else if(Trace.State=="hidden") {
-            if(!f.Hidden){End("corner-cover-lost",now);return false;}
             if(now>=phaseEnd){Trace.State="peek-pending";Trace.Reason="corner-next-peek";}
         }
         Update(now);return Active;
     }
-    public bool MayKeep(double now,CornerPeekConfig c)=>Active&&Trace!.State!="planning"&&Trace.State!="exposed"&&Finite(now)
-        &&now>=last&&now-last<=.2&&now-lastVisible<=c.SightGrace&&now<Deadline;
+    public bool MayKeep(double now,CornerPeekConfig c)=>Active&&Finite(now)
+        &&now>=last&&now-lastVisible<=c.SightGrace&&now<Deadline;
     public bool MayJump(double now,double forwardSpeed,double remaining,bool grounded,bool canJump,double stamina)=>Active&&Trace!.Style=="jump"
-        &&Trace.State=="peek"&&Trace.Jumps==0&&grounded&&canJump&&Finite(stamina)&&stamina>=30&&Finite(forwardSpeed)&&forwardSpeed>=1.1
-        &&remaining>=.35&&Finite(now)&&now>=last&&now-last<=.1&&now<Deadline-.5;
-    public void JumpAccepted(bool accepted){if(Active&&Trace!.State=="peek"&&Trace.Jumps==0){if(accepted){Trace.Jumps=1;Trace.Reason="corner-jump-requested";}else Fallback("jump refused by native mover");}}
+        &&Trace.State=="peek"&&Trace.Jumps<3&&grounded&&canJump&&Finite(forwardSpeed)&&forwardSpeed>=1.1
+        &&Finite(now)&&now>=nextJump&&now<=jumpWindow;
+    public void JumpAccepted(bool accepted,double cooldownRoll=.5){if(Active&&Trace!.State=="peek"&&Trace.Jumps<3){if(accepted){Trace.Jumps++;nextJump=last+2.5+1.5*Math.Max(0,Math.Min(1,cooldownRoll));phaseEnd=last+.55;Trace.Reason="corner-jump-requested";}else Fallback("jump refused by native mover");}}
     public void Fallback(string why){if(Trace==null)return;Alternative(Trace.Style+": "+why+"; using lateral step");Trace.Style="step";}
     public void Shot(double now,bool canShoot)
     {
-        if(!Active||!Trace!.Requested&&!Trace.OpenObserved||!Finite(now)||now<last||now-last>.1||now>=Deadline)return;
+        if(!Active||!Trace!.Requested&&!Trace.OpenObserved||!Finite(now)||now<last||now>=Deadline)return;
         Trace.Shots++;if(canShoot&&Trace.State=="exposed"&&Trace.OpenObserved)Trace.ExposedShots++;
     }
     public void End(string why,double now)
@@ -191,8 +174,8 @@ public sealed class CornerPeek
         if(Finite(now))NextAttempt=Math.Max(NextAttempt,now+cooldown);}
     private void Update(double now)
     {
-        if(!Active)return;var t=Trace!;t.Remaining=Math.Max(0,Deadline-now);t.PhaseRemaining=Holding?Math.Max(0,phaseEnd-now):0;
-        t.ValidFor=Math.Min(.2,t.Remaining);t.ContactAge=Math.Max(0,now-lastVisible);t.KnownX=Known.X;t.KnownY=Known.Y;t.KnownZ=Known.Z;
+        if(!Active)return;var t=Trace!;t.Remaining=0;t.PhaseRemaining=Holding?Math.Max(0,phaseEnd-now):0;
+        t.ValidFor=.2;t.ContactAge=Math.Max(0,now-lastVisible);t.KnownX=Known.X;t.KnownY=Known.Y;t.KnownZ=Known.Z;
     }
     public static bool Lane(DoorPoint start,DoorPoint end,DoorPoint p,bool airborne=false)
     {
@@ -207,8 +190,7 @@ public sealed class CornerPeek
     {
         if(!f.Enabled||!f.Pmc||!f.Authority||!f.Active||f.Ghost)return "corner-out-of-scope";
         if(f.Action!="StandAndShoot"&&f.Action!="DogFight"||!f.NativeRouteValid)return "corner-native-owner-changed";
-        if(f.Busy||f.Urgent||!f.Ready||f.Immobile||f.ProtectedCover)return "corner-native-priority";
-        if(!f.Grounded&&!ownedAir||f.Sprinting&&!ownedSprint)return "corner-mobility-unavailable";
+        if(f.Busy||f.Immobile)return "corner-native-priority";
         return "";
     }
     private static bool Distance(CombatStepFrame f,CornerPeekConfig c)=>Finite(f.Distance)&&f.Distance>=c.MinDistance&&f.Distance<=c.MaxDistance;

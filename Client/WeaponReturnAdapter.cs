@@ -35,7 +35,7 @@ public sealed partial class Plugin
             finalizer:new HarmonyMethod(typeof(Plugin),nameof(WeaponSwitchException)));
         h.Patch(AccessTools.Method(typeof(BotWeaponSelector),nameof(BotWeaponSelector.TryChangeWeapon)),prefix:new HarmonyMethod(typeof(Plugin),nameof(ChooseWeaponFallback)));
         h.Patch(AccessTools.Method(typeof(BotWeaponSelector),nameof(BotWeaponSelector.TryChangeToMain)),prefix:new HarmonyMethod(typeof(Plugin),nameof(ChooseWeaponReturn)));
-        h.Patch(AccessTools.Method(typeof(BotWeaponSelector),nameof(BotWeaponSelector.ChangeToMain)),prefix:new HarmonyMethod(typeof(Plugin),nameof(ChooseWeaponReturn)));
+        h.Patch(AccessTools.Method(typeof(BotWeaponSelector),nameof(BotWeaponSelector.ManualUpdate)),prefix:new HarmonyMethod(typeof(Plugin),nameof(KeepOffEmptyMain)));
         h.Patch(AccessTools.Method(typeof(BotWeaponSelector),nameof(BotWeaponSelector.ShallChangeIfNoAmmo)),prefix:new HarmonyMethod(typeof(Plugin),nameof(SuppressRandomWeaponSwap)));
     }
     private bool WeaponReturnScope(BotComponent b)=>config?.Enabled==true&&(config.WeaponReturn.Enabled||config.WeaponRange.Enabled)&&NativeAdapter.IsSupportedAi(b)
@@ -56,86 +56,45 @@ public sealed partial class Plugin
         return "";
     }
     private static bool WeaponHandsReady(BotComponent b,Player.FirearmController? firearm)
-    {
-        if(b==null||b.GameEnding||b.IsDead)return false;
-        var wm=b.BotOwner?.WeaponManager;var selector=wm?.Selector;
-        return firearm!=null&&wm!=null&&selector!=null&&wm.IsReady&&selector.IsWeaponReady&&!selector.IsChanging
-            &&!firearm.IsInInteraction()&&!firearm.IsInReloadOperation()&&firearm.CanStartReload();
-    }
+        =>b!=null&&!b.IsDead&&!b.GameEnding&&firearm!=null&&b.BotOwner?.WeaponManager?.Selector?.IsWeaponReady==true;
     private WeaponReturnGun ReadReturnGun(BotComponent b,BotState s,EquipmentSlot slot)
     {
         var w=SlotGun(b,slot);if(w==null)return new();
-        var mag=w.GetCurrentMagazine();
-        var g=new WeaponReturnGun{Id=w.Id.ToString(),Slot=slot.ToString(),Chamber=w.ChamberAmmoCount,
-            Magazine=w.ReloadMode==Weapon.EReloadMode.OnlyBarrel?0:mag?.Count??0,
-            Capacity=w.ReloadMode==Weapon.EReloadMode.OnlyBarrel?w.Chambers.Length:(mag?.MaxCount??0)+w.Chambers.Length,
-            Usable=w.MalfState.State==Weapon.EMalfunctionState.None};
-        g.Loaded=g.Chamber+g.Magazine;
-        try {
-            var f=ReloadResources(b,s,w,new ReloadTimingFrame{Weapon=g.Id,Loaded=g.Loaded,Chamber=g.Chamber,Magazine=g.Magazine,Capacity=g.Capacity},true);
-            // An incomplete inventory check cannot establish a reload resource.
-            if(f.Block.Length==0){g.Reserve=f.Reserve;g.Resource=f.Resource;}
-        } finally {s.ReloadTiming.Magazines.Clear();s.ReloadTiming.Ammo.Clear();}
-        return g;
+        int loaded=ReloadLoaded(w);
+        var g=new WeaponReturnGun{Id=w.Id.ToString(),Slot=slot.ToString(),Loaded=loaded,Usable=true};
+        if(loaded>0)return g;
+        var inventory=b.Player.InventoryController;if(inventory==null)return g;
+        var r=s.ReloadTiming;var magSlot=w.GetMagazineSlot();var chamber=w.Chambers.Length>0?w.Chambers[0]:null;
+        bool emptyMag=false;
+        try{
+            if(magSlot!=null){r.Magazines.Clear();inventory.GetReachableItemsOfTypeNonAlloc(r.Magazines);
+                foreach(var m in r.Magazines)if(magSlot.CanAccept(m)){if(m.Count>0){g.Reserve=m.Count;g.Resource="magazine";return g;}emptyMag=true;}}
+            if(chamber==null||w.ReloadMode==Weapon.EReloadMode.ExternalMagazine&&!emptyMag)return g;
+            r.Ammo.Clear();inventory.GetAcceptableItemsNonAlloc(BotReload._availableEquipmentSlots,r.Ammo);
+            foreach(var a in r.Ammo)if(a.StackObjectsCount>0&&chamber.CanAccept(a)){g.Reserve=a.StackObjectsCount;g.Resource="loose-ammo";return g;}
+            return g;
+        }finally{r.Magazines.Clear();r.Ammo.Clear();}
     }
     private WeaponReturnFrame? WeaponReturnFrameFor(BotComponent b,BotState s)
     {
-        var r=s.WeaponReturn;var firearm=b.Player.HandsController as Player.FirearmController;
-        if(firearm==null||ActualGunSlot(b,firearm.Item).Length==0)return null;
-        if(r.Frame!=null&&Time.time<r.Next&&r.Frame.Current.Id==firearm.Item.Id.ToString()&&r.Frame.Current.Loaded==ReloadLoaded(firearm.Item))
-        {
-            // Volatile native state is never cached across a reload/interaction.
-            r.Frame.ContactAge+=Math.Max(0,Time.time-r.Frame.Now);r.Frame.Now=Time.time;r.Frame.Ready=WeaponHandsReady(b,firearm);
-            r.Frame.Incoming|=b.BotOwner.Memory.IsUnderFire||b.Medical.TimeSinceShot<1.5;
-            if(r.Frame.Incoming)r.Frame.Far=false;
-            r.Frame.Current.Usable=firearm.Item.MalfState.State==Weapon.EMalfunctionState.None;
-            r.Frame.Reloading=s.QuickReload.Policy.Active||b.BotOwner.WeaponManager.Reload.Reloading||firearm.IsInReloadOperation();
-            r.Frame.Busy=WeaponReturnBusy(b,firearm);return r.Frame;
-        }
-        if(!doorBudget.TryBegin(Time.frameCount,b))return null;
-        doorClock.Restart();
-        try {
-            var first=ReadReturnGun(b,s,EquipmentSlot.FirstPrimaryWeapon);var second=ReadReturnGun(b,s,EquipmentSlot.SecondPrimaryWeapon);var pistol=ReadReturnGun(b,s,EquipmentSlot.Holster);
-            var main=first;var other=second;var selector=b.BotOwner.WeaponManager.Selector;
-            if(second.Id.Length>0&&(second.Id==r.ReturnId||first.Id.Length==0||first.Id!=r.ReturnId&&selector._mainWeapon==EquipmentSlot.SecondPrimaryWeapon)){main=second;other=first;}
-            string id=firearm.Item.Id.ToString();var current=id==first.Id?first:id==second.Id?second:pistol;
-            var f=new WeaponReturnFrame{Now=Time.time,Current=current,Main=main,Other=other,Pistol=pistol,
-                Ready=WeaponHandsReady(b,firearm),Reloading=s.QuickReload.Policy.Active||b.BotOwner.WeaponManager.Reload.Reloading||firearm.IsInReloadOperation(),Busy=WeaponReturnBusy(b,firearm),
-                Incoming=b.BotOwner.Memory.IsUnderFire||b.Medical.TimeSinceShot<1.5};
-            bool haveFar=false,haveNear=false;int count=0;Vector3 closestKnown=b.Position;double closest=double.MaxValue;
-            foreach(var e in b.EnemyController.KnownEnemies)
-            {
-                if(++count>16){f.Truncated=true;haveNear=true;break;}
-                if(e==null||!e.EnemyKnown)continue;
-                var place=e.KnownPlaces.LastSeenPlace;var heard=e.KnownPlaces.LastHeardPlace;
-                if(heard!=null&&(place==null||heard.TimeSincePositionUpdated<place.TimeSincePositionUpdated))place=heard;
-                if(e.Status.ShotAtMeRecently)f.Incoming=true;
-                if(place==null){if(e.IsVisible){f.Incoming=true;haveNear=true;}continue;}
-                double age=Math.Max(0,place.TimeSincePositionUpdated);double distance=Vector3.Distance(b.Position,place.Position);
-                f.LastThreatAt=Math.Max(f.LastThreatAt,e.IsVisible?Time.time:Time.time-age);
-                if(age<=config!.WeaponReturn.CalmDelay&&distance<=config.PistolSwap.MaxDistance+config.WeaponReturn.DistanceMargin)haveNear=true;
-                if(e.IsVisible&&age>config!.PistolSwap.ContactMemory)haveNear=true;
-                if(age<=config!.PistolSwap.ContactMemory)
-                {
-                    if(distance>config.PistolSwap.MaxDistance+config.WeaponReturn.DistanceMargin)haveFar=true;else haveNear=true;
-                }
-                if(distance<closest&&age<=config.WeaponReturn.CalmDelay)
-                {closest=distance;closestKnown=place.Position;f.Target=e.EnemyProfileId;f.Source=ReferenceEquals(place,heard)?"personal-hearing":"personal-vision";f.Distance=distance;f.ContactAge=age;}
-            }
-            f.Far=haveFar&&!haveNear&&!f.Incoming&&!f.Truncated;
-            // Only reached, stationary cover with a known direction can justify returning to an empty reloadable rifle.
-            f.Protected=f.Target.Length>0&&!f.Truncated&&count<=1&&b.Cover.CoverInUse?.BotInThisCover==true&&b.Player.Velocity.magnitude<.35f&&CombatProtection(b.Position,closestKnown)==7;
-            r.Frame=f;r.Next=Time.time+.25f;r.Policy.NoteThreat(f);return f;
-        } finally {doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
+        var firearm=b.Player.HandsController as Player.FirearmController;if(firearm==null)return null;
+        var wm=b.BotOwner.WeaponManager;var selector=wm.Selector;
+        var first=ReadReturnGun(b,s,EquipmentSlot.FirstPrimaryWeapon);var second=ReadReturnGun(b,s,EquipmentSlot.SecondPrimaryWeapon);var pistol=ReadReturnGun(b,s,EquipmentSlot.Holster);
+        var e=b.GoalEnemy;var f=new WeaponReturnFrame{Now=Time.time,Main=selector._mainWeapon==EquipmentSlot.SecondPrimaryWeapon?second:first,
+            Other=selector._mainWeapon==EquipmentSlot.SecondPrimaryWeapon?first:second,Pistol=pistol,
+            Current=firearm.Item.Id.ToString()==first.Id?first:firearm.Item.Id.ToString()==second.Id?second:pistol,
+            Ready=WeaponHandsReady(b,firearm),Reloading=wm.Reload.Reloading,Target=e?.EnemyProfileId??"",
+            ContactAge=e==null?999:e.IsVisible?0:e.Seen?e.TimeSinceSeen:999,Distance=e?.RealDistance??0,
+            Incoming=e!=null&&e.Status.ShotAtMe&&e.Status.TimeLastShotAtMe>0&&Time.time-e.Status.TimeLastShotAtMe<6,
+            Far=e!=null&&e.RealDistance>config!.PistolSwap.MaxDistance+config.WeaponReturn.DistanceMargin};
+        s.WeaponReturn.Frame=f;return f;
     }
-    private static bool WeaponReturnBusy(BotComponent b,Player.FirearmController f)=>f.IsInInteraction()||b.BotOwner.Medecine?.Using==true
-        ||f.Item.IsUnderBarrelDeviceActive||FakeMedicalPriority(b)||b.Grenade.GrenadeDangerPoint!=null||b.Flashed.IsFlashed;
     private static WeaponReturnGun ReturnTarget(WeaponReturnFrame f,string id)
     {foreach(var g in new[]{f.Main,f.Other,f.Pistol})if(g.Id==id&&id.Length>0)return g;return new();}
     private void ObserveWeaponReturn(BotComponent b,BotState s)
     {
         var firearm=b.Player.HandsController as Player.FirearmController;
-        s.WeaponReturn.Policy.Observe(Time.time,firearm?.Item?.Id.ToString()??"",firearm==null?"":ActualGunSlot(b,firearm.Item),WeaponHandsReady(b,firearm),RangeArbiterConfig());
+        s.WeaponReturn.Policy.Observe(Time.time,firearm?.Item?.Id.ToString()??"",b.BotOwner.WeaponManager.Selector.EquipmentSlot.ToString(),WeaponHandsReady(b,firearm),RangeArbiterConfig());
     }
     private bool NativeWeaponRequest(BotComponent b,BotState s,WeaponReturnGun target,string origin)
     {
@@ -147,25 +106,12 @@ public sealed partial class Plugin
     private static bool AuthorizeWeaponSwitch(BotWeaponSelector __instance,EquipmentSlot slot,ref bool __result,out WeaponSwitchAttempt? __state)
     {
         __state=null;var p=Instance;BotState? s=null;
-        try {
-            if(p==null||!GunSlot(slot)||!p.WeaponReturnState(__instance,out var b,out s))return true;
-            // Native restoration after medicine/grenades and equipment recovery keep their normal route.
-            if(b.Player.HandsController is not Player.FirearmController)return true;
-            __result=false;var r=s.WeaponReturn;p.ObserveWeaponReturn(b,s);
-            if(r.Policy.Active)return false;
-            var f=p.WeaponReturnFrameFor(b,s);if(f==null)return false;
-            var actual=SlotGun(b,slot);var target=ReturnTarget(f,actual?.Id.ToString()??"");
-            if(actual!=null&&(target.Id.Length==0||target.Loaded!=ReloadLoaded(actual))){r.Frame=null;return false;}
-            string origin=r.Intent.Length>0?r.Intent:"native-slot";
-            if(p.KeepRangeChoice(b,s,f,target,origin))return false;
-            if(!p.config!.WeaponReturn.Enabled&&origin!="W05")return true;
-            if(!r.Policy.Evaluate(f,target,origin,p.RangeArbiterConfig())){p.RecordWeaponReturn(b,s);return false;}
-            // Recheck native readiness and equipment just before the only mutating native call.
-            if(!WeaponHandsReady(b,b.Player.HandsController as Player.FirearmController)||!ReferenceEquals(SlotGun(b,slot),actual)
-                ||actual==null||actual.MalfState.State!=Weapon.EMalfunctionState.None){r.Policy.End("weapon-equipment-changed");p.RecordWeaponReturn(b,s,true);return false;}
-            r.Policy.Request(Time.time);p.RecordWeaponReturn(b,s,true);
-            __state=new(){Bot=b,State=s,PreviousTimer=__instance._nextChangeTime,TemporaryTimer=Time.time-1};
-            __instance._nextChangeTime=__state.TemporaryTimer;
+        try{
+            if(p==null||!GunSlot(slot)||!p.WeaponReturnState(__instance,out var b,out s)||s.WeaponReturn.Intent.Length==0)return true;
+            var f=p.WeaponReturnFrameFor(b,s);if(f==null)return true;
+            var target=ReturnTarget(f,SlotGun(b,slot)?.Id.ToString()??"");
+            s.WeaponReturn.Policy.Evaluate(f,target,s.WeaponReturn.Intent,p.RangeArbiterConfig());s.WeaponReturn.Policy.Request(Time.time);
+            __state=new(){Bot=b,State=s,PreviousTimer=__instance._nextChangeTime,TemporaryTimer=0};__instance._nextChangeTime=0;
             return true;
         }catch(Exception ex){if(s!=null)p?.WeaponReturnError(s,ex);return true;}
     }
@@ -173,7 +119,6 @@ public sealed partial class Plugin
     {
         if(__state==null||Instance==null)return;var p=Instance;var s=__state.State;
         try {
-            if(!__result&&__instance._nextChangeTime==__state.TemporaryTimer)__instance._nextChangeTime=__state.PreviousTimer;
             s.WeaponReturn.Policy.Result(__result,Time.time,p.RangeArbiterConfig());s.WeaponReturn.Frame=null;
             p.ObserveWeaponReturn(__state.Bot,s);p.RecordWeaponReturn(__state.Bot,s,true);
         }catch(Exception ex){p.WeaponReturnError(s,ex);}
@@ -181,39 +126,33 @@ public sealed partial class Plugin
     private static void WeaponSwitchException(BotWeaponSelector __instance,Exception? __exception,WeaponSwitchAttempt? __state)
     {
         if(__exception==null||__state==null||Instance==null)return;
-        if(__instance._nextChangeTime==__state.TemporaryTimer)__instance._nextChangeTime=__state.PreviousTimer;
         Instance.WeaponReturnError(__state.State,__exception);
     }
     private static bool ChooseWeaponFallback(BotWeaponSelector __instance,ref bool __result)
     {
         var p=Instance;BotState? s=null;
-        try {
-            if(p==null||!p.config!.WeaponReturn.Enabled||!p.WeaponReturnState(__instance,out var b,out s)||b.Player.HandsController is not Player.FirearmController)return true;
-            __result=false;p.ObserveWeaponReturn(b,s);if(s.WeaponReturn.Policy.Active)return false;
-            var f=p.WeaponReturnFrameFor(b,s);if(f==null)return false;
-            var id=s.WeaponReturn.Policy.Recommend(f,p.config!.WeaponReturn);
-            if(id.Length>0)__result=p.NativeWeaponRequest(b,s,ReturnTarget(f,id),"native-toggle");
-            else {s.WeaponReturn.Policy.Evaluate(f,f.Main,"native-toggle",p.config.WeaponReturn);p.RecordWeaponReturn(b,s);}
-            return false;
+        try{
+            if(p==null||!p.config!.WeaponReturn.Enabled||!p.WeaponReturnState(__instance,out var b,out s))return true;
+            var f=p.WeaponReturnFrameFor(b,s);if(f==null)return true;
+            string id=s.WeaponReturn.Policy.Fallback(f);__result=id.Length>0&&p.NativeWeaponRequest(b,s,ReturnTarget(f,id),"native-toggle");return false;
         }catch(Exception ex){if(s!=null)p?.WeaponReturnError(s,ex);return true;}
     }
     private static bool ChooseWeaponReturn(BotWeaponSelector __instance,ref bool __result)
     {
         var p=Instance;BotState? s=null;
-        try {
-            if(p==null||!p.config!.WeaponReturn.Enabled||!p.WeaponReturnState(__instance,out var b,out s)||b.Player.HandsController is not Player.FirearmController)return true;
-            __result=false;p.ObserveWeaponReturn(b,s);if(s.WeaponReturn.Policy.Active)return false;
-            var f=p.WeaponReturnFrameFor(b,s);
-            // Both native return entry points must consult the arbiter BEFORE
-            // issuing a slot request. A rejected empty main is not a failed draw.
-            if(f!=null)
-            {
-                if(s.WeaponReturn.Policy.Evaluate(f,f.Main,"native-return",p.RangeArbiterConfig()))
-                    __result=p.NativeWeaponRequest(b,s,f.Main,"native-return");
-                else p.RecordWeaponReturn(b,s);
-            }
-            return false;
+        try{
+            if(p==null||!p.config!.WeaponReturn.Enabled||!p.WeaponReturnState(__instance,out var b,out s))return true;
+            var f=p.WeaponReturnFrameFor(b,s);if(f==null||f.Main.Id==f.Current.Id)return true;
+            if(p.KeepRangeChoice(b,s,f,f.Main,"native-return")||!s.WeaponReturn.Policy.Evaluate(f,f.Main,"native-return",p.RangeArbiterConfig()))
+            {__result=false;p.RecordWeaponReturn(b,s);return false;}
+            return true; // Source leaves the native return intact when the main has ammo.
         }catch(Exception ex){if(s!=null)p?.WeaponReturnError(s,ex);return true;}
+    }
+    private static bool KeepOffEmptyMain(BotWeaponSelector __instance)
+    {
+        var p=Instance;if(p==null||!p.config!.WeaponReturn.Enabled||!p.WeaponReturnState(__instance,out var b,out var s))return true;
+        if(__instance.EquipmentSlot==__instance._mainWeapon)return true;
+        var g=p.ReadReturnGun(b,s,__instance._mainWeapon);return g.Id.Length==0||g.Loaded>0||g.Reloadable;
     }
     private static bool SuppressRandomWeaponSwap(BotWeaponSelector __instance,ref bool __result)
     {
@@ -227,20 +166,13 @@ public sealed partial class Plugin
     private void SampleWeaponReturn(BotComponent b,BotState s)
     {
         var r=s.WeaponReturn;if(r.Fault)return;
-        if(!WeaponReturnScope(b)){if(r.Frame!=null||r.Policy.Active)EndWeaponReturn(s,"weapon-out-of-scope");return;}
-        if(Time.time<r.SampleAt)return;r.SampleAt=Time.time+.1f;
-        bool pending=r.Policy.Active;ObserveWeaponReturn(b,s);
-        if(pending)RecordWeaponReturn(b,s,!r.Policy.Active);
-        if(r.Policy.Active||!config!.WeaponReturn.Enabled)return;
-        if(Time.time<r.Next)return;
-        var firearm=b.Player.HandsController as Player.FirearmController;
-        if(firearm==null)return;
-        // Stable loaded primaries need only cheap hands observations. Inventory scans are for actual selection work.
-        if(ActualGunSlot(b,firearm.Item)!="Holster"&&ReloadLoaded(firearm.Item)>0&&firearm.Item.MalfState.State==Weapon.EMalfunctionState.None)return;
+        if(!WeaponReturnScope(b)){EndWeaponReturn(s,"weapon-out-of-scope");return;}
+        ObserveWeaponReturn(b,s);
+        if(!config!.WeaponReturn.Enabled||!r.Policy.PistolByUs||!WeaponHandsReady(b,b.Player.HandsController as Player.FirearmController))return;
         var f=WeaponReturnFrameFor(b,s);if(f==null)return;
-        string next=r.Policy.Recommend(f,config!.WeaponReturn);
-        if(next.Length>0)NativeWeaponRequest(b,s,ReturnTarget(f,next),"return-policy");
-        else if(f.Current.Slot=="Holster") {r.Policy.Evaluate(f,f.Main,"return-policy",config.WeaponReturn);RecordWeaponReturn(b,s);}
+        string id=r.Policy.Recommend(f,config.WeaponReturn);
+        if(id.Length>0)NativeWeaponRequest(b,s,ReturnTarget(f,id),"return-policy");
+        RecordWeaponReturn(b,s);
     }
     private void EndWeaponReturn(BotState s,string why)
     {var r=s.WeaponReturn;r.Policy.Clear(why);r.Frame=null;r.ReturnId="";RecordWeaponReturn(null,s,true);}

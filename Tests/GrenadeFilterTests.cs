@@ -22,7 +22,7 @@ internal static class GrenadeFilterTests
   foreach(string kind in new[]{"smoke","gas","special","unknown","dummy"})C(GrenadeFilterRules.Reject(kind,true).Length>0,"excluded "+kind);
   C(GrenadeFilterRules.Reject("fragmentation",false)==""&&GrenadeFilterRules.Reject("flash",false)=="filter-flash-disabled","flash toggle");
   C(GrenadeFilterRules.FlashReject(1.5,-1,.5,.75)=="","native short flash fuse allowed");
-  C(GrenadeFilterRules.FlashReject(1.5,-1,1,.75)=="insufficient-arrival-margin","flash flight safety");
+  C(GrenadeFilterRules.FlashReject(1.5,-1,1,.75)=="","source flash fuse is not vetoed by added arrival margin");
   C(GrenadeFilterRules.FlashReject(2,0,.5,.75)=="contact-explosion","flash contact excluded");
   C(GrenadeFilterRules.FlashReject(double.NaN,-1,.5,.75).Length>0,"unknown fuse");
   Console.WriteLine($"G07 policy: {n} checks passed.");return n;

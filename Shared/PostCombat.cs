@@ -33,7 +33,7 @@ public sealed class PostCombatFrame
 {
     public double Now, AmmoPercent=100, Health=1;
     public bool Scope=true, Threat, NativePriority, MedicalBusy, MedicalUseful, MedicalUrgent, Reloading, HandsReady=true;
-    public bool NeedsCover, Regroup, CanAdvance;
+    public bool NeedsCover, Regroup, CanAdvance, Heard, Coming;
     public string Personality="Normal";
 }
 public sealed class PostCombatTrace
@@ -81,7 +81,7 @@ public sealed class PostCombat
         if(!Active)
         {
             if(!armed||f.Now-LastFight>60)return false;
-            armed=false;Active=true;start=f.Now;watchUntil=-1;watchDuration=c.WatchMin+Clamp(watchRoll)*(c.WatchMax-c.WatchMin);
+            armed=false;Active=true;start=f.Now;watchDuration=c.WatchMin+Clamp(watchRoll)*(c.WatchMax-c.WatchMin);watchUntil=f.Now+watchDuration;
             coverDone=reloadDone=regroupDone=advanceDone=false;
             double chance=c.AdvanceChances.TryGetValue(f.Personality,out var v)?v:40;
             if(f.Health<.4)chance*=.2;
@@ -90,23 +90,22 @@ public sealed class PostCombat
         var t=Trace!;t.Elapsed=Math.Max(0,f.Now-start);t.WatchRemaining=watchUntil<0?watchDuration:Math.Max(0,watchUntil-f.Now);
         t.MedicalBusy=f.MedicalBusy;t.MedicalUseful=f.MedicalUseful;t.AmmoPercent=f.AmmoPercent;
         t.Remaining=Math.Max(0,(f.MedicalUseful||f.MedicalBusy?c.MedicalDuration:c.Duration)-t.Elapsed);
-        if(f.MedicalBusy&&t.Elapsed>c.MedicalDuration+120)return End("post-combat-medicine-observation-stalled");
+        if(f.Heard){t.AdvanceSelected=false;watchUntil=Math.Max(watchUntil,f.Now+3);}
         if(f.MedicalBusy)return Stage("medical","post-combat-native-treatment-active");
-        if(f.Reloading)return t.Elapsed>c.MedicalDuration?End("post-combat-reload-stalled"):Stage("reload","post-combat-native-reload-active");
-        if(!f.HandsReady)return t.Elapsed>c.MedicalDuration?End("post-combat-hands-unavailable"):Stage("hands","post-combat-wait-for-ready-hands");
-        if(t.Elapsed>=c.MedicalDuration)return End("post-combat-time-budget-ended");
-        if(f.MedicalUseful&&f.MedicalUrgent)return Stage("medical","post-combat-urgent-treatment");
+        if(f.Reloading)return Stage("reload","post-combat-native-reload-active");
+        if(!reloadDone&&f.AmmoPercent<c.ReloadBelow)return Stage("reload","post-combat-top-up-magazine");
+        reloadDone=true;
         if(!coverDone&&f.NeedsCover&&t.Elapsed<c.Duration)return Stage("cover","post-combat-seek-protection");
         coverDone=true;
-        if(f.MedicalUseful)return Stage("medical","post-combat-useful-treatment");
-        if(t.Elapsed>=c.Duration)return End("post-combat-time-budget-ended");
+        if(f.MedicalUseful&&!f.Coming)return Stage("medical","post-combat-useful-treatment");
+        if(t.Elapsed>=c.Duration&&!f.Heard)return End("post-combat-time-budget-ended");
         if(!reloadDone&&f.AmmoPercent<c.ReloadBelow)return Stage("reload","post-combat-top-up-magazine");
         reloadDone=true;
         if(watchUntil<0)watchUntil=f.Now+watchDuration;
         t.WatchRemaining=Math.Max(0,watchUntil-f.Now);
-        if(f.Now<watchUntil)return Stage("watch","post-combat-watch-last-threat");
-        if(!regroupDone&&f.Regroup)return Stage("regroup","post-combat-rejoin-leader");
+        if(!f.Heard&&!regroupDone&&f.Regroup)return Stage("regroup","post-combat-rejoin-leader");
         regroupDone=true;
+        if(f.Now<watchUntil)return Stage("watch","post-combat-watch-last-threat");
         if(!advanceDone&&t.AdvanceSelected&&f.CanAdvance)return Stage("check","post-combat-check-known-position");
         return End("post-combat-work-complete");
     }

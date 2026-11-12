@@ -17,11 +17,7 @@ for(int i=0;i<1178;i++)
 Check(selector.Requests==0&&p.Errors==0,"no native requests or exceptions during repeated empty-main return");
 Check(p.states[b].WeaponReturn.Policy.Trace!.Reason=="weapon-target-unusable","reason remains visible");
 frame.Main=Gun("vz58","FirstPrimaryWeapon",10);frame.Now+=1;
-string origin="";selector.OnRequest=()=>origin=p.states[b].WeaponReturn.Intent;
-Check(!p.Request(selector,out var success)&&success&&selector.Requests==1&&origin=="native-return","new ammo immediately permits a real request");
-Check(p.states[b].WeaponReturn.Intent=="","intent restored after successful call");
-selector.OnRequest=()=>throw new InvalidOperationException("native failure");
-Check(p.Request(selector,out _)&&p.Errors==1&&p.states[b].WeaponReturn.Intent=="","exception yields and restores intent");selector.OnRequest=null;
+Check(p.Request(selector,out _)&&selector.Requests==0,"usable main passes through to native selector");
 foreach(var mode in new[]{"disabled","non-pmc","replica","ghost","inactive","ending","no-sain-layer","medicine","grenade","melee","empty-hands"})
 {
  var current=new Plugin{Frame=frame};SAIN.SAINEnableClass.Bot=b;b.Player.HandsController=new Player.FirearmController();
@@ -40,9 +36,9 @@ foreach(var mode in new[]{"disabled","non-pmc","replica","ghost","inactive","end
 }
 var ready=new Plugin();b.GameEnding=b.IsDead=false;var hands=new Player.FirearmController();
 Check(ready.Ready(b,hands),"healthy hands ready");
-hands.Reload=true;Check(!ready.Ready(b,hands),"reload in progress not ready");hands.Reload=false;
+hands.Reload=true;Check(ready.Ready(b,hands),"native selector readiness authoritative");hands.Reload=false;
 b.GameEnding=true;Check(!ready.Ready(b,hands),"raid teardown not ready");b.GameEnding=false;
-selector.IsChanging=true;Check(!ready.Ready(b,hands),"draw in progress not ready");selector.IsChanging=false;
+selector.IsChanging=true;Check(ready.Ready(b,hands),"no duplicate changing veto");selector.IsChanging=false;
 b.BotOwner!.WeaponManager!.Selector=null;Check(!ready.Ready(b,hands),"disposed selector not ready");
 b.BotOwner.WeaponManager=null;Check(!ready.Ready(b,hands),"disposed manager not ready");
 b.BotOwner=null;Check(!ready.Ready(b,hands),"disposed owner not ready");

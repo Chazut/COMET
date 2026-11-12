@@ -11,7 +11,7 @@ MethodDeclarationSyntax Method(string file,string name)=>CSharpSyntaxTree.ParseT
 string[] methods={"TacticalScope","TacticalHandsBusy","NativeChoiceHasPriority","ArbitrateSquad","ArbitrationEvent","ExecutionAction","SampleDecisionExecution"};
 string source="using System; using Comet.Core; namespace Comet.Client; partial class Plugin {\n"
  +string.Join("\n",methods.Select(n=>Method("DecisionArbitrationAdapter",n).ToString()))
- +Method("Plugin","ContinueCover")+"\n"+Method("OutcomeAdapter","OutcomeAction")
+ +Method("SourceCoverContinuation","SourceContinueCover")+"\n"+Method("Plugin","ContinueCover")+"\n"+Method("OutcomeAdapter","OutcomeAction")
  +"\n"+Method("CrossfireAdapter","ContinueCrossfireDecision")+"\n"+Method("CrossfireAdapter","CrossfirePreparing")+"\n}";
 source += "\npartial class Plugin {"+Method("PlanContinuityAdapter","OwnedPlanService")
  +"\n"+Method("PlanContinuityAdapter","ObservePlanService")+"\n"+Method("MedicalChoiceAdapter","MedicalAction")+"}";
@@ -19,7 +19,7 @@ source += CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Client/
  .DescendantNodes().OfType<ClassDeclarationSyntax>().Single(c=>c.Identifier.Text=="PlanServiceRuntime").ToString();
 // Check the actual chooser uses the audited gate; the gate is executed below, not copied.
 var choose=Method("Plugin","Choose");
-if(!choose.ToString().Contains("NativeChoiceHasPriority(bot,state)")||!choose.ToString().Contains("state.Execution.CoolingDown(Time.time)"))
+if(!choose.ToString().Contains("NativeChoiceHasPriority(bot,state)"))
  throw new Exception("Chooser bypassed arbitration or execution recovery gate.");
 var trees=new[]{CSharpSyntaxTree.ParseText(source),
  CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Shared/DecisionExecution.cs"))),

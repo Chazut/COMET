@@ -64,38 +64,46 @@ public static class Cases
     Check(s.Execution.Phase=="executing"&&s.ActiveLabel.Length>0,"cover remains executing without release/reselection");
    }
    Check(p.Events.Count(x=>x=="fallback-cover-continuation")== (feature=="A01"?1:0),"single alias transition log");
-   Time.time=12.01f;bool result=true;p.Continue(b.Decision,ref result);Check(!result,"periodic tactical review");
+   Time.time=18.01f;bool result=true;p.Continue(b.Decision,ref result);Check(result,"no extra periodic cancellation of native cover action");
   }
   {
    var(p,b,s)=Setup();s.SelectedCover=null;bool continued=true;p.Continue(b.Decision,ref continued);
    Check(continued&&ReferenceEquals(s.SelectedCover,b.Cover.CoverPoint_MovingTo),"native-chosen cover works with progress monitoring disabled");
    Time.frameCount++;b.Cover.CoverPoint_MovingTo=new();continued=true;p.Continue(b.Decision,ref continued);
-   Check(!continued,"native-chosen cover cannot silently change destination");
+   Check(continued,"native owns its selected cover destination");
   }
-  foreach(string invalid in new[]{"own-squad","target","cover","visible","hurt","ammo","suppressed","ghost","replica","scav","dead","ending","disabled","medical","reload","grenade","danger","dogfight","hands","self","squad","blocked","timeout","no-native-continuation","wrong-plan"})
-  {
-   var(p,b,s)=Setup();Time.time=10.1f;
-   switch(invalid){case "own-squad":ContactSafety.Allowed=false;break;case "target":b.GoalEnemy.EnemyProfileId="other";break;case "cover":b.Cover.CoverPoint_MovingTo=new();break;
-    case "visible":b.GoalEnemy.IsVisible=true;break;case "hurt":b.Hurt=true;break;case "ammo":b.LowAmmo=true;break;case "suppressed":b.Suppressed=true;break;
-    case "ghost":p.IsGhost=true;break;case "replica":p.Authority=false;break;case "scav":b.Pmc=false;break;case "dead":b.BotActive=false;break;
-    case "ending":b.GameEnding=true;break;case "disabled":p.config.Enabled=false;break;case "medical":b.BotOwner.Medecine.Using=true;break;
-    case "reload":b.BotOwner.WeaponManager.Reload.Reloading=true;break;case "grenade":b.BotOwner.WeaponManager.Grenades.ThrowindNow=true;break;
-    case "danger":b.Grenade.GrenadeDangerPoint=new();break;case "dogfight":b.Decision.DogFightDecision.DogFightActive=true;break;
-    case "hands":b.Player.HandsController.Busy=true;break;case "self":b.Decision.CurrentSelfDecision=ESelfActionType.Reload;break;
-    case "squad":b.Decision.CurrentSquadDecision=ESquadDecision.Retreat;break;case "blocked":s.Progress.IsBlocked=true;break;
-    case "timeout":Time.time=12.1f;break;case "wrong-plan":s.ActiveLabel="COMET:Hold";break;}
-   bool continued=invalid!="no-native-continuation";p.Continue(b.Decision,ref continued);
-   Check(s.RequestedFrame==-1,"never claim invalid continuation: "+invalid);
-   if(invalid!="wrong-plan")Check(!continued,"invalid continuation returns to native chooser: "+invalid);
+  foreach(string change in new[]{"visible","hurt","ammo","suppressed","medical","reload","blocked","timeout","pending"}) {
+   var(p,b,s)=Setup();
+   if(change=="visible")b.GoalEnemy!.IsVisible=true;
+   if(change=="blocked")s.Progress.IsBlocked=true;
+   if(change=="timeout")Time.time+=50;
+   if(change=="medical")b.BotOwner.Medecine.Using=true;
+   if(change=="reload")b.BotOwner.WeaponManager.Reload.Reloading=true;
+   if(change=="pending")VisibleAdapter.Pending=true;
+   bool continued=true;p.Continue(b.Decision,ref continued);
+   Check(continued&&s.RequestedFrame==Time.frameCount,"no second continuation veto: "+change);
+   continued=false;s.RequestedFrame=-1;p.Continue(b.Decision,ref continued);
+   Check(!continued&&s.RequestedFrame==-1,"native refusal is not overridden: "+change);
   }
-  foreach(bool keep in new[]{true,false})
+  // Direct zzap continuation cases: three-second stalled route and break-off
+  // only for a visible close shooter while SeekCover, not Retreat/self-action.
+  foreach(bool close in new[]{false,true}) {
+   var(p,b,s)=Setup();b.Decision.TimeSinceChangeDecision=1;
+   var point=b.Cover.CoverPoint_MovingTo;point.Distance=close?2:5;
+   bool continued=true;p.Continue(b.Decision,ref continued);Check(continued,"source anchor initialized");
+   Time.time+=3;continued=true;p.Continue(b.Decision,ref continued);Check(continued,"source strict three-second threshold");
+   Time.time+=.01f;continued=true;p.Continue(b.Decision,ref continued);Check(!continued,"source stalled run yields");
+   Check(close?ReferenceEquals(b.Cover.CoverInUse,point)&&b.Cover.CoverPoint_MovingTo==null&&!b.Cover.Sprinting:point.CoverData.IsBad,"source accepts near cover or marks distant point bad");
+  }
+  foreach(string change in new[]{"break","retreat","self","far","empty","reload","near-cover","hidden","no-shot"}) {
+   var(p,b,s)=Setup("A02","Cover");b.GoalEnemy.CanShoot=true;b.GoalEnemy.IsVisible=true;b.Decision.TimeSinceChangeDecision=1;
+   switch(change){case "retreat":b.Decision.CurrentCombatDecision=ECombatDecision.Retreat;break;case "self":b.Decision.CurrentSelfDecision=ESelfActionType.FirstAid;break;case "far":b.GoalEnemy.RealDistance=31;break;case "empty":b.BotOwner.WeaponManager.HaveBullets=false;break;case "reload":b.BotOwner.WeaponManager.Reload.Reloading=true;break;case "near-cover":b.Cover.CoverPoint_MovingTo.PathDistanceStatus=CoverStatus.CloseToCover;break;case "hidden":b.GoalEnemy.IsVisible=false;break;case "no-shot":b.GoalEnemy.CanShoot=false;break;}
+   bool continued=true;p.Continue(b.Decision,ref continued);Check(continued==(change!="break"),"zzap break-off boundary "+change);
+  }
   {
-   var(p,b,s)=Setup("A02","Cover");VisibleAdapter.Pending=true;s.VisibleEngine.KeepPending=keep;
-   var measured=s.VisibleSituation;Time.time=10.1f;bool continued=true;p.Continue(b.Decision,ref continued);
-   Check(continued==keep&&s.VisibleEngine.PendingChecks==1,"early native cover branch uses continuation policy");
-   Check(ReferenceEquals(measured,s.VisibleSituation),"pending exposure cannot replace measured snapshot");
-   Check(s.VisibleEngine.Refreshed==0,"pending callback cannot clear shared deadline");
-   Check(p.Events.Any(x=>x.StartsWith(keep?"cover-kept-pending-exposure":"cover-pending-refused")),"continuation disposition is observable");
+   var(p,b,s)=Setup();b.Decision.TimeSinceChangeDecision=1;bool continued=true;p.Continue(b.Decision,ref continued);
+   Time.time+=2.9f;b.Position=new Vector3(.6f,0,0);continued=true;p.Continue(b.Decision,ref continued);
+   Time.time+=2.9f;continued=true;p.Continue(b.Decision,ref continued);Check(continued,"source anchor resets after half metre of actual movement");
   }
   // All current squad values plus an unknown future value. Safety retreats remain SAIN-owned.
   foreach(bool customLayer in new[]{false,true})
@@ -112,7 +120,7 @@ public static class Cases
   }
   foreach(bool customLayer in new[]{false,true})
   foreach(string phase in customLayer?new[]{"ready","planning"}:new[]{"ready"})
-  foreach(string guard in new[]{"own-squad","self","grenade-decision","dogfight-decision","melee-decision","zombies","enemy-null","enemy-zombie","no-contact","stale","negative-age","disabled","scav","ghost","replica","inactive","ending","no-world","medicine","meds-controller","reload","switch","throwing","hands","door","danger","dogfight","melee","cooldown","reentrant","no-choice","throws"})
+  foreach(string guard in new[]{"own-squad","self","grenade-decision","dogfight-decision","melee-decision","zombies","enemy-null","enemy-zombie","no-contact","stale","negative-age","disabled","scav","ghost","replica","inactive","ending","no-world","medicine","meds-controller","reload","switch","throwing","hands","door","danger","dogfight","melee","reentrant","no-choice","throws"})
   {
    var(p,b,s)=Setup();var solo=ECombatDecision.None;var squad=ESquadDecision.GroupSearch;var self=ESelfActionType.None;Enemy e=b.GoalEnemy;
    p.CustomLayerChoice=customLayer;s.Crossfire.Policy.Active=true;s.Crossfire.Policy.Trace=new(){State=phase};
@@ -157,15 +165,15 @@ public static class Cases
    Check(p.Yields==0&&s.Execution.Phase=="executing","real native action is observed "+action);
    // A null native action must expire even though the decision and label are correct, as in Maksim's raid.
    b.CurrentAction=null;for(int i=61;i<=80;i++){Time.time=10+i*.125f;p.Sample(b,s);}
-   Check(p.Yields==1&&p.Events.Contains("execution-observation-lost")&&s.ActiveLabel=="","lost execution releases "+action);
-   if(s.Feature=="A02")Check(s.VisibleEngine.Refusals==1,"A02 retry is a native refusal, not a successful plan");
+   Check(p.Yields==0&&s.Execution.MissingFor>0,"observation loss is diagnostic, not a tactical veto: "+action);
+   if(s.Feature=="A02")Check(s.VisibleEngine.Refusals==0,"observation cannot mark native refusal");
   }
   {
    var(p,b,s)=Setup("A01","Hold");s.Expected=b.Decision.CurrentCombatDecision=ECombatDecision.Freeze;b.CurrentAction=null;
    s.Execution.Accept(10,s.Feature,s.Decision,"target");
    for(int i=1;i<=20;i++){Time.time=10+i*.125f;if(s.Execution.Active)s.Execution.Accept(Time.time,s.Feature,s.Decision,"target");p.Sample(b,s);}
-   Check(p.Yields==1&&p.Events.Contains("execution-start-not-observed"),"accepted Hold without native action expires despite repeated accepts");
-   Check(s.Engine.Failures==1&&s.Execution.CoolingDown(Time.time),"A01 failed option blocked and native retry cooldown retained through release");
+   Check(p.Yields==0,"missing action observation does not cancel accepted Hold");
+   Check(s.Engine.Failures==0&&!s.Execution.CoolingDown(Time.time),"observation adds neither failure penalty nor retry veto");
    Check(!s.Execution.CoolingDown(16),"native retry cooldown bounded");
   }
   foreach(string pause in new[]{"medical","reload","door","self","squad","grenade"})
@@ -181,8 +189,8 @@ public static class Cases
   {
    var x=new DecisionExecution();x.Accept(0,"A01","Hold","x");double now=0;string reason="";
    for(int i=0;i<100&&reason=="";i++){now+=interval;x.Accept(now,"A01","Hold","x");reason=x.Sample(now,false,false);}
-   Check(reason=="execution-start-not-observed"&&x.CoolingDown(now),"watchdog independent of tick rate "+interval);
-   x.Clear();Check(x.CoolingDown(now),"release preserves retry delay");
+   Check(reason=="execution-start-not-observed"&&!x.CoolingDown(now),"watchdog independent of tick rate "+interval);
+   x.Clear();Check(!x.CoolingDown(now),"release adds no retry delay");
   }
   {var x=new DecisionExecution();x.Accept(1,"A01","Hold","x");x.Sample(1.5,false,false);x.Accept(2,"A01","Hold","y");Check(x.MissingFor==0&&x.Target=="y","new target starts separate observation");x.Sample(1,false,false);Check(!x.Active,"clock rollback clears observation");}
   Console.WriteLine($"Arbitration: {checks} checks of production continuation, priority, native observation and timeout. Native objects doubled; no raid.");
@@ -195,15 +203,20 @@ enum ECombatDecision{None,Freeze,SeekCover,Retreat,AvoidGrenade,DogFight,MeleeAt
 enum ESquadDecision{None,Surround,Retreat,Suppress,PushSuppressedEnemy,BoundingRetreat,Regroup,SpreadOut,HoldPositions,Help,Search,GroupSearch,FutureUnknown}
 enum ESelfActionType{None,Reload,FirstAid,Surgery,Stims}
 enum Tactic{Hold,FallBack,Shoot,Push,Search,Flank,Cover,Grenade}
-class BotComponent{public bool Pmc=true,BotActive=true,IsDead,GameEnding,SAINLayersActive=true,Hurt,LowAmmo,Suppressed;public string ProfileId="pmc";public BotDecisionManager Decision=new();public Owner BotOwner=new();public Player Player=new();public Grenade Grenade=new();public Enemy GoalEnemy=new();public EnemyController EnemyController=new();public Cover Cover=new();public object CurrentAction;}
-class BotDecisionManager{public BotComponent Bot;public ECombatDecision CurrentCombatDecision;public ESelfActionType CurrentSelfDecision;public ESquadDecision CurrentSquadDecision;public DogFight DogFightDecision=new();public object EnemyDecisions=new();}
+class BotComponent{public bool Pmc=true,BotActive=true,IsDead,GameEnding,SAINLayersActive=true,Hurt,LowAmmo,Suppressed;public Vector3 Position;public string ProfileId="pmc";public BotDecisionManager Decision=new();public Owner BotOwner=new();public Player Player=new();public Grenade Grenade=new();public Enemy GoalEnemy=new();public EnemyController EnemyController=new();public Cover Cover=new();public object CurrentAction;}
+class BotDecisionManager{public BotComponent Bot;public float TimeSinceChangeDecision;public ECombatDecision CurrentCombatDecision;public ESelfActionType CurrentSelfDecision;public ESquadDecision CurrentSquadDecision;public DogFight DogFightDecision=new();public object EnemyDecisions=new();}
 class Owner{public Weapon WeaponManager=new();public Medicine Medecine=new();public Door DoorOpener=new();}
-class Weapon{public Reload Reload=new();public Selector Selector=new();public Grenade Grenades=new();public bool IsMelee;}
+class Weapon{public Reload Reload=new();public Selector Selector=new();public Grenade Grenades=new();public bool IsMelee,HaveBullets=true;public object _currentWeaponInfo=new();}
 class Reload{public bool Reloading;}class Selector{public bool IsChanging;}class Medicine{public bool Using;}class Door{public bool Interacting;}class DogFight{public bool DogFightActive;}
 class Grenade{public object GrenadeDangerPoint;public bool ThrowindNow;}
 class Player{public bool Downed;public Hands HandsController=new();}class Hands{public Item Item=new();public bool Busy;public bool IsInInteractionStrictCheck()=>Busy;}class Item{public string Id="weapon";}interface IMedsController{}class Meds:Hands,IMedsController{}
-class Enemy{public bool IsZombie,IsVisible;public string EnemyProfileId="target";public float TimeSinceLastKnownUpdated;public Places KnownPlaces=new();}class Places{public int? LastKnownPosition=1;}class EnemyController{public object KnownEnemies=new();}
-class CoverPoint{public bool Valid=true;}class Cover{public CoverPoint CoverPoint_MovingTo;}
+class Enemy{public bool CanShoot;public float RealDistance=10;public bool IsZombie,IsVisible;public string EnemyProfileId="target";public float TimeSinceLastKnownUpdated;public Places KnownPlaces=new();}class Places{public int? LastKnownPosition=1;}class EnemyController{public object KnownEnemies=new();}
+struct Vector3{public float x,y,z;public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}public float sqrMagnitude=>x*x+y*y+z*z;public static Vector3 operator -(Vector3 a,Vector3 b)=>new(a.x-b.x,a.y-b.y,a.z-b.z);}
+enum CoverStatus{Far,CloseToCover,InCover}
+class CoverData{public bool IsBad;}
+class CoverPoint{public bool Valid=true;public float Distance=5;public CoverStatus PathDistanceStatus;public CoverData CoverData=new();public float GetDistance(Vector3 pos)=>Distance;}
+class Cover{public CoverPoint CoverPoint_MovingTo,CoverInUse;public bool Sprinting=true;}
+static class SourceCoverAccess{public static void Accept(Cover cover){cover.CoverInUse=cover.CoverPoint_MovingTo;cover.CoverPoint_MovingTo=null;cover.Sprinting=false;}}
 class Config{public bool Enabled=true;public ConfigToggle MedicalChoice=new(),ReloadTiming=new();public float ContactLifetime=30,Commitment=2;public VisibleConfig VisibleCombat=new();}class VisibleConfig{public float Commitment=2,RiskTolerance=1;}class ConfigToggle{public bool Enabled=true;}
 class Situation{public string Target="target";public bool Hurt,LowAmmo,Suppressed;public Fear Fear=new();public Loadout Loadout=new();public object Opponent;}
 class VisibleSituation{public float CoverRouteRisk,CoverExposure,RecentHitAt;public bool RecentHit;public string ThreatSignature="",ContinuationReason="",ProbePendingReason="";public bool Pending;}
@@ -213,10 +226,10 @@ class Engine{public int Failures;public void Fail(Tactic tactic,float now,string
 class VisibleEngine{public bool KeepPending=true;public int PendingChecks,Refreshed;public bool TryContinuePending(VisibleSituation v){PendingChecks++;return KeepPending;}public void ProbeRefreshed()=>Refreshed++;public int Refusals;public void NotifyNativeRefusal()=>Refusals++;}
 class BotState
 {
- public string ProfileId="pmc";public PlanServiceRuntime PlanService=new();public ServiceRuntime Medical=new(),ReloadTiming=new(),Crossfire=new();public Handoff Handoff=new();
+ public Vector3 Position;public string ProfileId="pmc";public PlanServiceRuntime PlanService=new();public ServiceRuntime Medical=new(),ReloadTiming=new(),Crossfire=new();public Handoff Handoff=new();
  public BotState(BotComponent b,Config c,string session){}public bool ArbitratingSquad,Retired;public string Feature="",Decision="",ActiveLabel="",ArbitrationKey="",ArbitrationReason="",ArbitrationNative="";
  public float LastSelection,ExecutionSampleAt,ArbitrationAt=-100;public int RequestedFrame=-1;public ECombatDecision Expected;public Situation Situation=new();public VisibleSituation VisibleSituation=new();
- public DecisionExecution Execution=new();public Engine Engine=new();public VisibleEngine VisibleEngine=new();public Runtime CoverFeint=new(),Relocation=new(),Emergency=new();public Progress Progress=new();public CoverPoint SelectedCover;
+ public float CoverRunAnchorAt=-1,CoverRunBreakCountedAt;public Vector3 CoverRunAnchor;public DecisionExecution Execution=new();public Engine Engine=new();public VisibleEngine VisibleEngine=new();public Runtime CoverFeint=new(),Relocation=new(),Emergency=new();public Progress Progress=new();public CoverPoint SelectedCover;
  public Probe Probe=new();public FearRuntime Fear=new();public Loadout LoadoutAtSelection=new();public Intent Intent=new();
 }
 static class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.Pmc;public static Situation Capture(BotComponent b,Enemy e,bool authority,bool ghost)=>new(){Target=e.EnemyProfileId,Hurt=b.Hurt,LowAmmo=b.LowAmmo,Suppressed=b.Suppressed};}

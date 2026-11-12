@@ -5,22 +5,15 @@ using SAIN.SAINComponent.Classes.EnemyClasses;
 using UnityEngine;
 int checks=0;void Check(bool ok,string reason){checks++;if(!ok)throw new Exception(reason);}
 var p=new Plugin();var b=new BotComponent();var end=new Vector3(1,0,0);
-for(int count=0;count<140;count++){
+// zzap movement probes NavMesh and jump headroom, not a second capsule simulation.
+for(int count=0;count<140;count++) {
  Physics.Reset();for(int i=0;i<count;i++)Physics.Overlap.Add(new(){Owner=b.Player});
- string result=p.Check(b,end);Check(count<128?result=="":result.Contains("incomplete-after-retry"),"own colliders require bounded retry, never create a fake wall: "+count);
- Check(Physics.Queries<=5&&p.Empty(),"queries bounded and references released");
+ Check(p.Check(b,end)=="","no custom capsule overflow rejection");Check(p.Empty(),"no retained collider references");
 }
-Physics.Reset();for(int i=0;i<24;i++)Physics.Overlap.Add(new(){Owner=b.Player});Physics.Overlap.Add(new());
-Check(p.Check(b,end).Contains("blocked"),"real wall beyond first 24 still blocks");Check(p.Empty(),"blocked retry cleanup");
-Physics.Reset();for(int i=0;i<24;i++)Physics.Cast.Add(new(){Owner=b.Player});Physics.Cast.Add(new());
-Check(p.Check(b,end).Contains("obstructed"),"swept lane retry catches wall");
-Physics.Reset();for(int i=0;i<128;i++)Physics.Cast.Add(new(){Owner=b.Player});Check(p.Check(b,end).Contains("incomplete"),"swept overflow remains unknown");
-Physics.Reset();Physics.Overlap.Add(new(){Bottom=1.5f});Check(p.Check(b,end,0)==""&&p.Check(b,end,1).Contains("blocked"),"crouched clearance fits under obstacle; standing does not");
-Physics.Reset();Physics.Overlap.Add(new(){Bottom=2.3f});Check(p.Check(b,end)==""&&p.Check(b,end,1,true).Contains("blocked"),"jump retains overhead clearance");
-Physics.Reset();Physics.Overlap.Add(new(){Mask=16});Check(p.Check(b,end)=="","non collision layers excluded");
-Physics.Reset();Physics.Overlap.Add(new(){Owner=new object(),Mask=4});Check(p.Check(b,end).Contains("blocked"),"other bot remains an obstacle");
-Physics.Reset();UnityEngine.AI.NavMesh.Blocked=true;Check(p.Check(b,end).Contains("navmesh-edge"),"navmesh edge retained");
-Physics.Reset();Physics.Throw=true;try{p.Check(b,end);throw new Exception("expected query exception");}catch(InvalidOperationException){Check(p.Empty(),"exception cleanup");}
+Physics.Reset();Physics.Overlap.Add(new());Check(p.Check(b,end)=="","native movement owns body collision");
+Physics.Reset();UnityEngine.AI.NavMesh.Blocked=true;Check(p.Check(b,end).Contains("navmesh-edge"),"source NavMesh edge blocks transit");
+Physics.Reset();Physics.Cast.Add(new(){Mask=2});Check(p.Check(b,end,1,true).Contains("headroom"),"source jump headroom blocks overhead obstacle");
+Physics.Reset();Physics.Cast.Add(new(){Mask=16});Check(p.Check(b,end,1,true)=="","headroom respects collision mask");
 Check(Plugin.Contact(new Enemy{EnemyProfileId="a"},new Enemy{EnemyProfileId="a"}),"replacement wrapper preserves contact");
 var ownDoor=new EFT.Interactive.Door();
 foreach(bool sweep in new[]{false,true}){
@@ -31,12 +24,9 @@ foreach(bool sweep in new[]{false,true}){
  buffer.RemoveAt(buffer.Count-1);for(int i=buffer.Count;i<128;i++)buffer.Add(new(){Door=ownDoor});
  Check(p.Entry(b,ownDoor,sweep)=="incomplete-after-retry"&&p.Empty(),"entry refuses unknown overflow even when known hits are ignored");
 }
-Physics.Reset();for(int i=0;i<24;i++)Physics.Cast.Add(new(){Owner=b.Player});
-Check(p.Sight(b,end)&&Physics.Queries==2&&p.Empty(),"door sightline retries own-collider saturation");
-Physics.Cast.Add(new());Check(!p.Sight(b,end)&&p.Empty(),"door sightline keeps real wall after first 24");
-Physics.Reset();for(int i=0;i<128;i++)Physics.Cast.Add(new(){Owner=b.Player});Check(!p.Sight(b,end)&&p.Empty(),"full sightline retry remains uncertain");
-Physics.Reset();Physics.Cast.Add(new(){Mask=16});Check(p.Sight(b,end),"sightline excludes non-collision layers");
-Physics.Throw=true;try{p.Sight(b,end);throw new Exception("expected ray exception");}catch(InvalidOperationException){Check(p.Empty(),"sightline exception releases references");}
+Physics.Reset();Check(p.Sight(b,end),"clear source sightline");
+Physics.Cast.Add(new(){Mask=2});Check(!p.Sight(b,end),"source linecast detects wall");
+Physics.Reset();Physics.Cast.Add(new(){Mask=16});Check(p.Sight(b,end),"sightline excludes non collision layer");
 Check(!Plugin.Contact(new Enemy{EnemyProfileId="a"},new Enemy{EnemyProfileId="b"})&&!Plugin.Contact(new Enemy(),new Enemy()),"different/unknown contact cannot inherit plan");
 var budget=new DoorWorkBudget();var a=new object();var c=new object();
 Check(budget.TryBegin(1,a,"a",1)&&budget.TryBegin(1,a,"a",1),"initial allowance");

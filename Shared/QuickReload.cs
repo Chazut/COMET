@@ -23,7 +23,7 @@ public sealed class QuickReloadFrame
     public double Now,Distance,ContactAge=999;
     public string Weapon="",OldMagazine="",Replacement="",Target="",Source="personal-memory",Block="";
     public int Loaded,Capacity,OldRounds,ReplacementRounds,SpareMagazines;
-    public bool External,Ready,Reachable,Incoming,Protected;
+    public bool External,Ready,Reachable,Incoming,Protected,InFight,Urgent,UtilityReload=true;
 }
 public sealed class QuickReloadTrace
 {
@@ -43,18 +43,14 @@ public sealed class QuickReloadPolicy
     private int episode;
     public bool Evaluate(QuickReloadFrame f,QuickReloadConfig c)
     {
-        if(Active)return false;
+
         Trace=new(){Episode=++episode,Weapon=f.Weapon,OldMagazine=f.OldMagazine,Replacement=f.Replacement,Target=f.Target,Source=f.Source,
             Loaded=f.Loaded,Capacity=f.Capacity,OldRounds=f.OldRounds,ReplacementRounds=f.ReplacementRounds,SpareMagazines=f.SpareMagazines,
             Distance=f.Distance,ContactAge=f.ContactAge,Incoming=f.Incoming,Protected=f.Protected,
             Alternatives=new[]{"Normal reload: retain the old magazine when inventory space permits","Pistol: W02 decides before the reload request","Quick reload: native animation, old magazine and its rounds left behind"}};
-        string reason=!c.Enabled?"quick-disabled":!Valid(f)?"quick-invalid-evidence":f.Block.Length>0?f.Block:
-            !f.External||f.OldMagazine.Length==0?"quick-external-magazine-required":!f.Ready?"quick-hands-busy":
-            !f.Reachable||f.Replacement==f.OldMagazine||f.ReplacementRounds<=f.OldRounds?"quick-replacement-not-useful":
-            f.SpareMagazines<c.MinimumSpareMagazines?"quick-preserve-spare-magazines":
-            f.Loaded*100.0/f.Capacity>c.MaxAmmoPercent?"quick-preserve-loaded-magazine":
-            f.Protected&&!f.Incoming?"quick-protective-cover":
-            !f.Incoming&&(f.Target.Length==0||f.ContactAge>c.ContactMemory||f.Distance>c.ThreatDistance)?"quick-no-immediate-pressure":"quick-urgent-low-ammo";
+        string reason=!c.Enabled?"quick-disabled":!f.InFight?"quick-not-in-fight":
+            !f.Urgent&&f.UtilityReload&&f.Capacity>0&&f.Loaded*100.0/f.Capacity>=c.MaxAmmoPercent?"quick-preserve-loaded-magazine":
+            f.SpareMagazines<c.MinimumSpareMagazines?"quick-preserve-spare-magazines":"quick-urgent-low-ammo";
         Trace.Reason=reason;Trace.Choice=reason=="quick-urgent-low-ammo"?"Quick":"Normal";
         return Trace.Choice=="Quick";
     }

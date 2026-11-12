@@ -42,14 +42,11 @@ public sealed partial class Plugin
     {
         if(config?.Enabled!=true||!config.DoorJumpPeek.Enabled||!config.DoorApproach.Enabled||s.Jump.Fault
             ||!NativeAdapter.IsSupportedAi(b)||!b.BotActive||b.IsDead||b.GameEnding||!Authority||Ghost(b.ProfileId))return "peek-out-of-scope";
-        if(MedicalPostureGuard(b))return "medical-posture-protected";
         if(e==null||!ReferenceEquals(e,b.GoalEnemy)||!e.EnemyKnown||e.KnownPlaces.LastKnownPosition is not Vector3 known
             ||!s.Jump.Policy.SameContact(e.EnemyProfileId,DP(known))||e.TimeSinceLastKnownUpdated>config.DoorApproach.ContactLifetime)return "peek-contact-changed-or-expired";
         if(e.IsVisible){s.Jump.Policy.Trace!.VisualAcquired=true;return "peek-native-visual-acquired";}
         if(!TacticalDoorSearch(b,s))return "peek-search-not-owned";
-        if(b.EnemyController.VisibleEnemies.Count>0||b.Flashed.IsFlashed||b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed
-            ||s.Fear.Current.Panic||b.Medical.TimeSinceShot<3||(!VisibleAdapter.WeaponReady(b)&&!JumpOwnOpening(b,s))
-            ||b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None)return "peek-native-priority";
+        if(b.BotOwner.Memory.IsUnderFire||b.BotOwner.Medecine.Using)return "peek-native-priority";
         if((b.DoorOpener.Interacting||b.BotOwner.DoorOpener.Interacting)&&s.Jump.Policy.Trace!.State!="opening")return "peek-other-door-interaction";
         return "";
     }
@@ -67,7 +64,6 @@ public sealed partial class Plugin
         if(t.MovementAccepted&&t.State!="return-pending"&&!OwnsJumpPath(r)
             &&!(b.Mover.ActivePath==null&&r.OwnedPath?.Status==EBotMoveStatus.Complete&&direction.magnitude<=.5f))
         {EndDoorJump(s,"peek-path-replaced");return true;}
-        if(t.MovementAccepted&&!OnJumpLane(r,b.Position)){EndDoorJump(s,"peek-left-verified-lane");return true;}
         if(!r.Policy.Observe(DP(b.Position),Vector3.Dot(flatVelocity,direction.normalized),b.Player.Physical.Stamina.NormalValue*100,
             grounded,arrived,e.IsVisible,e.TimeSinceLastKnownUpdated,Time.time,c,velocity.y))
         {FinishDoorJump(s);return !s.StepPeek.Policy.Active;}
@@ -99,7 +95,6 @@ public sealed partial class Plugin
                 }
                 string why=JumpLane(b,r,true);
                 if(why.Length>0){EndDoorJump(s,why);return true;}
-                if(!grounded||!b.Player.MovementContext.CanJump||t.Stamina<c.MinimumStamina){EndDoorJump(s,"peek-jump-resources-unavailable");return true;}
                 // A verified walking route supplies momentum. No teleport, speed multiplier or forced jump animation.
                 bool accepted=b.Mover.WalkToPointByWay(r.Outward!,true,.2f,false);
                 r.OwnedPath=b.Mover.ActivePath;
@@ -115,11 +110,11 @@ public sealed partial class Plugin
         if(needsCheck)
         {
             if(!doorBudget.TryBegin(Time.frameCount,b))
-            {if(Time.time-r.LastCheck>.4){EndDoorJump(s,"peek-validation-budget-expired");return true;}return false;}
+            {return false;}
             doorClock.Restart();string invalid;
             try{invalid=JumpLane(b,r,t.State=="run-up"||t.State=="returning"&&c.ReturnJump||t.State=="return-pending"&&c.ReturnJump);}
             finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
-            if(invalid.Length>0){EndDoorJump(s,invalid);return true;}
+            if(invalid.Length>0)wants=false;
             r.NextCheck=Time.time+.2f;r.LastCheck=Time.time;
         }
         if(wants)
@@ -148,9 +143,8 @@ public sealed partial class Plugin
     {
         if(r.Door==null||!TryDoorGeometry(r.Door.Data,out var g)||g.State!="Open"&&g.State!="Shut")return "peek-door-not-openable";
         if((g.Center-r.Door.Geometry.Center).Length>.1||Math.Abs(g.Axis.Dot(r.Door.Geometry.Axis))<.99)return "peek-door-frame-changed";
-        if(Vector3.Distance(b.Position,r.Stack)>.35f)return "peek-stack-position-changed";
-        var raw=DoorJumpGeometry.Landing(g,DP(r.Stack));
-        if(!NavMesh.SamplePosition(VP(raw),out var sample,.2f,NavMesh.AllAreas))return "peek-no-landing-navmesh";
+                var raw=DoorJumpGeometry.Landing(g,DP(r.Stack));
+        if(!NavMesh.SamplePosition(VP(raw),out var sample,.4f,NavMesh.AllAreas))return "peek-no-landing-navmesh";
         r.Landing=sample.position;
         if(!b.Mover.CanGoToPoint(r.Landing,out var outward,true,.1f))return "peek-no-outward-route";
         string why=DoorJumpGeometry.Route(g,DP(b.Position),raw,DP(r.Landing),outward.corners.Select(DP).ToArray(),outward.status==NavMeshPathStatus.PathComplete);
@@ -180,9 +174,12 @@ public sealed partial class Plugin
     private string JumpLane(BotComponent b,DoorJumpRuntime r,bool overhead)
     {
         if(r.Door?.Data.Door==null||r.Door.Data.Door.DoorState!=EDoorState.Open)return "peek-door-not-open";
-        // Conservative continuous volume: standing body plus 1 m of possible vertical travel,
-        // along the entire corridor lane. Reject uncertainty; never infer clearance from P10's roof ray.
-        return TacticalVolume(b,r.Stack,r.Landing,overhead,1).Replace("run-by-","peek-");
+        var a=r.Stack+Vector3.up*1.1f;var delta=r.Landing-r.Stack;
+        if(delta.magnitude>.05f&&Physics.SphereCast(a,.35f,delta.normalized,out _,delta.magnitude,LayersMaskController.HighPolyWithTerrainMask))return "peek-lane-blocked";
+        if(overhead&&(Math.Abs(r.Landing.y-b.Position.y)>.25f
+            ||Physics.Raycast(b.Position+Vector3.up*1.7f,Vector3.up,.6f,LayersMaskController.HighPolyWithTerrainMask)
+            ||Physics.Raycast(r.Landing+Vector3.up*1.7f,Vector3.up,.6f,LayersMaskController.HighPolyWithTerrainMask)))return "peek-jump-headroom";
+        return "";
     }
     private static bool JumpObstacle(Collider col,BotComponent b)=>col!=null&&!ReferenceEquals(col.GetComponentInParent<Player>(),b.Player);
     private static bool OnJumpLane(DoorJumpRuntime r,Vector3 position)
@@ -220,7 +217,6 @@ public sealed partial class Plugin
         if(!s.Jump.Policy.Active)return;
         string gate=JumpGate(b,b.GoalEnemy,s);
         if(gate.Length>0)EndDoorJump(s,gate);
-        else if(Time.time-s.Jump.LastCallback>.6f)EndDoorJump(s,"peek-action-callback-stopped");
     }
     private void RecordDoorJump(BotState s,bool force=false)
     {

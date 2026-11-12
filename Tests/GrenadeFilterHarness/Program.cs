@@ -37,7 +37,7 @@ foreach(var edit in new Action<Plugin,BotComponent>[] {
 }
 foreach(var item in new[]{Smoke(),new ThrowWeap{ThrowType="gas_grenade"},new ThrowWeap{EmitTime=10},new ThrowWeap{ThrowType="custom"},new ThrowWeap{IsDummy=true}}){var(p,b)=Setup(item);Check(!Ready(p,b),"excluded-only inventory cannot throw");Save(p);}
 {
- var(p,b)=Setup(Flash());b.BotOwner.WeaponManager.Grenades.grenade!.GetExplDelay=1;Check(!Ready(p,b),"flash with inadequate arrival margin blocked");Save(p);
+ var(p,b)=Setup(Flash());b.BotOwner.WeaponManager.Grenades.grenade!.GetExplDelay=1;Check(Ready(p,b),"source flash selection does not add a flight-margin veto");Save(p);
  var(q,c)=Setup(Flash(),Frag());Check(Ready(q,c)&&c.BotOwner.WeaponManager.Grenades.grenade!.Id=="frag","G03 prefers suitable frag over current flash");
  var(r,d)=Setup(Frag(),Flash());d.Player.Inventory.Items.OfType<ThrowWeap>().First().GetExplDelay=1;Check(Ready(r,d)&&d.BotOwner.WeaponManager.Grenades.grenade!.Id=="flash","unsafe frag does not hide suitable flash");Save(r);
 }
@@ -49,7 +49,7 @@ foreach(var exclude in new Action<Plugin,BotComponent>[] {(p,b)=>p.Settings.Enab
  b.BotOwner.WeaponManager.Grenades.ThrowindNow=true;Check(!p.FilterPrepare(b)&&b.BotOwner.WeaponManager.Grenades.Selections==0,"hands in progress never swapped");
 }
 {
- var(p,b)=Setup(Flash());Physics.BlastShield=false;Check(!Ready(p,b),"nearby exposed thrower cannot use flash despite eligible category");
+ var(p,b)=Setup(Flash());Physics.BlastShield=false;Check(Ready(p,b),"source selection does not add a separate blast-shield veto");
  var(q,c)=Setup(Frag());Check(q.FilterPrepare(c)&&!q.NativeThrow(c),"category selection alone does not bind an unprepared arc");
 }
 {

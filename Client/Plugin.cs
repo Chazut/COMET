@@ -220,8 +220,6 @@ public sealed partial class Plugin : BaseUnityPlugin
             RunIntegration("PatchReadyStance",()=>PatchReadyStance(harmony));
 
             RunIntegration("PatchCrossfire",()=>PatchCrossfire(harmony));
-            harmony.Patch(AccessTools.Method(typeof(SAINMoverClass), "GoToCoverPoint", new[] { typeof(CoverPoint), typeof(bool), typeof(ESprintUrgency) }),
-                prefix: new HarmonyMethod(typeof(Plugin), nameof(ProgressCoverMove)));
             RunIntegration("flank-execution",()=>PatchFlank(harmony));
             RunIntegration("fault-owner-contracts",PrepareFaultOwners);
             RunIntegration("PatchDoorEntry",()=>PatchDoorEntry(harmony!));
@@ -402,7 +400,6 @@ public sealed partial class Plugin : BaseUnityPlugin
             if(plugin.ObservePlanService(bot,state,false))return true;
             if(NativeChoiceHasPriority(bot,state))
             {plugin.YieldToSain(state,"handoff-native-priority","priority");return true;}
-            if(state.Execution.CoolingDown(Time.time))return true;
             if(!plugin.GuardDoorReservation(bot,state))return true;
             plugin.RefreshEnvironment(bot,state);
             if (Time.time < state.FaultUntil) return true;
@@ -419,6 +416,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             if(!VisibleAdapter.WeaponReady(bot)&&!JumpOwnOpening(bot,state)&&!RunOwnOpening(bot,state)&&!EntranceOwnOpening(bot,state))
             {plugin.YieldToSain(state,"handoff-native-priority","priority");return true;}
             if(MedicalPostureGuard(bot))return true;
+            if(plugin.ChooseNativeStorm(bot,state,ref result,ref __result))return false;
             if(plugin.ContinueCrossfireDecision(bot,state,ref result,ref __result))return false;
             if(state.Handoff.Blocked(Time.time,HandoffContact(situation)))return true;
             plugin.RefreshFear(bot, state);
@@ -449,7 +447,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                     plugin.Emit(state, "selected", state.Sight.Reason);
                 }
                 state.SightEvent = sight; state.Situation = SightSituation(situation, sight);
-                state.Expected = sight.Action == "Push" ? ECombatDecision.RushEnemy : ECombatDecision.StandAndShoot;
+                state.Expected = sight.Action == "Push" ? ECombatDecision.RushEnemy : sight.Action == "DogFight" ? ECombatDecision.DogFight : ECombatDecision.StandAndShoot;
                 state.RequestedFrame = Time.frameCount; result = state.Expected; __result = true; return false;
             }
             if (enemy.IsVisible)
@@ -458,6 +456,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 if (state.Feature != "A02")
                 { plugin.Release(state, "visible-contact-handoff", false, state.Feature == "A03"); state.Feature = "A02"; }
                 state.Situation = situation;
+                if(state.VisibleEngine.NeedsEvidence(situation,bot.Medical.TimeSinceShot<1.5f))ZzapUtilityCapture.Fill(bot,enemy,situation);
                 var visible = VisibleAdapter.Capture(bot, enemy, situation, state, plugin.config);
                 ProgressAdapter.Candidates(bot,state,situation);
                 situation.Opportunity = plugin.ReadOpportunity(bot, enemy, state, situation, visible);
@@ -507,13 +506,13 @@ public sealed partial class Plugin : BaseUnityPlugin
             var gate = HiddenEnemyDecision.Ineligible(situation, plugin.config);
             if(gate != null) plugin.EndSilentSearch(state,gate);
             if (gate != null) { plugin.YieldToSain(state, gate); return true; }
+            if(state.Engine.NeedsEvidence(situation))ZzapUtilityCapture.Fill(bot,enemy,situation);
             NativeAdapter.Capabilities(bot, enemy, situation, state, plugin.config);
             ProgressAdapter.Candidates(bot,state,situation);
             state.Intent.Apply(situation);
             situation.SilentSearch = plugin.ReadSilentSearch(bot,enemy,state,situation);
             situation.Encounter = plugin.ReadEncounter(bot,enemy,state,situation);
             situation.Outcome = plugin.ReviewOutcome(bot,state);
-            if(plugin.KeepSafePath(bot,state,situation,ref result,ref __result))return false;
             situation.Opportunity = plugin.ReadOpportunity(bot, enemy, state, situation);
             for (int attempt = 0; attempt < 6; attempt++)
             {
@@ -650,8 +649,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             bool moveRefused=false;
             string failure = "selected-cover-invalidated-before-move";
             if (VisibleAdapter.ValidCover(bot, point)
-                && !state.Progress.Blocked(ProgressAdapter.CoverKey(point),Time.time)
-                && (state.Feature == "A01" || state.Probe != null && Time.time - state.Probe.At <= 1 && ReferenceEquals(state.Probe.Cover, point))
+
                 && SelectionCoverUsable(bot, point!, out failure)
                 && !(moveRefused=!bot.Mover.GoToCoverPoint(point!, false, ESprintUrgency.High)))
             { __result = point!; return false; }
@@ -670,79 +668,25 @@ public sealed partial class Plugin : BaseUnityPlugin
 
     private static void ContinueCover(BotDecisionManager __instance, ref bool __result)
     {
-        var plugin = Instance;
-        if(plugin?.states.TryGetValue(__instance.Bot,out var feint)==true && feint.CoverFeint.Policy.Active){__result=false;return;}
-        if(plugin?.states.TryGetValue(__instance.Bot,out var relocate)==true && relocate.Relocation.Policy.Active){__result=false;return;}
-        if(plugin?.states.TryGetValue(__instance.Bot,out var emergency)==true&&emergency.Emergency.Policy.Active)
+        var plugin=Instance;
+        if(plugin?.config==null||!plugin.states.TryGetValue(__instance.Bot,out var state))return;
+        var bot=__instance.Bot;
+        if(!plugin.TacticalScope(bot,bot.GoalEnemy))return;
+        // A source custom movement layer owns its own route. Native cover continuation
+        // cannot bypass that layer; otherwise preserve SAIN's result verbatim.
+        if(state.CoverFeint.Policy.Active||state.Relocation.Policy.Active||state.Emergency.Policy.Active)
         {__result=false;return;}
-        if (!__result || plugin?.config == null || !plugin.states.TryGetValue(__instance.Bot, out var state)) return;
-        bool hidden = state.Feature == "A01" && state.ActiveLabel == "COMET:FallBack";
-        if (!hidden && !(state.Feature == "A02" && state.ActiveLabel == "COMET:Cover")) return;
-        try
-        {
-            var bot = __instance.Bot; var enemy = bot.GoalEnemy;
-            plugin.RefreshProgress(bot,state);
-            if(state.ActiveLabel.Length==0 || state.Progress.Blocked(ProgressAdapter.CoverKey(state.SelectedCover),Time.time)) {__result=false;return;}
-            // With progress monitoring disabled, A01 lets SAIN choose the actual cover.
-            // Capture that destination once; never silently follow a later unrelated cover.
-            var point = state.SelectedCover ?? (hidden ? bot.Cover.CoverPoint_MovingTo : null);
-            bool valid = plugin.TacticalScope(bot,enemy) && !TacticalHandsBusy(bot)
-                && bot.Grenade.GrenadeDangerPoint == null && !bot.Decision.DogFightDecision.DogFightActive
-                && bot.Decision.CurrentSelfDecision == ESelfActionType.None && bot.Decision.CurrentSquadDecision == ESquadDecision.None
-                && enemy != null && enemy.EnemyProfileId == state.Situation?.Target && VisibleAdapter.WeaponReady(bot)
-                && ReferenceEquals(point, bot.Cover.CoverPoint_MovingTo) && VisibleAdapter.ValidCover(bot, point)
-                && !state.Progress.Blocked(ProgressAdapter.CoverKey(point),Time.time);
-            // Return to the chooser periodically, even when SAIN would continue moving indefinitely.
-            if (!valid || Time.time - state.LastSelection >= (hidden ? plugin.config.Commitment : plugin.config.VisibleCombat.Commitment))
-            { __result = false; return; }
-            state.SelectedCover = point;
-            if (hidden)
-            {
-                if(enemy!.IsVisible) { __result=false;return; }
-                var s=NativeAdapter.Capture(bot,enemy,plugin.Authority,false);
-                if(s.Hurt!=state.Situation?.Hurt || s.LowAmmo!=state.Situation?.LowAmmo || s.Suppressed!=state.Situation?.Suppressed)
-                {__result=false;return;}
-                state.Situation=s;
-            }
-            else if (enemy!.IsVisible)
-            {
-                var s = NativeAdapter.Capture(bot, enemy, plugin.Authority, false);
-                plugin.RefreshFear(bot, state); s.Fear = state.Fear.Current;
-                s.Loadout = plugin.ReadLoadout(bot, state);
-                s.Opponent = plugin.ReadOpponent(bot, enemy, state, s);
-                if (s.Loadout?.PlanKey != state.LoadoutAtSelection?.PlanKey) { __result = false; return; }
-                if (s.Fear.Panic) { __result = false; return; }
-                var v = VisibleAdapter.Capture(bot, enemy, s, state, plugin.config);
-                string? ineligible = VisibleEnemyDecision.Ineligible(v, plugin.config);
-                if(ineligible == "exposure-probe-pending")
-                {
-                    bool kept=state.VisibleEngine.TryContinuePending(v);
-                    plugin.ArbitrationEvent(state,kept?"cover-kept-pending-exposure":"cover-pending-refused:"+v.ContinuationReason,v.ProbePendingReason);
-                    if(!kept){__result=false;return;}
-                    // Keep the last measured snapshot. A deferred probe contains no new risk measurement.
-                    state.Situation=s;
-                }
-                else
-                {
-                    if (ineligible != null || v.CoverRouteRisk > plugin.config.VisibleCombat.RiskTolerance
-                        || v.CoverExposure > .5 || v.ThreatSignature != state.VisibleSituation?.ThreatSignature
-                        || (v.RecentHit && (state.VisibleSituation?.RecentHit != true || v.RecentHitAt > state.VisibleSituation.RecentHitAt + .01))
-                        || s.Hurt != state.Situation?.Hurt || s.LowAmmo != state.Situation?.LowAmmo || s.Suppressed != state.Situation?.Suppressed)
-                    { __result = false; return; }
-                    state.VisibleEngine.ProbeRefreshed();
-                    state.Situation = s; state.VisibleSituation = v;
-                }
-            }
-            else if (!state.Intent.Allows(enemy.EnemyProfileId, Time.time)) { __result = false; return; }
-            else state.Situation = NativeAdapter.Capture(bot, enemy, plugin.Authority, false);
-            // SAIN continues both Retreat and SeekCover through its SeekCover action.
-            // Renew this specific validated plan, not an arbitrary matching native decision.
-            if(hidden && state.Expected!=ECombatDecision.SeekCover)
-                plugin.ArbitrationEvent(state,"fallback-cover-continuation","SeekCover");
-            state.Expected=ECombatDecision.SeekCover;
-            state.RequestedFrame = Time.frameCount;
-        }
-        catch (Exception ex) { __result = false; plugin.YieldToSain(state, "cover-continuation-error", "error"); plugin.Logger.LogWarning(ex.Message); }
+        if(!__result)return;
+        if(!plugin.SourceContinueCover(bot,state)){__result=false;return;}
+        bool hidden=state.Feature=="A01"&&state.ActiveLabel=="COMET:FallBack";
+        if(!hidden&&!(state.Feature=="A02"&&state.ActiveLabel=="COMET:Cover"))return;
+        // Observability only: no second eligibility, exposure, snapshot-change,
+        // progress or periodic-review veto over an accepted native continuation.
+        state.SelectedCover=bot.Cover.CoverPoint_MovingTo;
+        if(hidden&&state.Expected!=ECombatDecision.SeekCover)
+            plugin.ArbitrationEvent(state,"fallback-cover-continuation","SeekCover");
+        state.Expected=ECombatDecision.SeekCover;
+        state.RequestedFrame=Time.frameCount;
     }
 
     private readonly DecisionConfiguration decisionConfiguration=new();
@@ -862,6 +806,9 @@ public sealed partial class Plugin : BaseUnityPlugin
 
 internal sealed class BotState
 {
+        public float CoverRunAnchorAt=-1f, CoverRunBreakCountedAt;
+        public Vector3 CoverRunAnchor;
+
     private static int maintenanceOrdinal;
     internal readonly PeriodicWorkSlot Maintenance=new(System.Threading.Interlocked.Increment(ref maintenanceOrdinal));
     internal readonly FlankRuntime Flank = new();

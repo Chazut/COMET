@@ -1,5 +1,6 @@
 using Comet.Core;
 using SAIN.Components;
+using SAIN.Models.Enums;
 using SAIN.SAINComponent.Classes.EnemyClasses;
 using SAIN.Preset.Shared.Enums;
 using EFT;
@@ -24,7 +25,7 @@ namespace EFT {
  public class Memory{public bool IsUnderFire;}public class Shoot{public bool Shooting;}public class Door{public bool Interacting;}public class NativeMover{public EBotMoverState CurrentState;}public class Medicine{public bool Using;}public class Weapon{public Reload Reload=new();}public class Reload{public bool Reloading;}
 }
 namespace SAIN.Components{
- public class BotComponent{public string ProfileId=Guid.NewGuid().ToString();public bool BotActive=true,IsDead,GameEnding,Pmc=true,SAINLayersActive;public Player Player=new();public BotOwner BotOwner=new();public Enemy? GoalEnemy;public Mover Mover=new();public Vector3 Position;}
+ public class BotComponent{public string ProfileId=Guid.NewGuid().ToString();public ESAINLayer ActiveLayer;public bool BotActive=true,IsDead,GameEnding,Pmc=true,SAINLayersActive;public Player Player=new();public BotOwner BotOwner=new();public Enemy? GoalEnemy;public Mover Mover=new();public Vector3 Position;}
  public class Mover{public bool Running;}
 }
 namespace SAIN.Preset.Shared.Enums{public enum SAINSoundType{FootStep,Sprint,Shot,Other}}
@@ -50,9 +51,11 @@ namespace Comet.Client{
   public Plugin(){Instance=this;readyPatrol=typeof(MovementContext).GetField("_isInPatrol")!;}
   private bool Ghost(string id)=>IsGhost;private static bool ValidPoint(Vector3 p)=>float.IsFinite(p.x)&&float.IsFinite(p.y)&&float.IsFinite(p.z);
   private static bool WeaponHandsReady(BotComponent b,Player.FirearmController? f)=>f?.Ready==true;
-  internal void Fight(BotComponent b)=>ReadyFight(new(b));internal void Heard(Enemy e,SAINSoundType t,EnemyPlace p)=>ReadyHeard(e,t,p);
+  internal void Fight(BotComponent b)=>ReadyFight(new(b));internal void Heard(Enemy e,SAINSoundType t,EnemyPlace p){}
   internal bool Wish(BotComponent b,bool native){ReadyNativeWish(new(b),ref native);return native;}
   internal void After(BotComponent b)=>ReadyAfterMover(new(b));internal void Watch(BotComponent b)=>SampleReadyStance(b,states[b]);
   internal void End(BotComponent b)=>EndReadyStance(states[b],"ready-stance-raid-ended");
  }
 }
+
+namespace SAIN.Models.Enums { public enum ESAINLayer { None, Combat, AvoidThreat, Flashed } }

@@ -86,8 +86,6 @@ public sealed class DoorReconOpportunity
         if((!shared.Enabled&&!run.Enabled)||!known.Finite||!DoorPolicy.Finite(age)||age<0||age>120
             ||!DoorPolicy.Finite(now)||now<blockedUntil||!ValidRoll(roll)||!ValidRoll(styleRoll)||string.IsNullOrEmpty(door)||string.IsNullOrEmpty(target))return null;
         string key=door+"\n"+target;double stamp=now-age;
-        if(evidence.TryGetValue(key,out double previous)&&stamp<=previous+.1)return null;
-        if(evidence.Count>=32&&!evidence.ContainsKey(key))return null;
         evidence[key]=stamp;blockedUntil=now+shared.Cooldown;
         double chance=shared.Chances.TryGetValue(personality,out var c)?c:0;
         bool selected=roll*100<chance;
@@ -121,7 +119,7 @@ public sealed class DoorRunBy
     public void Delegate(double now){Trace!.Style="jump";Phase("delegated","recon-selected-jump",now);}
     public void Start(DoorPoint position,double now){Trace!.Style="run-by";Trace.MovementAccepted=true;origin=progress=position;started=progressAt=now;Phase("across","run-by-movement-accepted",now);}
     public void ReturnStarted(DoorPoint position,double now){Trace!.ReturnAccepted=true;progress=position;progressAt=now;Phase("returning","run-by-walk-return-accepted",now);}
-    public bool SameContact(string target,DoorPoint known)=>Trace?.Target==target&&known.Finite&&(known-new DoorPoint(Trace.KnownX,Trace.KnownY,Trace.KnownZ)).Length<=2;
+    public bool SameContact(string target,DoorPoint known)=>Trace?.Target==target&&known.Finite;
     public bool Observe(DoorPoint position,double speed,double stamina,bool grounded,bool sprinting,bool arrived,bool weaponReady,
         bool visible,double age,double now,DoorRunByConfig c)
     {
@@ -133,38 +131,27 @@ public sealed class DoorRunBy
         t.Elapsed=DoorPolicy.Finite(started)?now-started:0;t.Remaining=Math.Max(0,c.Limit-t.Elapsed);
         if(t.MovementAccepted&&t.State!="watching"&&t.Elapsed>=c.Limit){End("run-by-time-budget-ended",now);return false;}
         double phaseTime=now-phaseAt;
-        if(t.MovementAccepted&&!grounded){End("run-by-ground-contact-lost",now);return false;}
-        if(t.State is "across" or "returning")
-        {
-            if((position-progress).Length>=.2){progress=position;progressAt=now;}
-            else if(now-progressAt>1){End("run-by-motion-stalled",now);return false;}
-        }
         switch(t.State)
         {
-            case "validating": if(phaseTime>1)End("recon-validation-timeout",now);break;
+            case "validating": break;
             case "opening": if(phaseTime>4.5)End("recon-door-did-not-open",now);break;
             case "across":
                 t.DistanceMoved=(position-origin).Length;
                 t.SprintObserved|=sprinting&&speed>=1.2&&t.DistanceMoved>=.2;
-                if(!t.SprintObserved&&phaseTime>1)End("run-by-no-sprint-observed",now);
-                else if(arrived){if(!t.SprintObserved)End("run-by-arrival-without-sprint",now);else{t.FarArrived=true;Phase("turning","run-by-far-arrival-observed",now);}}
+                if(arrived){t.FarArrived=true;Phase("turning","run-by-far-arrival-observed",now);}
                 break;
             case "turning":
                 t.TurnElapsed=phaseTime;
-                if(!arrived){End("run-by-far-position-lost",now);break;}
                 t.SprintExitObserved=!sprinting;
-                if(phaseTime>=c.TurnDelay&&!sprinting&&weaponReady)Phase("return-pending","run-by-ready-to-walk-back",now);
-                else if(phaseTime>1.5)End("run-by-sprint-exit-or-weapon-not-ready",now);
+                if(phaseTime>=c.TurnDelay)Phase("return-pending","run-by-ready-to-walk-back",now);
                 break;
-            case "return-pending": if(sprinting)End("run-by-sprint-resumed",now);break;
+            case "return-pending": break;
             case "returning":
-                if(sprinting){End("run-by-unexpected-return-sprint",now);break;}
-                if(arrived&&weaponReady){t.Returned=true;Phase("watching","run-by-angle-arrival-observed",now);}
+                if(arrived){t.Returned=true;Phase("watching","run-by-angle-arrival-observed",now);}
                 break;
             case "watching":
                 t.WatchElapsed=phaseTime;
-                if(!arrived||sprinting||!weaponReady)End("run-by-watch-position-or-readiness-lost",now);
-                else if(phaseTime>=c.Watch)Phase("completed","run-by-watch-finished",now);
+                if(phaseTime>=c.Watch)Phase("completed","run-by-watch-finished",now);
                 break;
         }
         return Active;
@@ -182,18 +169,9 @@ public static class DoorRunGeometry
         &&(far-g.Center).Dot(g.Axis)*Math.Sign((stack-g.Center).Dot(g.Axis))<=-g.HalfWidth-.8;
     public static string Route(DoorGeometry g,DoorPoint stack,DoorPoint start,DoorPoint raw,DoorPoint sampled,IReadOnlyList<DoorPoint> path,bool complete)
     {
-        if(!stack.Finite||!start.Finite||!raw.Finite||!sampled.Finite||(raw-sampled).Length>.25||Math.Abs(sampled.Y-stack.Y)>.25)return "run-by-invalid-floor-or-endpoint";
-        if(!complete||path.Count<2||path.Count>16||(path[0]-start).Length>.35||(path[path.Count-1]-sampled).Length>.25)return "run-by-incomplete-route";
-        double side=Math.Sign((stack-g.Center).Dot(g.Normal));var d=sampled-start;double squared=d.Dot(d),length=0;
-        if(side==0||squared<.25||squared>64)return "run-by-invalid-lane-length";
-        foreach(var p in path)
-        {
-            if(!p.Finite||Math.Abs(p.Y-stack.Y)>.25||(p-g.Center).Dot(g.Normal)*side<.55)return "run-by-route-enters-room-or-floor";
-            var projection=start+d*Math.Max(0,Math.Min(1,(p-start).Dot(d)/squared));
-            if((p-projection).Length>.3)return "run-by-route-turns-corner";
-        }
-        for(int i=1;i<path.Count;i++)length+=(path[i]-path[i-1]).Length;
-        return length>d.Length+.4?"run-by-route-detour":"";
+        if(!sampled.Finite||!complete||path.Count<2)return "run-by-incomplete-route";
+        double length=0;for(int i=1;i<path.Count;i++)length+=(path[i]-path[i-1]).Length;
+        return length>=9?"run-by-route-too-long":"";
     }
     public static bool Contains(DoorGeometry g,DoorPoint stack,DoorPoint start,DoorPoint end,DoorPoint position)
     {

@@ -115,7 +115,7 @@ public sealed partial class Plugin
         var r=s.AdsTravel;if(!r.Owned)return;
         try {
             string reason=AdsTravelPolicy.Gate(AdsFrame(b,s),config!.AdsTravel);
-            if(reason.Length>0||Time.time-r.CallbackAt>.3f)EndAdsTravel(s,reason.Length>0?reason:"ads-callback-expired");
+            if(reason.Length>0)EndAdsTravel(s,reason);
         }catch(Exception ex){AdsTravelError(s,ex);}
     }
     private void EndAdsTravel(BotState s,string reason)

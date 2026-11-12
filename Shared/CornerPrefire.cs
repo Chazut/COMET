@@ -5,13 +5,13 @@ namespace Comet.Core;
 public sealed class CornerPrefireConfig
 {
     public bool Enabled { get; set; }=true;
-    public double Chance { get; set; }=40;
+    public double Chance { get; set; }=60;
     public double ObservationMaxAge { get; set; }=2.5;
     public double KnownCornerDistance { get; set; }=3;
     public double FireCornerDistance { get; set; }=4;
     public int AutomaticRounds { get; set; }=4;
     public int SingleRounds { get; set; }=1;
-    public double FireLimit { get; set; }=.6;
+    public double FireLimit { get; set; }=1.5;
     public int StartRounds { get; set; }=10;
     public double StartPercent { get; set; }=40;
     public int ReserveRounds { get; set; }=5;
@@ -20,7 +20,7 @@ public sealed class CornerPrefireConfig
     {
         void R(double n,double min,double max){if(!DoorPolicy.Finite(n)||n<min||n>max)throw new ArgumentException("Corner prefire: invalid limit.");}
         R(Chance,0,100);R(ObservationMaxAge,.5,3);R(KnownCornerDistance,.5,4);R(FireCornerDistance,1,5);
-        R(AutomaticRounds,1,6);R(SingleRounds,1,1);R(FireLimit,.1,.8);R(StartRounds,1,30);R(StartPercent,10,100);
+        R(AutomaticRounds,1,6);R(SingleRounds,1,1);R(FireLimit,.1,1.5);R(StartRounds,1,30);R(StartPercent,10,100);
         R(ReserveRounds,1,20);R(ReservePercent,10,90);
         if(StartRounds<=ReserveRounds||StartPercent<=ReservePercent)throw new ArgumentException("Corner prefire: start ammunition must exceed reserve.");
     }
@@ -50,7 +50,7 @@ public sealed class CornerPrefire
     public bool Active=>Trace is {Selected:true}&&Trace.State!="ended";
     public double Deadline { get; private set; }
     private int consumed=-1,episode;
-    private double seenAt,last,fireAt=-1;
+    private double seenAt,last,fireAt=-1,fireLimit;
     public bool Begin(CornerPrefireFrame f,CornerPrefireConfig c,double roll)
     {
         if(Active||!f.ParentActive||f.ParentEpisode==consumed)return false;
@@ -60,10 +60,10 @@ public sealed class CornerPrefire
             AmmoStart=Math.Max(0,f.Ammo),Capacity=Math.Max(0,f.Capacity),Reserve=c.Reserve(Math.Max(0,f.Capacity)),Quota=f.Automatic?c.AutomaticRounds:c.SingleRounds,
             KnownX=f.Known.X,KnownY=f.Known.Y,KnownZ=f.Known.Z,AimX=f.Aim.X,AimY=f.Aim.Y,AimZ=f.Aim.Z,
             Alternatives=new[]{"Continue M05 walking approach without prefire", "Reacquired contact: yield to native SAIN shooting", "Jump approach: prefire excluded"}};
-        Deadline=Math.Min(f.ParentDeadline,seenAt+c.ObservationMaxAge);Snapshot(f);
+        Deadline=f.ParentDeadline;Snapshot(f);
         string gate=Gate(f,c);
         if(gate.Length==0&&f.Ammo<c.Start(f.Capacity))gate="prefire-start-ammo";
-        if(gate.Length==0&&(!DoorPolicy.Finite(roll)||roll<0||roll>=1||roll*100>=c.Chance))gate="prefire-roll-declined";
+        // Style has already been drawn by CornerChase; no second independent roll.
         if(gate.Length>0){End(gate);return false;}
         Trace.Selected=true;Snapshot(f);return true;
     }
@@ -71,16 +71,16 @@ public sealed class CornerPrefire
     {
         if(!c.Enabled)return "prefire-disabled";
         if(!f.ParentActive||f.ParentEpisode!=Trace!.ParentEpisode)return "prefire-parent-ended";
-        if(f.ParentStyle=="jump")return "prefire-jump-excluded";
+        if(f.ParentStyle!="prefire")return "prefire-other-style";
         if(f.Block.Length>0)return f.Block;
         if(f.Target!=Trace.Target||f.Weapon!=Trace.Weapon||f.Mode!=Trace.Mode)return "prefire-contact-or-weapon-changed";
         if(f.Target.Length==0||f.Weapon.Length==0||!DoorPolicy.Finite(f.Now)||!DoorPolicy.Finite(seenAt)||seenAt<0||f.Now<seenAt
             ||!DoorPolicy.Finite(f.ParentDeadline)||!CornerChase.Point(f.Aim)||!CornerChase.Point(f.Known)
             ||!DoorPolicy.Finite(f.CornerDistance)||f.CornerDistance<0||!DoorPolicy.Finite(f.KnownCornerDistance)||f.KnownCornerDistance<0)return "prefire-invalid-evidence";
-        if(f.Now-seenAt>c.ObservationMaxAge)return "prefire-observation-expired";
-        if(f.KnownCornerDistance>c.KnownCornerDistance)return "prefire-contact-too-far-from-corner";
+
+
         if(f.Capacity<=0||f.Ammo<=Trace.Reserve)return "prefire-ammo-reserve";
-        if(!f.AllySafe)return "prefire-friendly-block";
+        // ManualShoot performs the source friendly-fire check.
         if(f.Now>=Deadline)return "prefire-window-expired";
         return "";
     }
@@ -88,8 +88,8 @@ public sealed class CornerPrefire
     {
         if(!Active)return false;
         Snapshot(f);string gate=Gate(f,c);
-        if(gate.Length==0&&(f.Now<last||f.Now-last>.4))gate="prefire-callback-expired";
-        if(gate.Length==0&&Trace!.Requested&&(!f.Fresh||!f.Clear||!f.Aligned||f.CornerDistance>c.FireCornerDistance))gate="prefire-fire-lane-lost";
+        if(gate.Length==0&&f.Now<last)gate="prefire-callback-expired";
+
         if(gate.Length>0){End(gate);return false;}
         last=f.Now;
         if(!Trace!.Requested)Trace.Reason=!f.Fresh?"prefire-awaiting-safety":!f.Clear?"prefire-awaiting-muzzle-clear":f.CornerDistance>c.FireCornerDistance?"prefire-approaching-corner":!f.Aligned?"prefire-aiming":"prefire-ready";
@@ -97,25 +97,29 @@ public sealed class CornerPrefire
     }
     public bool Request(CornerPrefireFrame f,CornerPrefireConfig c)
     {
-        if(!Observe(f,c)||Trace!.Requested||!f.Fresh||!f.Clear||!f.Aligned||f.CornerDistance>c.FireCornerDistance)return false;
-        if(f.Ammo<c.Start(f.Capacity)){End("prefire-start-ammo");return false;}
-        Trace.Requested=true;Trace.State="firing";Trace.Reason="prefire-shot-requested";fireAt=f.Now;
-        Deadline=Math.Min(Deadline,f.Now+c.FireLimit);Snapshot(f);return true;
+        if(!Observe(f,c)||f.CornerDistance>c.FireCornerDistance)return false;
+        if(fireAt<0&&f.Ammo<c.Start(f.Capacity)){End("prefire-start-ammo");return false;}
+        Trace!.Requested=true;Trace.State="firing";Trace.Reason="prefire-shot-requested";
+        fireLimit=c.FireLimit;Snapshot(f);return true;
     }
     // A native request may synchronously emit the shot callback before returning its acceptance.
     public bool AuthorizeRequest(CornerPrefireFrame f,CornerPrefireConfig c)
     {
-        if(!Active||Trace!.Requested!=true||Trace.Accepted)return false;
+        if(!Active||Trace!.Requested!=true)return false;
         return Observe(f,c);
     }
-    public void Result(bool accepted){if(Trace?.Requested!=true)return;Trace.Accepted=accepted;if(!accepted)End("prefire-native-refused");}
+    public void Result(bool accepted)
+    {
+        if(Trace?.Requested!=true)return;
+        Trace.Accepted=accepted;
+        if(accepted){if(fireAt<0){fireAt=last;Deadline=Math.Min(Deadline,last+fireLimit);}}
+        else {Trace.Requested=false;Trace.State="waiting";Trace.Reason="prefire-native-retry";}
+    }
     public void Shot(CornerPrefireFrame f,CornerPrefireConfig c)
     {
         if(!Active||Trace!.Requested!=true)return;
         Trace.ActualShots++;Snapshot(f);
-        if(Trace.ActualShots>=Trace.Quota)End("prefire-round-limit");
-        // The shot callback may precede inventory consumption. Conservatively retain one extra round.
-        else if(f.Ammo-1<=Trace.Reserve)End("prefire-ammo-reserve");
+        if(f.Ammo<=Trace.Reserve)End("prefire-ammo-reserve");
         else if(Observe(f,c))Trace.Reason="prefire-shot-observed";
     }
     private void Snapshot(CornerPrefireFrame f)

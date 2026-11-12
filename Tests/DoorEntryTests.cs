@@ -11,7 +11,7 @@ internal static class DoorEntryTests
         int n=0;void Check(bool ok,string message){n++;if(!ok)throw new Exception("D15: "+message);}
         void Invalid(Action a){try{a();}catch(ArgumentException){n++;return;}throw new Exception("D15 expected rejection");}
         var c=new DoorEntryConfig();c.Validate();
-        Check(c.Enabled&&c.MinimumStamina==35&&c.CrossingLimit==3.5&&c.DoorRetry==30,"native entry defaults");
+        Check(c.Enabled&&c.MinimumStamina==35&&c.CrossingLimit==3.5&&c.DoorRetry==10,"native entry defaults");
         foreach(var pair in new[]{("prepared",40d),("rush",50d),("retreat",60d),("search",15d),("move",10d)})Check(c.Chance(pair.Item1)==pair.Item2,"conditional chance "+pair.Item1);
         Check(c.Chance("patrol")==0,"no out-of-combat entry");
         foreach(var p in typeof(DoorEntryConfig).GetProperties().Where(p=>p.PropertyType==typeof(double)))
@@ -37,7 +37,7 @@ internal static class DoorEntryTests
         a.Opened(false,102.15,c);Check(a.Trace.AnimationFinished,"observed animation completion is not erased by later state changes");
         a.Movement(true,false,102.2);Check(a.Active&&a.Trace.Crossed&&!a.Trace.Arrived,"crossed but destination not reached");
         a.Movement(true,true,102.3);Check(!a.Active&&a.Trace.State=="completed"&&a.Trace.ValidFor==0,"observed completion");
-        Check(!a.Begin("door","new-target","rush",110,120,0,c),"retry survives target and context change");
+        Check(!a.Begin("door","new-target","rush",109.99,120,0,c),"retry survives target and context change");
         Check(a.Begin("other-door","known","rush",110,125,0,c),"another door remains eligible");
         a.End("done");Check(a.Begin("door","known","rush",130,145,0,c),"exact retry boundary");
         var declined=new DoorEntry();Check(!declined.Begin("d","known","prepared",100,120,.4,c),"roll threshold exclusive");
@@ -51,7 +51,7 @@ internal static class DoorEntryTests
         a=Start();a.Opened(true,100.1,c);Check(!a.Active&&!a.Trace!.Requested&&!a.Trace.BreachObserved&&a.Trace.Reason=="entry-door-opened-by-other","foreign opening is not success");
         a=Start();a.Request(100.1,80,true,c);a.Opened(true,100.2,c);Check(!a.Active&&!a.Trace!.BreachObserved,"request alone does not prove own breach");
         a=Start();a.Breached(true,100.1);Check(!a.Trace!.BreachObserved,"no unsolicited breach observation");
-        a=Start();Check(!a.Request(100.1,34.9,true,c)&&!a.Active&&!a.Trace!.Requested,"low stamina ends without request");
+        a=Start();Check(a.Request(100.1,0,true,c)&&a.Active&&a.Trace!.Requested,"no added percentage-of-stamina gate");
         a=Start();Check(!a.Request(100.1,80,false,c)&&!a.Trace!.Requested,"no request against open door");
         a=Start();Check(!a.Tick(103)&&a.Trace!.Reason=="entry-approach-timeout","approach limited to 3 seconds");
         a=Start();a.Request(100.5,80,true,c);a.Breached(false,101);Check(a.Active&&!a.Trace!.BreachObserved,"no kick evidence stays pending");
@@ -76,12 +76,12 @@ internal static class DoorEntryTests
         var refused=new DoorEntry();Check(refused.Refuse("d","known","rush",100,"entry-native-side-refused",c)&&!refused.Trace!.Rolled,"ineligible is recorded without roll");
         Check(!refused.Refuse("d","known","rush",101,"again",c)&&!refused.Begin("d","known","rush",101,120,0,c),"bounded refusals");
         for(int i=0;i<31;i++)Check(refused.Refuse("other"+i,"known","rush",100,"blocked",c),"bounded history entry");
-        Check(!refused.Refuse("overflow","known","rush",100,"blocked",c),"history bounded at 32");
+        Check(refused.Refuse("overflow","known","rush",100,"blocked",c),"source bounded roll history clears instead of vetoing new doors");
         Check(refused.Refuse("overflow","known","rush",130,"blocked",c),"expired history reclaimed");
         Check(DoorEntry.Budget(100,30,null,c)==114.5,"native SAIN action does not use a stale COMET timestamp");
-        Check(DoorEntry.Budget(100,30,106,c)==106,"parent plan caps entry");
-        Check(DoorEntry.Budget(100,2,110,c)==102,"contact expiry caps entry");
-        Check(DoorEntry.Budget(100,30,99,c)<=100,"expired parent cannot create fresh budget");
+        Check(DoorEntry.Budget(100,30,106,c)==114.5,"parent plan no longer caps entry");
+        Check(DoorEntry.Budget(100,2,110,c)==114.5,"contact expiry no longer caps entry");
+        Check(DoorEntry.Budget(100,30,99,c)==114.5,"expired parent does not kill a new entry");
         var g=new DoorGeometry{Center=new(0,0,0),Axis=new(1,0,0),Normal=new(0,0,1),HalfWidth=.6};
         Check(DoorEntry.Lane(g,new(0,0,1),new(0,0,-2.5),new(0,0,2)),"native interaction lane");
         Check(DoorEntry.Lane(g,new(0,0,-1),new(0,0,2.5),new(0,0,-2)),"mirrored geometry; native eligibility remains separate");

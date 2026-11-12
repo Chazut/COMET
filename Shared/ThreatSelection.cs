@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace Comet.Core;
 
-// A07 consumes dated perception, never a live hidden transform, enemy health or faction.
+// A07 ports ThreatPicker from zzap fbb86b83; score units are multiplied by 100 for RR.
 public sealed class ThreatContact
 {
     public string Id { get; set; } = "";
@@ -14,6 +14,10 @@ public sealed class ThreatContact
     public bool LookingAtMe { get; set; }
     public bool Footsteps { get; set; }
     public bool Gunfire { get; set; }
+    public bool IsPmc { get; set; }
+    public bool BadlyInjured { get; set; }
+    public double HeardAge { get; set; } = double.PositiveInfinity;
+    public double HeardDistance { get; set; } = double.PositiveInfinity;
     public double? ObservedAt { get; set; }
     public double? Distance { get; set; }
     public double? X { get; set; }
@@ -84,77 +88,71 @@ public sealed class ThreatSelection
     public ThreatSelection(CometConfig config) { this.config = config; }
     public void Reset() { held = ""; holdUntil = 0; }
     public static bool Finite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
-    private static bool Dated(double? value, double now) => value.HasValue && Finite(value.Value) && value.Value >= 0 && value.Value <= now;
-    private static double Fade(double age, double duration) => Math.Max(0, 1 - age / duration);
-    public static bool Scope(ThreatFrame f) => f.IsAi && f.IsSupportedBot && f.IsAuthority && f.Active && !f.Ghost && !f.NativeUrgency;
+    private static double Ago(double? time, double now) => time.HasValue && time.Value > 0 ? now-time.Value : 999;
+    public static bool Scope(ThreatFrame f) => f.IsAi && f.IsSupportedBot && f.IsAuthority && f.Active && !f.Ghost;
 
     public ThreatScore Score(ThreatContact e, double now)
     {
-        var c = config.ThreatSelection;
-        var s = new ThreatScore { Target = e.Id, Source = e.Source, Visible = e.Visible, Reason = "threat-no-perceived-position" };
-        if (!e.Valid || string.IsNullOrEmpty(e.Id)) { s.Reason = "threat-invalid-contact"; return s; }
-        bool source = e.Source == "seen" || e.Source == "heard" || e.Source == "shared-seen" || e.Source == "shared-heard";
-        if (!source || !Dated(e.ObservedAt, now) || !e.Distance.HasValue || !Finite(e.Distance.Value) || e.Distance < 0
-            || !e.X.HasValue || !e.Y.HasValue || !e.Z.HasValue || !Finite(e.X.Value) || !Finite(e.Y.Value) || !Finite(e.Z.Value)) return s;
-        double age = now - e.ObservedAt!.Value;
-        if (age > config.ContactLifetime) { s.Reason = "threat-stale-contact"; return s; }
-        s.Eligible = true; s.Age = age; s.Distance = e.Distance; s.X = e.X; s.Y = e.Y; s.Z = e.Z;
-        // Only a fresh personal visual observation counts as currently visible.
-        s.Visible = e.Visible && e.Source == "seen" && age <= .5;
-        double certainty = s.Visible ? 1 : (e.Source == "seen" ? .75 : e.Source == "heard" ? .5 : .35) * Fade(age, config.ContactLifetime);
-        s.Sight = s.Visible ? 50 : 10 * certainty;
-        s.Proximity = 30 * Math.Max(0, 1 - e.Distance.Value / 60) * certainty;
-        if (s.Visible && e.Distance <= c.CloseDistance) s.Proximity += 25 * Math.Max(0, 1 - e.Distance.Value / c.CloseDistance);
-        s.Facing = s.Visible && e.LookingAtMe ? 20 : 0;
-        // A damage notification identifies an internal attacker, not a location. A visible observation or
-        // personally heard gunshot close in time is needed to connect it to a usable threat position.
-        bool Correlated(double? at) => Dated(at, now) && (s.Visible || (e.Source == "heard" && e.Gunfire
-            && Math.Abs(e.ObservedAt.Value - at!.Value) <= .75));
-        s.Hit = Correlated(e.HitAt) ? 100 * Fade(now - e.HitAt!.Value, c.HitMemory) : 0;
-        s.Fire = Correlated(e.ShotAt) ? 60 * Fade(now - e.ShotAt!.Value, c.ShotMemory) : 0;
-        s.HitAt = s.Hit > 0 ? e.HitAt : null;
-        s.Steps = !s.Visible && e.Source == "heard" && e.Footsteps && age <= c.FootstepMemory && e.Distance <= c.FootstepDistance
-            ? 25 * Fade(age, c.FootstepMemory) : 0;
-        s.Immediate = s.Visible && e.Distance <= c.ImmediateDistance;
-        s.Score = s.Sight + s.Proximity + s.Facing + s.Hit + s.Fire + s.Steps;
-        s.Reason = s.Hit > 0 ? "threat-recent-attacker" : s.Immediate ? "threat-immediate-visible" : s.Fire > 0
-            ? "threat-incoming-fire" : s.Steps > 0 ? "threat-nearby-footsteps" : s.Visible ? "threat-visible-contact" : "threat-known-contact";
+        var c=config.ThreatSelection;
+        var s=new ThreatScore {Target=e.Id,Source=e.Source,Visible=e.Visible,Eligible=e.Valid,
+            Distance=e.Distance,X=e.X,Y=e.Y,Z=e.Z,Age=e.ObservedAt.HasValue?now-e.ObservedAt.Value:null};
+        if(!e.Valid){s.Reason="threat-invalid-contact";return s;}
+        double hit=Ago(e.HitAt,now), shot=Ago(e.ShotAt,now);
+        s.Sight=e.Visible?50:0; s.Hit=hit<c.HitMemory?100:0; s.Fire=shot<c.ShotMemory?60:0;
+        s.Facing=e.Visible&&e.LookingAtMe?20:0;
+        s.Proximity=60*Math.Max(0,Math.Min(1,1-(e.Distance??60)/60));
+        s.Score=s.Sight+s.Hit+s.Fire+s.Facing+s.Proximity+(hit<10||shot<10?25:0)+(e.IsPmc?30:0);
+        s.HitAt=s.Hit>0?e.HitAt:null;
+        s.Reason=s.Hit>0?"threat-recent-attacker":s.Fire>0?"threat-incoming-fire":"threat-known-contact";
         return s;
     }
-
+    private double Flank(ThreatContact e, ThreatContact? goal)
+    {
+        if(goal==null||goal.Id==e.Id)return 0;
+        var c=config.ThreatSelection; double d=e.Distance??999,g=goal.Distance??999;
+        if(e.Visible)
+            return d<=c.CloseDistance&&(d<c.ImmediateDistance||d<g*.6)?120+(d<c.ImmediateDistance?50:0):0;
+        return e.Footsteps&&e.HeardAge<=c.FootstepMemory&&e.HeardDistance<=c.FootstepDistance&&e.HeardDistance<=g*.6
+            ?100+(d<c.ImmediateDistance?50:0):0;
+    }
     public ThreatTrace Evaluate(ThreatFrame f)
     {
-        var c = config.ThreatSelection;
-        var t = new ThreatTrace { At = f.Now, Previous = f.Current, Trigger = f.Trigger, Margin = c.SwitchMargin, Truncated = f.Truncated };
-        if (!Finite(f.Now) || f.Now < 0 || !config.Enabled || !c.Enabled || !Scope(f))
-        { Reset(); t.Reason = "threat-yield-to-sain"; return t; }
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-        for (int i = 0; i < Math.Min(f.Contacts.Count, CandidateLimit); i++)
-            if (ids.Add(f.Contacts[i].Id)) t.Candidates.Add(Score(f.Contacts[i], f.Now));
-        t.Truncated |= f.Contacts.Count > CandidateLimit;
-        var eligible = t.Candidates.Where(x => x.Eligible).OrderByDescending(x => x.Score).ThenBy(x => x.Target, StringComparer.Ordinal).ToList();
-        if (eligible.Count == 0) { Reset(); t.Reason = "threat-no-usable-contact"; return t; }
-        var current = eligible.Find(x => x.Target == f.Current);
-        var best = eligible[0];
-        if (held != f.Current) { held = f.Current; holdUntil = f.Now + c.Commitment; }
-        bool stronger(ThreatScore x) => current == null || x.Score > current.Score * (1 + c.SwitchMargin) + 1e-6;
-        // Close visible danger may break a hold. A recent hit needs a real score advantage, so two
-        // equal shooters trading hits cannot force a switch on every bullet.
-        var emergency = eligible.Find(x => x.Target != f.Current && ((x.Immediate && current?.Immediate != true)
-            || (x.Hit > 0 && current?.Immediate != true && current?.Hit <= 0 && stronger(x))));
-        ThreatScore selected;
-        if (current == null) { selected = best; t.Reason = f.Current.Length == 0 ? "threat-first-target" : "threat-current-invalid"; }
-        else if (emergency != null) { selected = emergency; t.Emergency = true; t.Reason = emergency.Immediate ? "threat-immediate-visible" : "threat-recent-attacker"; }
-        else if (best.Target == current.Target) { selected = current; t.Reason = "threat-kept-best"; }
-        else if (f.Now < holdUntil) { selected = current; t.Reason = "threat-kept-commitment"; }
-        else if (!stronger(best)) { selected = current; t.Reason = "threat-kept-margin"; }
-        else if (t.Truncated) { selected = current; t.Reason = "threat-incomplete-scan"; }
-        else { selected = best; t.Reason = "threat-better-target"; }
-        if (selected.Target != held) { held = selected.Target; holdUntil = f.Now + c.Commitment; }
-        t.Selected = selected.Target; t.HoldRemaining = Math.Max(0, holdUntil - f.Now);
-        foreach (var candidate in eligible)
-            if (candidate.Target != selected.Target) candidate.Reason = candidate.Target == best.Target && selected.Target == f.Current
-                ? t.Reason : "threat-lower-priority";
-        return t;
+        var c=config.ThreatSelection;
+        var t=new ThreatTrace{At=f.Now,Previous=f.Current,Trigger=f.Trigger,Truncated=f.Truncated};
+        if(!config.Enabled||!c.Enabled||!Scope(f)||f.Contacts.Count<2){Reset();t.Reason="threat-yield-to-sain";return t;}
+        var goal=f.Contacts.Find(x=>x.Id==f.Current);
+        ThreatContact? best=null; double bestValue=double.NegativeInfinity;
+        foreach(var e in f.Contacts)
+        {
+            var score=Score(e,f.Now); t.Candidates.Add(score);
+            if(!score.Eligible||e.Id==f.Current)continue;
+            double flank=Flank(e,goal),hit=Ago(e.HitAt,f.Now),shot=Ago(e.ShotAt,f.Now);
+            if(hit>c.HitMemory&&shot>c.ShotMemory&&flank==0){score.Reason="threat-not-engaging";continue;}
+            bool heardOnly=flank>0&&!e.Visible;
+            if(goal?.Visible==true&&!e.Visible&&hit>c.HitMemory&&!heardOnly){score.Reason="threat-keep-visible-duel";continue;}
+            score.Steps=flank;score.Score+=flank;
+            if(score.Score>bestValue){best=e;bestValue=score.Score;}
+        }
+        double goalValue=double.NegativeInfinity;
+        if(goal?.Valid==true)
+        {
+            var score=t.Candidates.Find(x=>x.Target==goal.Id)!;
+            score.Steps=Flank(goal,best);
+            score.Score+=35+(goal.Visible&&goal.BadlyInjured?30:0)+score.Steps;
+            goalValue=score.Score;
+        }
+        if(best!=null&&bestValue>goalValue)
+        {
+            held=best.Id;holdUntil=f.Now+c.Commitment;t.Selected=held;t.Reason="threat-better-target";
+        }
+        else if(goal?.Valid==true&&held==goal.Id)
+        {
+            if(Ago(goal.HitAt,f.Now)<c.HitMemory||Ago(goal.ShotAt,f.Now)<c.ShotMemory)holdUntil=Math.Max(holdUntil,f.Now+1);
+            if(f.Now<holdUntil){t.Selected=held;t.Reason="threat-keep-held";}
+            else Reset();
+        }
+        else Reset();
+        if(t.Selected.Length==0)t.Reason="threat-yield-to-sain";
+        t.HoldRemaining=Math.Max(0,holdUntil-f.Now);return t;
     }
 }

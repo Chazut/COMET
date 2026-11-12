@@ -19,21 +19,12 @@ var b=new BotComponent();var f=new CoverFinderComponent(b);var old=new CoverPoin
 Tick(e,0);Check(f.CoverPoints.SequenceEqual(new[]{old})&&Plugin.ScanCoverPoints(f)==f.CoverPoints,"other readers never see pending list");
 Tick(e,4);Check(f.CoverPoints[0]==old,"past 3s retention");Check(Plugin.RetainedCover(b,old),"COMET selection can still consider retained results");
 Tick(e,9);Tick(e,9.1);Check(f.CoverPoints.Count==3&&!f.CoverPoints.Contains(old),"publish only after completion");
-Tick(e,10);Tick(e,20);Check(f.CoverPoints.Count==3&&JObject.Parse(Comet.Api.Decisions.Events[^1])["coverScan"]!["state"]!.ToString()=="timeout","watchdog retains complete list");
-Tick(e,20.2);b.GoalEnemy!.EnemyProfileId="new-contact";plugin.Sweep();Check(f.CoverPoints.Count==0&&!Plugin.RetainedCover(b,old),"enemy invalidation outside coroutine");
+Tick(e,10);Tick(e,20);Check(f.CoverPoints.Count==3&&JObject.Parse(Comet.Api.Decisions.Events[^1])["coverScan"]!["state"]!.ToString()=="scanning","long scan keeps prior list without an added restart watchdog");
+Tick(e,20.2);b.GoalEnemy!.EnemyProfileId="new-contact";plugin.Sweep();Check(f.CoverPoints.Count>0,"source native cover cache survives contact changes");
 Tick(e,21);Tick(e,22);Tick(e,23);Tick(e,24);
-var selected=f.CoverPoints[0];Check(plugin.Validate(b,selected)&&f.Analyzer.Calls==1,"validate before mover");
-Check(plugin.Validate(b,selected)&&f.Analyzer.Calls==1,"same-frame repeated movement request shares check");
-Check(Plugin.SelectionCoverUsable(b,selected,out var why)&&f.Analyzer.Calls==1,"selection and mover share same-frame geometry check");
-b.NavMeshPosition=new Vector3(1,0,0);Check(plugin.Validate(b,selected)&&f.Analyzer.Calls==2,"same-frame moved bot invalidates geometry cache");
-b.GoalEnemy!.LastKnownPosition=new Vector3(11,0,0);Check(plugin.Validate(b,selected)&&f.Analyzer.Calls==3,"same-frame updated known target invalidates geometry cache");
-b.GoalEnemy.EnemyProfileId="different";Check(plugin.Validate(b,selected)&&f.Analyzer.Calls==4,"same frame new enemy rechecked");
-selected.Pass=false;Time.frameCount++;Check(!plugin.Validate(b,selected)&&selected.CoverData.IsBad,"blocked cover refused");
-Check(!Plugin.SelectionCoverUsable(b,selected,out why)&&why=="cover-selected-invalid-path-blocked","cached refusal preserves exact geometry reason");
-selected.Pass=true;Time.frameCount++;Check(plugin.Validate(b,selected),"fresh valid cover");selected.Spotted=true;
-Check(!plugin.Validate(b,selected),"same-frame spotted cover invalidates previously safe selection");
-selected.Pass=true;selected.Spotted=true;Time.frameCount++;Check(!plugin.Validate(b,selected),"spotted cover refused");
-selected.Spotted=false;selected.Collider=null;Time.frameCount++;Check(!plugin.Validate(b,selected),"destroyed collider refused");
+var selected=f.CoverPoints[0];
+Check(plugin.Validate(b,selected)&&f.Analyzer.Calls==0,"source cover selection does not run an extra analyzer pass");
+selected.Spotted=true;Check(plugin.Validate(b,selected),"native picker owns spotted-cover filtering");selected.CoverData.IsBad=true;Check(!plugin.Validate(b,selected),"source bad cover rejected");selected.CoverData.IsBad=false;selected.Spotted=false;
 plugin.IsGhost=true;plugin.Sweep();int calls=f.Iterations;Tick(e,25);Check(calls==f.Iterations&&f.CoverPoints.Count==0,"ghost no scan or retained cover");
 plugin.IsGhost=false;Tick(e,26);plugin.Stop(f);Check(plugin.Count==0&&!e.MoveNext(),"StopLooking releases iterator and references");
 foreach(var variant in new[]{"scav","player","replica","disabled","inactive","dead","ending"}){

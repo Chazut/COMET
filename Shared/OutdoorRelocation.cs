@@ -47,7 +47,7 @@ public sealed class RelocationHistory
     public bool Eligible(string id,double now,DoorPoint known,double delay)
     {
         if(!entries.TryGetValue(id,out var e)||!e.EnemyFirst||!OutdoorRelocation.Valid(now)||!known.Finite||now<e.Attempt)return false;
-        return now-e.Attempt>=delay&&(e.Attempt<0||e.Fire>e.Cue+.01||(known-e.Known).Length>=3);
+        return e.Attempt<0; // zzap rolls relocation once per enemy.
     }
     public void Attempt(string id,double now,DoorPoint known)
     {if(entries.TryGetValue(id,out var e)){e.Attempt=now;e.Cue=e.Fire;e.Known=known;}}
@@ -68,8 +68,7 @@ public sealed class RelocationCandidate
     public double Distance,PathLength,Angle,Exposure;
     public int Protection,OriginalProtection;
     public bool Safe;
-    public double Score(OutdoorRelocationConfig c)=>3*(Protection-OriginalProtection)
-        +2*Math.Min(1,Angle/c.PreferredAngle)-PathLength*.04-Exposure*2;
+    public double Score(OutdoorRelocationConfig c)=>-Distance;
 }
 public sealed class RelocationTrace
 {
@@ -95,10 +94,10 @@ public sealed class OutdoorRelocation
         if(!c.Enabled)return "relocate-disabled";
         if(f.Block.Length>0)return f.Block;
         if(!Valid(f.Now)||!Valid(f.ContactAge)||!Valid(f.SightAge)||!f.Position.Finite||!f.Known.Finite||!Valid(f.Speed))return "relocate-invalid-context";
-        if(f.Target.Length==0||f.Source.Length==0||f.ContactAge>25)return "relocate-no-fresh-known-contact";
-        if(!f.Outdoor)return "relocate-outdoor-context-required";
-        if(f.Visible)return "relocate-visible-threat";
-        if(!active&&(!f.InCover||f.SightAge<c.SightLoss||!f.HandsReady))return "relocate-wait-for-cover-and-quiet";
+        if(f.Target.Length==0||f.Source.Length==0||!active&&f.ContactAge>30)return "relocate-no-fresh-known-contact";
+        if(!active&&!f.Outdoor)return "relocate-outdoor-context-required";
+        if(f.Visible&&!(active&&f.Distance>20))return "relocate-visible-threat";
+        if(!active&&(!f.InCover||f.SightAge<c.SightLoss))return "relocate-wait-for-cover-and-quiet";
         return "";
     }
     public static double Chance(RelocationFrame f,OutdoorRelocationConfig c)=>Math.Min(100,c.Chance
@@ -120,9 +119,7 @@ public sealed class OutdoorRelocation
         if(!v.Position.Finite||!Valid(v.Distance)||!Valid(v.PathLength)||!Valid(v.Angle)||!Valid(v.Exposure)
             ||v.Angle>180||v.Exposure>1||v.Protection<0||v.Protection>3||v.OriginalProtection<0||v.OriginalProtection>3)return "relocate-invalid-candidate";
         if(v.Distance<c.MinDistance||v.Distance>c.MaxDistance||v.PathLength>c.MaxPath)return "relocate-route-too-long-or-close";
-        if(v.Protection<2||v.Protection<v.OriginalProtection)return "relocate-weaker-cover";
-        if(v.Exposure>1d/3+.001)return "relocate-exposed-route";
-        if(v.Score(c)<=.1)return "relocate-staying-is-better";
+        if(v.Angle<c.PreferredAngle)return "relocate-bearing-too-small";
         return "";
     }
     public void Candidate(RelocationCandidate v,OutdoorRelocationConfig c)
@@ -149,8 +146,8 @@ public sealed class OutdoorRelocation
         if(accepted){Trace.State="throwing";Trace.Action="ThrowGrenade";throwAt=now;Trace.Reason="relocate-wait-for-projectile-and-hands";}
     }
     public void Projectile(double now){if(Trace?.State=="throwing"&&now>=throwAt){Trace.ProjectileObserved=true;releaseAt=now;Trace.GrenadeOutcome="release-observed";}}
-    public bool CanMove(RelocationFrame f)=>Trace?.State=="ready"&&f.HandsReady
-        ||Trace?.State=="throwing"&&Trace.ProjectileObserved&&f.HandsReady&&f.Now-releaseAt>=.2;
+    public bool CanMove(RelocationFrame f)=>Trace?.State=="ready"
+        ||Trace?.State=="throwing"&&(Trace.ProjectileObserved?f.Now-releaseAt>=.2:f.Now-throwAt>4);
     public void MoveRequested(double now)
     {
         if(!Active)return;Trace!.State="moving";Trace.Action="SeekCover";Trace.MoveRequested=true;Trace.Reason="relocate-native-cover-move";
@@ -160,19 +157,20 @@ public sealed class OutdoorRelocation
     {
         if(!Active)return false;var t=Trace!;
         string why=Gate(f,c,true);
-        if(why.Length==0&&(f.Now<lastTime||f.Target!=t.Target||(f.Known-Known).Length>3))why="relocate-contact-changed";
+        if(why.Length==0&&f.Visible&&t.State!="moving")why="relocate-visible-threat";
+        if(why.Length==0&&(f.Now<lastTime||f.Target!=t.Target))why="relocate-contact-changed";
         if(why.Length==0&&f.Now-started>=c.SessionTimeout)why="relocate-session-timeout";
-        if(why.Length==0&&t.State=="planning"&&(f.Position-Origin).Length>1)why="relocate-planning-origin-moved";
-        if(why.Length==0&&t.State=="throwing"&&f.Now-throwAt>6)why="relocate-throw-unconfirmed-or-hands-busy";
+
+
         if(why.Length==0&&t.State=="moving") {
             double remaining=(f.Position-Goal).Length;
             if(!f.RouteOwned)why="relocate-native-route-replaced";
             else {
                 t.DistanceMoved=(f.Position-Origin).Length;t.MovementObserved|=t.DistanceMoved>.5;
                 if(f.Arrived&&remaining<=.8&&Math.Abs(f.Position.Y-Goal.Y)<.6){t.Arrived=true;why="relocate-arrival-observed";}
-                else if(f.Now-movingAt>=c.MoveTimeout)why="relocate-move-timeout";
+                else if(f.Now-movingAt>=(f.Speed<.5?c.SessionTimeout:c.MoveTimeout))why="relocate-move-timeout";
                 else if(remaining<bestRemaining-.25){bestRemaining=remaining;progressAt=f.Now;}
-                else if(f.Now-progressAt>=3)why="relocate-no-progress";
+
             }
         }
         t.Elapsed=Math.Max(0,f.Now-started);t.Speed=Valid(f.Speed)?f.Speed:0;t.ContactAge=Valid(f.ContactAge)?f.ContactAge:0;lastTime=f.Now;

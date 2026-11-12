@@ -8,15 +8,15 @@ public sealed class TacticalDevicesConfig
     public double CommandInterval { get; set; } = .25;
     public double ConfirmationTimeout { get; set; } = .8;
     public int AttemptsBeforePause { get; set; } = 2;
-    public double InitialPause { get; set; } = 5;
-    public double MaximumPause { get; set; } = 60;
+    public double InitialPause { get; set; } = 60;
+    public double MaximumPause { get; set; } = 600;
     public void Validate()
     {
         CometConfig.Range(CommandInterval,.1,2,nameof(CommandInterval));
         CometConfig.Range(ConfirmationTimeout,.1,3,nameof(ConfirmationTimeout));
         CometConfig.Range(AttemptsBeforePause,1,5,nameof(AttemptsBeforePause));
         CometConfig.Range(InitialPause,1,60,nameof(InitialPause));
-        CometConfig.Range(MaximumPause,1,300,nameof(MaximumPause));
+        CometConfig.Range(MaximumPause,1,600,nameof(MaximumPause));
         if(MaximumPause<InitialPause) throw new ArgumentException("MaximumPause must be at least InitialPause.");
     }
 }
@@ -40,11 +40,10 @@ public sealed class TacticalDeviceAttempt
     public void Yield() {Pending=Confirmed=false;Yielded=true;State="yielded";}
     public bool Observe(double now, bool active, int mode, TacticalDevicesConfig c)
     {
-        if(mode!=Mode) { Yield(); return false; }
-        if(Yielded) return false;
+        Mode=mode; Yielded=false;
         if(active==Target)
         { Pending=false;Confirmed=true;Failures=Rounds=0;RetryAt=0;State="confirmed";return false; }
-        if(Confirmed) { Yield(); return false; } // An external owner changed a confirmed state.
+        Confirmed=false;
         if(Pending)
         {
             if(now-RequestedAt<c.ConfirmationTimeout) { State="pending";return false; }

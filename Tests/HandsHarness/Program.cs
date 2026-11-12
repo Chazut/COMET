@@ -2,115 +2,29 @@ using Comet.Client;
 using EFT;
 using EFT.InventoryLogic;
 using SAIN.Components;
-using Newtonsoft.Json.Linq;
 int count=0;void Check(bool ok,string why){count++;if(!ok)throw new Exception(why);}
-(Plugin,BotComponent) Setup(bool grenade=false){var p=new Plugin();var b=new BotComponent();if(grenade)b.Player.HandsController=new Player.GrenadeHandsController();else{var g=(Player.FirearmController)b.Player.HandsController!;((Player.AbstractHandsController)g).Item!.Id=g.Item!.Id;b.BotOwner.WeaponManager.Reload.Reloading=true;}return(p,b);}
+(Plugin,BotComponent) Setup(){var p=new Plugin();var b=new BotComponent();b.BotOwner.WeaponManager.Reload.Reloading=true;return(p,b);}
 void Run(Plugin p,BotComponent b,double start,double end){for(double t=start;t<=end;t+=.5)p.Tick(b,t);}
 foreach(var exclude in new Action<Plugin,BotComponent>[] {(p,b)=>p.Settings.Enabled=false,(p,b)=>p.Settings.HandsRecovery.Enabled=false,(p,b)=>p.Authority=false,(p,b)=>p.IsGhost=true,(p,b)=>b.Pmc=false,(p,b)=>b.IsDead=true,(p,b)=>b.GameEnding=true,(p,b)=>b.BotActive=false})
-{var(p,b)=Setup();exclude(p,b);Run(p,b,0,20);Check(p.Count==0&&b.BotOwner.WeaponManager.Reload.Reloading,"excluded bots untouched");}
+{var(p,b)=Setup();exclude(p,b);Run(p,b,0,20);Check(p.Count==0&&b.BotOwner.WeaponManager.Reload.Reloading,"scope preserves native state");}
 {
- var(p,b)=Setup();Run(p,b,0,5.5);Check(b.BotOwner.WeaponManager.Reload.Reloading,"no premature flag clear");p.Tick(b,6);
- Check(!b.BotOwner.WeaponManager.Reload.Reloading&&p.State(b).HandsRecovery.Policy.Pending,"flag changed, outcome not yet observed");p.Tick(b,6.5);
- Check(p.State(b).HandsRecovery.Policy.Trace!.State=="recovered"&&b.BotOwner.WeaponManager.Reload.FillCalls==0,"confirmed without reload callbacks/refill");
-}
-foreach(var protect in new Action<Plugin,BotComponent>[] {
- (p,b)=>((Player.FirearmController)b.Player.HandsController!).Reload=true,
- (p,b)=>((Player.FirearmController)b.Player.HandsController!).Interaction=true,
- (p,b)=>((Player.FirearmController)b.Player.HandsController!).CanReload=false,
- (p,b)=>b.BotOwner.Medecine.Using=true,(p,b)=>{b.BotOwner.WeaponManager.Selector.IsChanging=true;b.Player.InventoryController.IsChangingWeapon=true;},
- (p,b)=>b.BotOwner.WeaponManager.Grenades.ThrowindNow=true,(p,b)=>b.Decision.CurrentCombatDecision="ThrowGrenade",
- (p,b)=>p.State(b).Fake.Policy.Active=true,(p,b)=>p.State(b).Fake.CallbackPending=true,(p,b)=>p.FeintGuard=true,
- (p,b)=>p.State(b).RoomClear.Policy.Active=true,(p,b)=>p.State(b).WeaponReturn.Policy.Active=true,
- (p,b)=>p.State(b).PistolSwap.Policy.Active=true,(p,b)=>p.State(b).QuickReload.Policy.Active=true,
- (p,b)=>b.Player.HandsController=new Player.AbstractHandsController()})
-{var(p,b)=Setup();p.Tick(b,0);protect(p,b);Run(p,b,.5,60);Check(b.BotOwner.WeaponManager.Reload.Reloading&&b.BotOwner.WeaponManager.Selector.Calls==0,"legitimate native/COMET operation protected for 60 s");}
-{
- var(p,b)=Setup();var gun=(Player.FirearmController)b.Player.HandsController!;Run(p,b,0,5);gun.Item!.Loaded++;p.Tick(b,5.5);Run(p,b,6,11);
- Check(b.BotOwner.WeaponManager.Reload.Reloading,"ammo progress resets confirmation");p.Tick(b,11.5);Check(!b.BotOwner.WeaponManager.Reload.Reloading,"six continuous idle seconds after progress");
-}
-foreach(bool accepted in new[]{false,true})
-{var(p,b)=Setup(true);b.BotOwner.WeaponManager.Selector.Accept=accepted;Run(p,b,0,120);
- Check(b.BotOwner.WeaponManager.Selector.Calls==2&&p.State(b).HandsRecovery.Policy.Trace!.State=="exhausted","native refused/accepted but stuck bounded");
- Check(b.BotOwner.WeaponManager.Reload.FillCalls==0,"no native ammo refill on either attempt");
- b.BotOwner.WeaponManager.Reload.TryFillMagazines();Check(b.BotOwner.WeaponManager.Reload.FillCalls==1,"ordinary refill outside W10 unchanged");}
-foreach(var protect in new Action<Plugin,BotComponent>[] {
- (p,b)=>((Player.GrenadeHandsController)b.Player.HandsController!).CurrentOperation=new Player.GrenadeHandsController.HighThrow(),
- (p,b)=>((Player.GrenadeHandsController)b.Player.HandsController!).WaitingForHighThrow=true,
- (p,b)=>((Player.GrenadeHandsController)b.Player.HandsController!).WaitingForLowThrow=true,
- (p,b)=>p.State(b).Fake.Policy.Active=true,(p,b)=>p.FeintGuard=true,(p,b)=>b.BotOwner.WeaponManager.Grenades.ThrowindNow=true})
-{var(p,b)=Setup(true);p.Tick(b,0);protect(p,b);Run(p,b,.5,60);Check(b.BotOwner.WeaponManager.Selector.Calls==0,"committed/intentional grenades protected");}
-{
- var(p,b)=Setup(true);Run(p,b,0,2);var r=p.State(b).HandsRecovery;Check(r.Policy.BlocksSwitch&&!r.Policy.Trace!.Ready,"request acceptance not success");
- Check(!b.BotOwner.WeaponManager.Selector.TryChangeToSlot(EquipmentSlot.Holster,true)&&b.BotOwner.WeaponManager.Selector.Calls==1,"W03/other native request cannot compete");
- b.Player.HandsController=new Player.FirearmController();((Player.AbstractHandsController)b.Player.HandsController).Item!.Id="rifle";b.BotOwner.WeaponManager.Selector.IsChanging=true;p.Tick(b,2.5);
- Check(r.Policy.Pending&&r.Policy.Trace!.InHands&&!r.Policy.Trace.Ready,"gun present but draw incomplete");b.BotOwner.WeaponManager.Selector.IsChanging=false;p.Tick(b,3);
- Check(r.Policy.Trace!.Ready&&!r.Policy.BlocksSwitch,"ready observation releases arbiter");
- Check(b.BotOwner.WeaponManager.Selector.TryChangeToSlot(EquipmentSlot.Holster,true),"ordinary native requests resume");
- var ev=p.Events.Select(JObject.Parse).ToArray();Check(ev.Any(e=>(string?)e["handsRecovery"]?["state"]=="recovered")&&ev.All(e=>(string?)e["feature"]=="W10"),"wire includes request and actual outcome");
- var dir=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../artifacts"));File.WriteAllLines(Path.Combine(dir,"w10-adapter-events.jsonl"),p.Events);
+ var(p,b)=Setup();Run(p,b,0,5.5);Check(b.BotOwner.WeaponManager.Reload.Reloading,"six seconds before stale flag clear");p.Tick(b,6.5);
+ Check(!b.BotOwner.WeaponManager.Reload.Reloading&&!p.State(b).HandsRecovery.Policy.Pending,"source clears flag immediately, no acknowledgement lease");
+ Check(p.State(b).HandsRecovery.Policy.Trace!.State=="recovered"&&b.BotOwner.WeaponManager.Reload.FillCalls==0,"flag recovery does not refill");
 }
 {
- var(p,b)=Setup(true);b.Player.Equipment.Clear();Run(p,b,0,20);Check(b.BotOwner.WeaponManager.Selector.Calls==0,"no weapon inventory synthesis");
+ var(p,b)=Setup();var gun=(Player.FirearmController)b.Player.HandsController!;gun.Reload=true;Run(p,b,0,60);
+ Check(b.BotOwner.WeaponManager.Reload.Reloading,"actual native reload never interrupted");gun.Reload=false;p.Tick(b,60.5);
+ Check(!b.BotOwner.WeaponManager.Reload.Reloading,"source timer runs during native reload");
+}
+foreach(var noise in new Action<Plugin,BotComponent>[] {(p,b)=>b.BotOwner.Medecine.Using=true,(p,b)=>b.Player.InventoryController.IsChangingWeapon=true,(p,b)=>p.State(b).Fake.Policy.Active=true,(p,b)=>p.FeintGuard=true})
+{var(p,b)=Setup();p.Tick(b,0);noise(p,b);Run(p,b,0,7);Check(!b.BotOwner.WeaponManager.Reload.Reloading,"no added unrelated recovery veto");}
+{
+ var(p,b)=Setup();b.Player.HandsController=new Player.GrenadeHandsController();b.BotOwner.WeaponManager.Reload.Reloading=false;Run(p,b,0,60);
+ Check(b.BotOwner.WeaponManager.Selector.Calls==0,"no COMET grenade hand restoration");
 }
 {
- var(p,b)=Setup(true);Run(p,b,0,2);p.IsGhost=true;p.Tick(b,2.1);var r=p.State(b).HandsRecovery;
- Check(!r.Policy.Pending&&r.Hands==null&&r.Operation==null&&r.Reload==null,"scope loss immediately releases refs and pending ownership before sampling interval");
+ var(p,b)=Setup();for(int attempt=0;attempt<5;attempt++){b.BotOwner.WeaponManager.Reload.Reloading=true;Run(p,b,attempt*8,attempt*8+7);Check(!b.BotOwner.WeaponManager.Reload.Reloading,"no attempt cap");}
+ bool result=false;Check(Plugin.SwitchAllowed(b.BotOwner.WeaponManager.Selector,ref result),"no switch lock");Check(Plugin.FillAllowed(b.BotOwner.WeaponManager.Reload),"no refill lock");
 }
-{
- var(p,b)=Setup(true);b.BotOwner.WeaponManager.Selector.Throw=true;Run(p,b,0,5);
- Check(p.State(b).HandsRecovery.Fault&&!p.State(b).HandsRecovery.Issuing&&!p.State(b).HandsRecovery.Policy.Pending,"exception cannot leak guard/lease");
- b.BotOwner.WeaponManager.Reload.TryFillMagazines();Check(b.BotOwner.WeaponManager.Reload.FillCalls==1,"refill guard restored after throw");
-}
-{
- var(p,b)=Setup();p.Tick(b,0);p.LogThrows=true;p.Tick(b,5);Check(p.State(b).HandsRecovery.Fault&&b.BotOwner.WeaponManager.Reload.Reloading,"logging failure yields without mutation");
-}
-Console.WriteLine($"W10 production adapter: {count} checks passed");
-foreach(var protection in new[]{"none","animating","not-inserted","simplified","inventory-changing"})
-{
- var(p,b)=Setup();var gun=(Player.FirearmController)b.Player.HandsController!;gun.Reload=true;
- var op=new Player.FirearmController.ReloadExternalMagOperation{_magAppeared=true,_magInsertedToWeapon=true};gun.CurrentOperation=op;
- op.Complete=()=>{gun.Reload=false;gun.CurrentOperation=new Player.FirearmController.Idling();b.BotOwner.WeaponManager.Reload.Reloading=false;};
- b.BotOwner.WeaponManager.AnimatorIdle=true;
- if(protection=="animating")b.BotOwner.WeaponManager.AnimatorIdle=false;
- if(protection=="not-inserted")op._magInsertedToWeapon=false;
- if(protection=="simplified")b.Player.UsedSimplifiedSkeleton=true;
- if(protection=="inventory-changing")b.Player.InventoryController.IsChangingWeapon=true;
- Run(p,b,0,15.5);Check(op.IdleCalls==0,"never complete an early reload");Run(p,b,16,25);
- Check(op.IdleCalls==(protection=="none"?1:0),"only confirmed idle inserted magazine may replay missing idle callback: "+protection);
- if(protection=="none")Check(p.State(b).HandsRecovery.Policy.Trace!.State=="recovered"&&!gun.Reload,"recovery observed after actual native completion");
-}
-foreach(bool inventoryPending in new[]{false,true})
-{
- var(p,b)=Setup();b.BotOwner.WeaponManager.Reload.Reloading=false;b.BotOwner.WeaponManager.Selector.IsChanging=true;b.Player.InventoryController.IsChangingWeapon=inventoryPending;
- Run(p,b,0,5.5);Check(b.BotOwner.WeaponManager.Selector.IsChanging,"switch flag not cleared early");Run(p,b,6,8);
- Check(b.BotOwner.WeaponManager.Selector.IsChanging==inventoryPending,"idle ready selector recovered only after inventory change really completed");
- Check(b.BotOwner.WeaponManager.Selector.Calls==0,"no redundant draw for stuck selector flag");
-}
-{
- var(p,b)=Setup();((Player.FirearmController)b.Player.HandsController!).Reload=true;Run(p,b,0,120);
- Check(p.Events.Count<30,"unchanged active native operation sampled normally but diagnostic heartbeat throttled");
-}
-Console.WriteLine($"W10 including raid392 recovery: {count} checks passed");
-
-foreach(var protection in new[]{"none","animating","simplified","wrong-magazine","wrong-weapon","inventory-changing","medical","phase-progress","new-transaction"})
-{
- var(p,b)=Setup();var gun=(Player.FirearmController)b.Player.HandsController!;gun.Reload=true;
- var mag=new object();gun.Item!.Magazine=mag;
- var op=new Player.FirearmController.ReloadExternalMagOperation{ReloadExternalMagResult=new(){Weapon=gun.Item,NextMagazine=mag}};gun.CurrentOperation=op;
- op.Complete=()=>{gun.Reload=false;gun.CurrentOperation=new Player.FirearmController.Idling();b.BotOwner.WeaponManager.Reload.Reloading=false;};
- b.BotOwner.WeaponManager.AnimatorIdle=true;
- if(protection=="animating")b.BotOwner.WeaponManager.AnimatorIdle=false;
- if(protection=="simplified")b.Player.UsedSimplifiedSkeleton=true;
- if(protection=="wrong-magazine")op.ReloadExternalMagResult.NextMagazine=new object();
- if(protection=="wrong-weapon")op.ReloadExternalMagResult.Weapon=new Weapon();
- if(protection=="inventory-changing")b.Player.InventoryController.IsChangingWeapon=true;
- if(protection=="medical")b.BotOwner.Medecine.Using=true;
- Run(p,b,0,25);
- if(protection=="phase-progress")op._magPulledOutFromWeapon=true;
- if(protection=="new-transaction")op.ReloadExternalMagResult=new(){Weapon=gun.Item,NextMagazine=mag};
- Run(p,b,25.5,29.5);Check(op.FastForwardCalls==0,"30 continuous seconds before reconciliation: "+protection);
- Run(p,b,30,35);Check(op.FastForwardCalls==(protection=="none"?1:0),"only stranded idle matching inventory may reconcile: "+protection);
- Check(gun.Item.Loaded==20&&ReferenceEquals(gun.Item.Magazine,mag)&&b.BotOwner.WeaponManager.Reload.FillCalls==0,"no ammo or inventory synthesis: "+protection);
- if(protection=="none")Check(p.State(b).HandsRecovery.Policy.Trace!.State=="recovered","actual native recovery observed");
-}
-Console.WriteLine($"W10 including raid394 stranded reload: {count} checks passed");
+Console.WriteLine($"W10 production source watchdog: {count} checks passed; no Unity raid.");

@@ -98,7 +98,7 @@ public sealed partial class Plugin
             return ReferenceEquals(mover.ActivePath,__instance);
         }
         if(s.HoldAngle.Policy.Active&&ReferenceEquals(s.HoldAngle.Path,__instance)) {
-            try{p.RefreshHoldAngle(mover.Bot,s,false);}catch(Exception ex){p.HoldAngleError(s,ex);}
+            try{p.SampleHoldAngle(mover.Bot,s);}catch(Exception ex){p.HoldAngleError(s,ex);}
             return ReferenceEquals(mover.ActivePath,__instance);
         }
         if(s.CornerChase.Policy.Active&&ReferenceEquals(s.CornerChase.Path,__instance)) {
@@ -126,20 +126,16 @@ public sealed partial class Plugin
         var action=b.CurrentAction?.GetType().Name;
         string name=action=="StandAndShootAction"&&b.Decision.CurrentCombatDecision==ECombatDecision.StandAndShoot?"StandAndShoot"
             :action=="DogFightAction"&&b.Decision.CurrentCombatDecision==ECombatDecision.DogFight?"DogFight":"other";
-        bool other=s.Entry.Policy.Active||s.Door.Policy.Active||s.Jump.Policy.Active||s.RunBy.Policy.Active||s.StepPeek.Policy.Active
-            ||s.Fake.Policy.Active||s.RoomClear.Policy.Active||s.Emergency.Policy.Active||s.Support!=null;
         var movement=b.Player.MovementContext;
         return new(){Now=Time.time,Enabled=config?.Enabled==true&&ContactSafety.Allows(b,e), Pmc=NativeAdapter.IsSupportedAi(b),Authority=Authority,Ghost=Ghost(b.ProfileId),
             Active=b.BotActive&&!b.IsDead&&!b.GameEnding&&b.SAINLayersActive,Action=name,Target=e?.EnemyProfileId??"",Personality=b.Info.Personality.ToString(),
             Visible=e?.IsVisible==true&&seen!=null,Source=seen!=null?"personal-vision":"",Known=DP(known),ContactAge=seen?.TimeSincePositionUpdated??0,
             Position=DP(b.Position),Distance=Vector3.Distance(b.Position,known),Grounded=movement.IsGrounded,Sprinting=b.Player.IsSprintEnabled||b.Mover.Running,
-            Immobile=b.Player.IsInPronePose||movement.PhysicalConditionIs(EPhysicalCondition.LeftLegDamaged)||movement.PhysicalConditionIs(EPhysicalCondition.RightLegDamaged),
+            Immobile=b.Player.IsInPronePose,
             Ready=b.Player.HandsController is Player.FirearmController&&VisibleAdapter.WeaponReady(b),
             ProtectedCover=b.Cover.CoverInUse!=null,
-            Busy=MedicalPostureGuard(b)||other||b.DoorOpener.Interacting||b.BotOwner.DoorOpener.Interacting||b.BotOwner.Medecine?.Using==true,
-            Urgent=b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None
-                ||b.Grenade.GrenadeDangerPoint!=null||b.BotOwner.WeaponManager?.Grenades.ThrowindNow==true||b.Flashed.IsFlashed
-                ||s.Fear.Current.Panic||b.Suppression.IsHeavySuppressed||FakeMedicalPriority(b)};
+            Busy=b.Player.HandsController is IMedsController||b.BotOwner.Medecine?.Using==true,
+            Urgent=false};
     }
     private void RefreshCombatStep(BotComponent b,BotState s,bool mayPlan)
     {
@@ -148,7 +144,6 @@ public sealed partial class Plugin
         var f=CombatStepFrame(b,s);
         if(b.GoalEnemy==null||b.GoalEnemy.EnemyProfileId!=r.Policy.Trace!.Target)
         {EndCombatStep(s,"movement-contact-instance-changed");return;}
-        if(Time.time-r.LastCallback>.4f){EndCombatStep(s,"movement-action-callback-expired");return;}
         if(QueuedCombatMovement(b)&&r.Path!=null){EndCombatStep(s,"movement-native-route-queued");return;}
         if(r.PauseOwnsEmpty&&b.Mover.ActivePath!=null){EndCombatStep(s,"pause-route-replaced");return;}
         // Check ownership before recording position deltas: another native route's movement is not M01 progress.
@@ -158,17 +153,6 @@ public sealed partial class Plugin
         if(Time.time>r.SpeedAt) {
             r.MeasuredSpeed=(b.Position-r.SpeedPosition).magnitude/(Time.time-r.SpeedAt);
             r.SpeedAt=Time.time;r.SpeedPosition=b.Position;
-        }
-        if((r.Path!=null||r.Pause.Pausing)&&Time.time>=r.NextSafety)
-        {
-            if(!doorBudget.TryBegin(Time.frameCount,b))
-            {if(Time.time-r.LastSafety>.2f)EndCombatStep(s,"movement-safety-budget-expired");return;}
-            doorClock.Restart();
-            try {
-                string why=CombatStepSafety(b,s,b.Position,r.Pause.Pausing?b.Position:r.Goal);
-                if(why.Length>0){EndCombatStep(s,why);return;}
-                r.LastSafety=Time.time;r.NextSafety=Time.time+.1f;
-            } finally {doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
         }
         if(r.Pause.Pausing) {
             if(r.Pause.Observe(FirePauseFrame(b,s,f),config.FirePause)) {
@@ -199,6 +183,8 @@ public sealed partial class Plugin
             3=>(-right*r.Side-forward).normalized,4=>(right*r.Side+forward).normalized,_=>(-right*r.Side+forward).normalized};
         string label=candidate switch{0=>r.Side<0?"left":"right",1=>r.Side<0?"right":"left",2 or 3=>"diagonal-back",_=>"diagonal-forward"};
         if(candidate==0&&Vector3.Distance(b.Position,anchor)>c.Radius*.65){direction=(anchor-b.Position).normalized;label="toward-anchor";}
+        if(OwnThreatens(b,b.Position+direction,out var ownGrenade)&&Vector3.Dot(direction,ownGrenade-b.Position)>0)
+            direction=-direction; // Source DiamondStepper reverses only its next tap.
         var raw=b.Position+direction*(float)Math.Min(.85,c.Radius*.75);
         string why="movement-no-local-navmesh";
         if(NavMesh.SamplePosition(raw,out var sample,.12f,NavMesh.AllAreas)
@@ -227,24 +213,11 @@ public sealed partial class Plugin
     }
     private string CombatStepSafety(BotComponent b,BotState s,Vector3 from,Vector3 to)
     {
-        string panel=CombatDoorPanel(b,to);if(panel.Length>0)return panel;
+
         var anchor=s.CombatStep.Policy.Anchor;
-        if(!CombatStep.Inside(anchor,DP(to),config!.CombatStep.Radius))return "movement-anchor-limit";
+
         string volume=RunVolume(b,from,to);if(volume.Length>0)return "movement-"+volume;
-        // Current known contacts only. Per-contact protection must not decrease anywhere on the short lane.
-        int count=0,scanned=0;
-        foreach(var e in b.EnemyController.KnownEnemies)
-        {
-            if(++scanned>32)return "movement-threat-list-truncated";
-            if(e==null||!e.EnemyKnown||e.TimeSinceLastKnownUpdated>3||e.KnownPlaces.LastKnownPosition is not Vector3 known)continue;
-            if(++count>4)return "movement-threat-budget-exceeded";
-            // Deliberate exposure to the selected visible opponent is the purpose of a combat step.
-            // Secondary threats still must not gain a new firing lane.
-            if(e.EnemyProfileId==b.GoalEnemy?.EnemyProfileId&&e.IsVisible)continue;
-            int before=CombatProtection(VP(anchor),known)|CombatProtection(from,known);
-            if(!CombatStep.PreservesProtection(before,CombatProtection((from+to)*.5f,known),CombatProtection(to,known)))return "movement-would-leave-protection";
-        }
-        return count==0?"movement-no-known-threat":"";
+        return "";
     }
     private static int CombatProtection(Vector3 position,Vector3 known)
     {
@@ -316,8 +289,7 @@ public sealed partial class Plugin
             Distance=f.Distance,SinceHit=b.Medical.TimeSinceShot,Speed=r.MeasuredSpeed,CompletedSteps=r.Policy.Trace!.CompletedSteps,
             Weapon=weapon?.Id.ToString()??"",Mode=weapon==null?"":weapon.SelectedFireMode is Weapon.EFireMode.single or Weapon.EFireMode.doubleaction?"single":"automatic",
             Gate=CombatStep.Gate(f,config!.CombatStep),RouteFree=b.Mover.ActivePath==null&&!QueuedCombatMovement(b),
-            CanFire=f.Ready&&weapon!=null&&b.BotOwner.WeaponManager.IsWeaponReady&&b.BotOwner.ShootData.CanShootByState
-                &&b.GoalEnemy?.CanShoot==true&&b.FriendlyFire.ClearShot};
+            CanFire=b.BotOwner.ShootData?.Shooting==true};
     }
     private bool TryFirePause(BotComponent b,BotState s,CombatStepFrame f)
     {
@@ -342,7 +314,7 @@ public sealed partial class Plugin
         b.Player.Move(Vector2.zero);
         // SAIN normally feeds this flag from movement updates. Only clear it after actual stationary evidence.
         // During braking retain the native moving value; never change spread, recoil, aim time or fire permission.
-        b.BotOwner.AimingManager?.CurrentAiming?.Move(r.Pause.Trace?.State=="settled"?0f:Math.Max(.01f,b.Player.Speed));
+        b.BotOwner.AimingManager?.CurrentAiming?.Move(0f);
     }
     private static void FirePauseShot(PlayerComponent __instance, IWeapon __0)
     {

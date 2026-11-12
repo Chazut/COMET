@@ -73,7 +73,7 @@ public sealed partial class Plugin
                 ||r.Owns&&__instance.LeanDirection!=r.Applied)) {
                 p.EndCombatLean(s,"lean-native-owner-or-contact-changed");return true;
             }
-            p.LeanSafety(b,s,f);
+            f.GeometryFresh=f.LeftSafe=f.RightSafe=true;
             if(!r.Policy.Active) {
                 if(!r.Policy.Begin(f,p.config.CombatLean,p.jumpRandom.NextDouble(),p.jumpRandom.NextDouble(),p.jumpRandom.NextDouble(),
                     p.jumpRandom.NextDouble(),p.jumpRandom.NextDouble(),p.jumpRandom.NextDouble())) {p.RecordCombatLean(s);return true;}
@@ -119,42 +119,10 @@ public sealed partial class Plugin
                 _=>"unknown"
             }};
     }
-    private void LeanSafety(BotComponent b,BotState s,CombatLeanFrame f)
-    {
-        var r=s.CombatLean;var right=b.Player.Transform.right;
-        bool moved=Vector3.Distance(b.Position,r.SafetyPosition)>.15f||Vector3.Angle(right,r.SafetyRight)>15;
-        if(Time.time-r.SafetyAt>=.1f||moved) {
-            if(doorBudget.TryBegin(Time.frameCount,b)) {
-                doorClock.Restart();
-                try {
-                    var head=b.Player.PlayerBones.Head.position;
-                    // Conservative lateral envelope around the body, tested from the real current head.
-                    // Free space is enough: there is deliberately no requirement for nearby cover.
-                    var centre=head-right*Vector3.Dot(head-b.Position,right);
-                    r.LeftSafe=LeanSweep(head,centre-right*.3f);
-                    r.RightSafe=LeanSweep(head,centre+right*.3f);
-                    r.SafetyAt=Time.time;r.SafetyPosition=b.Position;r.SafetyRight=right;
-                }finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
-            }else if(moved)r.SafetyAt=-1000;
-        }
-        f.GeometryFresh=Time.time-r.SafetyAt<=.2f;f.LeftSafe=r.LeftSafe;f.RightSafe=r.RightSafe;
-    }
-    private static bool LeanSweep(Vector3 from,Vector3 to)
-    {
-        if(!DoorPolicy.Finite(from.x)||!DoorPolicy.Finite(from.y)||!DoorPolicy.Finite(from.z)
-            ||!DoorPolicy.Finite(to.x)||!DoorPolicy.Finite(to.y)||!DoorPolicy.Finite(to.z))return false;
-        const float radius=.12f;
-        int mask=LayersMaskController.HighPolyWithTerrainMask;
-        var travel=to-from;
-        // CheckSphere covers initial overlaps, which a sweep alone cannot detect.
-        return !Physics.CheckSphere(from,radius,mask,QueryTriggerInteraction.Ignore)
-            &&!Physics.CheckCapsule(to-Vector3.up*.12f,to+Vector3.up*.08f,radius,mask,QueryTriggerInteraction.Ignore)
-            &&(travel.sqrMagnitude<.0001f||!Physics.SphereCast(from,radius,travel.normalized,out _,travel.magnitude,mask,QueryTriggerInteraction.Ignore));
-    }
     private void GuardCombatLean(BotComponent b,BotState s)
     {
         if(!s.CombatLean.Policy.Active)return;
-        if(b==null||b.IsDead||config==null||Time.time-s.CombatLean.CallbackAt>.3f)EndCombatLean(s,"lean-callback-or-bot-ended");
+        if(b==null||b.IsDead||config==null)EndCombatLean(s,"lean-callback-or-bot-ended");
         else {
             var f=LeanFrame(b,s,b.Mover.Lean);f.GeometryFresh=f.LeftSafe=f.RightSafe=true;
             var gate=CombatLean.Gate(f,config.CombatLean);

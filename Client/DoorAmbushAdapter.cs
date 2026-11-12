@@ -87,10 +87,8 @@ public sealed partial class Plugin
         var e=b.GoalEnemy;
         if(e==null||!e.EnemyKnown||e.KnownPlaces.LastKnownPosition==null)return "ambush-contact-forgotten";
         if(e.IsVisible||b.EnemyController.VisibleEnemies.Count>0)return "ambush-visual-contact";
-        if(b.Flashed.IsFlashed||b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed||s.Fear.Current.Panic||b.Medical.TimeSinceShot<3
-            ||b.Grenade.GrenadeDangerPoint!=null||b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None
-            ||b.BotOwner.DoorOpener.Interacting||b.DoorOpener.Interacting||b.Player.IsInPronePose||!b.Player.MovementContext.IsGrounded)return "ambush-native-priority";
-        if(!s.Fake.Policy.Active&&!FakeWeaponReady(b))return "ambush-weapon-unavailable";
+        if(b.BotOwner.Memory.IsUnderFire||b.Grenade.GrenadeDangerPoint!=null||b.Decision.CurrentSelfDecision!=ESelfActionType.None)
+            return "ambush-native-priority";
         if(s.Ambush.Policy.Active&&(e.EnemyProfileId!=s.Ambush.Policy.Trace!.Target))return "ambush-target-changed";
         return "";
     }
@@ -106,7 +104,6 @@ public sealed partial class Plugin
         var r=s.Ambush;if(!r.Policy.Active)return;
         string gate=AmbushGate(b,s);var e=b.GoalEnemy;
         if(gate.Length>0){EndDoorAmbush(s,gate);return;}
-        if(Time.time-r.LastCallback>.6){EndDoorAmbush(s,"ambush-action-callback-stopped");return;}
         if(!r.Policy.Observe(Time.time,e.TimeSinceLastKnownUpdated,e.EnemyKnown,DP(e.KnownPlaces.LastKnownPosition!.Value),AmbushHeld(s),AmbushLimit(s),config!.DoorApproach.ApproachLimit))
             EndDoorAmbush(s,r.Policy.Trace!.Reason);
     }
@@ -131,7 +128,7 @@ public sealed partial class Plugin
         if(t.State=="planning")return PlanAmbushStep(b,s);
         if(t.State=="approaching")
         {
-            if(r.Path?.PathStatus!=NavMeshPathStatus.PathComplete){EndDoorAmbush(s,"ambush-route-invalidated");return true;}
+            if(r.Path?.NavMeshPath.status!=NavMeshPathStatus.PathComplete){EndDoorAmbush(s,"ambush-route-invalidated");return true;}
             bool complete=r.Path?.Status==EBotMoveStatus.Complete;
             bool owns=OwnAmbushPath(r)||(b.Mover.ActivePath==null&&complete);
             r.Policy.Movement(DP(b.Position),complete,owns,Time.time);
@@ -141,7 +138,7 @@ public sealed partial class Plugin
         if(Time.time>=r.NextCheck)
         {
             if(!doorBudget.TryBegin(Time.frameCount,b))
-            {if(Time.time-r.LastCheck>.5){EndDoorAmbush(s,"ambush-validation-budget-expired");return true;}}
+            {}
             else
             {
                 doorClock.Restart();
@@ -181,7 +178,7 @@ public sealed partial class Plugin
                 RefreshDoorFake(b,s);
                 if(!s.Fake.Policy.Active)
                 {r.FeintStarted=false;t.FeintResult=s.Fake.Policy.Trace?.Reason??"ended";
-                    if(s.Fake.Policy.Trace?.State!="completed"||!FakeWeaponReady(b)){EndDoorAmbush(s,"ambush-feint-not-completed");return true;}}
+                    }
             }
             if(!s.Fake.Policy.Active){b.Mover.SetTargetPose(r.Pose);r.AppliedPose=r.Pose;b.Steering.LookToPoint(r.Aim);}
         }
@@ -214,8 +211,6 @@ public sealed partial class Plugin
         {
             if(!r.CurrentChecked)
             {r.CurrentProtection=HoldProtection(b.Position,b.GoalEnemy.KnownPlaces.LastKnownPosition!.Value);r.CurrentChecked=true;}
-            if(Vector3.Distance(r.PlanningOrigin,b.Position)>.5f)
-            {EndDoorAmbush(s,"hold-door-origin-moved-reconsider");return true;}
             if(r.Work.Count>0&&r.Best==null)
             {
                 var w=r.Work[0];r.Work.RemoveAt(0);
@@ -230,7 +225,6 @@ public sealed partial class Plugin
                     var selection=EvaluateDoorHold(b,s,point,candidate.PathLength,true,false);selection.Door=w.Geometry.Id;
                     candidate.Score=DoorHoldSelection.Rank(selection.CandidateProtection,candidate.PathLength);
                     candidate.Eligible=selection.Outcome=="move";candidate.Reason=selection.Reason;
-                    if(!s.ProgressUnavailable&&s.Progress.Blocked(ProgressAdapter.Destination(point),Time.time)){candidate.Eligible=false;candidate.Reason="ambush-progress-retry-blocked";}
                     if(candidate.Eligible&&(r.Best==null||candidate.Score<r.Best.Score))
                     {r.Best=candidate;r.Chosen=w;r.Aim=aim;r.Pose=pose;r.Selection=selection;r.Work.Clear();}
                     else if(r.Selection==null)r.Selection=selection;
@@ -262,13 +256,6 @@ public sealed partial class Plugin
         // Watch the corridor-side mouth, not the hidden enemy or a point through a closed leaf.
         aim=VP(w.Geometry.Center)+normal*.65f+Vector3.up*1.2f;
         if(why.Length>0)return why;
-        if(!TryDoorGeometry(w.Data,out var current)||current.State!=w.Geometry.State)return "ambush-door-changed-reconsider";
-        if(projected)
-        {
-            var sampled=point;var target=aim;
-            bool View(float p)=>ClearAmbushRay(sampled+Vector3.up*(.65f+p*.8f),target)&&ClearAmbushRay(sampled+Vector3.up*(.8f+p*.8f),target);
-            if(!View(pose)){pose=1;if(!View(pose))return "ambush-eyes-or-muzzle-blocked";}
-        }
         return "";
     }
     private static bool ClearAmbushRay(Vector3 from,Vector3 to)=>!Physics.Linecast(from,to,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore);

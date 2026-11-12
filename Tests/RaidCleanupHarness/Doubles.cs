@@ -36,7 +36,7 @@ namespace Comet.Client {
   internal readonly List<Owned> clearOwnGrenades=new();
   internal readonly Dictionary<object,Scan> coverScans=new();
   internal object? scanningFinder,scanningRunner;internal bool coverFactoryBypass;
-  internal readonly Dictionary<object,Owned> supportOperations=new(),movementPending=new();
+  internal Dictionary<object,Owned> supportOperations=new(),movementPending=new(),fearMemory=new(),fearDeaths=new(),nativeStormPlans=new();
   internal readonly Owned doorSwings=new(),motionWatches=new(),pushContexts=new(),closingSelected=new(),closingPending=new(),
    supportBoard=new(),doorReservations=new(),doorBudget=new(),doorClock=new(),crossfireClaims=new(),maneuverBoard=new(),coverMateBoard=new(),
    stormBoard=new(),laneShots=new(),voicePolicy=new(),movementQueue=new(),movementSources=new(),movementListeners=new(),movementLog=new(),movementCounts=new(),

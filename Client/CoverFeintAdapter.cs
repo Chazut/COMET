@@ -49,62 +49,43 @@ public sealed partial class Plugin
         &&b.BotActive&&!b.IsDead&&!b.GameEnding&&Authority&&!Ghost(s.ProfileId)&&b.SAINLayersActive;
     private static bool MagazineOperation(Player.FirearmController? f)=>f?.CurrentHandsOperation is Player.FirearmController.UtilityOperation op
         &&op._utilityOperationType==Player.FirearmController.UtilityOperation.EUtilityType.CheckMagazine;
-    private static bool MagazineSoundAvailable(BotComponent b,double distance)
-    {
-        // Inspect only this weapon's native sound assets, once per attempted selection.
-        // A suitable rolloff is a prerequisite, not proof that another actor hears through occlusion.
-        if(b.Player.HandsController is not Player.FirearmController firearm)return false;
-        foreach(var sound in firearm.GetComponentsInChildren<BaseSoundPlayer>())
-            foreach(var element in (sound.MainSounds??Array.Empty<BaseSoundPlayer.SoundElement>()).Concat(sound.AdditionalSounds??new()))
-                if(element!=null&&element.EventName.IndexOf("mag",StringComparison.OrdinalIgnoreCase)>=0&&element.Volume>0&&element.RollOff>=distance
-                    &&element.SoundClips?.Any(clip=>clip!=null)==true)return true;
-        return false;
-    }
+
     private CoverFeintFrame FeintFrame(BotComponent b,BotState s)
     {
         var r=s.CoverFeint;var e=b.GoalEnemy;var seen=e?.KnownPlaces.LastSeenPlace;var mag=(b.Player.HandsController as Player.FirearmController)?.Item.GetCurrentMagazine();
-        var known=r.Policy.Active?VP(r.Policy.Known):seen?.Position??b.Position;
+        var known=e?.KnownPlaces.LastKnownPosition??b.Position;
         var f=new CoverFeintFrame{Now=Time.time,Position=DP(b.Position),Known=DP(known),Target=e?.EnemyProfileId??"",Key=e==null?"":RelocationKey(e),
             Age=r.Policy.Active?Time.time-r.SeenAt:seen?.TimeSincePositionUpdated??999,SightAge=e?.Seen==true?e.TimeSinceSeen:999,
             Visible=e?.IsVisible==true,Distance=Vector3.Distance(b.Position,known),Cover=b.Cover.CoverInUse!=null,
             Ready=VisibleAdapter.WeaponReady(b),Healthy=b.Memory.Health.HealthStatus==ETagStatus.Healthy,
             Bold=b.Info.PersonalitySettings.Rush.CanRushEnemyReloadHeal,Speed=b.Player.Velocity.magnitude,
             Grounded=b.Player.MovementContext.IsGrounded,AmmoRatio=mag?.MaxCount>0?(double)mag.Count/mag.MaxCount:0,
-            Protected=r.Protected,Exposed=r.Exposed,AtGoal=Vector3.Distance(b.Position,VP(r.Policy.Goal))<=.2f,
+            Protected=r.Protected,Exposed=r.Exposed,AtGoal=Vector2.Distance(new(b.Position.x,b.Position.z),new((float)r.Policy.Goal.X,(float)r.Policy.Goal.Z))<.7f,
             Fire=e==null?-1:Math.Max(e.Status.TimeLastShotAtMe,e.Status.TimeLastShotMe)};
-        f.MagazineAudible=r.Policy.Active?r.Policy.Trace!.Kind=="magazine":MagazineSoundAvailable(b,f.Distance);
-        var env=ReadEnvironment(b,s,"cover-feint");
-        f.Outdoor=config!.EnvironmentContext.Enabled?env.Reported=="outdoor"&&!env.Conflict:b.Player.Environment==EnvironmentType.Outdoor&&b.Player.AIData?.EnvironmentId==0;
+        f.MagazineAudible=true;
+        f.Outdoor=b.Player.Environment==EnvironmentType.Outdoor&&b.Player.AIData?.EnvironmentId==0;
         var heard=e?.KnownPlaces.LastHeardPlace;
         if(heard!=null){f.Heard=silentHeardAt(heard);float distance=Vector3.Distance(b.Position,heard.Position);
             if(f.Heard>r.HeardAt+.01){r.Coming=r.HeardAt>=0&&distance<r.HeardDistance-.3f;r.HeardAt=(float)f.Heard;r.HeardDistance=distance;}
             f.Coming=r.Coming&&Time.time-f.Heard<=3;}
-        int count=0;if(b.Squad?.Members!=null)foreach(var mate in b.Squad.Members.Values){if(++count>16)break;
+        int count=0;if(b.Squad?.Members!=null)foreach(var mate in b.Squad.Members.Values){
             if(mate!=null&&!ReferenceEquals(mate,b)&&!mate.IsDead&&mate.GoalEnemy?.EnemyProfileId==f.Target&&mate.GoalEnemy.IsVisible){f.Mates=true;break;}}
-        if(MedicalPostureGuard(b))f.Block="medical-posture-protected";
-        else if(!FeintScope(b,s))f.Block="feint-out-of-scope";
-        else if(e==null||seen==null||!e.Seen||!e.EnemyKnown)f.Block="feint-no-personally-seen-contact";
-        else if(r.Policy.Active&&(!SameTacticalContact(e,r.Enemy)||!ReferenceEquals(b.Player.HandsController,r.Firearm)))f.Block="feint-contact-or-weapon-changed";
-        else if(b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None||FakeMedicalPriority(b)
-            ||b.Grenade.GrenadeDangerPoint!=null||b.Flashed.IsFlashed||b.Suppression.IsHeavySuppressed||s.Fear.Current.Panic
-            ||b.DoorOpener.Interacting||b.BotOwner.DoorOpener.Interacting||b.Player.IsInPronePose
-            ||b.Player.MovementContext.PhysicalConditionIs(EPhysicalCondition.LeftLegDamaged)||b.Player.MovementContext.PhysicalConditionIs(EPhysicalCondition.RightLegDamaged))f.Block="feint-native-emergency-or-interaction";
-        else if(s.Entry.Policy.Active||s.Door.Policy.Active||s.Jump.Policy.Active||s.RunBy.Policy.Active||s.StepPeek.Policy.Active||s.Fake.Policy.Active
-            ||s.RoomClear.Policy.Active||s.Emergency.Policy.Active||s.Support!=null||s.Reservation.Lease!=null||s.Relocation.Policy.Active
-            ||s.CornerPeek.Policy.Active||s.CornerChase.Policy.Active||s.CombatStep.Policy.Active||s.HoldAngle.Policy.Active||s.Ambush.Policy.Active)f.Block="feint-other-tactic";
-        else if(r.Policy.Trace?.State!="mag-check"&&!f.Ready||b.BotOwner.WeaponManager.Grenades.ThrowindNow)f.Block="feint-hands-busy";
-        if(r.Policy.Active){var path=b.Mover.ActivePath;
-            f.RouteValid=!QueuedCombatMovement(b)&&(path==null||OwnFeintRoute(r,path));
-            if(r.Policy.Moving&&!CornerPeek.Lane(DP(r.From),r.Policy.Goal,DP(b.Position),r.Policy.Trace!.JumpsAccepted>0))f.RouteValid=false;}
-        count=0;foreach(var other in b.EnemyController.KnownEnemies){if(++count>32){f.Block="feint-threat-list-truncated";break;}
-            if(other!=null&&!SameTacticalContact(other,e)&&(other.IsVisible||other.Status.ShotAtMeRecently)){f.Block="feint-other-immediate-threat";break;}}
+        if(!FeintScope(b,s))f.Block="feint-out-of-scope";
+        else if(e==null||!e.Seen)f.Block="feint-unseen-contact";
+        else if(r.Policy.Active&&!SameTacticalContact(e,r.Enemy))f.Block="feint-contact-changed";
+        else if(b.BotOwner.Memory.IsUnderFire)f.Block="feint-under-fire";
+        else if(!r.Policy.Active&&(b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None
+            ||s.Door.Policy.Active||s.Entry.Policy.Active||s.Relocation.Policy.Active))f.Block="feint-other-tactic";
+        if(b.BotOwner.WeaponManager.Grenades.ThrowindNow)f.Block="feint-throwing";
+        foreach(var other in b.EnemyController.KnownEnemies)
+            if(other!=null&&!SameTacticalContact(other,e)&&other.IsVisible){f.Block="feint-other-visible-enemy";break;}
         return f;
     }
     private bool ChooseFeint(BotComponent b,Enemy e,BotState s,ref ECombatDecision result,ref bool succeeded)
     {
         var r=s.CoverFeint;if(config==null||r.Fault)return false;
         try{
-            if(!r.Policy.Active){if(Time.time<r.Next||s.Sight.Current!=null||b.Mover.ActivePath!=null||QueuedCombatMovement(b))return false;r.Next=Time.time+.4f;
+            if(!r.Policy.Active){if(Time.time<r.Next)return false;r.Next=Time.time+.4f;
                 var f=FeintFrame(b,s);var old=r.Policy.Trace;
                 if(!r.Policy.Begin(f,config.CoverFeint,jumpRandom.NextDouble)){if(!ReferenceEquals(old,r.Policy.Trace))RecordFeint(s,true);return false;}
                 r.Starting=true;try{Release(s,"feint-start");}finally{r.Starting=false;}
@@ -143,25 +124,6 @@ public sealed partial class Plugin
         var r=s.CoverFeint;var p=r.Policy;if(!p.Active||config==null)return;
         var f=FeintFrame(b,s);
         if(f.Block.Length>0||!f.RouteValid){EndFeint(s,f.Block.Length>0?f.Block:"feint-native-route-taken-over");return;}
-        if(Time.time>=r.NextSafety){
-            if(doorBudget.TryBegin(Time.frameCount,b)){doorClock.Restart();try{
-                r.Protected=CombatStep.UsefulCover(CombatProtection(b.Position,VP(p.Known)));r.Exposed=CornerOpen(b,b.Position,VP(p.Known));
-                bool safe=CombatStep.UsefulCover(CombatProtection(VP(p.Home),VP(p.Known)))&&CornerOtherThreats(b,VP(p.Home),p.Moving?VP(p.Goal):b.Position).Length==0;
-                if(p.Moving){safe&=RunVolume(b,VP(p.Home),r.Out).Length==0;
-                    var active=b.Mover.ActivePath;
-                    if(active!=null&&OwnFeintRoute(r,active)&&Vector3.Distance(b.Position,VP(p.Goal))>.2f)
-                        safe&=active.NavMeshPath.status==NavMeshPathStatus.PathComplete&&FeintRouteClear(b,RemainingRelocationRoute(b,active));}
-                if(!safe){EndFeint(s,"feint-cover-or-corridor-unsafe");return;}r.LastSafety=Time.time;r.NextSafety=Time.time+.1f;
-            }finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}}
-            else {
-                // A newly selected plan has no safety proof yet. Wait stationary for a
-                // bounded first probe; never interpret the sentinel as an expired proof.
-                if(p.Trace!.State=="planning")p.Preparation.Defer(Time.time,Time.deltaTime);
-                p.DeferSafety(f,config.CoverFeint,r.LastSafety);
-                if(!p.Active)FinishFeint(s);else RecordFeint(s);
-                return; // No movement, magazine check or jump without fresh validation.
-            }
-        }
         f.Protected=r.Protected;f.Exposed=r.Exposed;
         if(!p.Observe(f,config.CoverFeint)){FinishFeint(s);return;}
         if(p.Trace!.State=="mag-check")p.MagazineObserved(MagazineOperation(r.Firearm),f.Ready,Time.time);
@@ -173,15 +135,15 @@ public sealed partial class Plugin
             else if(p.Trace.State=="planning")p.Preparation.Defer(Time.time,Time.deltaTime);
             if(p.WantsRoute&&doorBudget.TryBegin(Time.frameCount,b)){doorClock.Restart();try{MoveFeint(b,s);}finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}}
             if(p.Trace.State=="mag-pending"){
-                if(!r.Protected||!f.Ready||r.Firearm==null||!MagazineSoundAvailable(b,f.Distance)){EndFeint(s,"feint-magazine-no-longer-safe");return;}
+                if(r.Firearm==null){EndFeint(s,"feint-magazine-no-longer-safe");return;}
                 bool accepted=r.Firearm.CheckAmmo();p.MagazineResult(accepted,MagazineOperation(r.Firearm),Time.time);
             }
             if(p.Moving&&config.CoverFeint.Jump&&p.Trace.CompletedPeeks==0){int leg=p.Trace.State=="out"?0:1;
                 var dir=VP(p.Goal)-b.Position;dir.y=0;var v=b.Player.Velocity;v.y=0;
                 if(r.JumpLeg!=leg&&dir.magnitude>.45f&&Vector3.Dot(v,dir.normalized)>=1.2f&&b.Player.MovementContext.IsGrounded
-                    &&b.Player.MovementContext.CanJump&&b.Player.Physical.Stamina.NormalValue*100>=30&&doorBudget.TryBegin(Time.frameCount,b)){
-                    r.JumpLeg=leg;doorClock.Restart();try{if(RunVolume(b,r.From,VP(p.Goal),true).Length==0)
-                        p.Jump(ControlledJump(b,s,"M14",leg==0?"bait-out":"bait-back",dir,VP(p.Goal),1.2,30,true));}
+                    &&b.Player.MovementContext.CanJump&&doorBudget.TryBegin(Time.frameCount,b)){
+                    r.JumpLeg=leg;doorClock.Restart();try{if(!Physics.Raycast(b.Position+Vector3.up*1.7f,Vector3.up,.6f,LayersMaskController.HighPolyWithTerrainMask))
+                        p.Jump(ControlledJump(b,s,"M14",leg==0?"bait-out":"bait-back",dir,VP(p.Goal),1.2,0,true));}
                     finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}}
             }
             if(!p.Moving&&!p.WantsRoute){StopFeintRoutes(r);if(b.Mover.ActivePath==null&&!QueuedCombatMovement(b))b.Player.Move(Vector2.zero);}
@@ -190,41 +152,30 @@ public sealed partial class Plugin
     }
     private void PlanFeint(BotComponent b,BotState s)
     {
-        var r=s.CoverFeint;var p=r.Policy;var c=config!.CoverFeint;
-        if(!r.Protected||b.Player.Velocity.magnitude>.35f||!b.Player.MovementContext.IsGrounded)return;
+        var r=s.CoverFeint;var p=r.Policy;
         if(p.Trace!.Kind=="magazine"){p.Plan(p.Home,Time.time);return;}
-        if(r.Candidate>=12){EndFeint(s,"feint-no-safe-peek");return;}
-        int i=r.Candidate++;var forward=VP(p.Known)-VP(p.Home);forward.y=0;
-        int side=i%2==0?1:-1;if(p.Trace.CompletedPeeks>0&&r.FirstSide!=0)side*= -r.FirstSide;
-        var direction=Vector3.Cross(Vector3.up,forward.normalized)*side;
-        if(i>=6)direction=(direction+forward.normalized*.25f).normalized;
-        float distance=(float)(c.MinStep+(c.MaxStep-c.MinStep)*((i%6)/2)/2d);
-        var raw=VP(p.Home)+direction*distance;
-        if(!CornerRoute(b,b.Position,raw,c.MaxStep+.2,out var goal,out var route,out var why)||!FeintRouteClear(b,route.corners)||!FeintReturnClear(b,goal,VP(p.Home))||!CornerOpen(b,goal,VP(p.Known))
-            ||CornerOtherThreats(b,VP(p.Home),goal).Length>0){p.Alternative("Peek "+i+": "+(why.Length>0?why:"blocked angle or other threat"));return;}
-        r.Out=goal;if(p.Trace.CompletedPeeks==0)r.FirstSide=side;r.Candidate=0;p.Plan(DP(goal),Time.time);
+        if(r.Candidate>=16){EndFeint(s,"feint-no-peek-point");return;}
+        int i=r.Candidate++;var forward=VP(p.Known)-VP(p.Home);forward.y=0;forward.Normalize();
+        if(i==0)r.FirstSide=jumpRandom.NextDouble()<.5?1:-1;
+        int side=(i<8?1:-1)*r.FirstSide;
+        var lateral=Vector3.Cross(Vector3.up,forward);float[] distances={1.1f,1.5f,.9f,2f};float d=distances[i%4];
+        var raw=VP(p.Home)+lateral*side*d+forward*(i%8<4?0:.6f)*d;
+        if(!NavMesh.SamplePosition(raw,out var nav,.6f,NavMesh.AllAreas)||NavMesh.Raycast(b.Position,nav.position,out _,NavMesh.AllAreas))return;
+        for(int t=0;t<3;t++) {
+            var target=VP(p.Known)+Vector3.up*1.3f+lateral*(t==0?0:t==1?.8f:-.8f);
+            if(Physics.Linecast(nav.position+Vector3.up*1.4f,target,LayersMaskController.HighPolyWithTerrainMask))continue;
+            r.Out=nav.position;r.Candidate=0;p.Plan(DP(r.Out),Time.time);return;
+        }
     }
-    private bool FeintRouteClear(BotComponent b,Vector3[]? corners)
-    {
-        if(corners==null||corners.Length<2||corners.Length>5)return false;
-        for(int i=1;i<corners.Length;i++)if(RunVolume(b,corners[i-1],corners[i]).Length>0||CornerOtherThreats(b,corners[i-1],corners[i]).Length>0)return false;
-        return true;
-    }
-    private bool FeintReturnClear(BotComponent b,Vector3 from,Vector3 to)
-    {var path=new NavMeshPath();NavMesh.CalculatePath(from,to,NavMesh.AllAreas,path);return path.status==NavMeshPathStatus.PathComplete&&FeintRouteClear(b,path.corners);}
+
     private void MoveFeint(BotComponent b,BotState s)
     {
         var r=s.CoverFeint;var p=r.Policy;var goal=VP(p.Goal);
-        // Do not ask NavMesh to start from an airborne coordinate: finish the native flight first.
-        if(!b.Player.MovementContext.IsGrounded)return;
-        if(!CornerRoute(b,b.Position,goal,config!.CoverFeint.MaxStep+.25,out var end,out var path,out var why)||Vector3.Distance(end,goal)>.1f||!FeintRouteClear(b,path.corners))
-        {EndFeint(s,why.Length>0?why:"feint-return-route-changed");return;}
-        StopFeintRoutes(r);if(b.Mover.ActivePath!=null||QueuedCombatMovement(b)){EndFeint(s,"feint-route-taken-over");return;}
-        r.From=b.Position;r.Requesting=path;bool accepted;
-        try{accepted=b.Mover.WalkToPointByWay(path,true,.1f,false);}finally{r.Requesting=null;}
-        if(!accepted||!OwnFeintRoute(r,b.Mover.ActivePath)){EndFeint(s,"feint-movement-not-accepted");return;}
-        if(!r.OwnSpeed){r.PreviousSpeed=(float)combatNativeSpeed.GetValue(b.PlayerComponent.CharacterController);r.AppliedSpeed=Mathf.Clamp01(b.Info.FileSettings.Move.STRAFE_SPEED);r.OwnSpeed=true;}
-        b.Mover.SetTargetMoveSpeed(r.AppliedSpeed);p.RequestMove(Time.time);
+        StopFeintRoutes(r);r.From=b.Position;
+        b.Mover.WalkToPoint(goal,true,.49f);p.RequestMove(Time.time);
+        if(b.Mover.ActivePath is {} path)r.Routes[path]=path.NavMeshPath;
+        if(!r.OwnSpeed){r.PreviousSpeed=(float)combatNativeSpeed.GetValue(b.PlayerComponent.CharacterController);r.AppliedSpeed=1;r.OwnSpeed=true;}
+        b.Mover.SetTargetMoveSpeed(1);
     }
     private static void FeintPathInitialized(BotPathDataManual __instance,NavMeshPath path)
     {if(__instance.PathFinder is SAINMoverClass m&&Instance?.states.TryGetValue(m.Bot,out var s)==true){var r=s.CoverFeint;r.Routes.Remove(__instance);

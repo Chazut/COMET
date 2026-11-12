@@ -7,7 +7,7 @@ public sealed class QuietApproachConfig
 {
     public bool Enabled { get; set; } = true;
     public double WalkDistance { get; set; } = 30;
-    public double CrouchDistance { get; set; } = 8;
+    public double CrouchDistance { get; set; } = 12;
     public double WalkExitMargin { get; set; } = 3;
     public double CrouchExitMargin { get; set; } = 2;
     public double Budget { get; set; } = 20;
@@ -95,64 +95,36 @@ public sealed class QuietApproach
     public int RememberedTargets=>draws.Count;
     public QuietApproach(QuietApproachConfig config,Func<double> random){this.config=config;this.random=random;}
     private static bool Finite(double n)=>!double.IsNaN(n)&&!double.IsInfinity(n);
-    public void Clear(){draws.Clear();trail.Clear();last=silence=-1;used=stalled=0;previousActive=exhausted=blocked=false;band="normal";bandTarget="";encounter++;Current=new QuietTrace();}
+    public void Clear(){chosen="";applied=-1000;draws.Clear();trail.Clear();last=silence=-1;used=stalled=0;previousActive=exhausted=blocked=false;band="normal";bandTarget="";encounter++;Current=new QuietTrace();}
     public QuietTrace Stop(double now,string reason)
     {
         previousActive=false;band="normal";bandTarget="";stalled=0;trail.Clear();last=Finite(now)?now:last;
         var t=Current.Copy();t.At=Finite(now)?now:0;t.Active=t.Applied=false;t.State="normal";t.Reason=reason;t.ValidFor=0;Current=t;return t;
     }
+    private double started, applied=-1000;
+    private string chosen="";
     public QuietTrace Evaluate(QuietFrame f)
     {
-        if(!Finite(f.Now)||f.Now<0||!Finite(f.X)||!Finite(f.Y)||!Finite(f.Z))return Stop(f.Now,"quiet-invalid-observation");
-        if(last>f.Now) { exhausted=true; return Stop(f.Now,"quiet-clock-reset"); }
-        double dt=last<0?0:Math.Max(0,Math.Min(1,f.Now-last));last=f.Now;
-        if(!f.HasThreat){if(silence<0)silence=f.Now;else if(f.Now-silence>=config.ResetSilence){Clear();last=f.Now;silence=f.Now;}}
-        else silence=-1;
-        var t=new QuietTrace { At=f.Now,Target=f.Target,Action=f.Action,Source=f.Source,Personality=f.Personality,Encounter=encounter,
-            Age=Finite(f.Age)&&f.Age>=0?f.Age:(double?)null,Path=Finite(f.Path)&&f.Path>=0?f.Path:(double?)null,
-            Used=used,Remaining=Math.Max(0,config.Budget-used),Stalled=stalled };
-        QuietTrace Reject(string reason){t.Reason=reason;previousActive=false;band="normal";bandTarget="";stalled=0;trail.Clear();Current=t;return t;}
+        var t=new QuietTrace{At=f.Now,Target=f.Target,Action=f.Action,Source=f.Source,Personality=f.Personality,Age=f.Age,Path=f.Path};
+        QuietTrace Reject(string reason){t.Reason=reason;Current=t;return t;}
         if(!f.Scoped||!f.Enabled||!config.Enabled)return Reject("quiet-out-of-scope");
-        if(!Finite(f.SinceSeen)||!Finite(f.SinceFire))return Reject("quiet-invalid-observation");
-        if(f.Visible||f.OtherVisibleThreat||f.SinceSeen<config.SeenDelay)return Reject("quiet-visible-or-recent-fight");
-        if(f.Urgent||f.Panic||f.Suppressed||f.SinceFire<config.FireDelay)return Reject("quiet-urgent");
-        if(f.Action!="Search"&&f.Action!="MoveToEngage")return Reject("quiet-other-action");
-        if(f.Paused)return Reject("quiet-native-pause");
-        if(!f.HasContact||f.Target.Length==0||!t.Age.HasValue||f.Age>config.ContactAge)return Reject("quiet-stale-contact");
-        if(f.Blocked){blocked=true;return Reject("quiet-progress-blocked");}
-        if(blocked)return Reject("quiet-stalled-encounter");
-        if(exhausted||used>=config.Budget){exhausted=true;return Reject("quiet-budget-ended");}
-        if(!f.Complete||!t.Path.HasValue)return Reject("quiet-no-complete-route");
-        string targetKey=f.Target+":"+f.TargetInstance;
-        bool same=bandTarget==targetKey;
-        if(f.Path>config.WalkDistance+(same&&band!="normal"?config.WalkExitMargin:0))return Reject("quiet-too-far");
-        if(!draws.TryGetValue(targetKey,out var d))
+        if(f.Visible||f.SinceSeen<config.SeenDelay)return Reject("quiet-visible-or-recent-fight");
+        if(f.SinceFire<config.FireDelay||f.Urgent)return Reject("quiet-urgent");
+        if(!Finite(f.Path)||f.Path<=0||f.Path>config.WalkDistance)return Reject("quiet-too-far");
+        var key=f.Target+":"+f.TargetInstance;
+        if(chosen!=key||f.Now-applied>30)
         {
-            if(draws.Count>=32)return Reject("quiet-target-memory-full");
-            double chance=config.Chances.TryGetValue(f.Personality,out var p)?p:config.Chances["Normal"];
-            // Zero chance stays disabled. A bonus never lowers a user's existing chance.
-            double bonus=f.LootHeard&&chance>0?Math.Max(0,Math.Min(config.LootCap,chance+config.LootBonus)-chance):0;
-            double roll=random();if(!Finite(roll)||roll<0||roll>=1)return Reject("quiet-invalid-roll");
-            d=new Draw{Chance=chance+bonus,Roll=roll,Loot=bonus>0,Index=++drawIndex};draws.Add(targetKey,d);
+            chosen=key;draws.Clear();started=f.Now;
+            var chance=f.LootHeard?1:config.Chances.TryGetValue(f.Personality,out var p)?p:.6;
+            draws[key]=new Draw{Chance=chance,Roll=random(),Loot=f.LootHeard,Index=++drawIndex};
         }
-        t.Roll=d.Roll;t.Chance=d.Chance;t.LootBonus=d.Loot;t.Draw=d.Index;
+        applied=f.Now;var d=draws[key];t.Roll=d.Roll;t.Chance=d.Chance;t.LootBonus=d.Loot;t.Draw=d.Index;
         if(d.Roll>=d.Chance)return Reject("quiet-roll-declined");
-        if(previousActive && f.Executing)
-        {
-            used=Math.Min(config.Budget,used+dt);
-            bool moved=trail.Count==0;
-            if(!moved){moved=true;foreach(var q in trail){double x=q.X-f.X,y=q.Y-f.Y,z=q.Z-f.Z;if(x*x+y*y+z*z<.75*.75){moved=false;break;}}}
-            if(moved){if(trail.Count==32)trail.RemoveAt(0);trail.Add((f.X,f.Y,f.Z));stalled=0;}
-            else stalled+=dt;
-        }
-        else {trail.Clear();trail.Add((f.X,f.Y,f.Z));stalled=0;}
-        t.Used=used;t.Remaining=Math.Max(0,config.Budget-used);t.Stalled=stalled;
-        if(used>=config.Budget){exhausted=true;return Reject("quiet-budget-ended");}
-        if(stalled>=5){blocked=true;return Reject("quiet-no-progress");}
-        band=f.Path<=config.CrouchDistance+(same&&band=="crouch"?config.CrouchExitMargin:0)?"crouch":"walk";
-        bandTarget=targetKey;previousActive=true;
-        t.State=band;t.Active=true;t.Reason=band=="crouch"?"quiet-close-approach":"quiet-approach";
-        t.SpeedCap=band=="crouch"?config.CrouchSpeed:config.WalkSpeed;t.PoseCap=band=="crouch"?config.CrouchPose:1;
+        t.Used=Math.Max(0,f.Now-started);t.Remaining=Math.Max(0,config.Budget-t.Used);
+        if(t.Used>config.Budget)return Reject("quiet-budget-ended");
+        bool crouch=f.Path<=config.CrouchDistance;
+        t.State=crouch?"crouch":"walk";t.Active=true;t.Reason=crouch?"quiet-close-approach":"quiet-approach";
+        t.SpeedCap=crouch?config.CrouchSpeed:config.WalkSpeed;t.PoseCap=crouch?config.CrouchPose:1;
         Current=t;return t;
     }
 }

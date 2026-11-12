@@ -58,7 +58,7 @@ namespace Comet.Client{
   private bool Ghost(string id)=>ghosts.Contains(id);private void EnsureClearEvents(){}private static DoorPoint DP(Vector3 p)=>new(p.x,p.y,p.z);private static Vector3 VP(DoorPoint p)=>new((float)p.X,(float)p.Y,(float)p.Z);private static double ClearDangerRadius(EFT.InventoryLogic.ThrowWeap item)=>7;
   private BotState GrenadeState(BotComponent b){if(!states.TryGetValue(b,out var s))states.Add(b,s=new(b));return s;}private void Release(BotState s,string reason)=>Releases.Add(reason);
   internal void Add(BotComponent b)=>GrenadeState(b);internal void Throw(EFT.Grenade g)=>OwnProjectileThrown(g);internal void Tick(BotComponent b){OwnGrenadeUpdate(b);b.Grenade.GrenadeReactionClass.UpdateDangerGrenade();OwnNativeDanger(b.Grenade.GrenadeReactionClass);}internal void Explode(string owner,int id)=>OwnExplosion(owner,id);internal void End()=>ClearOwnSafety();
-  internal bool Path(SAIN.SAINComponent.Classes.Mover.BotPathDataManual path)=>OwnPathTick(path);internal Vector3 Move(BotComponent b,Vector3 v){OwnMoveInput(new(){BotComponent=b},ref v);return v;}
+  internal bool Threat(BotComponent b,Vector3 point)=>OwnThreatens(b,point,out _);
   internal int Count=>ownProjectiles.Count;internal OwnGrenadeSafetyTrace? Trace(BotComponent b)=>states[b].OwnGrenade.Trace;internal bool Cover()=>OwnSolidCover(new(3,0,0),new(0,0,0));internal void Lose(int id){ownProjectiles.Single(x=>x.Evidence.Projectile==id).Grenade.SetTarget(null!);}
  }
 }

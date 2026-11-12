@@ -53,58 +53,21 @@ public static class LoadoutModel
     public static LoadoutTrace Classify(string weaponClass, bool bolt, bool auto, int rpm, bool optic, bool dot, string ammoKind, LoadoutConfig c)
     {
         var p = new LoadoutTrace { WeaponClass = weaponClass, Optic = optic ? (dot ? "scope-and-dot" : "scope") : dot ? "dot" : "iron", State = "ready" };
-        // Do not guess an assault rifle for a missing or custom class.
-        bool recognized = weaponClass == "pistol" || weaponClass == "smg" || weaponClass == "shotgun" || weaponClass == "assaultRifle"
-            || weaponClass == "assaultCarbine" || weaponClass == "machinegun" || weaponClass == "marksmanRifle" || weaponClass == "sniperRifle";
-        if (!recognized) { p.State = "unknown-weapon"; return p; }
-        bool longGun = bolt || weaponClass == "sniperRifle", dmr = weaponClass == "marksmanRifle";
-        // A dot alongside a scope gives a usable close sight: use the less restrictive tactical profile.
-        bool scopeOnly = optic && !dot;
-        p.Profile = longGun ? (scopeOnly ? "BoltScope" : "BoltIron") : dmr ? (scopeOnly ? "DmrScope" : "DmrIron")
+        // zzap LoadoutProfile: scopes take precedence, including a scope plus a red dot.
+        bool sniper = weaponClass == "sniperRifle", dmr = weaponClass == "marksmanRifle";
+        bool longGun = bolt || sniper;
+        p.Profile = sniper || dmr && bolt ? (optic ? "BoltScope" : "BoltIron") : dmr ? (optic ? "DmrScope" : "DmrIron")
             : weaponClass == "pistol" ? "Pistol" : weaponClass == "smg" ? "Smg"
-            : weaponClass == "shotgun" ? (ammoKind == "slug" ? "ShotgunSlug" : "Shotgun")
-            : scopeOnly ? "RifleScope" : dot ? "RifleDot" : "RifleIron";
+            : weaponClass == "shotgun" ? "Shotgun"
+            : optic ? "RifleScope" : dot ? "RifleDot" : "RifleIron";
         p.IdealRange = c.Ranges[p.Profile];
-        p.Cqb = longGun ? 0 : weaponClass == "smg" || weaponClass == "shotgun" ? 1 : auto ? (rpm >= 700 ? .9 : .7) : dmr ? .25 : .45;
-        p.Long = longGun ? (scopeOnly ? 1 : .55) : dmr ? (scopeOnly ? .8 : .55) : scopeOnly ? .5
+        if (bolt && !sniper && !dmr) p.IdealRange = Math.Max(p.IdealRange, optic ? 60 : 35);
+        p.Cqb = bolt ? 0 : weaponClass == "smg" || weaponClass == "shotgun" ? 1 : auto ? (rpm >= 700 ? .9 : .7) : dmr || sniper ? .25 : .45;
+        p.Long = longGun && optic ? 1 : dmr && optic ? .8 : longGun || dmr ? .55 : optic ? .5
             : weaponClass == "smg" || weaponClass == "shotgun" || weaponClass == "pistol" ? .05 : .25;
-        if (p.Profile == "ShotgunSlug") { p.Cqb = .65; p.Long = .25; }
         return p;
     }
 
-    public static void Adjust(List<Candidate> choices, Situation s, LoadoutConfig c)
-    {
-        foreach (var a in choices) { a.ScoreBeforeLoadout = a.Score; a.LoadoutDelta = 0; a.LoadoutReason = "loadout-neutral"; }
-        var p = s.Loadout;
-        if (!c.Enabled || !s.IsAi || !s.IsSupportedBot || !s.IsAuthority || !s.IsActive || s.Ghost || p == null || p.State != "ready" || !p.Ready
-            || !Finite(p.IdealRange) || p.IdealRange <= 0 || !Unit(p.Cqb) || !Unit(p.Long)
-            || !Finite(s.KnownDistance) || s.KnownDistance < 0 || !Finite(p.At) || s.Now < p.At || s.Now - p.At > c.RefreshSeconds) return;
-        double ratio = s.KnownDistance / p.IdealRange;
-        double near = Smooth((.5 - ratio) / .5), far = Smooth((ratio - 1.6) / 1.4), fit = 1 - Math.Max(near, far);
-        foreach (var a in choices)
-        {
-            if (!a.Eligible) { a.LoadoutReason = "loadout-native-refusal-kept"; continue; }
-            double factor = 0; string reason = "loadout-neutral";
-            switch (a.Decision)
-            {
-                case "Push": factor = .65 * p.Cqb - .65 * p.Long - .6 * near * p.Long - .35 * far; reason = "loadout-close-weapon-fit"; break;
-                case "Shoot": factor = .5 * fit - .35 * far * (1 - p.Long); reason = "loadout-shooting-range"; break;
-                case "Hold": factor = .5 * p.Long * fit; reason = "loadout-hold-suitable-range"; break;
-                case "Search": factor = -.25 * p.Long; reason = "loadout-long-weapon-caution"; break;
-                case "Cover": case "FallBack":
-                    factor = .65 * near * p.Long + (a.Decision == "Cover" ? .25 * far : 0);
-                    reason = "loadout-protected-distance";
-                    if (s.Hurt && p.ResourcesKnown && (p.CanFirstAid || p.CanSurgery)) { factor += .25; reason += "+treatable-injury"; }
-                    break;
-                case "Grenade":
-                    if (p.ResourcesKnown && p.Grenades > 0) { factor = .3 * Math.Min(p.Grenades, c.GrenadeStockCap) / c.GrenadeStockCap; reason = "loadout-usable-grenade-stock"; }
-                    break;
-            }
-            double delta = Math.Max(-c.ScoreCap, Math.Min(c.ScoreCap, factor * c.ScoreCap));
-            a.Score = Math.Round(Math.Max(0, a.Score + delta), 2);
-            a.LoadoutDelta = Math.Round(a.Score - a.ScoreBeforeLoadout, 2); a.LoadoutReason = reason;
-        }
-    }
     private static double Smooth(double v) { v = Math.Max(0, Math.Min(1, v)); return v * v * (3 - 2 * v); }
     private static bool Finite(double v) => !double.IsNaN(v) && !double.IsInfinity(v);
     private static bool Unit(double v) => Finite(v) && v >= 0 && v <= 1;

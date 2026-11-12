@@ -40,9 +40,9 @@ foreach(string key in new[]{"","unknown ShortName","throws"})
  var(p,b,l,h)=Setup();h.Ignore.Add(h.Item.Mods[1].Id);Tick(l);Tick(l,.4f);C(h.Commands.Count==1,"wait for pending confirmation");Tick(l,.41f);
  C(h.Commands.Count==2&&h.Commands[1].Length==1,"only failed device retried");Tick(l,.81f);C(h.Commands.Count==2,"pause after second real failure");
  C(p.states[b].TacticalDevices.Trace!.Accessories[1].Rounds==1,"per-device first backoff");
- Tick(l,4.9f);C(h.Commands.Count==2,"initial five seconds pause");Tick(l,.11f);C(h.Commands.Count==3,"retry after initial pause");
- Tick(l,.81f);Tick(l,.81f);C(h.Commands.Count==4&&p.states[b].TacticalDevices.Trace!.Accessories[1].RetryIn>9.9,"second ten second pause");
- h.Ignore.Clear();Tick(l,10.01f);C(h.Item.Mods.All(x=>x.Light!.IsActive),"recovery succeeds");C(p.states[b].TacticalDevices.Trace!.Accessories[1].Rounds==0,"success clears failure clocks");Save(p);
+ Tick(l,59.9f);C(h.Commands.Count==2,"source initial sixty seconds pause");Tick(l,.11f);C(h.Commands.Count==3,"retry after initial pause");
+ Tick(l,.81f);Tick(l,.81f);C(h.Commands.Count==4&&p.states[b].TacticalDevices.Trace!.Accessories[1].RetryIn>119.9,"source second 120 second pause");
+ h.Ignore.Clear();Tick(l,120.01f);C(h.Item.Mods.All(x=>x.Light!.IsActive),"recovery succeeds");C(p.states[b].TacticalDevices.Trace!.Accessories[1].Rounds==0,"success clears failure clocks");Save(p);
 }
 foreach(string kind in new[]{"refused","throw","delay"})
 {
@@ -64,13 +64,13 @@ foreach(string kind in new[]{"reload","medicine","inventory","processing","remov
 foreach(string kind in new[]{"active","mode"})
 {
  var(p,b,l,h)=Setup();Tick(l);if(kind=="active")h.Item.Mods[0].Light!.IsActive=false;else h.Item.Mods[0].Light!.SelectedMode=9;
- for(int i=0;i<100;i++)Tick(l,.1f);C(h.Commands.Count==1,"external change yields "+kind);C(p.states[b].TacticalDevices.Trace!.State=="yielded","external owner logged");
+ for(int i=0;i<100;i++)Tick(l,.1f);C(h.Item.Mods.All(x=>x.Light!.IsActive),"source restores desired active state after accessory change "+kind);
  l.Want=false;Tick(l,.1f);C(h.Item.Mods.All(x=>!x.Light!.IsActive),"new desired state releases old ownership epoch");C(h.Item.Mods[0].Light!.SelectedMode==(kind=="mode"?9:2),"external mode retained");Save(p);
 }
 {
  var(p,b,l,h)=Setup(2,false);p.config!.LightDiscipline.Enabled=true;l.Want=true;Tick(l);Tick(l,1);
  C(h.Item.Mods.All(x=>!x.Light!.IsActive),"L01 wins before L02 ON");int commands=h.Commands.Count;for(int i=0;i<15;i++)Tick(l,.1f);C(h.Commands.Count==commands,"no L01 L02 command fight");
- h.Item.Mods[1].Light!.IsActive=true;Tick(l,.1f);C(h.Commands.Count==commands,"L01 external yield respected by L02");
+ h.Item.Mods[1].Light!.IsActive=true;Tick(l,.6f);C(h.Item.Mods.All(x=>!x.Light!.IsActive),"L01 concealment reapplied and respected by L02");
  b.GoalEnemy!.IsVisible=true;Tick(l,.1f);Tick(l,.3f);C(h.Item.Mods.All(x=>x.Light!.IsActive),"SAIN normal multi-device ON resumes when ambush ends");Save(p);
 }
 {

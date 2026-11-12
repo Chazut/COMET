@@ -7,33 +7,31 @@ foreach(var exclude in new Action<Plugin,BotComponent>[] {(p,b)=>p.Settings.Enab
  var(p,b)=Setup();Check(p.Find(b),"eligible native trajectory");int n=p.Draws;Check(n==2,"one roll plus retry jitter");
  Check(p.Find(b)&&p.Draws==n,"same frame preparation reused");Check(p.Throw(b)&&p.Draws==n&&p.State(b).GrenadeJudgment.Policy.Pending,"execution rechecks same roll");
  Check(!p.State(b).GrenadeJudgment.Policy.Trace!.Released,"acceptance is not projectile");p.Projectile(b,"other");Check(!p.State(b).GrenadeJudgment.Policy.Trace!.Released,"foreign projectile ignored");
- p.Projectile(b);Check(p.State(b).GrenadeJudgment.Policy.Trace!.Released,"real matching projectile");p.Tick(b,11);Check(!p.Find(b),"spent personal evidence blocked");
+ p.Projectile(b);Check(p.State(b).GrenadeJudgment.Policy.Trace!.Released,"real matching projectile");p.Tick(b,11);Check(p.Find(b),"source permits a later roll on the same known contact");
  p.End(b);Check(p.State(b).GrenadeJudgment.Policy.Count==0&&!p.State(b).GrenadeJudgment.Arc,"raid clear removes history and cache");
  File.WriteAllLines(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../artifacts/g01-adapter-events.jsonl")),p.Events);
 }
 foreach(var change in new Action<Plugin,BotComponent>[] {
- (p,b)=>p.Players.Add(new Player{Position=new(20,0,0)}),
- (p,b)=>b.BotOwner.WeaponManager.Grenades.AIGreanageThrowData!.Fresh=false,
- (p,b)=>b.BotOwner.WeaponManager.Grenades.AIGreanageThrowData!.Target=new(40,0,0),
- (p,b)=>b.BotOwner.WeaponManager.Grenades.grenade!.Id="different-item",
- (p,b)=>b.Player.Position=new(20,0,0),(p,b)=>b.BotOwner.Memory.IsUnderFire=true,
- (p,b)=>b.BotOwner.Medecine.Using=true,(p,b)=>p.State(b).Fake.CallbackPending=true,
- (p,b)=>b.EnemyController.VisibleEnemies.Add(new()),(p,b)=>b.BotOwner.WeaponManager.Grenades.grenade!.IsDummy=true,
+ (p,b)=>b.BotOwner.Memory.IsUnderFire=true,
+ (p,b)=>p.State(b).Fake.CallbackPending=true,
+ (p,b)=>b.EnemyController.VisibleEnemies.Add(new()),
+ (p,b)=>b.BotOwner.WeaponManager.Grenades.grenade!.IsDummy=true,
  (p,b)=>b.BotOwner.WeaponManager.Grenades.grenade!.ThrowType="smoke_grenade",
- (p,b)=>b.GoalEnemy!.KnownPlaces.LastKnownPlace=new(),(p,b)=>b.GoalEnemy!.KnownPlaces.TimeLastKnownUpdated=0})
-{var(p,b)=Setup();Check(p.Find(b),"initial permission");change(p,b);int n=p.Draws;Check(!p.Throw(b)&&p.Requests==0&&p.Draws==n,"changed safety/evidence blocks actual native call without new roll");}
+ (p,b)=>b.GoalEnemy!.KnownPlaces.TimeLastKnownUpdated=-100})
+{var(p,b)=Setup();Check(p.Find(b),"initial permission");change(p,b);int n=p.Draws;Check(!p.Throw(b)&&p.Requests==0&&p.Draws==n,"source safety rechecked at throw without reroll");}
+
 {
  var(p,b)=Setup();Check(!p.Find(b,false)&&p.Draws==0,"native arc failed without roll");p.Tick(b,11);Check(!p.Find(b)&&p.Draws==0,"no arc retry interval");p.Tick(b,11.5);Check(p.Find(b),"native retry after delay");
  var second=new BotComponent{ProfileId="second"};p.Tick(b,12);Check(p.Find(b),"first full probe of frame");Check(!p.Find(second)&&p.State(second).GrenadeJudgment.Policy.Trace==null,"global one trajectory probe per frame");
 }
 {
  var(p,b)=Setup();b.GoalEnemy!.EnemyPlayer.Environment=EnvironmentType.Indoor;p.Tick(b,10.5);Check(p.Find(b)&&p.State(b).GrenadeJudgment.Policy.Trace!.RoomBonus==10,"visible indoor evidence");
- b.GoalEnemy.IsVisible=false;b.GoalEnemy.EnemyPlayer.Environment=EnvironmentType.Outdoor;p.Tick(b,11);p.Find(b);Check(p.State(b).GrenadeJudgment.Policy.Trace!.RoomBonus==10,"hidden current environment not read");
- p.State(b).Opportunity.Value.State="assess";p.State(b).Opportunity.Value.Cue="heal";p.Tick(b,11.5);p.Find(b);Check(p.State(b).GrenadeJudgment.Policy.Trace!.VulnerableBonus==15,"active A10 heard cue");
+ b.GoalEnemy.IsVisible=false;b.GoalEnemy.EnemyPlayer.Environment=EnvironmentType.Outdoor;p.Tick(b,11);p.Find(b);Check(p.State(b).GrenadeJudgment.Policy.Trace!.RoomBonus==0,"source reads current enemy environment without extra personal-evidence gate");
+ p.State(b).Opportunity.Value.State="assess";p.State(b).Opportunity.Value.Cue="heal";p.Tick(b,11.5);p.Find(b);Check(p.State(b).GrenadeJudgment.Policy.Trace!.VulnerableBonus==0,"no added opportunity bonus from A10");
  p.State(b).Opportunity.Value.State="expired";p.Tick(b,12);p.Find(b);Check(p.State(b).GrenadeJudgment.Policy.Trace!.VulnerableBonus==0,"expired cue earns no bonus");
 }
 {
- var(p,b)=Setup();b.Player.Inventory.Items.RemoveAt(1);p.Find(b);Check(p.State(b).GrenadeJudgment.Policy.Trace!.Chance==30,"actual carried last usable grenade");
+ var(p,b)=Setup();p.Find(b);double baseline=p.State(b).GrenadeJudgment.Policy.Trace!.Chance;b.Player.Inventory.Items.RemoveAt(1);p.Find(b);Check(p.State(b).GrenadeJudgment.Policy.Trace!.Chance==baseline,"source has no last-grenade conservation penalty");
  p.Throw(b,false);Check(p.State(b).GrenadeJudgment.Policy.Trace!.State=="refused"&&!p.State(b).GrenadeJudgment.Policy.Pending,"native refusal tracked");
 }
 {

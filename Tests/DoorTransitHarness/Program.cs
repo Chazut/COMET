@@ -77,7 +77,7 @@ foreach(bool reservation in new[]{false,true})
  data=new(x.door);type=EInteractionType.Open;Check(!x.path.CancelRequested&&x.b.PlayerComponent.CharacterController.Speed==.8f&&!x.p.Select(x.b,true,ref data,ref type),"occupied door no steal or timeout");}
 var failed=Setup();for(int i=0;i<=32;i++)failed.p.Tick(failed.b,i*.125f);
 Check(failed.path.CancelRequested&&failed.s.ActiveLabel==""&&!failed.s.Transit.Speed.Owned,"persistent blockage cancels owned path and releases plan");
-Check(failed.s.Progress.Blocked("goal",4),"A12 marks failed destination");
+Check(!failed.s.Progress.Blocked("goal",4),"progress observation cannot blacklist a source destination");
 full.AddRange(failed.p.diagnostics!.Lines);
 var recovering=Setup();recovering.p.RecoveryHandling=true;
 for(int i=0;i<=96;i++)recovering.p.Tick(recovering.b,i*.125f);

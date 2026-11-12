@@ -41,10 +41,10 @@ public sealed partial class Plugin
     private static void TrackGrenadeJudgment(BotComponent __instance)
     {
         var p=Instance;if(p==null)return;
-        if(p.states.TryGetValue(__instance,out var running)&&running.GrenadeTrajectory.Pending)
+        if(p.states.TryGetValue(__instance,out var running)&&(running.GrenadeTrajectory.Pending||running.GrenadeTrajectory.Selected!=null))
         {
             if(!p.GrenadeTrajectoryScope(__instance)||__instance.GoalEnemy==null)p.StopGrenadeTrajectory(running,"trajectory-scope-ended");
-            else try{NativeAdapter.ContinueGrenadeSearch(__instance,running,p.config!);}
+            else if(running.GrenadeTrajectory.Pending)try{NativeAdapter.ContinueGrenadeSearch(__instance,running,p.config!);}
             catch(Exception ex){running.GrenadeTrajectory.Fault=true;p.FailGrenadeTrajectory(running,"trajectory-adapter-error");p.GrenadeJudgmentError(running,ex);}
         }
         if(p.states.TryGetValue(__instance,out var choiceState)&&!p.GrenadeChoiceScope(__instance))p.StopGrenadeChoice(choiceState,"choice-scope-ended");
@@ -72,13 +72,13 @@ public sealed partial class Plugin
         var f=new GrenadeJudgmentFrame{Now=Time.timeAsDouble,Target=e.EnemyProfileId,Instance=RuntimeHelpers.GetHashCode(e),
             Personal=k.HasValue&&(source=="seen"||source=="heard"),Source=source,EvidenceAt=places.TimeLastKnownUpdated,
             X=k?.x??0,Y=k?.y??0,Z=k?.z??0,Item=b.BotOwner.WeaponManager.Grenades.grenade?.Id.ToString()??""};
-        f.Room=k.HasValue&&r.RoomAt>=0&&f.Now-r.RoomAt<=config!.GrenadeContactLifetime&&r.RoomEnemy==f.Instance&&(k.Value-r.RoomPoint).sqrMagnitude<=2.25f;
-        var opportunity=s.Opportunity.Snapshot(f.Target,f.Instance,f.Now,config!.Opportunity);
-        f.Vulnerable=opportunity.State=="assess"&&(opportunity.Cue=="reload"||opportunity.Cue=="heal"||opportunity.Cue=="surgery");
+        f.Room=e.EnemyPlayer?.Environment==EnvironmentType.Indoor;
+        f.Vulnerable=e.Status.VulnerableAction!=default;
         var health=b.Memory.Health.HealthStatus;
         if(r.Fault)f.Block="grenade-adapter-error";
-        else if(b.BotOwner.Memory.IsUnderFire||b.Suppression.IsHeavySuppressed||b.Grenade.GrenadeDangerPoint!=null||b.Flashed.IsFlashed)f.Block="grenade-immediate-danger";
-        else if(health==ETagStatus.BadlyInjured||health==ETagStatus.Dying||b.BotOwner.Medecine.Using)f.Block="grenade-treatment-priority";
+        else if(b.BotOwner.Memory.IsUnderFire)f.Block="grenade-immediate-danger";
+        else if(e.Path.PathLength<10)f.Block="grenade-enemy-can-rush";
+        else if(health==ETagStatus.BadlyInjured||health==ETagStatus.Dying)f.Block="grenade-treatment-priority";
         else if(s.Fake.Policy.Active||s.Fake.CallbackPending||FakeGuarded(b))f.Block="grenade-feint-owned";
         else foreach(var other in b.EnemyController.VisibleEnemies)if(!ReferenceEquals(other,e)){f.Block="grenade-other-visible-threat";break;}
         return f;
@@ -134,29 +134,11 @@ public sealed partial class Plugin
         var g=b.BotOwner.WeaponManager.Grenades;var d=g.AIGreanageThrowData;var item=g.grenade;
         string filtered=FilterReject(b,item);if(filtered.Length>0)return filtered;
         if(item==null||item.IsDummy||item.ThrowType.ToString().IndexOf("smoke",StringComparison.OrdinalIgnoreCase)>=0)return "grenade-no-suitable-item";
-        if(d==null||!d.CanThrow||!d.IsUpToDate()||!DP(d.Target).Finite||!DP(d.Position).Finite||Vector3.Distance(d.Position,b.Transform.WeaponData.WeaponRoot)>.5f)return "grenade-invalid-current-arc";
-        var r=s.GrenadeJudgment;
-        if(!r.Arc||r.ArcEnemy!=f.Instance||r.ArcItem!=f.Item||(r.ArcPoint-new Vector3((float)f.X,(float)f.Y,(float)f.Z)).sqrMagnitude>1
-            ||(r.ArcTarget-d.Target).sqrMagnitude>.01f)return "grenade-arc-contact-changed";
-        double radius=ClearDangerRadius(item);
-        if(!DoorRoomClear.Valid(radius)||radius>100||!DoorRoomClear.Valid(item.GetExplDelay)||item.GetExplDelay<.75||item.GetExplDelay>30)return "grenade-unknown-properties";
-        if(!ClearBlastProtected(b.Position,d.Target,radius))return "grenade-self-exposed";
-        if(world==null||world.RegisteredPlayers==null)return "grenade-participants-unavailable";
-        int count=0;foreach(var player in world.RegisteredPlayers)
-        {
-            if(++count>128)return "grenade-participant-limit";
-            if(player==null||ReferenceEquals(player,b.Player)||!player.HealthController.IsAlive||b.BotOwner.BotsGroup?.IsEnemy(player)==true)continue;
-            if(!ClearBlastProtected(player.Position,d.Target,radius+1))return "grenade-nonhostile-exposed";
-        }
-        // Match native CheckGrenade's equipment scope, excluding items G01 cannot safely use.
-        f.Count=0;count=0;
+        if(d==null||!d.CanThrow)return "grenade-native-arc-unavailable";
+        if(!NativeAdapter.GrenadeFriendsClear(b,d.Target))return "sain-friendly-distance";
+        f.Count=0;
         foreach(var carried in b.Player.Inventory.GetPlayerItems(EPlayerItems.Equipment))
-        {
-            if(++count>256)return "grenade-inventory-limit";
-            if(carried is not ThrowWeap candidate||candidate.IsDummy||candidate.ThrowType.ToString().IndexOf("smoke",StringComparison.OrdinalIgnoreCase)>=0)continue;
-            if(FilterReject(b,candidate).Length>0)continue;
-            if(DoorRoomClear.Valid(candidate.GetExplDelay)&&candidate.GetExplDelay>=.75&&candidate.GetExplDelay<=30)f.Count++;
-        }
+            if(carried is ThrowWeap candidate&&!candidate.IsDummy&&FilterReject(b,candidate).Length==0)f.Count++;
         return f.Count>0?"":"grenade-no-usable-inventory";
     }
     private static bool GrenadeThrowBefore(GrenadeThrowDecider __instance,ref bool __result,out BotState? __state)
@@ -168,7 +150,7 @@ public sealed partial class Plugin
             if(!ContactSafety.AllowsGoal(b)){s.GrenadeJudgment.Arc=false;p.StopGrenadeTrajectory(s,"trajectory-own-squad-contact");p.StopGrenadeChoice(s,"choice-own-squad-contact","blocked");__result=false;return false;}
             if(b.GoalEnemy==null||!p.ValidateGrenadeTrajectory(b,b.GoalEnemy,s)||!p.ValidateGrenadeChoice(b,b.GoalEnemy,s,true)||!p.AssessGrenade(b,b.GoalEnemy,s,true)||!p.ValidateOffensiveGrenade(b,s)){__result=false;return false;}
             if(!p.GrenadeJudgmentScope(b))return true;
-            p.EnsureClearEvents();if(p.clearEvents==null){__result=false;return false;}
+            p.EnsureClearEvents(); // Observation is optional, never a throw prerequisite.
             var f=p.GrenadeFrame(b,b.GoalEnemy,s);s.GrenadeJudgment.Policy.Request(f);p.RecordGrenadeJudgment(s,true);__state=s;return true;
         }catch(Exception ex){p.GrenadeJudgmentError(s,ex);__result=false;return false;}
     }

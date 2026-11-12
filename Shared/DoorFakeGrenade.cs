@@ -8,9 +8,9 @@ public sealed class DoorFakeGrenadeConfig
     public bool Enabled { get; set; }=true;
     public Dictionary<string,double> Chances { get; set; }=new()
     { ["GigaChad"]=30,["Chad"]=20,["Normal"]=10,["Wreckless"]=5,["Rat"]=0,["SnappingTurtle"]=0,["Coward"]=0,["Timmy"]=0 };
-    public double DoorDistance { get; set; }=3;
-    public double ContactDistance { get; set; }=10;
-    public double ContactLifetime { get; set; }=15;
+    public double DoorDistance { get; set; }=3.2;
+    public double ContactDistance { get; set; }=14;
+    public double ContactLifetime { get; set; }=60;
     public double TargetCooldown { get; set; }=60;
     public double Cooldown { get; set; }=20;
     public void Validate()
@@ -19,7 +19,7 @@ public sealed class DoorFakeGrenadeConfig
         foreach(var p in new[]{"GigaChad","Chad","Normal","Wreckless","Rat","SnappingTurtle","Coward","Timmy"})
             if(!Chances.TryGetValue(p,out var n))throw new ArgumentException("Missing fake grenade chance: "+p);else CometConfig.Range(n,0,100,p);
         CometConfig.Range(DoorDistance,1,4,nameof(DoorDistance));CometConfig.Range(ContactDistance,3,15,nameof(ContactDistance));
-        CometConfig.Range(ContactLifetime,3,30,nameof(ContactLifetime));CometConfig.Range(TargetCooldown,30,180,nameof(TargetCooldown));
+        CometConfig.Range(ContactLifetime,3,120,nameof(ContactLifetime));CometConfig.Range(TargetCooldown,30,180,nameof(TargetCooldown));
         CometConfig.Range(Cooldown,10,60,nameof(Cooldown));
     }
 }
@@ -69,7 +69,7 @@ public sealed class DoorFakeTrace
 public sealed class DoorFakeGrenade
 {
     private long diagnosticOpportunity;
-    public const double DrawWatchdog=2.5, RestoreWatchdog=3;
+    public const double DrawWatchdog=1.2, RestoreWatchdog=3.2;
     private readonly Dictionary<string,(double at,double evidence)> history=new();
     private double next,started,phase,last,restoreAt=-1000;
     public DoorFakeTrace? Trace { get; private set; }
@@ -80,8 +80,7 @@ public sealed class DoorFakeGrenade
         if(Active||Fault||(!c.Enabled&&!medicalEnabled)||!known.Finite||!DoorPolicy.Finite(now)||now<next||!DoorPolicy.Finite(age)||age<0||age>c.ContactLifetime
             ||!DoorPolicy.Finite(roll)||roll<0||roll>=1||string.IsNullOrEmpty(door)||string.IsNullOrEmpty(target))return false;
         double stamp=now-age;
-        if(history.TryGetValue(target,out var h)&&(now-h.at<c.TargetCooldown||stamp<=h.evidence+.1))return false;
-        if(history.Count>=32&&!history.ContainsKey(target))return false;
+        if(history.TryGetValue(target,out var h)&&now-h.at<c.TargetCooldown)return false;
         history[target]=(now,stamp);next=now+c.Cooldown;started=phase=last=now;restoreAt=-1000;
         double chance=c.Chances.TryGetValue(personality,out var value)?value:0;
         Trace=new(){Opportunity=++diagnosticOpportunity,Door=door,Target=target,Source=source,Personality=personality,KnownX=known.X,KnownY=known.Y,KnownZ=known.Z,ContactAge=age,Chance=chance,Roll=roll*100};
@@ -128,7 +127,7 @@ public sealed class DoorFakeGrenade
         if(!DoorPolicy.Finite(now)||now<last){Fail("fake-invalid-clock");return;}
         last=now;t.Elapsed=now-started;
         if(throwing){Fault=true;End("fake-native-throw-took-over");return;}
-        if(t.State=="validating"){if(now-phase>1)End("fake-validation-timeout");return;}
+        if(t.State=="validating")return;
         if(grenadeInHands)
         {
             t.HandsObserved=true;
@@ -144,8 +143,8 @@ public sealed class DoorFakeGrenade
             return;
         }
         if(drawSettled&&otherHands){End("fake-other-hands-took-over");return;}
-        if(t.State=="drawing"&&now-phase>=DrawWatchdog)Abort("fake-draw-timeout",now);
-        else if(t.State is "holstering" or "recovering"&&now-phase>=RestoreWatchdog)Fail("fake-weapon-recovery-timeout");
+        if(t.State=="drawing"&&(t.CallbackCompleted||now-phase>=DrawWatchdog))Phase("holstering","fake-draw-sound-complete",now);
+        else if(t.State is "holstering" or "recovering"&&now-phase>=RestoreWatchdog){t.State="completed";t.Reason="fake-holster-timeout-continue-hold";t.Guard=false;}
     }
     public bool CanRestore(bool ownedGrenade,bool changing,bool throwing,double now)=>Active&&(Trace!.State is "holstering" or "recovering")
         &&ownedGrenade&&!changing&&!throwing&&!Trace.HolsterAccepted&&now-restoreAt>=.5&&Trace.HolsterAttempts<6;

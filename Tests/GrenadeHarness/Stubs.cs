@@ -23,7 +23,7 @@ namespace SAIN.Preset.Shared.Enums {public enum ETagStatus{Healthy,BadlyInjured,
 namespace SAIN.SAINComponent.Classes.EnemyClasses {
  public class EnemyPlace {public Vector3 Position=new(20,0,0);}
  public class Places {public EnemyPlace? LastKnownPlace,LastSeenPlace,LastHeardPlace;public float TimeLastKnownUpdated=10;public Vector3? LastKnownPosition=>LastKnownPlace?.Position;}
- public class Enemy {public string EnemyProfileId="enemy";public Places KnownPlaces=new();public bool IsVisible=true;public Player EnemyPlayer=new();public Enemy(){KnownPlaces.LastKnownPlace=KnownPlaces.LastSeenPlace=new();}}
+ public class Enemy {public Status Status=new();public PathData Path=new();public string EnemyProfileId="enemy";public Places KnownPlaces=new();public bool IsVisible=true;public Player EnemyPlayer=new();public Enemy(){KnownPlaces.LastKnownPlace=KnownPlaces.LastSeenPlace=new();}}
 }
 namespace SAIN.SAINComponent.Classes.WeaponFunction {public class GrenadeThrowDecider {public BotComponent Bot=null!;private bool FindThrowTarget(Enemy e)=>true;private bool TryThrowGrenade()=>true;}}
 namespace SAIN.Components {
@@ -53,9 +53,9 @@ namespace Comet.Core {public static class ImpactReaction{public static bool Fini
 namespace Comet.Client {
  internal class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);internal static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};internal List<string> Events=new();internal void Write(string value)=>Events.Add(value);}
  internal class Log {internal void LogWarning(string s){}}
- internal static class NativeAdapter {internal static void ContinueGrenadeSearch(BotComponent b,BotState s,CometConfig c){}internal static bool IsSupportedAi(BotComponent b)=>b.Pmc&&!b.IsDead;}
+ internal static class NativeAdapter {internal static bool GrenadeFriendsClear(BotComponent b,Vector3 p)=>true;internal static void ContinueGrenadeSearch(BotComponent b,BotState s,CometConfig c){}internal static bool IsSupportedAi(BotComponent b)=>b.Pmc&&!b.IsDead;}
  internal class FakeRuntime {internal FakePolicy Policy=new();internal bool CallbackPending;}internal class FakePolicy {internal bool Active;}
- internal class GrenadeTrajectoryRuntime {internal bool Pending,Fault;}
+ internal class GrenadeTrajectoryRuntime {internal bool Pending,Fault;internal object? Selected;}
  internal class BotState {internal GrenadeTrajectoryRuntime GrenadeTrajectory=new();internal GrenadeJudgmentRuntime GrenadeJudgment=new();internal OpportunityMemory Opportunity=new();internal FakeRuntime Fake=new();internal string ProfileId,Name="Test PMC",Id="instance";internal BotState(BotComponent b,CometConfig c,string session){ProfileId=b.ProfileId;}}
  internal class World {internal List<Player> RegisteredPlayers=new();}
  namespace Api {internal static class Decisions {internal static void Publish(string json,Action<Exception> error){}}}
@@ -92,3 +92,5 @@ namespace Comet.Client {
   internal void End(BotComponent b)=>EndGrenadeJudgment(states[b],"raid-ended");
  }
 }
+
+namespace SAIN.SAINComponent.Classes.EnemyClasses { public class Status {public bool VulnerableAction;public bool EnemyIsReloading,EnemyIsHealing,EnemyHasGrenadeOut;} public class PathData {public float PathDistance=20,PathLength=20;} }

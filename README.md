@@ -6,6 +6,10 @@ COMET adds tactical combat behavior for PMCs and AI Player Scavs on top of the o
 
 **Development preview.** Implementation and automated tests are in place, and live raid testing has started. This is not a finished release. Automated checks do not establish reliable behavior in Unity or multiplayer.
 
+The current development build returns to R_F's zzap behavior as its baseline,
+removing the additional COMET tactical restrictions. See [the source baseline](SOURCE_BASELINE.md)
+for the pinned revision, integration boundaries and saved-settings migration.
+
 ## Features
 
 - Tactical choices shaped by personality, equipment, known threats and squad support.

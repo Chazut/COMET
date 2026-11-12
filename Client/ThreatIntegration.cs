@@ -73,46 +73,27 @@ public sealed partial class Plugin
 
     private bool ThreatUsable(BotComponent bot, Enemy? e)
     {
-        if (e == null || !ContactSafety.Allows(bot,e) || !e.EnemyKnown || !e.CheckValid() || !Enemy.IsEnemyActive(e) || e.IsZombie || Ghost(e.EnemyProfileId)) return false;
+        if (e == null || !ContactSafety.Allows(bot,e) || !e.EnemyKnown || !e.CheckValid() || !Enemy.IsEnemyActive(e) || e.LastKnownPosition == null || e.EnemyPlayer == null || e.IsZombie || Ghost(e.EnemyProfileId)) return false;
         return bot.EnemyController.Enemies.TryGetValue(e.EnemyProfileId, out var member) && ReferenceEquals(e, member);
     }
 
-    private bool CachedThreatUsable(BotComponent bot, Enemy? enemy)
-    {
-        if (!ThreatUsable(bot, enemy)) return false;
-        var places = enemy!.KnownPlaces; var place = places.LastKnownPlace;
-        if (place == null || (place.PlaceType != EEnemyPlaceType.Vision && place.PlaceType != EEnemyPlaceType.Hearing)
-            || (!ReferenceEquals(place, places.LastSeenPlace) && !ReferenceEquals(place, places.LastHeardPlace)
-                && !ReferenceEquals(place, places.LastSquadSeenPlace) && !ReferenceEquals(place, places.LastSquadHeardPlace))) return false;
-        var position = place.Position; var age = place.TimeSincePositionUpdated;
-        return age >= 0 && age <= config!.ContactLifetime && ThreatSelection.Finite(position.x)
-            && ThreatSelection.Finite(position.y) && ThreatSelection.Finite(position.z);
-    }
+    private bool CachedThreatUsable(BotComponent bot, Enemy? enemy) => ThreatUsable(bot,enemy);
 
     private ThreatContact CaptureThreat(BotComponent bot, Enemy e)
     {
-        var s = new ThreatContact { Id = e.EnemyProfileId, Valid = ThreatUsable(bot, e) };
-        if (!s.Valid) return s;
-        var places = e.KnownPlaces;
-        // Never use LastShotPosition / Injury places or EnemyPosition. SAIN may have a damage-derived
-        // location, but that alone is not perception. Refuse it instead of feeding it into native targeting.
-        var place = places.LastKnownPlace;
-        if (place == null) return s;
-        s.Source = ReferenceEquals(place, places.LastSeenPlace) ? "seen"
-            : ReferenceEquals(place, places.LastHeardPlace) ? "heard"
-            : ReferenceEquals(place, places.LastSquadSeenPlace) ? "shared-seen"
-            : ReferenceEquals(place, places.LastSquadHeardPlace) ? "shared-heard" : "unlocated";
-        if (place.PlaceType != EEnemyPlaceType.Vision && place.PlaceType != EEnemyPlaceType.Hearing) s.Source = "unlocated";
-        if (s.Source == "unlocated") return s;
-        Vector3 position = place.Position;
-        s.ObservedAt = Time.time - place.TimeSincePositionUpdated;
-        s.Distance = Vector3.Distance(bot.Position, position); s.X = position.x; s.Y = position.y; s.Z = position.z;
-        s.Visible = e.IsVisible && s.Source == "seen"; s.LookingAtMe = s.Visible && e.EnemyLookingAtMe;
-        s.Footsteps = s.Source == "heard" && (place.SoundType == SAINSoundType.FootStep || place.SoundType == SAINSoundType.Sprint);
-        s.Gunfire = s.Source == "heard" && place.SoundType.HasValue && place.SoundType.Value.IsGunShot();
-        s.HitAt = e.Status.TimeLastShotMe >= 0 ? e.Status.TimeLastShotMe : (double?)null;
-        s.ShotAt = e.Status.TimeLastShotAtMe >= 0 ? e.Status.TimeLastShotAtMe : (double?)null;
-        return s;
+        var s=new ThreatContact {Id=e.EnemyProfileId,Valid=ThreatUsable(bot,e)};
+        if(!s.Valid)return s;
+        var place=e.KnownPlaces.LastKnownPlace;
+        var pos=e.LastKnownPosition!.Value;
+        s.Source=place?.PlaceType.ToString()??"known";s.ObservedAt=Time.time-e.TimeSinceLastKnownUpdated;
+        s.Distance=e.RealDistance;s.X=pos.x;s.Y=pos.y;s.Z=pos.z;
+        s.Visible=e.IsVisible;s.LookingAtMe=e.EnemyLookingAtMe;
+        s.IsPmc=e.EnemyPlayer.Side!=EFT.EPlayerSide.Savage;
+        s.BadlyInjured=e.EnemyPlayer.HealthStatus==ETagStatus.BadlyInjured||e.EnemyPlayer.HealthStatus==ETagStatus.Dying;
+        var heard=e.KnownPlaces.LastHeardPlace;
+        s.Footsteps=heard!=null&&(heard.SoundType==SAINSoundType.FootStep||heard.SoundType==SAINSoundType.Sprint);
+        if(heard!=null){s.HeardAge=heard.TimeSincePositionUpdated;s.HeardDistance=Vector3.Distance(bot.Position,heard.Position);}
+        s.HitAt=e.Status.TimeLastShotMe;s.ShotAt=e.Status.TimeLastShotAtMe;return s;
     }
 
     private static bool SelectThreat(SAINEnemyController __instance, ref Enemy __result)
@@ -124,7 +105,7 @@ public sealed partial class Plugin
         try
         {
             if (!p.config.Enabled || !p.config.ThreatSelection.Enabled || !p.Authority || !bot.BotActive || p.Ghost(bot.ProfileId)
-                || ThreatNativeUrgency(bot))
+)
             {
                 if (p.states.TryGetValue(bot, out var prior)) p.ReleaseThreat(bot, prior, "threat-yield-to-sain");
                 return true;
@@ -148,20 +129,14 @@ public sealed partial class Plugin
                 var frame = new ThreatFrame { Now = Time.time, Current = __instance.GoalEnemy?.EnemyProfileId ?? "",
                     IsAi = true, IsSupportedBot = true, IsAuthority = true, Active = true,
                     Trigger = newHit ? "new-hit" : runtime.Nearby != null ? "new-close-visible" : !valid ? "contact-changed" : "periodic",
-                    Truncated = __instance.KnownEnemies.Count > ThreatSelection.CandidateLimit };
+                    Truncated = false };
                 runtime.References.Clear();
                 void Add(Enemy? enemy)
                 {
-                    if (enemy == null || frame.Contacts.Count >= ThreatSelection.CandidateLimit || runtime.References.ContainsKey(enemy.EnemyProfileId)) return;
+                    if (enemy == null || runtime.References.ContainsKey(enemy.EnemyProfileId)) return;
                     runtime.References.Add(enemy.EnemyProfileId, enemy); frame.Contacts.Add(p.CaptureThreat(bot, enemy));
                 }
-                // Always include the current target and urgent contacts; rotate the remaining bounded scan.
-                Add(__instance.GoalEnemy); Add(bot.Medical.HitByEnemy.EnemyWhoLastShotMe); Add(runtime.Nearby);
-                var known = __instance.KnownEnemies;
-                int count = 0;
-                while (count < Math.Min(known.Count, ThreatSelection.CandidateLimit) && frame.Contacts.Count < ThreatSelection.CandidateLimit)
-                { Add(known[(runtime.Cursor + count) % known.Count]); count++; }
-                runtime.Cursor = known.Count == 0 ? 0 : (runtime.Cursor + count) % known.Count;
+                foreach(var enemy in __instance.KnownEnemies) Add(enemy);
                 var trace = runtime.Selector.Evaluate(frame);
                 runtime.Pending = trace; runtime.Next = Time.time + p.config.ThreatSelection.Interval;
                 runtime.LastHit = bot.Medical.TimeLastShot; runtime.Nearby = null;

@@ -6,21 +6,21 @@ namespace Comet.Core;
 public sealed class DoorStepPeekConfig
 {
     public bool Enabled { get; set; }=true;
-    public double Chance { get; set; }=50;
-    public int MaximumPeeks { get; set; }=2;
+    public double Chance { get; set; }=100;
+    public int MaximumPeeks { get; set; }=3;
     public double Distance { get; set; }=.8;
-    public double ObservationMin { get; set; }=.4;
-    public double ObservationMax { get; set; }=.8;
-    public double RestMin { get; set; }=.5;
-    public double RestMax { get; set; }=1;
+    public double ObservationMin { get; set; }=.15;
+    public double ObservationMax { get; set; }=.3;
+    public double RestMin { get; set; }=0;
+    public double RestMax { get; set; }=0;
     public double Limit { get; set; }=6;
     public bool VaryPosture { get; set; }=true;
     public void Validate()
     {
-        CometConfig.Range(Chance,0,100,nameof(Chance));CometConfig.Range(MaximumPeeks,1,2,nameof(MaximumPeeks));
-        CometConfig.Range(Distance,.3,1,nameof(Distance));CometConfig.Range(ObservationMin,.2,1.5,nameof(ObservationMin));
+        CometConfig.Range(Chance,0,100,nameof(Chance));CometConfig.Range(MaximumPeeks,1,3,nameof(MaximumPeeks));
+        CometConfig.Range(Distance,.3,1,nameof(Distance));CometConfig.Range(ObservationMin,.1,1.5,nameof(ObservationMin));
         CometConfig.Range(ObservationMax,ObservationMin,1.5,nameof(ObservationMax));
-        CometConfig.Range(RestMin,.3,2,nameof(RestMin));CometConfig.Range(RestMax,RestMin,2,nameof(RestMax));
+        CometConfig.Range(RestMin,0,2,nameof(RestMin));CometConfig.Range(RestMax,RestMin,2,nameof(RestMax));
         CometConfig.Range(Limit,3,10,nameof(Limit));
     }
 }
@@ -84,7 +84,7 @@ public sealed class DoorStepPeek
     private DoorPoint origin,progress;
     public bool Begin(DoorJumpTrace parent,double now,double roll,DoorStepPeekConfig c)
     {
-        if(Active||!c.Enabled||parent.State!="completed"||!parent.Returned||!parent.TakeoffObserved||!parent.LandingObserved||parent.VisualAcquired
+        if(Active||!c.Enabled||parent.State!="completed"||!parent.Returned||parent.VisualAcquired
             ||!new DoorPoint(parent.KnownX,parent.KnownY,parent.KnownZ).Finite||!new DoorPoint(parent.ActualX,parent.ActualY,parent.ActualZ).Finite
             ||!DoorPolicy.Finite(parent.ContactAge)||parent.ContactAge<0||string.IsNullOrEmpty(parent.Door)||string.IsNullOrEmpty(parent.Target)
             ||!DoorPolicy.Finite(now)||!DoorPolicy.Finite(roll)||roll<0||roll>=1)return false;
@@ -100,7 +100,7 @@ public sealed class DoorStepPeek
     {
         if(!Active||Trace!.State!="planning")return;
         if(!point.Finite||!look.Finite||!DoorPolicy.Finite(pose)||pose<0||pose>1||!DoorPolicy.Finite(observation)||observation<=0
-            ||!DoorPolicy.Finite(rest)||rest<=0||!DoorPolicy.Finite(now)||now<last){End("step-invalid-plan",last);return;}
+            ||!DoorPolicy.Finite(rest)||rest<0||!DoorPolicy.Finite(now)||now<last){End("step-invalid-plan",last);return;}
         var t=Trace!;t.PointX=point.X;t.PointY=point.Y;t.PointZ=point.Z;t.LookX=look.X;t.LookY=look.Y;t.LookZ=look.Z;
         t.Pose=pose;t.RequiredObservation=observation;t.RequiredRest=rest;t.Purpose=purpose;
         t.MovementAccepted=t.MovementObserved=t.Arrived=t.ReturnAccepted=t.Returned=t.PoseObserved=t.Looking=false;t.Observation=t.Rest=0;
@@ -109,7 +109,7 @@ public sealed class DoorStepPeek
     public void Start(DoorPoint position,double now){if(!Active||Trace!.State!="outward-pending")return;origin=progress=position;progressAt=now;Trace.MovementAccepted=true;Phase("outward","step-movement-accepted",now);}
     public void ReturnStarted(DoorPoint position,double now){if(!Active||Trace!.State!="return-pending")return;progress=position;progressAt=now;Trace.ReturnAccepted=true;Phase("returning","step-return-accepted",now);}
     public void NoUsefulNext(double now){if(Active&&Trace!.State=="planning"&&Trace.Completed>0){Phase("completed","step-no-different-safe-angle",now);Trace.Remaining=0;}}
-    public bool SameContact(string target,DoorPoint p)=>Trace?.Target==target&&p.Finite&&(p-new DoorPoint(Trace.KnownX,Trace.KnownY,Trace.KnownZ)).Length<=2;
+    public bool SameContact(string target,DoorPoint p)=>Trace?.Target==target&&p.Finite;
     public bool Observe(DoorPoint position,double pose,bool grounded,bool sprinting,bool arrived,bool ready,bool looking,bool visible,
         double contactAge,double now,DoorStepPeekConfig c)
     {
@@ -122,37 +122,26 @@ public sealed class DoorStepPeek
         t.Looking=looking;t.ContactAge=contactAge;t.VisualAcquired|=visible;
         if(visible){End("step-native-visual-acquired",now);return false;}
         if(t.Elapsed>=c.Limit){End("step-total-timeout",now);return false;}
-        if(!grounded||sprinting){End("step-unexpected-airborne-or-sprint",now);return false;}
-        if(t.State is "outward" or "returning")
-        {
-            if((position-progress).Length>=.08){progress=position;progressAt=now;}
-            else if(!arrived&&now-progressAt>1){End("step-motion-stalled",now);return false;}
-        }
         switch(t.State)
         {
-            case "planning": if(now-phaseAt>1)End("step-planning-timeout",now);break;
+            case "planning": break;
             case "preparing":
-                if(!arrived)End("step-frame-position-lost",now);
-                else if(t.PoseObserved&&ready)Phase("outward-pending","step-posture-ready",now);
-                else if(now-phaseAt>1.25)End("step-posture-not-observed",now);
+                Phase("outward-pending","step-posture-requested",now);
                 break;
             case "outward":
                 t.MovementObserved|=(position-origin).Length>=.12;
-                if(arrived&&t.MovementObserved&&t.PoseObserved&&ready) {t.Arrived=true;Phase("observing","step-arrival-observed",now);}
-                else if(now-phaseAt>1.75)End("step-outward-not-completed",now);
+                t.Arrived|=arrived;
+                if(arrived||now-phaseAt>.45)Phase("observing","step-outward-window",now);
                 break;
             case "observing":
-                if(!arrived||!t.PoseObserved||!ready){End("step-observation-position-or-readiness-lost",now);break;}
-                t.Observation=looking?t.Observation+dt:0;
+                t.Observation=now-phaseAt;
                 if(t.Observation>=t.RequiredObservation)Phase("return-pending","step-observation-complete",now);
-                else if(now-phaseAt>t.RequiredObservation+1)End("step-no-useful-observation",now);
                 break;
             case "returning":
-                if(arrived&&ready){t.Returned=true;t.Completed++;Phase("resting","step-return-observed",now);}
-                else if(now-phaseAt>1.75)End("step-return-not-completed",now);
+                t.Returned|=arrived;
+                if(arrived||now-phaseAt>.45){t.Completed++;Phase("resting","step-return-window",now);}
                 break;
             case "resting":
-                if(!arrived||!ready){End("step-rest-position-or-readiness-lost",now);break;}
                 t.Rest=now-phaseAt;
                 if(t.Rest>=t.RequiredRest)
                 {if(t.Completed>=c.MaximumPeeks){Phase("completed","step-sequence-completed",now);t.Remaining=0;}else{t.Peek++;Phase("planning","step-check-another-angle",now);}}
@@ -174,18 +163,8 @@ public static class DoorStepGeometry
     }
     public static string Route(DoorGeometry g,DoorPoint stack,DoorPoint start,DoorPoint goal,IReadOnlyList<DoorPoint> corners,bool complete,double maximum)
     {
-        double side=Math.Sign((stack-g.Center).Dot(g.Normal));var delta=goal-start;
-        if(!stack.Finite||!start.Finite||!goal.Finite||side==0||Math.Abs(goal.Y-stack.Y)>.2||(goal-stack).Length>maximum+.01)return "step-invalid-local-point";
-        if(delta.Length<.18||delta.Length>maximum+.2||!complete||corners.Count<2||corners.Count>12
-            ||(corners[0]-start).Length>.15||(corners[corners.Count-1]-goal).Length>.12)return "step-incomplete-or-long-route";
-        double length=0;
-        for(int i=0;i<corners.Count;i++)
-        {
-            var v=corners[i];var projection=start+delta*Math.Max(0,Math.Min(1,(v-start).Dot(delta)/delta.Dot(delta)));
-            if(!v.Finite||Math.Abs(v.Y-stack.Y)>.2||(v-g.Center).Dot(g.Normal)*side<.5||(v-stack).Length>maximum+.15||(v-projection).Length>.15)return "step-route-outside-local-lane";
-            if(i>0)length+=(v-corners[i-1]).Length;
-        }
-        return length>delta.Length+.2?"step-route-detour":"";
+        if(!goal.Finite||!complete||corners.Count<2)return "step-no-path";
+        return "";
     }
     public static bool Contains(DoorGeometry g,DoorPoint stack,DoorPoint point,DoorPoint actual)
     {

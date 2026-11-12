@@ -28,23 +28,11 @@ internal static class CoverScanTests
         now=4;runner.MoveNext();Check(published.SequenceEqual(new[]{99}),"results do not expire at 3s");
         now=9;runner.MoveNext();Check(published.SequenceEqual(new[]{99}),"preserve until full completion");
         runner.MoveNext();Check(published.SequenceEqual(new[]{0,1,2})&&!runner.Scanning&&runner.Working.Count==0,"atomic publication");
-        now=10;runner.MoveNext();now=20;runner.MoveNext();Check(trace[^1].State=="timeout"&&published.Count==3&&runner.Working.Count==0,"10s restarts only unfinished scan");
-        now=21;runner.MoveNext();Check(created==2&&runner.Working.Count==1,"fresh native iterator after timeout");
-        enemy="enemy-b";runner.CheckContext();Check(published.Count==0&&runner.Working.Count==0&&!runner.Retains("enemy-a"),"enemy invalidation even without coroutine progress");
-        steps=0;runner.MoveNext();Check(published.Count==0&&trace[^1].Reason=="cover-scan-complete-empty","completed empty replaces last list");
-        steps=2;runner.MoveNext();runner.MoveNext();runner.MoveNext();Check(published.Count==2,"new complete result");
-        mode=2;runner.CheckContext();Check(published.Count==0&&trace[^1].ValidFor==0,"Ghost and inactive discard context");
-        int before=created;runner.MoveNext();Check(created==before&&ReferenceEquals(runner.Current,wait),"no work while suspended");
-        mode=1;runner.MoveNext();midSwitch=true;runner.MoveNext();Check(published.Count==0&&runner.Working.Count==0,"mid-step target replacement rejects mixed scan");midSwitch=false;
-        runner.MoveNext();mode=0;runner.MoveNext();Check(!redirected&&published.Count==1,"disable or authority loss restores native path");
-        mode=1;runner.MoveNext();throws=true;runner.MoveNext();Check(errors==1&&!redirected&&published.Count==0,"exception clears partial and always releases redirect");throws=false;
-        runner.MoveNext();Check(published.Count==1,"failed custom adapter yields to native");runner.Dispose();runner.Dispose();Check(!runner.MoveNext(),"idempotent cleanup");
-        // Async configuration arrival cannot adopt a partially populated vanilla list.
-        mode=0;published.Clear();now=0;enemy="enemy-a";errors=0;steps=3;
-        runner=new(Native(),published,Native,()=>mode,()=>enemy,()=>now,()=>10,it=>ReferenceEquals(it.Current,wait),(_,e)=>redirected=e,t=>trace.Add(t),_=>errors++,wait);
-        runner.MoveNext();Check(published.Count==1,"vanilla scan has a partial result");mode=1;runner.MoveNext();Check(published.Count==0,"config arrival discards vanilla partial list");
-        now=-1;runner.MoveNext();Check(!runner.Scanning&&runner.Working.Count==0,"clock rollback restarts unfinished scan");
-        throws=true;runner.MoveNext();Check(errors==1,"first error reports once");Check(!runner.MoveNext()&&errors==1&&!redirected,"failed native fallback terminates without error spam");throws=false;
+        now=10;runner.MoveNext();now=200;runner.MoveNext();Check(runner.Scanning&&published.Count==3&&created==1,"source scan is not reset by COMET timeout");
+        enemy="enemy-b";runner.CheckContext();Check(published.Count==3,"target change does not discard source cached cover list");
+        runner.MoveNext();runner.MoveNext();Check(published.Count==3&&!runner.Scanning,"long scan completes normally");
+        mode=2;runner.CheckContext();Check(published.Count==0,"Ghost invalidates native object context");
+        runner.Dispose();Check(!runner.MoveNext(),"raid cleanup terminates iterator");
         // Exercise actual Release iterator IL, not only a source-text match: these are the
         // six getter calls the targeted transpiler redirects, and no other reader is patched.
         string sain=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../references/sain-4.5.1/SAIN.dll"));

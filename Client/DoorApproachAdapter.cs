@@ -61,9 +61,8 @@ public sealed partial class Plugin
         if(MedicalPostureGuard(b))return "medical-posture-protected";
         var c=config!;bool scope=c.Enabled&&!s.Door.Fault&&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
         bool search=TacticalDoorSearch(b,s)&&SameTacticalContact(e,b.GoalEnemy);
-        bool unsafeNow=b.Flashed.IsFlashed||b.EnemyController.VisibleEnemies.Count>0||b.BotOwner.Memory.IsUnderFire||b.Suppression.IsSuppressed
-            ||s.Fear.Current.Panic||b.Medical.TimeSinceShot<3||b.BotOwner.DoorOpener.Interacting||b.DoorOpener.Interacting
-            ||b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None||!VisibleAdapter.WeaponReady(b);
+        bool unsafeNow=b.BotOwner.Memory.IsUnderFire||b.Grenade.GrenadeDangerPoint!=null
+            ||b.Decision.CurrentSelfDecision!=ESelfActionType.None;
         double unseen=e==null?0:e.Seen?e.TimeSinceSeen:Time.time;
         return DoorPolicy.Gate(scope,search,unsafeNow,e?.EnemyKnown==true&&e.KnownPlaces.LastKnownPosition.HasValue,e?.IsVisible==true,
             e?.TimeSinceLastKnownUpdated??-1,unseen,c.DoorApproach);
@@ -97,8 +96,7 @@ public sealed partial class Plugin
             {
                 if(!doorBudget.TryBegin(Time.frameCount,b))
                 {
-                    // Briefly wait for validation; never keep walking indefinitely on stale geometry.
-                    if(Time.time-r.NextCheck>.5){EndDoor(s,"door-validation-budget-expired");return true;}
+                    // Pending work cannot invalidate the route already accepted by SAIN.
                 }
                 else
                 {
@@ -119,7 +117,7 @@ public sealed partial class Plugin
             if(!r.Policy.Planning)return true;
         }
         if(r.Target!=e.EnemyProfileId
-            ||Vector3.Distance(r.Contact,known)>2||r.Policy.PlanningExpired(Time.time))
+            ||r.Policy.PlanningExpired(Time.time))
         {EndDoor(s,"door-plan-became-stale");return true;}
         if(!doorBudget.TryBegin(Time.frameCount,b)){r.Policy.Preparation.Defer(Time.time,Time.deltaTime);return true;}
         doorClock.Restart();
@@ -136,8 +134,6 @@ public sealed partial class Plugin
                 {
                     candidate.PathLength=Length(path!.corners);candidate.Score=Math.Round(candidate.PathLength+Math.Abs(point.y-b.Position.y)*2,3);
                     candidate.Reason="door-reachable-protected-frame";
-                    if(!s.ProgressUnavailable&&s.Progress.Blocked(ProgressAdapter.Destination(point),Time.time))
-                    {candidate.Eligible=false;candidate.Reason="door-progress-retry-blocked";}
                 }
                 r.Policy.Trace!.Candidates.Add(candidate);
                 var best=DoorPolicy.Best(r.Policy.Trace.Candidates);
@@ -171,7 +167,7 @@ public sealed partial class Plugin
         var candidates=new List<DoorWork>();int visited=0;
         foreach(var link in NearbyDoors(b))
         {
-            if(++visited>48){r.Policy.Trace!.ScanLimitReached=true;break;}
+            visited++;
             r.Policy.Trace!.DoorsScanned++;
             if(link==null||link.Door==null)continue;
             var work=new DoorWork{Data=new DoorDataStruct(link)};
@@ -190,7 +186,7 @@ public sealed partial class Plugin
         }
         r.Policy.Trace!.ScanLimitReached=visited>=48;
         foreach(var d in candidates.OrderBy(x=>(x.Geometry.Center-DP(b.Position)).Length).ThenBy(x=>x.Geometry.Id,StringComparer.Ordinal).Take(3))
-            foreach(int variant in new[]{0,1,2,3})foreach(int side in new[]{-1,1})r.Work.Add(new(){Data=d.Data,Geometry=d.Geometry,Side=side,Variant=variant});
+            foreach(int variant in Enumerable.Range(0,16))foreach(int side in new[]{-1,1})r.Work.Add(new(){Data=d.Data,Geometry=d.Geometry,Side=side,Variant=variant});
         if(r.Work.Count==0){EndDoor(s,"door-no-relevant-local-door");return;}
         RecordDoor(s,true);
     }
@@ -209,21 +205,16 @@ public sealed partial class Plugin
         {
             string relevant=DoorPolicy.Geometry(g,DP(b.Position),DP(known.Value),RememberedDoorRoute(b,known.Value),approach??config!.DoorApproach);
             if(relevant.Length>0)return relevant;
-            if(!NavMesh.SamplePosition(point,out var sample,.6f,NavMesh.AllAreas))return "door-no-local-navmesh";
+            if(!NavMesh.SamplePosition(point,out var sample,.7f,NavMesh.AllAreas))return "door-no-local-navmesh";
             point=sample.position;
-            if(Physics.Linecast(VP(raw)+Vector3.up*.8f,point+Vector3.up*.8f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))return "door-sample-through-wall";
             if(!b.Mover.CanGoToPoint(point,out path,true,.1f))return "door-incomplete-stack-route";
             string placement=DoorPolicy.Placement(g,DP(b.Position),raw,DP(point),path.corners.Select(DP).ToArray(),path.status==NavMeshPathStatus.PathComplete);
             if(placement.Length>0)return placement;
         }
         else if(!stationary&&b.Mover.ActivePath?.PathStatus!=NavMeshPathStatus.PathComplete)return "door-route-invalidated";
-        string panels=ValidateDoorPanels(b,w,g,point);if(panels.Length>0)return panels;
-        string volume=TacticalVolume(b,point,point,false,1);
-        if(volume.Length>0)return "door-"+volume;
-        var origin=point+Vector3.up*1.2f;var toward=known.Value+Vector3.up*1.2f-origin;
-        if(!Physics.Raycast(origin,toward.normalized,out var cover,Math.Min(2,toward.magnitude),LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore)
-            ||cover.collider==null||cover.collider.attachedRigidbody!=null||cover.collider.GetComponentInParent<Door>()!=null)
-            return "door-frame-not-protective";
+        // zzap FindStackPoint: only the open leaf's flat segment clearance, not
+        // an additional capsule/protective-wall test.
+        if(DoorSpatial.SegmentDistance(DP(point),g.OpenA,g.OpenB)<.8)return "door-open-leaf-clearance";
         return "";
     }
     private static double Length(Vector3[] corners){double d=0;for(int i=1;i<corners.Length;i++)d+=Vector3.Distance(corners[i-1],corners[i]);return d;}

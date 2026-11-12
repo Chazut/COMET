@@ -46,16 +46,16 @@ public sealed partial class Plugin
         double distance=Vector3.Distance(d.Position,d.Target);
         bool shortest=config!.GrenadeChoice.PreferShortIndoors&&indoors||distance<config.GrenadeChoice.ShortFuseDistance;
         r.Trace=new(){Target=f.Target,Source=f.Source,KnownX=f.X,KnownY=f.Y,KnownZ=f.Z,Distance=distance,
-            Flight=flight??0,RequiredMargin=config.GrenadeChoice.ArrivalMargin,
+            Flight=flight??0,RequiredMargin=0,
             Preference=shortest?(config.GrenadeChoice.PreferShortIndoors&&indoors?"short-indoors":"short-close"):"long-outdoors"};
         r.Item="";
-        if(!flight.HasValue){StopGrenadeChoice(s,"choice-unknown-flight","blocked");return false;}
+        flight??=0;
         var items=new Dictionary<string,ThrowWeap>();int count=0;
         foreach(var carried in b.Player.Inventory.GetPlayerItems(EPlayerItems.Equipment))
         {
-            if(++count>256){StopGrenadeChoice(s,"choice-inventory-limit","blocked");return false;}
+
             if(carried is not ThrowWeap item)continue;
-            if(items.Count>=32){StopGrenadeChoice(s,"choice-grenade-limit","blocked");return false;}
+
             string id=item.Id.ToString();
             if(id.Length==0||items.ContainsKey(id)){StopGrenadeChoice(s,"choice-ambiguous-item","blocked");return false;}
             items.Add(id,item);
@@ -89,15 +89,15 @@ public sealed partial class Plugin
     }
     private string ChoiceEvidence(BotComponent b,Enemy e,GrenadeJudgmentFrame f)
     {
-        if(!ReferenceEquals(e,b.GoalEnemy)||!f.Personal||!new DoorPoint(f.X,f.Y,f.Z).Finite
-            ||!GrenadeChoiceRules.Finite(f.EvidenceAt)||f.Now<f.EvidenceAt||f.Now-f.EvidenceAt>=config!.GrenadeContactLifetime)return "choice-no-fresh-personal-contact";
+        if(!ReferenceEquals(e,b.GoalEnemy)||!new DoorPoint(f.X,f.Y,f.Z).Finite
+            ||!GrenadeChoiceRules.Finite(f.EvidenceAt)||f.Now<f.EvidenceAt||f.Now-f.EvidenceAt>config!.GrenadeContactLifetime)return "choice-no-fresh-personal-contact";
         return f.Block;
     }
     private string ChoiceReject(BotComponent b,ThrowWeap item,double flight)
     {
         string filtered=FilterReject(b,item);if(filtered.Length>0)return filtered;
         if(GrenadeFilterScope(b)&&GrenadeCategory(item)=="flash")
-            return GrenadeFilterRules.FlashReject(item.GetExplDelay,item.MinTimeToContactExplode,flight,config!.GrenadeChoice.ArrivalMargin);
+            return GrenadeFilterRules.FlashReject(item.GetExplDelay,item.MinTimeToContactExplode,flight,0);
         return GrenadeChoiceRules.Reject(item.GetExplDelay,item.MinTimeToContactExplode,item.IsDummy,item.ThrowType.ToString()=="frag_grenade",flight,config!.GrenadeChoice);
     }
     private bool ValidateGrenadeChoice(BotComponent b,Enemy e,BotState s,bool execution)
@@ -106,32 +106,24 @@ public sealed partial class Plugin
         var r=s.GrenadeChoice;var g=b.BotOwner.WeaponManager.Grenades;var f=GrenadeFrame(b,e,s);var d=g.AIGreanageThrowData;
         string why=ChoiceEvidence(b,e,f);
         if(why.Length==0&&(g.ThrowindNow||r.Item.Length==0||r.Item!=f.Item||r.Enemy!=f.Instance||r.Revision!=config!.Revision
-            ||f.Now<r.ChosenAt||f.Now-r.ChosenAt>2||Vector3.Distance(r.Known,new((float)f.X,(float)f.Y,(float)f.Z))>1))why="choice-binding-changed";
+))why="choice-binding-changed";
         if(why.Length==0&&(d==null||!ValidGrenadeArc(d)||!d.IsUpToDate()||d.ThrowComplete))why="choice-arc-expired";
         if(why.Length==0&&(!GrenadeChoiceRules.Finite(g.MaxPower)||Math.Abs(g.MaxPower-r.Power)>.001))why="choice-throw-power-changed";
         double? flight=null;
         if(why.Length==0)
         {
             var flat=d!.Target-d.Position;flat.y=0;flight=GrenadeChoiceRules.Flight(flat.magnitude,d.Force,d.Ang);
-            if(!flight.HasValue)why="choice-unknown-flight";
+            flight??=0;
         }
         if(why.Length==0)
         {
             bool carried=false;int count=0;
             foreach(var item in b.Player.Inventory.GetPlayerItems(EPlayerItems.Equipment))
-            {if(++count>256){why="choice-inventory-limit";break;}if(ReferenceEquals(item,g.grenade))carried=true;}
+            {if(ReferenceEquals(item,g.grenade))carried=true;}
             if(why.Length==0)why=!carried?"choice-item-no-longer-carried":ChoiceReject(b,g.grenade!,flight!.Value);
         }
         if(why.Length==0)why=GrenadeSafety(b,s,f);
         if(why.Length==0&&!NativeAdapter.GrenadeFriendsClear(b,d!.Target))why="sain-friendly-distance";
-        // With G02 disabled, retain its bounded native-arc clearance guard at execution.
-        if(why.Length==0&&execution&&!GrenadeTrajectoryScope(b))
-        {
-            if(!grenadeArcBudget.TryBegin(Time.frameCount))return false;
-            grenadeArcClock.Restart();
-            try{why=SweepGrenadeArc(d!,out _);}
-            finally{grenadeArcClock.Stop();grenadeArcBudget.Charge(grenadeArcClock.Elapsed.TotalMilliseconds);}
-        }
         if(why.Length>0){StopGrenadeChoice(s,why,"blocked");return false;}
         d!.GrenadeType=null;
         r.Trace!.Flight=flight!.Value;r.Trace.Fuse=g.grenade!.GetExplDelay;r.Trace.Margin=r.Trace.Fuse-flight.Value;

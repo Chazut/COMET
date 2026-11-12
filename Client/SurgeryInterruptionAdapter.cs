@@ -10,48 +10,28 @@ namespace Comet.Client;
 
 public sealed partial class Plugin
 {
+    private bool SourceSurgeryAllowed(BotComponent b,BotState s)
+    {
+        var med=b.BotOwner.Medecine;var kit=med.SurgicalKit;
+        bool usable=!med.FirstAid.IsBleeding&&(kit.Using||kit.ShallStartUse());
+        bool visible=false;double nearest=double.MaxValue,seen=double.MaxValue,known=double.MaxValue;
+        foreach(var e in b.EnemyController.KnownEnemies){visible|=e.IsVisible;nearest=Math.Min(nearest,e.Path.PathLength);
+            if(e.Seen)seen=Math.Min(seen,e.TimeSinceSeen);known=Math.Min(known,e.TimeSinceLastKnownUpdated);}
+        bool strict=!visible&&nearest>=80&&seen>=60&&known>=60;
+        return s.Medical.SourceSurgery.Allows(Time.time,b.Info.Personality.ToString(),kit.Using,usable,strict,
+            b.Cover.CoverInUse?.BotInThisCover==true,visible,nearest,seen,known,b.Medical.TimeSinceShot,()=>UnityEngine.Random.Range(0f,100f));
+    }
     private void SampleSurgeryInterruption(BotComponent b,BotState s,bool force)
     {
         var r=s.Medical;var p=r.Interruption;var c=config!.SurgeryInterruption;
         if(!p.Active)return;
         if(!c.Enabled||!MedicalScope(b)){EndSurgeryInterruption(s,"surgery-out-of-scope");return;}
-        var kit=b.BotOwner.Medecine.SurgicalKit;
-        bool hit=MedicalChoice.Finite(b.Medical.TimeSinceShot)&&b.Medical.TimeSinceShot>=0&&Time.time-b.Medical.TimeSinceShot>p.BeganAt;
-        bool grenade=b.Grenade.GrenadeDangerPoint!=null||b.Decision.CurrentCombatDecision==ECombatDecision.AvoidGrenade;
-        if(!force&&!hit&&!grenade&&!kit._lastIsCanceled&&Time.time<r.InterruptionAt)return;
-        r.InterruptionAt=Time.time+(float)c.Interval;
-        var t=p.Trace!;
+        var kit=b.BotOwner.Medecine.SurgicalKit;var t=p.Trace!;
         bool matching=b.Player.HandsController is IMedsController&&b.Player.HandsController.Item?.Id.ToString()==t.Item;
-        if(!p.Cancelling&&kit._using&&!kit._lastIsCanceled&&!r.Callback
-            &&(kit.CurUsingMeds?.Id.ToString()!=t.Item||b.Player.HandsController is IMedsController&&!matching))
-        {EndSurgeryInterruption(s,"surgery-operation-replaced");EndMedical(s,"medical-ownership-lost");return;}
-        var f=new SurgeryFrame{Now=Time.time,Hit=hit,Grenade=grenade,NativeCancelled=kit._lastIsCanceled,
-            Hands=matching,OperationPending=kit._using&&!r.Callback,
-            Completed=!b.Player.HealthController.IsBodyPartDestroyed(r.Part),
-            WeaponReady=WeaponHandsReady(b,b.Player.HandsController as Player.FirearmController)};
-        // Only personal remembered positions. Never inspect an invisible enemy's live transform.
-        if(!p.Cancelling&&!hit&&!grenade&&!f.Completed)
-        {
-            int count=0;
-            foreach(var e in b.EnemyController.KnownEnemies)
-            {
-                if(++count>16)break;
-                if(e==null||!e.EnemyKnown)continue;
-                var place=e.KnownPlaces.LastSeenPlace;var heard=e.KnownPlaces.LastHeardPlace;
-                if(!e.IsVisible&&heard!=null&&(place==null||heard.TimeSincePositionUpdated<place.TimeSincePositionUpdated))place=heard;
-                if(place==null||!ValidPoint(place.Position))continue;
-                var pos=place.Position;
-                f.Evidence.Add(new(){Kind=e.IsVisible?"visible":"known",Contact=e.EnemyProfileId,
-                    Age=place.TimeSincePositionUpdated,Distance=Vector3.Distance(b.Position,pos),X=pos.x,Y=pos.y,Z=pos.z});
-            }
-            foreach(var step in r.Steps)
-                if(step.at>=p.BeganAt)f.Evidence.Add(new(){Kind="footstep",Age=Time.time-step.at,
-                    Distance=Vector3.Distance(b.Position,step.position),X=step.position.x,Y=step.position.y,Z=step.position.z});
-        }
-        bool cancel=p.Tick(f,c);
-        // CancelCurrent is native, guarded by _lastIsCanceled, and requests TakePrevWeapon.
-        // It does not mean hands have changed yet. Native hit/BHF cancellation is not repeated.
-        if(cancel)kit.CancelCurrent();
+        var f=new SurgeryFrame{Now=Time.time,NativeCancelled=kit._lastIsCanceled,
+            Hands=matching,OperationPending=kit._using&&!r.Callback,Completed=!b.Player.HealthController.IsBodyPartDestroyed(r.Part),
+            WeaponReady=WeaponHandsReady(b,b.Player.HandsController as Player.FirearmController),SourceAllowed=SourceSurgeryAllowed(b,s)};
+        if(p.Tick(f,c))kit.CancelCurrent();
         if(p.Trace!=null)p.Trace.NativeCancelled|=kit._lastIsCanceled;
         RecordSurgeryInterruption(s,false);
     }

@@ -46,9 +46,10 @@ public sealed partial class Plugin
     }
     private double ReservationDeadline(BotComponent b,BotState s,bool ambush=false)
     {
-        double contact=Time.time-(b.GoalEnemy?.TimeSinceLastKnownUpdated??double.PositiveInfinity)
-            +Math.Min(config!.ContactLifetime,config.DoorApproach.ContactLifetime);
-        return Math.Min(contact,ambush?s.Ambush.Policy.Deadline:s.LastSelection+config.PlanLimit);
+        // zzap: one raid-wide claim for the whole door session (150 seconds).
+        // Individual approach, peek and feint stages keep their own source timers.
+        return Time.time+150;
+
     }
     // Sweeps may revoke, but only a successful native action callback can renew.
     private bool GuardDoorReservation(BotComponent b,BotState s)

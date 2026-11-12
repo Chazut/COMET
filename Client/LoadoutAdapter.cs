@@ -19,7 +19,6 @@ internal sealed class LoadoutRuntime
 
 public sealed partial class Plugin
 {
-    private int loadoutFrame = -1;
     private static void PatchLoadout(Harmony h)
     {
         var inventory = AccessTools.Method(typeof(Player), nameof(Player.OnItemAddedOrRemoved));
@@ -42,14 +41,13 @@ public sealed partial class Plugin
     {
         if (config?.Enabled != true || !config.Loadout.Enabled || !Authority || !NativeAdapter.IsSupportedAi(bot) || !bot.BotActive || Ghost(bot.ProfileId)) return null;
         var runtime = state.Loadout;
-        var weapon = bot.Player.HandsController?.Item as Weapon;
+        var weapon = bot.BotOwner.WeaponManager?.CurrentWeapon;
         if (weapon == null) { runtime.Refresh.Invalidate("no-weapon-in-hands"); return new LoadoutTrace { State = "no-weapon", At = Time.time }; }
         string id = weapon.Id.ToString(), ammo = weapon.CurrentAmmoTemplate?._id.ToString() ?? "";
         try
         {
-            if (runtime.Refresh.NeedsRefresh(Time.time, id, ammo) && loadoutFrame != Time.frameCount)
+            if (runtime.Refresh.NeedsRefresh(Time.time, id, ammo))
             {
-                loadoutFrame = Time.frameCount; // One inventory inspection globally per frame, only at decision time.
                 var timer = Stopwatch.StartNew();
                 runtime.Cached = LoadoutAdapter.Read(bot, weapon, config.Loadout, runtime.Refresh.Reason);
                 runtime.Cached.SampleMilliseconds = timer.Elapsed.TotalMilliseconds;
@@ -76,13 +74,10 @@ internal static class LoadoutAdapter
     internal static LoadoutTrace Read(BotComponent bot, Weapon weapon, LoadoutConfig c, string reason)
     {
         var info = bot.PlayerComponent?.Equipment?.CurrentWeaponInfo;
-        // SAIN can still be processing an equipment event. Never use optics from the previous gun.
-        bool infoMatches = info != null && ReferenceEquals(info.Weapon, weapon);
         string ammoKind = weapon.CurrentAmmoTemplate?.ammoType ?? "";
         bool slug = weapon.WeapClass == "shotgun" && ammoKind == "bullet" && weapon.CurrentAmmoTemplate?.buckshotBullets <= 1;
-        var p = infoMatches ? LoadoutModel.Classify(weapon.WeapClass, weapon.BoltAction,
-            weapon.WeapFireType?.Contains(Weapon.EFireMode.fullauto) == true, weapon.FireRate, info!.HasOptic, info.HasRedDot, slug ? "slug" : "", c)
-            : new LoadoutTrace { State = "weapon-info-pending", WeaponClass = weapon.WeapClass };
+        var p = LoadoutModel.Classify(info?.WeaponClass.ToString() ?? "assaultRifle", weapon.BoltAction,
+            weapon.WeapFireType?.Contains(Weapon.EFireMode.fullauto) == true, weapon.FireRate, info?.HasOptic == true, info?.HasRedDot == true, slug ? "slug" : "", c);
         p.WeaponId = weapon.Id.ToString(); p.Weapon = weapon.ShortName.Localized(); p.Ammo = slug ? "slug" : ammoKind;
         p.At = p.ResourceAt = Time.time; p.ScoreCap = c.ScoreCap; p.RefreshReason = reason;
         var equipment = bot.Player.Inventory.Equipment;
@@ -90,7 +85,9 @@ internal static class LoadoutAdapter
         var chamber = weapon.Chambers != null && weapon.Chambers.Length > 0 ? weapon.Chambers[0] : null;
         foreach (var item in bot.Player.Inventory.GetPlayerItems(EPlayerItems.Equipment))
         {
-            if (++p.ItemsScanned > 256) { p.ResourceReason = "inventory-scan-limit"; break; }
+            p.ItemsScanned++;
+            if (item is ThrowWeap) p.Grenades++;
+            if (item is MedKit || item.GetItemComponent<MedKitComponent>() != null) p.MedicalItems++;
             var slot = RootSlot(item, equipment);
             if (slot == null) continue;
             bool fast = (slot == EquipmentSlot.TacticalVest || slot == EquipmentSlot.Pockets || slot == EquipmentSlot.ArmBand)
@@ -99,9 +96,6 @@ internal static class LoadoutAdapter
                 && LoadoutModel.UsableSpareMagazine(fast, magSlot.CanAccept(mag), mag.Count, mag.IsAmmoCompatible(weapon.Chambers))) p.CompatibleMagazines++;
             else if (item is Ammo round && !(item.CurrentAddress?.Container?.ParentItem is Magazine) && !(item.CurrentAddress?.Container?.ParentItem is Weapon)
                 && chamber != null && round.StackObjectsCount > 0 && chamber.CanAccept(round)) p.LooseRounds += round.StackObjectsCount;
-            else if (item is ThrowWeap) p.Grenades++;
-            var med = item.GetItemComponent<MedKitComponent>();
-            if (med != null && med.HpResource > 0) p.MedicalItems++;
         }
         p.ResourcesKnown = p.ResourceReason.Length == 0;
         if (!p.ResourcesKnown) { p.CompatibleMagazines = p.LooseRounds = p.Grenades = p.MedicalItems = 0; }
@@ -113,7 +107,6 @@ internal static class LoadoutAdapter
         p.At = Time.time;
         p.Ready = VisibleAdapter.WeaponReady(bot);
         p.LoadedRounds = weapon.ChamberAmmoCount + (weapon.ReloadMode == Weapon.EReloadMode.OnlyBarrel ? 0 : weapon.GetCurrentMagazine()?.Count ?? 0);
-        if (bot.BotOwner.WeaponManager.Grenades?.HaveGrenade != true) p.Grenades = 0;
         var med = bot.BotOwner.Medecine;
         var aid = med?.FirstAid;
         var surgery = med?.SurgicalKit;

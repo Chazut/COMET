@@ -32,7 +32,7 @@ public sealed partial class Plugin
         p.Magazine=w.ReloadMode==Weapon.EReloadMode.OnlyBarrel?0:w.GetCurrentMagazine()?.Count??0;
         p.Loaded=p.Chamber+p.Magazine;
         p.Capacity=w.ReloadMode==Weapon.EReloadMode.OnlyBarrel?w.Chambers.Length:(w.GetCurrentMagazine()?.MaxCount??0)+w.Chambers.Length;
-        p.Usable=w.MalfState.State==Weapon.EMalfunctionState.None&&!ReferenceEquals(w,main);
+        p.Usable=!ReferenceEquals(w,main);
         if(!p.Usable)p.Block="pistol-malfunction-or-already-held";
         return p;
     }
@@ -40,20 +40,26 @@ public sealed partial class Plugin
     private bool TryPistolSwap(BotComponent b,BotState s,ReloadTimingFrame f,ref bool invoked)
     {
         var r=s.PistolSwap;if(r.Fault||!PistolScope(b))return false;
-        if(r.Policy.Active)return true;
+        ObserveWeaponReturn(b,s);
+        if(s.WeaponReturn.Policy.PistolBlockedFor(Time.time)>0)return false;
         var wm=b.BotOwner.WeaponManager;var main=wm.CurrentWeapon;
         if(main==null||main.Id.ToString()!=f.Weapon)return false;
         var pistol=ReadPistol(b,main);
         bool pick=r.Policy.Evaluate(f,pistol,s.ReloadTiming.Policy.Trace,config!.PistolSwap);
         RecordPistolSwap(b,s);
         if(!pick)return false;
+        return TrySourcePistol(b,s,f,ref invoked);
+    }
+    private bool TrySourcePistol(BotComponent b,BotState s,ReloadTimingFrame f,ref bool invoked)
+    {
+        var r=s.PistolSwap;var wm=b.BotOwner.WeaponManager;var main=wm.CurrentWeapon;var pistol=ReadPistol(b,main);
         // Revalidate actual equipment before the only mutation. A cached BotWeaponInfo is not authoritative.
         var selected=HolsteredPistol(b);var selector=wm.Selector;
         if(selected==null||selected.Id.ToString()!=pistol.Pistol||ReloadLoaded(selected)!=pistol.Loaded
             ||!ReferenceEquals(b.Player.HandsController?.Item,main)||selector==null||!selector.IsWeaponReady
-            ||selector.IsChanging||wm.Reload.Reloading){r.Policy.End("pistol-equipment-changed");RecordPistolSwap(b,s,true);return false;}
+            ||wm.Reload.Reloading){r.Policy.End("pistol-equipment-changed");RecordPistolSwap(b,s,true);return false;}
         r.Policy.Request(Time.time);RecordPistolSwap(b,s,true);
-        float previousTimer=selector._nextChangeTime;float temporary=Time.time-1;
+        float previousTimer=selector._nextChangeTime;float temporary=0;
         bool accepted=false;
         string previousIntent=s.WeaponReturn.Intent;
         try {

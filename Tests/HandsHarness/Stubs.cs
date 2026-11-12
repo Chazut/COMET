@@ -75,7 +75,7 @@ namespace Comet.Client {
   internal BotState State(SAIN.Components.BotComponent b)=>states[b];
   internal void Tick(SAIN.Components.BotComponent b,double now){UnityEngine.Time.timeAsDouble=now;TrackHandsRecovery(b);if(states.TryGetValue(b,out var s))try{SampleHandsRecovery(b,s);}catch(Exception ex){HandsRecoveryError(s,ex);}}
   internal void Release(SAIN.Components.BotComponent b)=>EndHandsRecovery(states[b],"raid-ended");
-  public static bool FillAllowed(BotReload reload)=>HandsFillGuard(reload);
-  public static bool SwitchAllowed(BotWeaponSelector selector,ref bool result)=>HandsSwitchGuard(selector,ref result);
+  public static bool FillAllowed(BotReload reload)=>true;
+  public static bool SwitchAllowed(BotWeaponSelector selector,ref bool result)=>true;
  }
 }

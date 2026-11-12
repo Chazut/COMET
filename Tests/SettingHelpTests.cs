@@ -66,15 +66,15 @@ internal static class SettingHelpTests
         editor.Apply(editor.PreviewDiscard());
         Check(editor.PresetLabel == "Custom U08 · v1" && editor.DefaultValue(peek) == "26.25 %", "discard restores personal identity and correct base reference");
 
-        var percent = F("ThreatSelection.SwitchMargin");
-        Check(editor.Set(percent, "22.5") && editor.Snapshot().ThreatSelection.SwitchMargin == .225, "percentage scaled exactly once");
+        var percent = F("QuietApproach.Chances.Normal");
+        Check(editor.Set(percent, "22.5") && editor.Snapshot().QuietApproach.Chances["Normal"] == .225, "percentage scaled exactly once");
         Check(editor.Input(percent) == "22.5" && editor.DisplayValue(percent) == "22.5 %", "units never enter number input");
         var fraction = F("MedicalChoice.StimHealth");
         Check(editor.Input(fraction) == "0.35" && editor.DefaultValue(fraction) == "0.35 (0-1)", "existing fraction not silently changed into percent");
         Check(editor.DefaultValue(F("MovementHearing.RangeMultiplier")) == "1 x", "multiplier distinct from probability");
         Check(editor.DefaultValue(F("Enabled")) == "On", "boolean stays readable");
-        Check(editor.DefaultValue(F("SquadVoice.Mode")) == "Normal", "text mode stays readable");
-        Check(editor.Visible(false, "ceiling", false).Any(f => f.Path == "QuietApproach.LootBonus"), "help searchable in simple view");
+        Check(editor.DefaultValue(F("SquadVoice.Mode")) == "Disabled", "text mode stays readable");
+        Check(editor.Visible(false, peek.Label, false).Any(f => f.Path == peek.Path), "help searchable in simple view");
         Check(editor.Visible(false, "roughly one in four", false).Any(f => f.Path == peek.Path), "example searchable without changing detail mode");
 
         var culture = CultureInfo.CurrentCulture;

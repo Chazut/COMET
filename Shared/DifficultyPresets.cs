@@ -116,8 +116,8 @@ public static class DifficultyPresets
             }
             foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
-                if (!property.CanRead || !property.CanWrite || property.GetIndexParameters().Length != 0) continue;
-                if (path.Length == 0 && (property.Name == nameof(CometConfig.Revision) || property.Name == nameof(CometConfig.DifficultyPreset) || property.Name == nameof(CometConfig.PresetSource))) continue;
+                if (!property.CanRead || !property.CanWrite || property.GetIndexParameters().Length != 0 || SourceBaselineSettings.IsRetired(type,property.Name)) continue;
+                if (path.Length == 0 && (property.Name == nameof(CometConfig.BehaviorBaseline) || property.Name == nameof(CometConfig.Revision) || property.Name == nameof(CometConfig.DifficultyPreset) || property.Name == nameof(CometConfig.PresetSource))) continue;
                 Visit(property.GetValue(value), path.Length == 0 ? property.Name : path + "." + property.Name);
             }
         }

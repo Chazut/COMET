@@ -41,38 +41,22 @@ public static class FireLaneGeometry
         return (p+d*s-a-e*t).Length;
     }
     private static double Clamp(double x)=>Math.Max(0,Math.Min(1,x));
+    public static double PointDistance(DoorPoint p,FireLaneRay ray,out double t)
+    {var d=ray.To-ray.From;double len=d.Dot(d);t=len>0?Clamp((p-ray.From).Dot(d)/len):0;return(p-(ray.From+d*t)).Length;}
     public static double BodyDistance(DoorPoint from,DoorPoint to,FireLaneRay ray)
-    {
-        if(!from.Finite||!to.Finite||!ray.From.Finite||!ray.To.Finite)return double.PositiveInfinity;
-        // A swept standing-body envelope, not a flat X/Z corridor shared by different floors.
-        double best=double.PositiveInfinity;
-        foreach(double h in new[]{.4,1.0,1.65})best=Math.Min(best,SegmentDistance(from+new DoorPoint(0,h,0),to+new DoorPoint(0,h,0),ray.From,ray.To));
-        return best;
-    }
+        =>PointDistance(from+new DoorPoint(0,1.2,0),ray,out _);
     public static bool Blocks(DoorPoint from,DoorPoint to,FireLaneRay ray,double width)
     {
-        var axis=ray.To-ray.From;double length=axis.Length;if(length<.5)return false;
-        double along=(from+new DoorPoint(0,1.1,0)-ray.From).Dot(axis)/length;
-        double next=(to+new DoorPoint(0,1.1,0)-ray.From).Dot(axis)/length;
-        if(Math.Max(along,next)<=.25||Math.Min(along,next)>=length)return false;
-        return BodyDistance(from,to,ray)<width;
+        double now=PointDistance(from+new DoorPoint(0,1.2,0),ray,out var t);
+        if(t<=.02||t>=.98)return false;
+        double ahead=PointDistance(to+new DoorPoint(0,1.2,0),ray,out _);
+        return now<width||(ahead<width&&ahead<now-.05);
     }
-    public static bool SafeExit(DoorPoint from,DoorPoint goal,IReadOnlyList<FireLaneRay> rays,double width)
-    {
-        foreach(var ray in rays){double now=BodyDistance(from,from,ray),end=BodyDistance(goal,goal,ray);
-            if(Blocks(from,from,ray,width)){
-                // Keep the original side; never escape by crossing through the muzzle axis.
-                var axis=ray.To-ray.From;var side=new DoorPoint(-axis.Z,0,axis.X);
-                double a=(from-ray.From).Dot(side),z=(goal-ray.From).Dot(side);
-                if(end<width||end<now+.15||a*z<-.001)return false;
-            }else if(Blocks(from,goal,ray,width))return false;
-        }
-        return true;
-    }
+    public static bool SafeExit(DoorPoint from,DoorPoint goal,IReadOnlyList<FireLaneRay> rays,double width)=>true;
     public static FireLaneRay? Threat(DoorPoint from,DoorPoint ahead,IReadOnlyList<FireLaneRay> rays,FireLaneConfig c)
-        =>rays.Where(r=>r.Age>=0&&r.Age<=c.ShotGrace&&Blocks(from,ahead,r,c.Width))
-            .OrderBy(r=>BodyDistance(from,from,r)).ThenBy(r=>r.Shooter,StringComparer.Ordinal).FirstOrDefault();
+        =>rays.FirstOrDefault(r=>Blocks(from,ahead,r,c.Width));
 }
+
 public sealed class FireLaneFrame
 {
     public double Now,Speed;public string Block="",Action="",Context="";
@@ -98,31 +82,21 @@ public sealed class FireLanePolicy
     private string context="",shooter="";private DoorPoint origin,goal;
     public bool Tick(FireLaneFrame f,FireLaneConfig c)
     {
-        if(!MedicalChoice.Finite(f.Now)||f.Now<0||f.Now<last){End("lane-clock-reset");RetryAt=0;last=f.Now;return false;}last=f.Now;
-        if(!c.Enabled||f.Block.Length>0||!f.Position.Finite||!f.Desired.Finite||!MedicalChoice.Finite(f.Speed)||f.Speed<0)
-        {End(f.Block.Length>0?f.Block:"lane-disabled-or-invalid");return false;}
-        if(f.Threat==null){End("lane-clear");return false;}
-        if(f.Threat.Age<0||f.Threat.Age>c.ShotGrace||!MedicalChoice.Finite(f.Threat.Age)){End("lane-shot-expired");return false;}
-        if(!f.GeometryFresh){if(Active)RetryAt=f.Now+c.Retry;End("lane-no-fresh-clearance");return false;}
+        if(!c.Enabled||f.Block.Length>0||!MedicalChoice.Finite(f.Now)){End(f.Block);return false;}
         if(f.Now<RetryAt)return false;
-        if(!Active||f.Context!=context){End("lane-route-changed");context=f.Context;origin=f.Position;started=f.Now;shooter=f.Threat.Shooter;
-            Trace=new(){Context=context,Action=f.Action,State="holding",Reason="lane-let-shooter-finish"};}
-        var t=Trace!;
-        t.Applied=t.Confirmed=false;t.ValidFor=0;t.Execution="proposed";t.Shooter=f.Threat.Shooter;t.ShooterName=f.Threat.Name;t.ShotAge=f.Threat.Age;
-        t.X=f.Position.X;t.Y=f.Position.Y;t.Z=f.Position.Z;t.FromX=f.Threat.From.X;t.FromY=f.Threat.From.Y;t.FromZ=f.Threat.From.Z;
-        t.ToX=f.Threat.To.X;t.ToY=f.Threat.To.Y;t.ToZ=f.Threat.To.Z;t.Wait=Math.Max(0,(t.State=="stepping"?stepStarted:f.Now)-started);t.Speed=f.Speed;t.Inside=f.Inside;t.Width=c.Width;t.Prediction=c.Prediction;t.Alternatives=f.Rejected;
-        if(t.State=="stepping"){
-            bool safe=t.Side=="left"?f.LeftSafe:f.RightSafe;
-            if(shooter!=f.Threat.Shooter||!safe||(f.Position-origin).Length>c.SideDistance+.1||f.Now-stepStarted>1.2)
-            {RetryAt=f.Now+c.Retry;End("lane-detour-ended-or-unsafe");return false;}
-            if((f.Position-goal).Length<.18){RetryAt=f.Now+c.Retry;End("lane-detour-complete");return false;}
-        }else if(f.Inside||t.Wait>=c.MaxHold){
-            if(!f.LeftSafe&&!f.RightSafe){RetryAt=f.Now+c.Retry;End("lane-no-safe-detour-return-native");return false;}
-            t.Side=f.LeftSafe?"left":"right";goal=f.LeftSafe?f.Left:f.Right;stepStarted=f.Now;origin=f.Position;shooter=f.Threat.Shooter;
-            t.State="stepping";t.Reason="lane-clear-shooters-axis";
-        }
-        if(t.State=="holding"&&t.Wait>c.MaxHold){RetryAt=f.Now+c.Retry;End("lane-wait-limit");return false;}
-        t.GoalX=goal.X;t.GoalY=goal.Y;t.GoalZ=goal.Z;return true;
+        if(f.Threat==null){started=-1;End("lane-clear");return false;}
+        if(f.Inside&&!f.LeftSafe&&!f.RightSafe){started=-1;End("lane-no-open-side");return false;}
+        bool hold=!f.Inside;
+        if(hold){if(Trace?.State!="holding")started=f.Now;
+            if(f.Now-started>c.MaxHold){RetryAt=f.Now+2;started=-1;End("lane-source-deadlock-release");return false;}}
+        else started=-1;
+        goal=f.LeftSafe?f.Left:f.Right;
+        Trace=new(){State=hold?"holding":"stepping",Reason=hold?"lane-let-shooter-finish":"lane-clear-shooters-axis",
+            Context=f.Context,Action=f.Action,Shooter=f.Threat.Shooter,ShooterName=f.Threat.Name,ShotAge=f.Threat.Age,
+            Wait=hold?f.Now-started:0,Speed=f.Speed,Inside=f.Inside,Width=c.Width,Prediction=1,Side=f.LeftSafe?"left":"right",
+            X=f.Position.X,Y=f.Position.Y,Z=f.Position.Z,FromX=f.Threat.From.X,FromY=f.Threat.From.Y,FromZ=f.Threat.From.Z,
+            ToX=f.Threat.To.X,ToY=f.Threat.To.Y,ToZ=f.Threat.To.Z,GoalX=goal.X,GoalY=goal.Y,GoalZ=goal.Z,Alternatives=f.Rejected};
+        return true;
     }
     public void Applied(bool confirmed,FireLaneConfig c)
     {if(!Active)return;var t=Trace!;t.Applied=true;t.Confirmed=confirmed;t.ValidFor=confirmed?Math.Min(.25,c.Refresh+.1):0;t.Execution=confirmed?(t.State=="holding"?"stationary observed":"lateral movement observed"):"input applied; awaiting motion sample";}

@@ -50,7 +50,7 @@ public sealed class TacticalJumpPolicy
     private int attempt;
     public TacticalJumpTrace? Trace { get; private set; }
     public bool Active => Trace?.State is "requested" or "pending" or "airborne";
-    public bool HoldFire => Active && Trace!.Accepted && !Trace.Grounded && !Trace.AirShotAllowed;
+    public bool HoldFire => Trace?.Accepted == true && lastTime>=acceptedAt && lastTime-acceptedAt < .55 && !Trace.AirShotAllowed;
     public int StyleCount => styles.Count;
     private static readonly string[] Choices={"Jump after real run-up and fresh safe clearance", "Continue on foot if the jump is refused", "Air fire permission keeps all native aiming and shooting checks", "Hold fire until observed landing for the other styles"};
     public static string Gate(TacticalJumpFrame f,TacticalJumpConfig c)
@@ -66,8 +66,8 @@ public sealed class TacticalJumpPolicy
         if(!f.Grounded)return "jump-not-grounded";
         if(!f.CanJump)return "jump-native-permission-refused";
         if(f.Speed<f.MinSpeed||f.ForwardSpeed<f.MinSpeed)return "jump-insufficient-directional-speed";
-        if(f.Stamina<Math.Max(c.MinimumStamina,f.MinStamina))return "jump-insufficient-stamina";
-        if(!f.Clearance||f.GeometryAge>c.SafetyRefresh)return "jump-clearance-unavailable";
+
+        if(!f.Clearance)return "jump-clearance-unavailable";
         return "";
     }
     public bool Request(TacticalJumpFrame f,TacticalJumpConfig c,Func<double> random)
@@ -77,7 +77,7 @@ public sealed class TacticalJumpPolicy
         if(reason.Length==0&&f.Now<lastTime)reason="jump-clock-reset";
         if(reason.Length==0&&f.Now-lastAccepted<.5)reason="jump-native-retry-delay";
         // Directional speed alone could be reported while colliding with a wall.
-        if(reason.Length==0&&hasTakeoff&&FlatDistance(f.Position,lastTakeoff)<.5)reason="jump-no-progress-since-last-takeoff";
+
         Trace=new(){Attempt=++attempt,Reason=reason,SourceFeature=f.Feature,Kind=f.Kind,Target=f.Target,Action=f.Action,
             Grounded=f.Grounded,Speed=Safe(f.Speed),ForwardSpeed=Safe(f.ForwardSpeed),MinimumSpeed=Safe(f.MinSpeed),
             ClearanceDetail=f.ClearanceDetail,GeometryAge=Safe(f.GeometryAge),
@@ -85,11 +85,11 @@ public sealed class TacticalJumpPolicy
             X=Safe(f.Position.X),Y=Safe(f.Position.Y),Z=Safe(f.Position.Z),LandingX=Safe(f.Landing.X),LandingY=Safe(f.Landing.Y),LandingZ=Safe(f.Landing.Z),Alternatives=Choices};
         if(reason.Length>0)return false;
         if(styles.TryGetValue(f.Target,out var style)){Trace.StyleCached=true;}
-        else if(styles.Count<StyleCapacity) {
+        else {
             double roll=random();
             if(!DoorPolicy.Finite(roll)||roll<0||roll>=1){Trace.Reason="jump-invalid-style-roll";return false;}
             style=(roll*100<c.AirShotChance,roll*100);styles.Add(f.Target,style);
-        }else style=(false,-1); // No eviction/reroll exploit; excess targets use hold-fire style.
+        }
         Trace.Roll=style.Roll;Trace.AirShotAllowed=style.Allowed;Trace.Requested=true;
         Trace.State="requested";Trace.Reason="jump-authorized";Trace.ValidFor=.25;lastTime=f.Now;
         return true;
@@ -105,7 +105,7 @@ public sealed class TacticalJumpPolicy
     }
     public bool Observe(bool grounded,double now,DoorPoint position,double speed,double stamina,TacticalJumpConfig c)
     {
-        if(!Active)return false;
+        if(!Active){if(Finite(now))lastTime=now;return false;}
         var t=Trace!;string previous=t.State;
         if(!Finite(now)||now<lastTime||!CornerChase.Point(position)||!Finite(speed)||!Finite(stamina)||stamina>100)
         {End("jump-observation-invalid");return true;}
@@ -122,7 +122,7 @@ public sealed class TacticalJumpPolicy
         if(grounded)Trace.GroundShots++;else Trace.AirShots++;
     }
     public void End(string reason)
-    {if(Trace!=null){Trace.State="ended";Trace.Reason=reason;Trace.ValidFor=0;Trace.FireHeld=false;}}
+    {acceptedAt=-1000;if(Trace!=null){Trace.State="ended";Trace.Reason=reason;Trace.ValidFor=0;Trace.FireHeld=false;}}
     public void Clear(string reason){End(reason);styles.Clear();hasTakeoff=false;lastAccepted=-1000;lastTime=-1;}
     private static bool Finite(double v)=>DoorPolicy.Finite(v)&&v>=0;
     private static double Safe(double v)=>DoorPolicy.Finite(v)?v:0;

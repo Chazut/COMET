@@ -40,7 +40,7 @@ internal static class RetreatWeaveTests
         p=new();var slow=F();slow.Speed=3;p.Tick(slow,c,Zero);slow.Now=10.46;slow.GoalDistance=19;p.Tick(slow,c,Zero);Check(p.Trace!.Jump=="","hop waits for real speed");
         slow.Now=10.6;slow.Speed=4;p.Tick(slow,c,Zero);Check(p.Trace!.Jump=="switch","pending hop uses 0.5s speed window");
         foreach(var mutate in new Action<RetreatWeaveFrame>[] {f=>f.Block="ghost",f=>f.Block="non-pmc",f=>f.Block="remote",f=>f.Block="firing",f=>f.Block="medical",f=>f.Block="door",
-            f=>f.AtCover=true,f=>f.GoalDistance=.9,f=>f.Sprinting=false,f=>f.RearAngle=60,f=>f.Distance=81,f=>f.Action="RushEnemy",f=>f.Source="shared",f=>f.Target="",
+            f=>f.AtCover=true,f=>f.GoalDistance=.9,f=>f.Sprinting=false,f=>f.RearAngle=60,f=>f.Distance=81,f=>f.Action="RushEnemy",f=>f.Target="",
             f=>f.Now=double.NaN,f=>f.Speed=double.PositiveInfinity,f=>f.GeometryAge=-1,f=>f.ForwardDot=2,f=>f.Known=new(double.NaN,0,0)}) {
             p=new();p.Tick(F(),c,Zero);var f=F(10.5);mutate(f);Check(!p.Tick(f,c,Zero),"safety release overrides head minimum");
             Check(p.Trace!.Yaw==0&&p.Trace.Pitch==0&&p.Trace.ValidFor==0,"release has no lingering request");
@@ -52,11 +52,11 @@ internal static class RetreatWeaveTests
         low.Now=11;low.GoalDistance=17;low.VisionAge=8;low.FireAge=8;Check(p.Tick(low,c,Zero),"sustain to cover using ten-second memory");
         low.FireAge=low.VisionAge=10;Check(!p.Tick(low,c,Zero),"stale personal evidence ends it");
         p=new();for(int i=0;i<10;i++)Check(p.Tick(F(10+i*.5,30-i),c,High),"no artificial three second cap");
-        p=new();p.Tick(F(),c,High);Check(!p.Tick(F(11.3),c,High)&&p.Trace!.Reason=="weave-no-cover-progress","physical progress watchdog");
-        Check(!p.Tick(F(12,18),c,High),"same destination cannot loop stuck weaving");
+        p=new();p.Tick(F(),c,High);Check(p.Tick(F(11.3),c,High),"source has no COMET progress watchdog");
+        Check(p.Tick(F(12,18),c,High),"unchanged destination remains eligible");
         p=new();var left=F();left.Left=false;p.Tick(left,c,Zero);Check(p.Trace!.Yaw==30,"flip to clear side");
         left.Now=10.1;left.Right=false;p.Tick(left,c,Zero);Check(p.Trace!.Yaw==0,"both sides blocked use native route");
-        left.GeometryAge=1;left.Now=10.2;p.Tick(left,c,Zero);Check(p.Trace!.Yaw==0&&p.Trace.Pitch==0,"expired geometry restores gaze and route");
+        left.GeometryAge=1;left.Now=10.2;p.Tick(left,c,Zero);Check(p.Trace!.Yaw==0&&p.Trace.Pitch==55,"stale side clearance stops weaving without cancelling source head-down");
         p=new();var noJump=F(10,3.4);noJump.JumpSafe=noJump.LandingSafe=false;p.Tick(noJump,c,Zero);Check(p.Trace!.Jump==""&&!p.Trace.LandingRollSpent,"unsafe landing never consumes a safe opportunity");
         noJump.LandingSafe=true;p.Tick(noJump,c,Zero);Check(p.Trace!.Jump=="","clear destination with blocked predicted flight cannot authorize a landing jump");
         noJump.JumpSafe=true;p.Tick(noJump,c,Zero);p.JumpResult(true,noJump.Now);p.Requested(false,false,c);

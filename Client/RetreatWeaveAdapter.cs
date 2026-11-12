@@ -36,19 +36,9 @@ public sealed partial class Plugin
     {
         if(config?.Enabled!=true||!config.RetreatWeave.Enabled||!Authority||Ghost(s.ProfileId)||!NativeAdapter.IsSupportedAi(b)
             ||b.IsDead||!b.BotActive||b.GameEnding||!b.SAINLayersActive)return "weave-ineligible";
-        if(MedicalPostureGuard(b))return "medical-posture-protected";
-        var a=b.CurrentAction?.GetType();string d=b.Decision.CurrentCombatDecision.ToString();
-        if(a?.Assembly!=typeof(BotComponent).Assembly||!(a.FullName==SeekCoverType&&(d=="SeekCover"||d=="Retreat")
-            ||a.FullName=="SAIN.Layers.Combat.Solo.AvoidGrenadeAction"))return "weave-native-action-priority";
-        if(b.Decision.CurrentSelfDecision!=ESelfActionType.None||!VisibleAdapter.WeaponReady(b)||b.Player.IsInPronePose
-            ||b.ManualShoot.Shooting||b.ManualShoot.Reason!=EShootReason.None||b.BotOwner.ShootData.Shooting||b.Aim.AimStatus!=AimStatus.NoTarget)
-            return "weave-firing-medical-or-weapon-busy";
-        if(s.CoverTravel.Policy.Trace?.State=="face-walk"&&s.CoverTravel.Owned||s.CornerPrefire.Policy.Active||s.CornerChase.Policy.Active
-            ||s.CornerPeek.Policy.Active||s.CombatStep.Policy.Active||s.HoldAngle.Policy.Active||s.Entry.Policy.Active||s.RoomClear.Policy.Active
-            ||s.Ambush.Policy.Active||s.Reservation.Lease!=null)return "weave-other-tactic-priority";
-        var path=b.Mover.ActivePath;
-        if(path==null||!path.Moving||path.Crawling||path.Status==EBotMoveStatus.DoorInteraction||path.PathStatus!=NavMeshPathStatus.PathComplete)
-            return "weave-no-active-native-route";
+        string d=b.Decision.CurrentCombatDecision.ToString();
+        if(d is not ("SeekCover" or "Retreat" or "RunAway" or "AvoidGrenade"))return "weave-not-retreating";
+        if(b.Mover.ActivePath==null)return "weave-no-native-heading";
         return "";
     }
     private void SampleWeave(BotComponent b,BotState s)
@@ -69,7 +59,7 @@ public sealed partial class Plugin
                 r.HeardFire=heard.Position;r.FireAt=r.ShotStamp;
             }else if(Time.time-r.SeenAt<3){r.HeardFire=r.Seen;r.FireAt=r.ShotStamp;}
         }
-        if(r.Policy.Active&&(Time.time-r.CallbackAt>.3f||WeaveBlock(b,s).Length>0))EndWeave(s,"weave-owner-or-callback-ended");
+        if(r.Policy.Active&&(WeaveBlock(b,s).Length>0))EndWeave(s,"weave-owner-or-callback-ended");
     }
     private RetreatWeaveFrame WeaveFrame(BotComponent b,BotState s)
     {
@@ -94,7 +84,7 @@ public sealed partial class Plugin
             p.SampleWeave(b,s);var r=s.RetreatWeave;
             if(p.WeaveBlock(b,s).Length>0){p.EndWeave(s,p.WeaveBlock(b,s));return;}
             var path=b.Mover.ActivePath!;int index=path.CurrentIndex;var pts=path.PathCorners;
-            if(index<0||index>=pts.Count||pts.Count>64||direction.sqrMagnitude<.01){p.EndWeave(s,"weave-route-not-usable");return;}
+            if(index<0||index>=pts.Count||direction.sqrMagnitude<.01){p.EndWeave(s,"weave-route-not-usable");return;}
             r.CallbackAt=Time.time;
             // Stable leg heading, not a bearing that swings as the PMC moves laterally.
             var leg=pts[index].Position-(index>0?pts[index-1].Position:b.Position);leg.y=0;
@@ -105,8 +95,8 @@ public sealed partial class Plugin
                 r.Context=Guid.NewGuid().ToString("N");r.RollGoal=path.Destination;r.GeometryAt=-1000;
             }
             r.Goal=path.Destination;
-            if(r.SeenAt>=r.FireAt){r.Known=r.Seen;r.Source=r.SeenAt>=0?"personal-vision":"";}
-            else {r.Known=r.HeardFire;r.Source=r.FireAt>=0?"personal-fire":"";}
+            r.Known=b.GoalEnemy.EnemyPosition;r.Source="sain-goal-enemy";
+            r.SeenAt=b.GoalEnemy.Seen?Time.time-b.GoalEnemy.TimeSinceSeen:-1000;r.FireAt=b.GoalEnemy.Status.TimeLastShotAtMe;
             // Cheap gates before any physics work; no hidden enemy transform is read.
             var f=p.WeaveFrame(b,s);
             if(RetreatWeavePolicy.Gate(f,p.config.RetreatWeave).Length==0&&(f.Sprinting||r.Policy.Active)&&f.RearAngle>80
@@ -139,15 +129,15 @@ public sealed partial class Plugin
         var clock=System.Diagnostics.Stopwatch.StartNew();
         try {
             r.GeometryAt=-1000;r.Left=r.Right=r.Straight=r.JumpSafe=r.LandingSafe=false;
-            float horizon=Mathf.Max(1.5f,b.Player.Velocity.magnitude*(float)(c.Refresh+.1)+.5f);
+            float horizon=1.5f;
             var left=Quaternion.AngleAxis(-(float)c.Angle,Vector3.up)*native;
             var right=Quaternion.AngleAxis((float)c.Angle,Vector3.up)*native;
             r.Left=WeaveLane(b,left,horizon,false);r.Right=WeaveLane(b,right,horizon,false);r.Straight=WeaveLane(b,native,horizon,false);
-            float length=Mathf.Clamp(b.Player.Velocity.magnitude*.7f,3,6);
+            float length=Mathf.Clamp(b.Player.Velocity.magnitude*.7f,3,5);
             if(c.Jumps&&b.Player.MovementContext.IsGrounded&&ChaseCanJump(b)&&b.Player.Velocity.magnitude>=c.JumpMinSpeed) {
-                r.JumpSafe=WeaveLane(b,native,length,true);
+                r.JumpSafe=!Physics.Raycast(b.Position+Vector3.up*1.7f,Vector3.up,.7f,LayersMaskController.HighPolyWithTerrainMask);
                 var to=r.Goal-b.Position;float distance=to.magnitude;to.y=0;
-                r.LandingSafe=r.JumpSafe&&distance>=3&&distance<=5&&Math.Abs(r.Goal.y-b.Position.y)<=.4f&&Vector3.Dot(to.normalized,native)>.98f
+                r.LandingSafe=r.JumpSafe&&distance>=3&&distance<=5&&Math.Abs(r.Goal.y-b.Position.y)<=.4f&&Vector3.Dot(to.normalized,native)>.85f&&distance<=length
                     &&WeaveLane(b,to.normalized,distance,true);
             }
             r.ProbePath=path;r.ProbeIndex=path.CurrentIndex;r.ProbePosition=b.Position;r.ProbeDirection=native;r.ProbeGoal=path.Destination;
@@ -158,16 +148,11 @@ public sealed partial class Plugin
         =>WeaveLaneBlock(b,direction,length,jump).Length==0;
     private string WeaveLaneBlock(BotComponent b,Vector3 direction,float length,bool jump)
     {
-        var from=b.Position;var end=from+direction*length;
-        // Sample the surface along the whole local lane; a clear chest ray alone can miss a drop or stairs.
-        for(int i=1;i<=3;i++) {
-            var q=Vector3.Lerp(from,end,i/3f);
-            if(!NavMesh.SamplePosition(q,out var nav,.25f,NavMesh.AllAreas))return "lane-no-navmesh";
-            if(Math.Abs(nav.position.y-from.y)>(jump?.4f:.3f))return "lane-height-change";
-            if(!Physics.Raycast(q+Vector3.up*.4f,Vector3.down,out var ground,.8f,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore))return "lane-no-ground";
-            if(ground.normal.y<.9f)return "lane-steep-ground";
-        }
-        return RunVolume(b,from,end,jump);
+        var from=b.Position;
+        if(NavMesh.Raycast(from,from+direction*length,out _,NavMesh.AllAreas))return "lane-navmesh-edge";
+        if(jump&&Physics.Raycast(from+Vector3.up*.5f,direction,length,LayersMaskController.HighPolyWithTerrainMask))return "lane-knee-obstacle";
+        if(Physics.Raycast(from+Vector3.up*(jump?1.2f:1.1f),direction,jump?length:1.2f,LayersMaskController.HighPolyWithTerrainMask))return "lane-chest-obstacle";
+        return "";
     }
     private bool WeaveGaze(BotComponent b,BotState s,out Vector3 direction)
     {

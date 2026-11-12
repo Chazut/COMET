@@ -20,7 +20,6 @@ internal sealed class FlankRuntime
     internal string Refuse(string reason)
     {
         Reason=reason;
-        if(Point!=null){if(Refused.Count>=24)Refused.Clear();Refused[ProgressAdapter.CoverKey(Point)]=Time.time+5;}
         return reason;
     }
 }
@@ -50,16 +49,14 @@ internal static class FlankAdapter
         f.Reset();
         var used=b.Cover.CoverInUse;
         if(used==null)return "no-native-shift-cover-target";
-        CoverPoint? best=null;float length=float.MaxValue;int scanned=0;
+        CoverPoint? best=null;float length=float.MaxValue;
         foreach(var point in b.Cover.CoverPoints)
         {
-            if(++scanned>24)break;
             if(point==null||point==used||point.CoverHeight<=used.CoverHeight
                 ||(point.Position-used.Position).sqrMagnitude<=5||(point.Position-b.Position).sqrMagnitude<=2.25f
                 ||!VisibleAdapter.ValidCover(b,point))continue;
             string key=ProgressAdapter.CoverKey(point);
-            if((f.Refused.TryGetValue(key,out var until)&&Time.time<until)
-                ||(!s.ProgressUnavailable&&s.Progress.Blocked(key,Time.time))||point.PathData.PathLength>=length)continue;
+            if(point.PathData.PathLength>=length)continue;
             best=point;length=point.PathData.PathLength;
         }
         f.Point=best;f.Target=b.GoalEnemy?.EnemyProfileId??"";
@@ -92,7 +89,6 @@ public sealed partial class Plugin
             ||b.Decision.CurrentSelfDecision!=ESelfActionType.None||b.Decision.CurrentSquadDecision!=ESquadDecision.None)return true;
         var f=s.Flank;var point=f.Point;
         if(point!=null&&f.Target==b.GoalEnemy?.EnemyProfileId&&VisibleAdapter.ValidCover(b,point)
-            &&(s.ProgressUnavailable||!s.Progress.Blocked(ProgressAdapter.CoverKey(point),Time.time))
             &&b.Mover.GoToCoverPoint(point,false))
         {
             ___NewPoint=point;__result=true;f.MoveAccepted=true;f.Reason="";

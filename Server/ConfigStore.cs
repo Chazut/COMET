@@ -1,5 +1,6 @@
 using Comet.Core;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using SPTarkov.DI.Annotations;
 
 namespace Comet.Server;
@@ -18,9 +19,26 @@ public sealed class ConfigStore
     {
         lock (gate)
         {
-            var config = File.Exists(path) ? JsonSerializer.Deserialize<CometConfig>(File.ReadAllText(path), Json)
-                ?? throw new InvalidDataException("Empty COMET configuration.") : new CometConfig();
+            if (!File.Exists(path)) return new CometConfig();
+            string original = File.ReadAllText(path);
+            var document = JsonNode.Parse(original) as JsonObject ?? throw new InvalidDataException("Invalid COMET configuration.");
+            bool migrated = SourceBaselineMigration.Upgrade(document);
+            var config = document.Deserialize<CometConfig>(Json) ?? throw new InvalidDataException("Empty COMET configuration.");
             config.Validate();
+            if (migrated)
+            {
+                // Never overwrite the only copy of a player's previous setup.
+                string backup = path + ".before-zzap-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + ".bak";
+                File.Copy(path, backup, false);
+                string temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                try
+                {
+                    using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    { JsonSerializer.Serialize(stream, config, Json); stream.Flush(true); }
+                    File.Move(temp, path, true);
+                }
+                finally { if (File.Exists(temp)) File.Delete(temp); }
+            }
             return config;
         }
     }
