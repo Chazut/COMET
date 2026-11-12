@@ -26,6 +26,7 @@ internal sealed class LightDisciplineRuntime
     internal bool Captured, Fault;
     internal string[] Modes = Array.Empty<string>();
     internal float CallbackAt, Next, LogAt, ForceAt;
+    internal double LastActuatorMilliseconds;
     internal string Key = "";
     internal void Drop() { Devices.Clear(); Modes = Array.Empty<string>(); Weapon = null; Enemy = null; Captured = false; Next = 0; }
 }
@@ -82,10 +83,15 @@ public sealed partial class Plugin
                 if (Time.time >= r.ForceAt)
                 {
                     r.ForceAt = Time.time + .5f;
-                    var commands = new List<LightsState>();
+                    List<LightsState>? commands = null;
                     foreach (var d in r.Devices) if (d.Component.IsActive)
-                        commands.Add(new LightsState { Id=d.Component.Item.Id, IsActive=false, LightMode=d.Mode });
-                    if (commands.Count > 0) { hand!.SetLightsState(commands.ToArray()); p.ObserveLightDevices(s,true); }
+                        (commands??=new List<LightsState>()).Add(new LightsState { Id=d.Component.Item.Id, IsActive=false, LightMode=d.Mode });
+                    if (commands != null) {
+                        long started=System.Diagnostics.Stopwatch.GetTimestamp();
+                        hand!.SetLightsState(commands.ToArray());
+                        r.LastActuatorMilliseconds=(System.Diagnostics.Stopwatch.GetTimestamp()-started)*1000d/System.Diagnostics.Stopwatch.Frequency;
+                        p.ObserveLightDevices(s,true);
+                    }
                 }
                 p.ObserveLightDevices(s,false);
                 p.RecordLightDiscipline(s);
@@ -170,7 +176,7 @@ public sealed partial class Plugin
         r.Key = key; r.LogAt = Time.time + .5f;
         var json = Diagnostics.Serialize(new { schema = 1, session, sequence = ++sequence, feature = "L01", stage = "evaluated", decision = "LightDiscipline", reason = t.Reason,
             realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"), configRevision = config?.Revision ?? 0, profileId = s.ProfileId, name = s.Name, botInstance = s.Id,
-            lightDiscipline = t, lightDisciplineConfig = config?.LightDiscipline });
+            lightDiscipline = t, lightActuatorMs=r.LastActuatorMilliseconds, lightDisciplineConfig = config?.LightDiscipline });
         diagnostics?.Write(json); Api.Decisions.Publish(json, ex => { if (!subscriberWarned) { subscriberWarned = true; Logger.LogWarning(ex.Message); } });
     }
 }

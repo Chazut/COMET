@@ -124,12 +124,18 @@ public sealed partial class Plugin
         {r.NextMoveOrder=0;r.Peek?.Reset();r.Policy.Moving(Time.time,Vector3.ProjectOnPlane(b.Position-r.Goal,Vector3.up).magnitude);}
         if(t.State=="moving")
         {
+            // Observations only: retain the source's 12-second move timeout.
+            t.SprintObserved=b.Player.IsSprintEnabled;t.MoveSpeed=b.Player.Velocity.magnitude;
+            t.DistanceToGoal=Vector3.ProjectOnPlane(r.Goal-b.Position,Vector3.up).magnitude;
             if(!r.Policy.Progress(Time.time,Vector3.ProjectOnPlane(b.Position-r.Goal,Vector3.up).magnitude,c)){EndCrossfire(b,s,t.Reason);return;}
             if(t.State=="moving"&&Time.time>=r.NextMoveOrder)
             {
                 r.NextMoveOrder=Time.time+.75f;
                 bool sprint=r.Policy.Trace?.Trade?.Choice=="push"||Vector3.ProjectOnPlane(r.Goal-b.Position,Vector3.up).magnitude>8;
+                t.MoveOrders++;t.SprintRequested=sprint;
+                long moveStarted=System.Diagnostics.Stopwatch.GetTimestamp();
                 bool accepted=sprint?b.Mover.RunToPoint(r.Goal,r.Policy.Trace?.Trade?.Choice!="push",.56f,SAIN.Models.Enums.ESprintUrgency.High):b.Mover.WalkToPoint(r.Goal,true,.56f);
+                t.MoveAccepted=accepted;t.MoveOrderMilliseconds=(System.Diagnostics.Stopwatch.GetTimestamp()-moveStarted)*1000d/System.Diagnostics.Stopwatch.Frequency;
                 if(!accepted){EndCrossfire(b,s,"crossfire-noPath");return;}
                 r.Path=b.Mover.ActivePath;if(r.Path!=null)r.PathStarted=r.Path.TimeStarted;
             }

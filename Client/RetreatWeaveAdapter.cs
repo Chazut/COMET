@@ -95,8 +95,7 @@ public sealed partial class Plugin
                 r.Context=Guid.NewGuid().ToString("N");r.RollGoal=path.Destination;r.GeometryAt=-1000;
             }
             r.Goal=path.Destination;
-            r.Known=b.GoalEnemy.EnemyPosition;r.Source="sain-goal-enemy";
-            r.SeenAt=b.GoalEnemy.Seen?Time.time-b.GoalEnemy.TimeSinceSeen:-1000;r.FireAt=b.GoalEnemy.Status.TimeLastShotAtMe;
+            if(!p.UpdateWeaveContact(b,s))return;
             // Cheap gates before any physics work; no hidden enemy transform is read.
             var f=p.WeaveFrame(b,s);
             if(RetreatWeavePolicy.Gate(f,p.config.RetreatWeave).Length==0&&(f.Sprinting||r.Policy.Active)&&f.RearAngle>80
@@ -116,6 +115,17 @@ public sealed partial class Plugin
             if(t.Yaw!=0)direction=Quaternion.AngleAxis((float)t.Yaw,Vector3.up)*native;
             r.Policy.Requested(t.Yaw!=0,false,p.config.RetreatWeave);p.RecordWeave(s);
         }catch(Exception ex){p.WeaveError(s,ex);}
+    }
+    private bool UpdateWeaveContact(BotComponent b,BotState s)
+    {
+        // Native grenade avoidance can run without any enemy to evade.
+        var enemy=b.GoalEnemy;
+        if(enemy==null){EndWeave(s,"weave-no-goal-enemy");return false;}
+        var r=s.RetreatWeave;
+        r.Known=enemy.EnemyPosition;r.Source="sain-goal-enemy";
+        r.SeenAt=enemy.Seen?Time.time-enemy.TimeSinceSeen:-1000;
+        r.FireAt=enemy.Status.TimeLastShotAtMe;
+        return true;
     }
     private bool WeaveGeometry(BotComponent b,BotState s,IBotPathData path,Vector3 native,bool force)
     {

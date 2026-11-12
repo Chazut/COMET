@@ -45,12 +45,12 @@ public sealed partial class Plugin
         h.Patch(AccessTools.Method(typeof(SAINSteeringClass),"SteerByPriority"),
             prefix:new HarmonyMethod(typeof(Plugin),nameof(AmbushSteering)));
     }
-    private static bool AmbushHoldStep(object __instance)
+    private static bool AmbushHoldStep(SAIN.Layers.BotAction __instance)
     {
         var p=Instance;BotState? state=null;
         try
         {
-            var b=actionBot.GetValue(__instance) as BotComponent;
+            var b=__instance.Bot;
             if(p?.config==null||b==null||!p.states.TryGetValue(b,out state))return true;
             if(!p.GuardDoorReservation(b,state))return true;
             p.RefreshDoorInterruption(b,state);

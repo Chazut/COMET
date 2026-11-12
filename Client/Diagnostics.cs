@@ -227,7 +227,6 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
     {
         internal static readonly JsonSerializerSettings Json = new JsonSerializerSettings { ContractResolver = new PreparedDiagnosticResolver() };
         [ThreadStatic] private static JsonSerializer? serializer;
-        [ThreadStatic] private static Func<JsonSerializerSettings>? serializerDefaults;
         [ThreadStatic] private static string? snapshotPolicy;
         [ThreadStatic] private static System.Text.StringBuilder? buffer;
         [ThreadStatic] private static bool serializing;
@@ -244,43 +243,24 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
         // to workers/subscribers. Reuse metadata/writer storage, never payloads.
         internal static string Serialize(object value)
         {
-            if(serializing)return JsonConvert.SerializeObject(value,Json);
+            if(serializing) { using var nested=new StringWriter(System.Globalization.CultureInfo.InvariantCulture); JsonSerializer.Create(SnapshotJson).Serialize(nested,value); return nested.ToString(); }
             serializing=true;
             var text=buffer??=new System.Text.StringBuilder(4096);text.Clear();
             try
             {
-                var defaults=JsonConvert.DefaultSettings;
-                if(serializer==null || !ReferenceEquals(serializerDefaults,defaults))
+                if(serializer==null)
                 {
-                    var effective=defaults?.Invoke();
-                    serializer=JsonSerializer.Create(effective??Json);
-                    serializer.ContractResolver=Json.ContractResolver!;
-                    // A defaults factory alone does not require the slower writer.
-                    // Check effective policies, retaining fallback for custom semantics.
-                    snapshotPolicy=effective?.Error!=null?"error-handler":SnapshotCompatibility(serializer);
-                    if(snapshotPolicy=="compatible")serializer.ContractResolver=SnapshotJson.ContractResolver!;
-                    serializerDefaults=defaults;
+                    // Our journals have a private, stable schema. Backend/game
+                    // converters must not alter it or disable prepared DTO writers.
+                    serializer=JsonSerializer.Create(SnapshotJson);
+                    snapshotPolicy="isolated-diagnostic-schema";
                 }
-                // Global serializer customizations are outside the fixed diagnostic
-                // contract. Preserve their behavior with the original writer.
                 using var output=new StringWriter(text,System.Globalization.CultureInfo.InvariantCulture);
                 using var writer=new JsonTextWriter(output);
                 serializer.Serialize(writer,value);writer.Flush();return text.ToString();
             }
             catch { serializer=null;throw; }
             finally { text.Clear();if(text.Capacity>65536)buffer=null;serializing=false; }
-        }
-        internal static string SnapshotCompatibility(JsonSerializer value)
-        {
-            if(value.DefaultValueHandling!=DefaultValueHandling.Include)return "default-value-filter";
-            if(value.TypeNameHandling!=TypeNameHandling.None || value.PreserveReferencesHandling!=PreserveReferencesHandling.None
-                || value.ReferenceLoopHandling!=ReferenceLoopHandling.Error)return "reference-or-type-policy";
-            if(value.TraceWriter!=null)return "trace-writer";
-            // Enum members still go through Serialize. A primitive/object converter
-            // could change typed property output, so preserve its ordinary contracts.
-            foreach(var converter in value.Converters)
-                if(converter.GetType()!=typeof(Newtonsoft.Json.Converters.StringEnumConverter))return "custom-converter:"+converter.GetType().Name;
-            return "compatible";
         }
         private readonly BlockingCollection<string> queue = new BlockingCollection<string>(4096);
         private readonly Action<string> warn;
@@ -296,14 +276,14 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
         internal void ConfigureSnapshot(Comet.Core.CometConfig config,string session)
         {
             var snapshot=configuration.Take(config,session);if(snapshot==null)return;
-            Write(JsonConvert.SerializeObject(new{schema=1,session,feature="U01",stage="configuration",configRevision=config.Revision,config=snapshot},Json));
+            Write(Serialize(new{schema=1,session,feature="U01",stage="configuration",configRevision=config.Revision,config=snapshot}));
         }
         internal void ConfigureJournal(bool combatEnabled,bool weaponEnabled,long revision,string session)
-            => Write(JsonConvert.SerializeObject(new{schema=1,session,feature="T01",stage="configuration",combatEnabled,weaponEnabled,configRevision=revision},Json));
+            => Write(Serialize(new{schema=1,session,feature="T01",stage="configuration",combatEnabled,weaponEnabled,configRevision=revision}));
         internal void ConfigureControlJournal(bool enabled,long revision,string session)
-            => Write(JsonConvert.SerializeObject(new{schema=1,session,feature="T04",stage="configuration",enabled,configRevision=revision},Json));
+            => Write(Serialize(new{schema=1,session,feature="T04",stage="configuration",enabled,configRevision=revision}));
         internal void ConfigureCounters(bool enabled,int maxOpportunities,long revision,string session)
-            => Write(JsonConvert.SerializeObject(new{schema=1,session,feature="T02",stage="configuration",enabled,maxOpportunities,configRevision=revision},Json));
+            => Write(Serialize(new{schema=1,session,feature="T02",stage="configuration",enabled,maxOpportunities,configRevision=revision}));
         // Keep target-selection events bounded as unrelated module configuration grows.
         internal static object ThreatConfig(Comet.Core.CometConfig c)=>new { c.Enabled, c.ThreatSelection };
         public Diagnostics(string directory, string session, Action<string> warning, long segmentBytes = 64L*1024*1024)

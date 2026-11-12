@@ -12,7 +12,6 @@ namespace Comet.Client;
 
 public sealed partial class Plugin
 {
-    private static PropertyInfo actionBot = null!;
     private static void PatchSightContinuity(Harmony harmony)
     {
         harmony.Patch(AccessTools.Method(typeof(SAINSteeringClass), "SteerByPriority"), prefix: new HarmonyMethod(typeof(Plugin), nameof(SteerFrozenSight)));
@@ -86,11 +85,11 @@ public sealed partial class Plugin
         if (!TrySight(__instance.Bot, out _, out _) || Enemy?.IsVisible == true) return true;
         __instance.Reset(); __result = false; return false;
     }
-    private static bool ContinueFrozenRush(object __instance)
+    private static bool ContinueFrozenRush(SAIN.Layers.BotAction __instance)
     {
         try
         {
-            var bot = actionBot.GetValue(__instance) as BotComponent;
+            var bot = __instance.Bot;
             return bot == null || !TrySight(bot, out _, out var sight) || sight.Action != "Push";
         }
         catch (Exception ex) { Instance?.Logger.LogWarning("COMET rush continuity yielded: " + ex.Message); return true; }

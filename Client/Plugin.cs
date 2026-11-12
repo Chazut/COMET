@@ -79,7 +79,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             integration.Report.Phase="core-decision-hooks";
             harmony.Patch(AccessTools.Method(typeof(EnemyDecisionClass), "GetDecision"), prefix: new HarmonyMethod(typeof(Plugin), nameof(Choose)));
             harmony.Patch(AccessTools.Method(typeof(BotDecisionManager), "SetDecisions"), prefix: new HarmonyMethod(typeof(Plugin), nameof(ArbitrateSquad)), postfix: new HarmonyMethod(typeof(Plugin), nameof(Accepted)));
-            harmony.Patch(AccessTools.Method(typeof(SAINCoverClass), "FindCoverPoint"), prefix: new HarmonyMethod(typeof(Plugin), nameof(FindCover)));
+            harmony.Patch(AccessTools.Method(typeof(SAINCoverClass), "FindCoverPoint"), prefix: new HarmonyMethod(typeof(Plugin), nameof(FindCover)), postfix: new HarmonyMethod(typeof(Plugin), nameof(ObserveNativeCover)));
             harmony.Patch(AccessTools.Method(typeof(BotDecisionManager), "ContinueMoveToCover"), postfix: new HarmonyMethod(typeof(Plugin), nameof(ContinueCover)));
 
             RunIntegration("PatchSightContinuity",()=>PatchSightContinuity(harmony));
@@ -228,12 +228,10 @@ public sealed partial class Plugin : BaseUnityPlugin
             try
             {
                 var warm = DiagnosticWarmup.Prepare(typeof(Plugin).Assembly, Diagnostics.SnapshotJson.ContractResolver!);
-                var compatible = DiagnosticWarmup.Prepare(typeof(Plugin).Assembly, Diagnostics.Json.ContractResolver!,false);
                 var readers=Diagnostics.SnapshotJson.ContractResolver as PreparedDiagnosticResolver;
                 Logger.LogInfo($"Diagnostics prepared before raids: {warm.Contracts} contracts, {warm.Methods} methods, {warm.Failed} unavailable, {readers?.ReadersPrepared ?? 0} readers, {readers?.ReadersFallback ?? 0} reader fallbacks, {(Diagnostics.SnapshotJson.ContractResolver as SnapshotDiagnosticResolver)?.WritersPrepared ?? 0} typed writers, {warm.Milliseconds:F1} ms.");
                 if(warm.Failed>0) Logger.LogWarning("Diagnostic preparation details: " + string.Join("; ", warm.Unavailable));
-                Logger.LogInfo($"Diagnostics compatibility writer prepared: {compatible.Contracts} contracts, {compatible.Failed} unavailable, {compatible.Milliseconds:F1} ms; globalDefaults={JsonConvert.DefaultSettings!=null}.");
-                if(compatible.Failed>0) Logger.LogWarning("Diagnostic compatibility preparation: " + string.Join("; ",compatible.Unavailable));
+                Logger.LogInfo("Diagnostics use isolated schema; backend converters cannot disable typed snapshots.");
             }
             catch (Exception ex) { Logger.LogWarning("Diagnostic warmup unavailable: " + ex.Message); }
         }
@@ -629,41 +627,23 @@ public sealed partial class Plugin : BaseUnityPlugin
     {
         var plugin = Instance;
         if(!ContactSafety.AllowsGoal(__instance.Bot))return true;
-        if(plugin!=null && plugin.states.TryGetValue(__instance.Bot,out var relocation) && plugin.FindRelocationCover(__instance,relocation,ref __result))return false;
-        if (plugin == null || !plugin.states.TryGetValue(__instance.Bot, out var state)
-            || !(state.Feature == "A02" && state.ActiveLabel == "COMET:Cover"
-                || plugin.config?.Progress.Enabled == true && !state.ProgressUnavailable && state.Feature == "A01" && state.ActiveLabel == "COMET:FallBack")) return true;
-        try
-        {
-            var bot = __instance.Bot;
-            var point = state.SelectedCover;
-            // A loss of authority or a native emergency is not a failed route.
-            if (!plugin.Authority || plugin.Ghost(bot.ProfileId) || !NativeAdapter.IsSupportedAi(bot) || !bot.BotActive
-                || bot.Decision.CurrentSelfDecision != ESelfActionType.None || bot.Decision.CurrentSquadDecision != ESquadDecision.None
-                || (bot.Decision.CurrentCombatDecision != ECombatDecision.SeekCover && bot.Decision.CurrentCombatDecision != ECombatDecision.Retreat))
-            {
-                plugin.Emit(state, "interrupted", "selected-cover-control-changed");
-                plugin.YieldToSain(state, "selected-cover-control-changed");
-                return true;
-            }
-            bool moveRefused=false;
-            string failure = "selected-cover-invalidated-before-move";
-            if (VisibleAdapter.ValidCover(bot, point)
-
-                && SelectionCoverUsable(bot, point!, out failure)
-                && !(moveRefused=!bot.Mover.GoToCoverPoint(point!, false, ESprintUrgency.High)))
-            { __result = point!; return false; }
-            // A stale/rejected point is still a failed attempt, even when validation
-            // prevented calling the mover. Do not select it again on the next tick.
-            if(point!=null)state.Progress.Fail(ProgressAdapter.CoverKey(point),Time.time,
-                moveRefused?"progress-native-move-refused":"progress-cover-invalidated");
-            state.ProgressAtSelection=state.Progress.Current;
-            plugin.Emit(state, "rejected", moveRefused?"selected-cover-refused-by-native-mover":failure);
-            state.VisibleEngine.NotifyNativeRefusal();
-            plugin.YieldToSain(state, "selected-cover-no-longer-usable");
-        }
-        catch (Exception ex) { plugin.YieldToSain(state, "cover-adapter-error", "error"); plugin.Logger.LogWarning(ex.Message); }
+        if(plugin!=null && plugin.states.TryGetValue(__instance.Bot,out var relocation)
+            && plugin.FindRelocationCover(__instance,relocation,ref __result))return false;
+        // A01/A02 select a tactical intent, not a second cover execution layer.
+        // Native FindCoverPoint owns picking and moving, including an empty or
+        // stale cache. The old prefix canceled the plan before that search ran.
         return true;
+    }
+
+    private static void ObserveNativeCover(SAINCoverClass __instance, CoverPoint __result)
+    {
+        var p=Instance;
+        if(p==null || !p.states.TryGetValue(__instance.Bot,out var s)
+            || !(s.Feature=="A01" && s.ActiveLabel=="COMET:FallBack"
+                || s.Feature=="A02" && s.ActiveLabel=="COMET:Cover"))return;
+        bool changed=!ReferenceEquals(s.SelectedCover,__result);
+        s.SelectedCover=__result;
+        if(changed)p.Emit(s,"observed",__result==null?"native-cover-search-pending":"native-cover-selected");
     }
 
     private static void ContinueCover(BotDecisionManager __instance, ref bool __result)

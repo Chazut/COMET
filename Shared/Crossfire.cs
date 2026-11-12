@@ -48,6 +48,13 @@ public sealed class CrossfireConfig
 }
 public sealed class CrossfireTrace
 {
+    public int MoveOrders { get; set; }
+    public bool SprintRequested { get; set; }
+    public bool SprintObserved { get; set; }
+    public bool MoveAccepted { get; set; }
+    public double MoveOrderMilliseconds { get; set; }
+    public double MoveSpeed { get; set; }
+    public double DistanceToGoal { get; set; }
     public string Outcome { get; set; }="";
     public string SightPose { get; set; }="";
     public string SearchPass { get; set; }="preferred-angle";

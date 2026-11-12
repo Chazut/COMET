@@ -54,7 +54,7 @@ internal static class DiagnosticWarmupTests
         try
         {
             JsonConvert.DefaultSettings=()=>new JsonSerializerSettings{NullValueHandling=NullValueHandling.Ignore};
-            Check(Diagnostics.Serialize(new{missing=(string?)null})==JsonConvert.SerializeObject(new{missing=(string?)null},Diagnostics.Json),"pooled writer preserves application default settings");
+            Check(Diagnostics.Serialize(new{missing=(string?)null})=="{\"missing\":null}","backend null filtering cannot remove diagnostic fields");
         }
         finally { JsonConvert.DefaultSettings=originalDefaults; }
         Check(Diagnostics.Serialize(new{missing=(string?)null})==JsonConvert.SerializeObject(new{missing=(string?)null},Diagnostics.Json),"writer refreshes when application defaults change");
@@ -102,32 +102,26 @@ internal static class DiagnosticWarmupTests
         var mutable=new Comet.Core.CrossfireTrace{GroundPaused=true,GroundPauses=1};
         string frozen=Diagnostics.Serialize(new{trace=mutable});mutable.GroundPaused=false;mutable.GroundPauses=2;
         Check(frozen.Contains("\"groundPaused\":true")&&frozen.Contains("\"groundPauses\":1"),"event-time DTO snapshot detached before background writing");
+        string isolated=Diagnostics.Serialize(special);
         try
         {
+            int converterCalls=0;
             foreach(var global in new[]{new JsonSerializerSettings(),new JsonSerializerSettings{NullValueHandling=NullValueHandling.Ignore},
-                new JsonSerializerSettings{Converters={new Newtonsoft.Json.Converters.StringEnumConverter()}}})
+                new JsonSerializerSettings{Converters={new Newtonsoft.Json.Converters.StringEnumConverter()}},
+                new JsonSerializerSettings{Converters={new BackendConverter(()=>converterCalls++)},DefaultValueHandling=DefaultValueHandling.Ignore},
+                new JsonSerializerSettings{Error=(_,e)=>e.ErrorContext.Handled=true}})
             {
                 JsonConvert.DefaultSettings=()=>global;
-                Check(JsonConvert.SerializeObject(special,Diagnostics.Json)==Diagnostics.Serialize(special),"safe global JSON policies retain identical typed output");
-                Check((bool)Newtonsoft.Json.Linq.JObject.FromObject(Diagnostics.SerializerMetrics())["typedSnapshots"]!,"global factory alone no longer disables typed snapshots");
+                Check(Diagnostics.Serialize(special)==isolated,"game defaults cannot alter journal schema");
+                Check((bool)Newtonsoft.Json.Linq.JObject.Parse(Diagnostics.Serialize(Diagnostics.SerializerMetrics()))["typedSnapshots"]!,"backend converters never disable prepared writers");
             }
-            JsonConvert.DefaultSettings=()=>new JsonSerializerSettings();
-            var oldGlobalSerializer=JsonSerializer.CreateDefault(Diagnostics.Json);
-            string GlobalPrevious(){oldBuffer.Clear();using var output=new StringWriter(oldBuffer,System.Globalization.CultureInfo.InvariantCulture);using var writer=new JsonTextWriter(output);oldGlobalSerializer.Serialize(writer,sample);writer.Flush();return oldBuffer.ToString();}
-            var oldGlobal=Measure(GlobalPrevious);var newGlobal=Measure(()=>Diagnostics.Serialize(sample));
-            Check(newGlobal.bytes<oldGlobal.bytes,"safe global defaults reduce allocations against the previous raid writer");
-            Console.WriteLine($"Global-default snapshots (CoreCLR, 1000): before={oldGlobal.bytes}B/{oldGlobal.ms:F1}ms after={newGlobal.bytes}B/{newGlobal.ms:F1}ms; game defaults reported at next raid.");
-            JsonConvert.DefaultSettings=()=>new JsonSerializerSettings{Converters={new Newtonsoft.Json.Converters.StringEnumConverter()},DefaultValueHandling=DefaultValueHandling.Ignore};
-            var compatibility=(PreparedDiagnosticResolver)Diagnostics.Json.ContractResolver!;
-            var compatibilityWarmup=DiagnosticWarmup.Prepare(typeof(DiagnosticWarmupTests).Assembly,compatibility,false);
-            Diagnostics.Serialize(new Comet.Core.CrossfireTrace());
-            var built=compatibility.ContractsBuilt;
-            for(int i=0;i<100;i++)Diagnostics.Serialize(new Comet.Core.CrossfireTrace());
-            Check(compatibility.ContractsBuilt==built&&compatibilityWarmup.Contracts>100,"global Json defaults use prewarmed compatibility contracts without rebuilding them per event");
-            Check(JsonConvert.SerializeObject(special,Diagnostics.Json)==Diagnostics.Serialize(special),"global converters and default filtering keep ordinary serializer contracts");
-            JsonConvert.DefaultSettings=()=>new JsonSerializerSettings{Error=(_,e)=>e.ErrorContext.Handled=true};
-            Check(Diagnostics.Serialize(new ThrowingPayload())==JsonConvert.SerializeObject(new ThrowingPayload(),Diagnostics.Json),"global handled property errors keep standard serialization");
-            Check(!(bool)Newtonsoft.Json.Linq.JObject.FromObject(Diagnostics.SerializerMetrics())["typedSnapshots"]!,"error handlers retain ordinary contracts");
+            Check(converterCalls==0,"backend converter not probed on the combat thread");
+            try{Diagnostics.Serialize(new ThrowingPayload());throw new Exception("missing failure");}catch(Exception e) when(e is JsonSerializationException || e is InvalidOperationException){}
+            var oldGame=JsonSerializer.CreateDefault(Diagnostics.Json);
+            string OldGame(){oldBuffer.Clear();using var output=new StringWriter(oldBuffer);using var writer=new JsonTextWriter(output);oldGame.Serialize(writer,sample);return oldBuffer.ToString();}
+            var beforeGame=Measure(OldGame);var afterGame=Measure(()=>Diagnostics.Serialize(sample));
+            Check(afterGame.bytes<beforeGame.bytes,"typed snapshots reduce allocations with backend settings installed");
+            Console.WriteLine($"Backend-default snapshots (CoreCLR, 1000): before={beforeGame.bytes}B/{beforeGame.ms:F1}ms after={afterGame.bytes}B/{afterGame.ms:F1}ms; raid timing unverified.");
         }
         finally{JsonConvert.DefaultSettings=originalDefaults;}
         Check(JsonConvert.SerializeObject(special,plainSettings)==Diagnostics.Serialize(special),"switch back to typed contracts after customized defaults");
@@ -136,6 +130,12 @@ internal static class DiagnosticWarmupTests
         Check(before == resolver.Created.Count && repeated.Contracts == report.Contracts, "repeated preparation reuses cached metadata");
         Console.WriteLine($"Diagnostic metadata: {report.Contracts} contracts, {report.Failed} unavailable, {report.Milliseconds:F1} ms at startup");
         return n;
+    }
+    private sealed class BackendConverter(Action call):JsonConverter
+    {
+        public override bool CanConvert(Type t){call();return false;}
+        public override void WriteJson(JsonWriter w,object? v,JsonSerializer s)=>throw new NotSupportedException();
+        public override object? ReadJson(JsonReader r,Type t,object? v,JsonSerializer s)=>throw new NotSupportedException();
     }
     private sealed class ThrowingPayload {public string Value=>throw new InvalidOperationException("fixture");}
     private sealed class ReentrantPayload {public string Value=>Diagnostics.Serialize(new{nested=true});}

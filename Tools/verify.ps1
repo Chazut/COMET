@@ -11,6 +11,7 @@ try {
     Run dotnet @('build', 'Fika/Comet.Fika.csproj', '-c', 'Release', '--nologo', '-v', 'quiet')
     Run dotnet @('build', 'Server/Comet.Server.csproj', '-c', 'Release', '--nologo', '-v', 'quiet')
     Run dotnet @('run', '--project', 'Tests/Comet.Tests.csproj', '-c', 'Release')
+    Run dotnet @('run', '--project', 'Tests/WoodsExecutionHarness/WoodsExecutionHarness.csproj', '-c', 'Release')
     Run dotnet @('run', '--project', 'Tests/BotScopeHarness/BotScopeHarness.csproj', '-c', 'Release')
     Run dotnet @('run', '--project', 'Tests/PathHarness/PathHarness.csproj', '-c', 'Release')
     Run dotnet @('run', '--project', 'Tests/PerformanceHarness/PerformanceHarness.csproj', '-c', 'Release')

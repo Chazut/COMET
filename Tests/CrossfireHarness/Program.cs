@@ -16,6 +16,8 @@ void Save(Plugin p)=>events.AddRange(p.diagnostics!.Lines);
 {
  var(p,b,m)=Setup();Plan(p,b);C(p.Claims==1&&!Api.Decisions.Labels.ContainsKey(b.ProfileId),"planning is not execution");
  var a=Start(p,b);var r=p.states[b].Crossfire;C(r.Policy.Trace!.Applied,"native route applied");
+ C(r.Policy.Trace.MoveOrders==1&&r.Policy.Trace.MoveAccepted,"native move request recorded");
+ C(r.Policy.Trace.SprintRequested==(Vector3.ProjectOnPlane(r.Goal-b.Position,Vector3.up).magnitude>8),"source sprint distance rule preserved");
  a.OnSteeringTicked();C(b.Steering.Moves==1,"steering follows native route");
  var path=(BotPathDataManual)b.Mover.ActivePath!;b.Position=r.Goal;Step();a.Update(new());
  C(r.Policy.Trace.State=="holding"&&path.Stops==1,"arrival stops route and holds angle");
