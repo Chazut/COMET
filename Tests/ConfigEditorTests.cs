@@ -16,7 +16,7 @@ internal static class ConfigEditorTests
         EditorField Field(string path) => editor.Catalog.Fields[path];
         Check(editor.Catalog.Fields.Count == DifficultyPresets.Values(original).Count - 1, "every editable scalar has a control, only Schema is excluded");
         Check(editor.Catalog.Fields.Keys.All(p => p is not "Schema" and not "Revision" and not "DifficultyPreset"), "metadata cannot be edited as raw fields");
-        Check(editor.Visible(false,"",false).Count()<=18, "simple mode is deliberately short");
+        Check(editor.Visible(false,"",false).Count()<=19, "simple mode is deliberately short, including Quiet logging");
         Check(editor.Visible(true,"",false).Count()==editor.Catalog.Fields.Count, "advanced mode has every control");
         Check(!editor.HasPending && !editor.CanSave && !editor.Customized, "opening editor does not change defaults");
         var invalidDefaults = new List<string>();

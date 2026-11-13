@@ -14,7 +14,7 @@ internal static class SourceBaselineMigration
         if (document[Existing(nameof(CometConfig.BehaviorBaseline)) ?? nameof(CometConfig.BehaviorBaseline)]?.GetValue<string>() == CometConfig.SourceBaseline) return false;
         var defaults = JsonSerializer.SerializeToNode(new CometConfig())!.AsObject();
         var preserved = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-            "Schema", "Revision", "Enabled", "Performance", "CombatJournal", "ControlJournal",
+            "Schema", "Revision", "Enabled", "QuietLogging", "Performance", "CombatJournal", "ControlJournal",
             "WeaponJournal", "TacticCounters", "FaultIsolation"
         };
         foreach (var (key, value) in defaults)

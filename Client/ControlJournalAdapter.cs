@@ -84,6 +84,6 @@ public sealed partial class Plugin
     partial void ControlJournalUnavailable(string source)
     {
         if(config?.ControlJournal.Enabled!=true||world==null||!Authority)return;
-        try{diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,feature="T04",stage="observer-unavailable",source}));}catch{}
+        try{diagnostics?.WriteEssential(Diagnostics.Serialize(new{schema=1,session,feature="T04",stage="observer-unavailable",source}));}catch{}
     }
 }

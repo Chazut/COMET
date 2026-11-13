@@ -195,7 +195,7 @@ public sealed partial class Plugin
             var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="C08",stage="evaluated",decision="FaultIsolation",reason=trace.Reason,
                 realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,
                 profileId=s?.ProfileId??"",name=s?.Name??"COMET service",botInstance=s?.Id??"",faultIsolation=trace,faultIsolationConfig=config?.FaultIsolation});
-            diagnostics?.Write(json);Api.Decisions.Publish(json,WarnFaultSink);
+            diagnostics?.WriteEssential(json);Api.Decisions.Publish(json,WarnFaultSink);
         }
         catch(Exception ex){WarnFaultSink(ex);}
     }

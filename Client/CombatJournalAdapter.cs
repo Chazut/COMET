@@ -101,12 +101,12 @@ public sealed partial class Plugin
     private void JournalError(BotState s,Exception ex)
     {
         if(s.Journal.Fault)return;s.Journal.Fault=true;
-        try{diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,feature="T01",stage="observer-unavailable",profileId=s.ProfileId}));Logger.LogWarning("COMET journal unavailable for "+s.ProfileId+": "+ex.Message);}catch{}
+        try{diagnostics?.WriteEssential(Diagnostics.Serialize(new{schema=1,session,feature="T01",stage="observer-unavailable",profileId=s.ProfileId}));Logger.LogWarning("COMET journal unavailable for "+s.ProfileId+": "+ex.Message);}catch{}
     }
     private void JournalReadError(string source,Exception ex)
     {
         if(journalReadFaultReported)return;journalReadFaultReported=true;
-        try{diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,feature="T01",stage="observer-unavailable",source}));Logger.LogWarning("COMET journal native observation unavailable: "+source+": "+ex.Message);}catch{}
+        try{diagnostics?.WriteEssential(Diagnostics.Serialize(new{schema=1,session,feature="T01",stage="observer-unavailable",source}));Logger.LogWarning("COMET journal native observation unavailable: "+source+": "+ex.Message);}catch{}
     }
     private void SampleCombatJournal(BotComponent b,BotState s)
     {

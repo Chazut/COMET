@@ -65,7 +65,7 @@ public sealed partial class Plugin
     private void FlushTacticalProbes(bool force=false)
     {
         if(!force&&Time.time<nextProbeSummary)return;nextProbeSummary=Time.time+15;
-        diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,stage="summary",kind="tactical-probes",time=Time.time,
+        diagnostics?.WriteEssential(Diagnostics.Serialize(new{schema=1,session,stage="summary",kind="tactical-probes",time=Time.time,
             probes=TacticalProbeSummary(),localDoorRequests,localDoorCandidates,indexedDoorLinks=localDoorCursor,
             doorIndexComplete=localDoorSource!=null&&localDoorCursor>=(localDoorSource._navMeshDoorLinks?.Count??0)}));
     }

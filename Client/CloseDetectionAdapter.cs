@@ -104,7 +104,7 @@ public sealed partial class Plugin
         if (!force && Time.time < nextCloseSummary) return;
         nextCloseSummary = Time.time + 10;
         if (closeCounters.Count == 0) return;
-        diagnostics?.Write(Diagnostics.Serialize(new { schema = 1, session, feature = "P05", stage = "summary",
+        diagnostics?.WriteEssential(Diagnostics.Serialize(new { schema = 1, session, feature = "P05", stage = "summary",
             reason = "close-counters", realtime = Time.realtimeSinceStartup, counters = closeCounters }));
         closeCounters.Clear();
     }

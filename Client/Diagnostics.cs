@@ -262,28 +262,42 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
             catch { serializer=null;throw; }
             finally { text.Clear();if(text.Capacity>65536)buffer=null;serializing=false; }
         }
-        private readonly BlockingCollection<string> queue = new BlockingCollection<string>(4096);
+        private readonly struct LogEntry
+        {
+            internal readonly string Json;
+            internal readonly bool Persist;
+            internal LogEntry(string json, bool persist) { Json = json; Persist = persist; }
+        }
+        private readonly BlockingCollection<LogEntry> queue = new BlockingCollection<LogEntry>(4096);
         private readonly Action<string> warn;
         private readonly Task writer;
         private long dropped;
         private int closed;
         private int completed;
+        private int quiet;
         internal Task Completion => writer;
         // Optional per-raid worker measurements. No profiler dependency in journal harnesses.
         internal Action<long,long>? PerformanceSample;
         internal Func<long>? PerformanceAllocation;
         private readonly DecisionConfiguration configuration=new();
+        internal void ConfigureLogging(bool enabled, long revision, string session)
+        {
+            Volatile.Write(ref quiet, enabled ? 1 : 0);
+            WriteEssential(Serialize(new { schema=1, session, feature="U01", stage="logging-configuration",
+                configRevision=revision, quietLogging=enabled, diagnosticMode=enabled?"quiet":"detailed",
+                rrTelemetry="unchanged", performanceCapture="independent" }));
+        }
         internal void ConfigureSnapshot(Comet.Core.CometConfig config,string session)
         {
             var snapshot=configuration.Take(config,session);if(snapshot==null)return;
-            Write(Serialize(new{schema=1,session,feature="U01",stage="configuration",configRevision=config.Revision,config=snapshot}));
+            WriteEssential(Serialize(new{schema=1,session,feature="U01",stage="configuration",configRevision=config.Revision,config=snapshot}));
         }
         internal void ConfigureJournal(bool combatEnabled,bool weaponEnabled,long revision,string session)
-            => Write(Serialize(new{schema=1,session,feature="T01",stage="configuration",combatEnabled,weaponEnabled,configRevision=revision}));
+            => WriteEssential(Serialize(new{schema=1,session,feature="T01",stage="configuration",combatEnabled,weaponEnabled,configRevision=revision}));
         internal void ConfigureControlJournal(bool enabled,long revision,string session)
-            => Write(Serialize(new{schema=1,session,feature="T04",stage="configuration",enabled,configRevision=revision}));
+            => WriteEssential(Serialize(new{schema=1,session,feature="T04",stage="configuration",enabled,configRevision=revision}));
         internal void ConfigureCounters(bool enabled,int maxOpportunities,long revision,string session)
-            => Write(Serialize(new{schema=1,session,feature="T02",stage="configuration",enabled,maxOpportunities,configRevision=revision}));
+            => WriteEssential(Serialize(new{schema=1,session,feature="T02",stage="configuration",enabled,maxOpportunities,configRevision=revision}));
         // Keep target-selection events bounded as unrelated module configuration grows.
         internal static object ThreatConfig(Comet.Core.CometConfig c)=>new { c.Enabled, c.ThreatSelection };
         public Diagnostics(string directory, string session, Action<string> warning, long segmentBytes = 64L*1024*1024)
@@ -294,7 +308,7 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
             writer = Task.Run(() =>
             {
                 var counters=new TacticCounters(session);var journal=new CombatReport(session);
-                StreamWriter? output=null;long bytes=0,skipped=0;int segment=0;
+                StreamWriter? output=null;long bytes=0,skipped=0,quietSuppressed=0;int segment=0;
                 string SegmentPath()=>segment==0?path:Path.Combine(directory,Path.GetFileNameWithoutExtension(path)+".part"+segment.ToString("D4")+".jsonl");
                 void Open(){output=new StreamWriter(new FileStream(SegmentPath(),FileMode.CreateNew,FileAccess.Write,FileShare.Read));bytes=0;}
                 void Line(string line,bool final=false)
@@ -302,7 +316,7 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
                     if(output==null){skipped++;return;}
                     try
                     {
-                        // Only this background writer touches files. Keep every event;
+                        // Only this background writer touches files. Keep persisted events;
                         // segment boundaries never reset sequence numbers or summaries.
                         if(!final&&bytes>=Math.Max(128,segmentBytes)){output.Dispose();output=null;segment++;Open();}
                         output!.WriteLine(line);bytes+=System.Text.Encoding.UTF8.GetByteCount(line)+2;
@@ -313,12 +327,15 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
                 {
                     try{Open();}
                     catch(Exception ex){Warn("COMET diagnostic file unavailable; counters continue: "+ex.Message);}
-                    foreach (string line in queue.GetConsumingEnumerable())
+                    foreach (var entry in queue.GetConsumingEnumerable())
                     {
                         var sample=Volatile.Read(ref PerformanceSample);
                         long start=sample!=null?System.Diagnostics.Stopwatch.GetTimestamp():0;
                         long allocated=sample!=null?(PerformanceAllocation?.Invoke()??0):0;
-                        counters.Observe(line);journal.Observe(line);Line(line);
+                        // Quiet only filters the local copy. Counters/reports still
+                        // consume all events, and RR's separate publisher is untouched.
+                        counters.Observe(entry.Json);journal.Observe(entry.Json);
+                        if(entry.Persist)Line(entry.Json);else quietSuppressed++;
                         if(queue.Count==0&&output!=null)try{output.Flush();}catch(Exception ex){try{output.Dispose();}catch{}output=null;Warn("COMET diagnostic flush failed: "+ex.Message);}
                         if(sample!=null)try{sample(System.Diagnostics.Stopwatch.GetTimestamp()-start,(PerformanceAllocation?.Invoke()??0)-allocated);}catch{}
                     }
@@ -329,6 +346,7 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
                         Line(json,true);Comet.Api.Decisions.PublishSummary(json,Warn);
                     }
                     Line(JsonConvert.SerializeObject(new { schema = 1, session, stage = "diagnostics-end", segments=segment+1,
+                        quietLogging=Volatile.Read(ref quiet)!=0, quietSuppressed,
                         queueDropped = Interlocked.Read(ref dropped), fileLimitDropped = 0, writeFailed = skipped }, Json),true);
                 }
                 catch (Exception ex) { Interlocked.Exchange(ref closed,1); Warn("COMET diagnostics writer failed: " + ex.Message); }
@@ -336,9 +354,14 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
             });
         }
         public void Write(string json)
+            => Enqueue(json, Volatile.Read(ref quiet)==0);
+        public void WriteEssential(string json)
+            => Enqueue(json, true);
+        private void Enqueue(string json, bool persist)
         {
             if (Volatile.Read(ref closed)!=0) return;
-            try { if (!queue.TryAdd(json))
+            // Capture the mode on enqueue, not later when the worker catches up.
+            try { if (!queue.TryAdd(new LogEntry(json, persist)))
             {
                 long count = Interlocked.Increment(ref dropped);
                 if (count == 1) Warn("COMET diagnostics queue full. Missing events will be counted in the file footer.");

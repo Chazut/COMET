@@ -16,7 +16,7 @@ public sealed partial class Plugin
             // A diagnostic read must never release a combat action or trip its circuit breaker.
             state.CounterObserverFailed=true;
             try { Logger.LogWarning("COMET counter observer unavailable for " + state.ProfileId + ": " + ex.Message);
-                diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,feature="T02",stage="observer-unavailable"})); } catch { }
+                diagnostics?.WriteEssential(Diagnostics.Serialize(new{schema=1,session,feature="T02",stage="observer-unavailable"})); } catch { }
         }
     }
     private void ObserveCounterExecution(BotComponent bot,BotState state)

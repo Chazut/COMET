@@ -594,6 +594,12 @@
       "Category": "Decisions",
       "Summary": "How each assigned personality approaches a fight."
     },
+    "Logging": {
+      "Title": "Logging",
+      "Description": "Choose how much COMET writes to its local diagnostic files. Raid Review still receives the same decisions, observations and raid summaries. Changes apply next raid.",
+      "Category": "Diagnostics",
+      "Summary": "Reduce detailed files without hiding anything from Raid Review."
+    },
     "TacticCounters": {
       "Title": "Decision counters - T02",
       "Description": "Build a compact raid report from existing events in the background. Counts do not change decisions or consume randomness. Exact opportunities are currently identified for A01/A02 choices, A04/A05 draws and D05/D06 feints. Other features report event coverage only; missing measurements are never treated as zero attempts. A command accepted by SAIN is not proof of execution. Changes apply next raid.",
@@ -9099,6 +9105,12 @@
       "Section": "Aggression",
       "Simple": false,
       "Unit": "x"
+    },
+    "QuietLogging": {
+      "Label": "Quiet logging",
+      "Help": "On: keep errors, configuration and raid summaries, but skip detailed events in local COMET logs. Raid Review data is unchanged. Performance capture is separate. Leave Off for investigations. Applies next raid.",
+      "Section": "Logging",
+      "Simple": true
     },
     "TacticCounters.Enabled": {
       "Label": "Collect raid decision counters",

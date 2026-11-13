@@ -23,7 +23,7 @@ namespace SAIN.Components {
  public class EnemyPath {public NavMeshPath? PathToEnemy;}
 }
 namespace Comet.Client {
- public sealed class Diagnostics {public List<string> Lines=new();public void Write(string line)=>Lines.Add(line);public static string Serialize(object value)=>System.Text.Json.JsonSerializer.Serialize(value);}
+ public sealed class Diagnostics {public List<string> Lines=new();public void Write(string line)=>Lines.Add(line);public void WriteEssential(string line)=>Write(line);public static string Serialize(object value)=>System.Text.Json.JsonSerializer.Serialize(value);}
  public class TestLog {public int Warnings;public void LogWarning(string s)=>Warnings++;}
  public sealed partial class Plugin {
   private CometConfig? config=new();private bool Authority=true;private string session="test";private Diagnostics diagnostics=new();public TestLog Logger=new();

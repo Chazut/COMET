@@ -37,7 +37,7 @@ namespace Comet.Client {
  internal class Integration{internal Report Report=new();}
  internal class Report{internal string[] Notices=Array.Empty<string>();}
  internal class Log{internal List<string> Lines=new();internal void LogWarning(string text)=>Lines.Add(text);internal void LogInfo(string text)=>Lines.Add(text);}
- internal class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);internal static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};internal void Write(string text){} }
+ internal class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);internal static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};internal void Write(string text){} internal void WriteEssential(string text)=>Write(text); }
  public sealed partial class Plugin {
   private bool ReadDowned(object player)=>Downed;private bool OutcomeAction(BotComponent b,string choice)=>b.Decision.CurrentCombatDecision==choice;internal bool Downed;
   // ArbitrationHarness covers actual H01/W01 ownership; supply it here to exercise journal transitions.

@@ -294,7 +294,7 @@ public sealed partial class Plugin
     private void FlushMovementSummary()
     {
         if (movementCounts.Count == 0) return;
-        diagnostics?.Write(Diagnostics.Serialize(new { schema = 1, session, feature = "P01", stage = "summary", reason = "movement-counters",
+        diagnostics?.WriteEssential(Diagnostics.Serialize(new { schema = 1, session, feature = "P01", stage = "summary", reason = "movement-counters",
             realtime = Time.realtimeSinceStartup, counters = movementCounts, queuedSignals = movementQueue.Count, pendingListeners = movementPending.Count }));
         movementCounts.Clear();
     }

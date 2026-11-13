@@ -120,7 +120,7 @@ public sealed partial class Plugin
         {
             states.Clear();maintenanceSnapshot.Clear();config=null;loading.Discard();nextSweep=0;subscriberWarned=false;
             Step("diagnostic-delivery",Api.Decisions.FlushPending);
-            Step("diagnostic-delivery-report",()=>diagnostics?.Write(Diagnostics.Serialize(new {schema=1,session,stage="diagnostic-delivery-final",delivery=Api.Decisions.DeliveryStats()})));
+            Step("diagnostic-delivery-report",()=>diagnostics?.WriteEssential(Diagnostics.Serialize(new {schema=1,session,stage="diagnostic-delivery-final",delivery=Api.Decisions.DeliveryStats()})));
             Step("decision-cache",Api.Decisions.Clear);
             trace.RemainingBots=states.Count;trace.RemainingScans=coverScans.Count;
             trace.DurationMs=Math.Round(timer.Elapsed.TotalMilliseconds,3);
@@ -128,7 +128,7 @@ public sealed partial class Plugin
                 var json=Diagnostics.Serialize(new {schema=1,session,sequence=++sequence,feature="C13",stage="cleanup",
                     decision="RaidCleanup",reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),
                     configRevision=revision,profileId="",name="Raid cleanup",raidCleanup=trace});
-                diagnostics?.Write(json);Api.Decisions.Publish(json,WarnFaultSink);Api.Decisions.FlushPending();
+                diagnostics?.WriteEssential(json);Api.Decisions.Publish(json,WarnFaultSink);Api.Decisions.FlushPending();
                 SafeFaultLog($"C13 raid cleanup: {trace.Bots} bots, {trace.Steps} steps, {trace.FailedSteps} failures, {trace.DurationMs:0.###} ms.");
                 foreach(var failure in trace.Failures)SafeFaultLog("C13 "+failure);
             } catch(Exception ex) { SafeFaultLog("C13 report could not be written: "+ex); }

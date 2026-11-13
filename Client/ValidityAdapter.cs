@@ -175,7 +175,8 @@ public sealed partial class Plugin
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="C10",stage="evaluated",decision="Validity",reason=count.Trace.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=owner.Profile,name=owner.Name,
             botInstance=owner.Instance,validity=count.Trace});
-        diagnostics?.Write(json);Api.Decisions.Publish(json,WarnFaultSink);
+        if(final)diagnostics?.WriteEssential(json);else diagnostics?.Write(json);
+        Api.Decisions.Publish(json,WarnFaultSink);
     }
     private void ClearValidity()
     {

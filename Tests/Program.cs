@@ -25,6 +25,7 @@ checks += DiagnosticWarmupTests.Run();
 checks += PlanContinuityTests.Run();
 checks += await PerformanceTests.Run();
 checks += await DiagnosticConfigurationTests.Run();
+checks += await QuietLoggingTests.Run();
 checks += TacticCountersTests.Run();
 checks += ControlJournalTests.Run()+CombatJournalTests.Run();
 checks += IntegrationTests.Run();

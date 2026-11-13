@@ -267,18 +267,19 @@ public sealed partial class Plugin : BaseUnityPlugin
                 var log = Logger; // Writer holds the logger, never the Plugin/world.
                 try { diagnostics = new Diagnostics(Path.Combine(BepInEx.Paths.PluginPath, "..", "COMET", "diagnostics"), session, text => log.LogWarning(text)); }
                 catch (Exception ex) { Logger.LogError("COMET cannot open diagnostic file; RR events remain available. " + ex.Message); }
-                diagnostics?.Write(Diagnostics.Serialize(new {schema=1,session,stage="raid-start",map=current.LocationId,botScope="pmc-and-ai-player-scav",
+                diagnostics?.WriteEssential(Diagnostics.Serialize(new {schema=1,session,stage="raid-start",map=current.LocationId,botScope="pmc-and-ai-player-scav",
                     utc=DateTime.UtcNow.ToString("O"),realtime=Time.realtimeSinceStartup,
                     cometVersion=typeof(Plugin).Assembly.GetName().Version?.ToString(),
                     assemblyMvid=typeof(Plugin).Assembly.ManifestModule.ModuleVersionId.ToString(),
                     sainMvid=typeof(BotComponent).Assembly.ManifestModule.ModuleVersionId.ToString(),
-                    authority=Authority,fika=fikaPresent,diagnosticMode="detailed",segmentBytes=64L*1024*1024}));
+                    authority=Authority,fika=fikaPresent,diagnosticMode="awaiting-config",segmentBytes=64L*1024*1024}));
                 loading.Start(raidLifetime.Generation, static () => { var c = JsonConvert.DeserializeObject<CometConfig>(RequestHandler.GetJson("/comet/config")) ?? throw new InvalidDataException("Missing COMET config."); c.Validate(); return c; });
             }
         }
         if (!raidLifetime.Active) return;
         if (loading.Take(raidLifetime.Generation, out var loaded, out var loadError))
         {
+            if(loaded!=null)diagnostics?.ConfigureLogging(loaded.QuietLogging,loaded.Revision,session);
             if(loaded!=null)StartPerformance(loaded);
             if(loaded!=null)diagnostics?.ConfigureSnapshot(loaded,session);
             if (loaded != null) { config = loaded; diagnostics?.ConfigureJournal(config.Enabled && config.CombatJournal.Enabled && Authority, config.Enabled && config.WeaponJournal.Enabled && Authority, config.Revision, session); diagnostics?.ConfigureControlJournal(config.Enabled && config.ControlJournal.Enabled && Authority, config.Revision, session); diagnostics?.ConfigureCounters(config.Enabled && config.TacticCounters.Enabled && Authority, config.TacticCounters.MaxOpportunities, config.Revision, session); Logger.LogInfo("COMET raid config revision " + config.Revision + ", enabled=" + config.Enabled); ReportDifficultyPreset(); }

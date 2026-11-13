@@ -95,6 +95,6 @@ public sealed partial class Plugin
     {
         if(!force&&Time.time<nextImpactSummary)return;nextImpactSummary=Time.time+10;
         if(impactCounters.Count==0)return;
-        diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,feature="P07",stage="summary",realtime=Time.realtimeSinceStartup,counters=impactCounters}));impactCounters.Clear();
+        diagnostics?.WriteEssential(Diagnostics.Serialize(new{schema=1,session,feature="P07",stage="summary",realtime=Time.realtimeSinceStartup,counters=impactCounters}));impactCounters.Clear();
     }
 }

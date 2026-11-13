@@ -58,7 +58,7 @@ namespace SAIN.Components {
 namespace Comet.Core {public class CometConfig{public bool Enabled=true;public long Revision=1;public ExplosionAwarenessConfig ExplosionAwareness=new();public ImpactReactionConfig ImpactReaction=new();public static void Range(double v,double min,double max,string n){if(v<min||v>max||!double.IsFinite(v))throw new ArgumentException(n);}}}
 namespace Comet.Client {
  public static class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.Supported;}
- public class Sink{public List<string> Lines=new();public void Write(string s)=>Lines.Add(s);public void Publish(string s,Action<Exception> error){}}
+ public class Sink{public List<string> Lines=new();public void Write(string s)=>Lines.Add(s);public void WriteEssential(string s)=>Write(s);public void Publish(string s,Action<Exception> error){}}
  public static class Api{public static Sink Decisions=new();}
  public static class Diagnostics{public static string Serialize(object o)=>Newtonsoft.Json.JsonConvert.SerializeObject(o);}
  public class Log{public void LogWarning(string s){}}

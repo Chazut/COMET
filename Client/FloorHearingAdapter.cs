@@ -121,7 +121,7 @@ public sealed partial class Plugin
         if (!force && Time.time < nextFloorSummary) return;
         nextFloorSummary = Time.time + 10;
         if (floorCounters.Count == 0) return;
-        diagnostics?.Write(Diagnostics.Serialize(new { schema = 1, session, feature = "P04", stage = "summary",
+        diagnostics?.WriteEssential(Diagnostics.Serialize(new { schema = 1, session, feature = "P04", stage = "summary",
             reason = "floor-counters", realtime = Time.realtimeSinceStartup, counters = floorCounters,
             cachedPairs = floorCache.Count }));
         floorCounters.Clear();
