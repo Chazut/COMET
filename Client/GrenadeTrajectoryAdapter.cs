@@ -65,7 +65,11 @@ public sealed partial class Plugin
             if(r.Selected!=null)
             {
                 if(GrenadeTrajectoryRules.Fresh(now,r.Prepared,c.PreparedLifetime))
-                {b.BotOwner.WeaponManager.Grenades.AIGreanageThrowData=r.Selected.Data;return true;}
+                {
+                    if(!ReferenceEquals(b.BotOwner.WeaponManager.Grenades.AIGreanageThrowData,r.Selected.Data))
+                        b.BotOwner.WeaponManager.Grenades.SetThrowData(r.Selected.Data);
+                    return true;
+                }
                 // No fresh random offset: recompute the same selected aim after the short preparation expires.
                 r.Targets.Clear();r.Targets.Add(r.Selected.Aim);r.Selected.Aim.Next=0;r.Selected.Aim.Checked=false;r.Selected.Aim.Angles=new[]{r.Selected.Alternative.Angle};
                 r.Arcs.Clear();r.Selected=null;r.Index=0;r.Pending=true;r.Started=now;
@@ -117,7 +121,8 @@ public sealed partial class Plugin
                     var chosen=good[Math.Min(good.Count-1,(int)(jumpRandom.NextDouble()*good.Count))];
                     // Selection can span frames. Execution recomputes this aim from the current origin.
                     r.Selected=chosen;r.Pending=false;r.Prepared=now;
-                    b.BotOwner.WeaponManager.Grenades.AIGreanageThrowData=chosen.Data;
+                    // Match zzap: native preparation also notifies the group's grenade coordinator.
+                    b.BotOwner.WeaponManager.Grenades.SetThrowData(chosen.Data);
                     var t=r.Trace!;t.State="prepared";t.Reason="trajectory-prepared";t.Kind=chosen.Aim.Kind;t.Door=chosen.Aim.Door?.Geometry.Id??"";
                     t.X=chosen.Data.Target.x;t.Y=chosen.Data.Target.y;t.Z=chosen.Data.Target.z;t.Angle=chosen.Alternative.Angle;t.Clearance=chosen.Alternative.Clearance;
                     // Age starts at the native calculation, not at the later choice.
@@ -247,7 +252,7 @@ public sealed partial class Plugin
                 {
                     why="";
                     if(why.Length==0)
-                    {d=fresh;r.Selected.Data=fresh;b.BotOwner.WeaponManager.Grenades.AIGreanageThrowData=fresh;
+                    {d=fresh;r.Selected.Data=fresh;b.BotOwner.WeaponManager.Grenades.SetThrowData(fresh);
                      r.Prepared=fresh.CreatedTime;r.Trace!.Clearance=0;}
                 }
             }

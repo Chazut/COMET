@@ -94,6 +94,32 @@ and difficulty-profile overrides.
 
 ## Validation and future changes
 
+### Raid 443: steering fire and grenade preparation
+
+- Evidence: `8070d276-b0be-4e95-993e-f1e30380cd06`, skylo123, angle reached
+  at 16:47.463, first shot at 17:02.254 after taking damage at 17:01.707.
+  Squad steering replaced the native callback without its fire attempt.
+- Restore the source fire attempt before custom look commands in all four
+  steering replacements: squad angles, corner pursuit, cover feints and
+  post-combat movement. Keep each source action's suppression and steering
+  order. A hidden primary enemy must not prevent shooting another visible enemy.
+- DustAndPellets had a prepared grenade trajectory after the initial refusal,
+  while hidden utility continued replaying that refusal. Hidden/visible utility
+  now caches the preference ranking and refreshes execution availability on each
+  call, as the source's decision loop does. Native refusal does not erase the
+  ranking, redraw the choice or ban the action from subsequent calls.
+- Prepare grenade arcs through native `SetThrowData`, including group
+  notification, instead of writing only `AIGreanageThrowData`. Reusing the same
+  cached arc does not repeat preparation. This repairs a separate missing native
+  side effect; it is not evidence that every unthrown grenade was blocked by it.
+- Regression coverage includes the actual compiled DLL's four callback call
+  sites, secondary-target firing, suppression/look ordering, blocked-to-ready
+  capability changes within a cached ranking, and native grenade preparation.
+  `T01/native-fire-check` aggregates checks/acceptance/suppression per bot at most
+  once per five seconds. Grenade selection, native progress and confirmed
+  projectile events remain distinct. Confirm real firing/throws in the next raid;
+  detached harnesses do not execute Unity animations or prove complete port parity.
+
 - Build client, Fika and server; run the core policy suites and production-adapter
   harnesses with `Tools/verify.ps1`.
 - Validate hook signatures and transpilers against the pinned official SAIN/EFT

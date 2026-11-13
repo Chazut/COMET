@@ -22,6 +22,13 @@ void Save(Plugin p){events.AddRange(p.diagnostics!.Lines.Where(x=>x.Contains("\"
  b.GoalEnemy.KnownPlaces.LastSeenPlace!.Position=new(999,0,999);Step();a.Update(new());C(p.states[b].PostCombat.Threat!.Value.x==20,"hidden memory changes not live tracking");
  b.BotOwner.Memory.IsUnderFire=true;C(!l.IsActive()&&!p.states[b].PostCombat.Policy.Active,"urgent threat bypasses cadence");a.Stop();C(!p.states[b].PostCombat.Layer,"stop cleanup");Save(p);
 }
+{
+ var(p,b,l,a)=Setup();C(l.IsActive(),"recovery active before secondary threat");a.Start();
+ b.Shoot.Result=true;int points=b.Steering.Points,moving=b.Steering.Moving;
+ a.OnSteeringTicked();
+ C(b.Shoot.Calls==1&&b.Steering.Points==points&&b.Steering.Moving==moving,"post-combat fires at another visible threat without overwriting aim");
+ C(b.Suppression.Calls==0&&b.Steering.Priorities==0,"post-combat keeps source fire-only behavior");
+}
 foreach(string scope in new[]{"disabled","feature","scav","player","ghost","remote","inactive","dead","ending","world"}){
  var(p,b,l,a)=Setup();C(l.IsActive(),"before "+scope);a.Start();switch(scope){case"disabled":p.config!.Enabled=false;break;case"feature":p.config!.PostCombat.Enabled=false;break;case"scav":b.Pmc=false;break;case"player":b.Player.IsAI=false;break;case"ghost":p.IsGhost=true;break;case"remote":p.Authority=false;break;case"inactive":b.BotActive=false;break;case"dead":b.IsDead=true;break;case"ending":b.GameEnding=true;break;default:p.world=null;break;}
  C(!l.IsActive()&&!p.states[b].PostCombat.Policy.WantsRecovery(11),"scope release "+scope);Save(p);

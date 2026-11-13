@@ -90,7 +90,7 @@ public sealed class DecisionMixer
     public MixTrace? Retain(string reason, string? selected = null)
     {
         var t = Last;
-        if (t == null || t.State == reason) return t;
+        if (t == null || (t.State == reason && (selected == null || selected == t.Selected))) return t;
         return Last = new MixTrace { Seed = t.Seed, State = reason, Trigger = t.Trigger, Selected = selected ?? t.Selected,
             Encounter = t.Encounter, Opportunity = t.Opportunity, DrawIndex = t.DrawIndex, Roll = t.Roll,
             Temperature = t.Temperature, ScoreGap = t.ScoreGap, Options = t.Options, Mistake = t.Mistake };

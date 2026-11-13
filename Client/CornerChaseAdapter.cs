@@ -198,6 +198,7 @@ public sealed partial class Plugin
     {
         var p=Instance;if(p==null||!p.states.TryGetValue(__instance.Bot,out var s)||!s.CornerChase.Policy.Active)return true;
         try {p.RefreshChase(__instance.Bot,s,false);if(!s.CornerChase.Policy.Active)return true;
+            if(TacticalSteeringFire.TryShoot(__instance.Bot,TacticalSteeringKind.CornerChase))return false;
             if(s.CornerPrefire.Policy.Active)p.RefreshPrefire(__instance.Bot,s,true);
             else __instance.Bot.Steering.LookToPoint(VP(s.CornerChase.Policy.Known)+Vector3.up*1.3f);return false;
         }catch(Exception ex){p.ChaseError(s,ex);return true;}

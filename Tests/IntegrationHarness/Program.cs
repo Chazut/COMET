@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Text.Json;
@@ -30,6 +31,17 @@ static class Audit
         // Metadata preparation runs against the actual built client, without JITing Unity
         // callbacks on the .NET test host or executing any game action.
         var client = typeof(Comet.Client.Plugin).Assembly;
+        // Check the shipped callbacks, not only helper behavior against stubs.
+        var fire = client.GetType("Comet.Client.TacticalSteeringFire",true)!.GetMethod("TryShoot",BindingFlags.Static|BindingFlags.NonPublic)!;
+        foreach(var pair in new[]{("CrossfireAction","OnSteeringTicked"),("PostCombatAction","OnSteeringTicked"),("Plugin","ChaseSteering"),("Plugin","FeintSteering")})
+        {
+            var callback=client.GetType("Comet.Client."+pair.Item1,true)!.GetMethod(pair.Item2,BindingFlags.Static|BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic)!;
+            if(!Calls(callback).Any(m=>Equals(m,fire)))
+                throw new Exception("Steering override omitted native firing: "+pair);
+        }
+        var fireCalls=Calls(fire).Select(m=>m.Name).ToArray();
+        if(!fireCalls.Contains("ShootAnyVisibleEnemies")||!fireCalls.Contains("TrySuppressAnyEnemy"))throw new Exception("Native tactical fire bindings absent");
+        Console.WriteLine("Four shipped steering overrides preserve native multi-target firing; suppression bindings verified.");
         RuntimeHelpers.RunClassConstructor(client.GetType("Comet.Client.SourceCoverAccess",true)!.TypeHandle);
         Console.WriteLine("zzap native cover arrival accessors: official SAIN bindings initialized.");
         var warmup = client.GetType("Comet.Client.DiagnosticWarmup", true)!;
@@ -50,6 +62,32 @@ static class Audit
         int Readers(string name)=>(int)resolver.GetType().GetProperty(name,BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(resolver)!;
         if(Readers("ReadersPrepared")<100 || Readers("ReadersFallback")!=0)throw new Exception("Client payload readers not prepared");
         Console.WriteLine($"Actual client diagnostic readers: {Readers("ReadersPrepared")} compiled, {Readers("ReadersFallback")} fallback; no payload getter executed.");
+    }
+
+    // Read the shipped IL directly. Harmony's copier tries to prepare Unity methods
+    // on CoreCLR, where native game calls do not have executable managed bodies.
+    private static IEnumerable<MethodBase> Calls(MethodInfo method)
+    {
+        var opcodes=typeof(OpCodes).GetFields(BindingFlags.Public|BindingFlags.Static)
+            .Where(f=>f.FieldType==typeof(OpCode)).Select(f=>(OpCode)f.GetValue(null)!)
+            .ToDictionary(o=>unchecked((ushort)o.Value));
+        var il=method.GetMethodBody()?.GetILAsByteArray()??throw new Exception("No shipped IL: "+method);
+        for(int at=0;at<il.Length;)
+        {
+            ushort code=il[at++];if(code==0xfe)code=(ushort)(0xfe00|il[at++]);
+            var op=opcodes[code];int start=at;
+            int size=op.OperandType switch {
+                OperandType.InlineNone=>0,
+                OperandType.ShortInlineBrTarget or OperandType.ShortInlineI or OperandType.ShortInlineVar=>1,
+                OperandType.InlineVar=>2,
+                OperandType.InlineI8 or OperandType.InlineR=>8,
+                OperandType.InlineSwitch=>4+4*BitConverter.ToInt32(il,at),
+                _=>4
+            };
+            at+=size;if(at>il.Length)throw new Exception("Invalid shipped IL: "+method);
+            if(op==OpCodes.Call||op==OpCodes.Callvirt)
+                yield return method.Module.ResolveMethod(BitConverter.ToInt32(il,start),method.DeclaringType?.GetGenericArguments(),method.GetGenericArguments())!;
+        }
     }
 }
 

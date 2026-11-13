@@ -43,12 +43,13 @@ public sealed class VisibleEnemyDecision
     private string target = "";
     private double until, scoredAt;
     private List<Candidate> candidates = new();
+    private List<Candidate> preference = new();
     public VisibleTactic? Current => current;
     public MixTrace? Mixing => current.HasValue ? mixer.Last : null;
     public VisibleEnemyDecision(CometConfig config, string stream = "test", TacticalMistakes? mistakes = null)
     { config.Validate(); this.config=config; random=new Random(StableSeed.Of(stream+"|visible-time"));
       mixer=new DecisionMixer(config.DecisionVariety,stream,true,mistakes??new TacticalMistakes(config.TacticalMistakes,stream)); }
-    public bool NeedsEvidence(Situation s, bool hit) => current == null || target != s.Target || s.Now >= until || hit;
+    public bool NeedsEvidence(Situation s, bool hit) => candidates.Count == 0 || target != s.Target || s.Now >= until || hit;
     public void SuspendForSight() { }
     public void NotifyNativeRefusal() { until=0; }
     public static string? Ineligible(VisibleSituation v, CometConfig c)
@@ -68,13 +69,13 @@ public sealed class VisibleEnemyDecision
         var s=v.Contact;var c=config.VisibleCombat;
         string? rejection=Ineligible(v,config);
         if(rejection!=null)return Release(rejection);
-        bool same=target==s.Target&&current.HasValue;
+        bool same=target==s.Target&&candidates.Count>0;
         if(!v.CanShoot)
         {
-            if(!v.RecentHit&&same&&(s.Now<until||s.Now-scoredAt<1.5))return Cached("zzap-kept-no-shot");
+            if(!v.RecentHit&&same&&(s.Now<until||s.Now-scoredAt<1.5))return SelectAvailable(v,"zzap-kept-no-shot");
             return Release("no-clear-shot-or-out-of-range");
         }
-        if(same&&s.Now<until&&!v.RecentHit)return Cached("zzap-ranked-memory");
+        if(same&&s.Now<until&&!v.RecentHit)return SelectAvailable(v,"zzap-ranked-memory");
         double aggression=config.Aggression.TryGetValue(s.Personality,out var a)?a:.5;
         var scores=ZzapUtility.Visible(v,aggression);
         candidates=new List<Candidate>();
@@ -83,17 +84,31 @@ public sealed class VisibleEnemyDecision
             Reason=weight==0?"disabled-by-config":reason??"available" });
         Add(VisibleTactic.Shoot,c.ShootWeight);
         Add(VisibleTactic.Cover,c.CoverWeight);
-        Add(VisibleTactic.Push,c.PushWeight,!v.PushReachable?v.PushReason:s.KnownDistance>=c.MaxPushPath?"push-too-far":null);
+        Add(VisibleTactic.Push,c.PushWeight);
         var best=mixer.Select(candidates,s.Target,s.Personality,"zzap-visible-score",now:s.Now);
-        VisibleTactic? next=best==null?null:(VisibleTactic)Enum.Parse(typeof(VisibleTactic),best.Decision);
-        bool changed=!same||next!=current;
-        current=next;target=s.Target;scoredAt=s.Now;until=s.Now+2+random.NextDouble();
-        return new VisibleChoice {Decision=next,Changed=changed,Reconsidered=true,Reason="zzap-ranked-selection",Candidates=candidates,Mixing=mixer.Last};
+        preference=candidates.Where(x=>x.Eligible).OrderByDescending(x=>x.Score).ToList();
+        if(best!=null){preference.Remove(best);preference.Insert(0,best);}
+        scoredAt=s.Now;until=s.Now+2+random.NextDouble();
+        return SelectAvailable(v,"zzap-ranked-selection",true);
     }
-    private VisibleChoice Cached(string reason) => new VisibleChoice {Decision=current,Reason=reason,Candidates=candidates,Mixing=mixer.Retain(reason)};
+    private VisibleChoice SelectAvailable(VisibleSituation v,string reason,bool rescored=false)
+    {
+        foreach(var c in candidates)
+        {
+            if(c.Reason=="disabled-by-config")continue;
+            c.Reason=c.Decision=="Push"?(!v.PushReachable?v.PushReason:v.Contact.KnownDistance>=config.VisibleCombat.MaxPushPath?"push-too-far":"available"):"available";
+            c.Eligible=c.Reason=="available";
+        }
+        var chosen=preference.FirstOrDefault(x=>x.Eligible);
+        VisibleTactic? next=chosen==null?null:(VisibleTactic)Enum.Parse(typeof(VisibleTactic),chosen.Decision);
+        bool changed=current!=next||target!=v.Contact.Target;
+        current=next;target=v.Contact.Target;
+        if(changed&&!rescored)reason="zzap-capability-refreshed";
+        return new VisibleChoice {Decision=next,Changed=changed,Reconsidered=rescored,Reason=reason,Candidates=candidates,Mixing=mixer.Retain(reason,chosen?.Decision??"")};
+    }
     public bool TryContinuePending(VisibleSituation v) => false;
     public void ProbeRefreshed() { }
-    public VisibleChoice Release(string reason) {bool changed=current.HasValue;current=null;target="";until=0;return new VisibleChoice {Changed=changed,Reason=reason};}
+    public VisibleChoice Release(string reason) {bool changed=current.HasValue;current=null;target="";until=0;candidates.Clear();preference.Clear();return new VisibleChoice {Changed=changed,Reason=reason};}
     private static bool Finite(double x)=>!double.IsNaN(x)&&!double.IsInfinity(x);
 }
 

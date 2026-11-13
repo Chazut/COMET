@@ -17,5 +17,9 @@ public sealed class CrossfireAction : BotAction
     public override void Start(){base.Start();Plugin.RunCrossfire(BotOwner,true);}
     public override void Update(CustomLayer.ActionData data)=>Plugin.RunCrossfire(BotOwner,true);
     public override void Stop(){Plugin.RunCrossfire(BotOwner,false);base.Stop();}
-    public override void OnSteeringTicked(){if(!Plugin.SteerCrossfire(BotOwner))base.OnSteeringTicked();}
+    public override void OnSteeringTicked()
+    {
+        if(TacticalSteeringFire.TryShoot(Bot,TacticalSteeringKind.SquadAngle))return;
+        if(!Plugin.SteerCrossfire(BotOwner))Bot.Steering.SteerByPriority(Bot.GoalEnemy);
+    }
 }

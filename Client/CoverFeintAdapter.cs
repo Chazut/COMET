@@ -114,8 +114,8 @@ public sealed partial class Plugin
         var p=Instance;var b=__instance.Bot;
         if(__instance.Name!="FreezeAction"||p==null||b==null||!ReferenceEquals(b.CurrentAction,__instance)||!p.states.TryGetValue(b,out var s)
             ||!s.CoverFeint.Policy.Active||!p.FeintScope(b,s)||b.GoalEnemy?.IsVisible==true)return true;
-        // No suppression shot is invented by this feint. Visible contacts retain native shooting.
-        b.Shoot.EndShoot();b.Steering.LookToPoint(VP(s.CoverFeint.Policy.Known)+Vector3.up*1.3f);return false;
+        if(TacticalSteeringFire.TryShoot(b,TacticalSteeringKind.CoverFeint))return false;
+        b.Steering.LookToPoint(VP(s.CoverFeint.Policy.Known)+Vector3.up*1.3f);return false;
     }
     private void SampleFeint(BotComponent b,BotState s)
     {if(s.CoverFeint.Fault)return;if(!FeintScope(b,s)){EndFeint(s,"feint-out-of-scope",true);return;}if(s.CoverFeint.Policy.Active)RefreshFeint(b,s,false);}

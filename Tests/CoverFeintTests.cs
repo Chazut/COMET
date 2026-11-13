@@ -103,7 +103,7 @@ internal static class CoverFeintTests
             Check(Calls(pe,md,Method("RefreshFeint"),"RemainingRelocationRoute")==0&&Calls(pe,md,Method("RefreshFeint"),"FeintRouteClear")==0,"source feint has no added continuous route/exposure validation");
             Check(Calls(pe,md,Method("RefreshFeint"),"CheckAmmo")==1&&Calls(pe,md,Method("MagazineOperation"),"get_CurrentHandsOperation")==1,"native virtual magazine check and observed operation");
             Check(Calls(pe,md,Method("RefreshFeint"),"ControlledJump")==1,"running jumps use M12 authority and physics");
-            Check(Calls(pe,md,Method("FeintSteering"),"EndShoot")==1,"hidden feint does not add suppressive fire");
+            Check(Calls(pe,md,Method("FeintSteering"),"EndShoot")==0&&Calls(pe,md,Method("FeintSteering"),"TryShoot")==1,"source feint preserves visible-target fire and native suppression before its look target");
             Check(Calls(pe,md,Method("StopFeintRoutes"),"OwnFeintRoute")==1,"cleanup only touches owned generation");
             foreach(var method in new[]{"ChooseFeint","RefreshFeint","FeintFrame","PlanFeint","MoveFeint","FeintSteering"})
                 foreach(var forbidden in new[]{"Teleport","SetEnemyVisible","get_EnemyPosition","FindObjectsOfType","Shoot","Reload","FastForward"})

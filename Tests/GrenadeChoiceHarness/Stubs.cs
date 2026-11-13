@@ -59,7 +59,7 @@ namespace SAIN.SAINComponent.Classes.EnemyClasses {
 }
 namespace SAIN.SAINComponent.Classes.WeaponFunction {public class GrenadeThrowDecider {public BotComponent Bot=null!;private bool FindThrowTarget(Enemy e)=>true;private bool TryThrowGrenade()=>true;}}
 namespace SAIN.Components {
- public class Grenades {public string GrenadeActionType="ready";public bool ThrowindNow;public int Selections;public void SetThrowParams(ThrowWeap item){grenade=item;Selections++;}public float MaxPower=30;public ThrowWeap? grenade=new();public AIGreanageThrowData? AIGreanageThrowData=new();}
+ public class Grenades {public string GrenadeActionType="ready";public bool ThrowindNow;public int Selections;public void SetThrowParams(ThrowWeap item){grenade=item;Selections++;}public float MaxPower=30;public ThrowWeap? grenade=new();public AIGreanageThrowData? AIGreanageThrowData=new();public bool SetThrowData(AIGreanageThrowData data){AIGreanageThrowData=data;return data.CanThrow;}}
  public class Weapons {public Grenades Grenades=new();}
  public class Medicine {public bool Using;}
  public class OwnerMemory {public bool IsUnderFire;}

@@ -53,5 +53,30 @@ foreach(string reason in new[]{"incoming-fire","contact-changed","timeout"}){
 {
  var(p,b,m)=Setup();NavMesh.Valid=false;p.Observe(b);for(int i=0;i<250;i++){Step();p.Sample(b);}C(b.Mover.Walks==0,"no invented route on invalid NavMesh");p.EndAll();C(p.Claims==0,"raid cleanup");Save(p);
 }
+// Native firing is part of steering, including while walking and after arriving.
+foreach(bool atPost in new[]{false,true})
+foreach(bool primaryVisible in new[]{false,true})
+{
+ var(p,b,m)=Setup();Plan(p,b);var a=Start(p,b);
+ if(atPost){b.Position=p.states[b].Crossfire.Goal;Step();a.Update(new());}
+ b.GoalEnemy!.IsVisible=primaryVisible;b.Shoot.Result=true;
+ int points=b.Steering.Points,moves=b.Steering.Moves;
+ a.OnSteeringTicked();
+ C(b.Shoot.Calls==1&&b.Steering.Priorities==1,"visible fire retains native aim, at post="+atPost+", primary="+primaryVisible);
+ C(b.Steering.Points==points&&b.Steering.Moves==moves,"tactical steering does not overwrite firing aim");
+ C(b.Suppression.Calls==0,"successful fire does not also request suppression");
+ C(p.states[b].Crossfire.Policy.Active,"firing does not abandon the angle plan");
+}
+foreach(TacticalSteeringKind kind in Enum.GetValues<TacticalSteeringKind>())
+{
+ var(p,b,m)=Setup();b.GoalEnemy!.IsVisible=false;b.Shoot.Result=true;b.Steering.PriorityResult=false;
+ C(TacticalSteeringFire.TryShoot(b,kind),"all four steering routes call visible-target fire: "+kind);
+ C(b.Shoot.Calls==1&&b.Steering.Priorities==(kind==TacticalSteeringKind.PostCombat?0:1),"source aiming order: "+kind);
+ C(b.Steering.LastKnown==(kind==TacticalSteeringKind.CornerChase?1:0),"only chase uses last-known aim fallback");
+ b.Shoot.Result=false;b.Suppression.Result=true;int calls=b.Suppression.Calls;
+ bool suppress=kind==TacticalSteeringKind.SquadAngle||kind==TacticalSteeringKind.CoverFeint;
+ C(TacticalSteeringFire.TryShoot(b,kind)==suppress&&b.Suppression.Calls-calls==(suppress?1:0),"source suppression semantics: "+kind);
+ b.Suppression.Result=false;C(!TacticalSteeringFire.TryShoot(b,kind),"no eligible shot returns to tactical steering: "+kind);
+}
 var file=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../artifacts/s01-adapter-events.jsonl"));File.WriteAllLines(file,events);
 Console.WriteLine($"S01 source adapter: {n} checks; {events.Count} events. Engine doubles, no raid simulation.");

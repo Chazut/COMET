@@ -158,15 +158,18 @@ foreach (var mutation in new Action<Situation>[] {
     Check(choice.Decision == null && choice.Changed && engine.Current == null, "eligibility revocation");
 }
 
-// Source selection timing and eligibility. Native feasibility is refreshed on
-// zzap's rescore cadence, rather than an additional COMET snapshot invalidator.
+// zzap caches ranking, while native feasibility is checked on every selection.
 foreach (Tactic tactic in Enum.GetValues<Tactic>())
 {
     var config=Only(tactic);var engine=new HiddenEnemyDecision(config);var s=Contact();
     Check(engine.Evaluate(s).Decision==tactic,"source selectable "+tactic);
-    s.Unavailable[tactic]="test-route-blocked";s.Now+=8;
+    s.Unavailable[tactic]="test-route-blocked";s.Now+=.1;
     var result=engine.Evaluate(s);
-    Check(result.Decision==null && result.Candidates.Single(c=>c.Decision==tactic.ToString()).Reason=="test-route-blocked","native feasibility at rescore "+tactic);
+    Check(result.Decision==null && result.Candidates.Single(c=>c.Decision==tactic.ToString()).Reason=="test-route-blocked","native feasibility before rescore "+tactic);
+    Check(!engine.NeedsEvidence(s),"temporary refusal keeps source ranking "+tactic);
+    int draw=result.Mixing!.DrawIndex,opportunity=result.Mixing.Opportunity;
+    s.Unavailable.Clear();s.Now+=.1;result=engine.Evaluate(s);
+    Check(result.Decision==tactic&&result.Mixing!.DrawIndex==draw&&result.Mixing.Opportunity==opportunity,"capability recovery without new random choice "+tactic);
 }
 {
     var engine=new HiddenEnemyDecision(Only(Tactic.Hold));var s=Contact();
@@ -175,6 +178,29 @@ foreach (Tactic tactic in Enum.GetValues<Tactic>())
     Check(!engine.NeedsEvidence(s)&&engine.Evaluate(s).Reason=="zzap-ranked-memory","source hold lasts at least four seconds");
     s.Now=17.01;
     Check(engine.NeedsEvidence(s)&&engine.Evaluate(s).Decision==Tactic.Hold,"source rescores by seven seconds without COMET's forced release");
+}
+{
+    // DustAndPellets: grenade ranking wins, arc is initially pending, then ready
+    // during the cached ranking. Hold must not mask the now usable grenade.
+    var config=Only(Tactic.Grenade,Tactic.Hold);
+    config.DecisionVariety.Enabled=false;config.TacticalMistakes.Enabled=false;
+    config.Weights[nameof(Tactic.Grenade)]=3;
+    config.Weights[nameof(Tactic.Hold)]=.1;
+    var engine=new HiddenEnemyDecision(config);var s=Contact();
+    s.Unavailable[Tactic.Grenade]="no-ready-throw-trajectory";
+    var pending=engine.Evaluate(s);int opportunity=pending.Mixing!.Opportunity;
+    var scores=pending.Candidates.Select(c=>c.Score).ToArray();
+    Check(pending.Decision==Tactic.Hold,"pending grenade falls through to hold");
+    s.Now+=.1;s.Unavailable.Clear();
+    var ready=engine.Evaluate(s);
+    Check(ready.Decision==Tactic.Grenade&&ready.Changed&&ready.Reason=="zzap-capability-refreshed","prepared grenade replaces cached fallback immediately");
+    Check(ready.Mixing!.Opportunity==opportunity&&ready.Mixing.DrawIndex==pending.Mixing.DrawIndex&&ready.Candidates.Select(c=>c.Score).SequenceEqual(scores),"arc readiness does not change scores or reroll");
+    engine.Fail(Tactic.Grenade,s.Now,"native-throw-refused");s.Unavailable[Tactic.Grenade]="native-throw-refused";
+    var fallback=engine.Evaluate(s);
+    Check(fallback.Decision==Tactic.Hold&&fallback.Mixing!.Selected=="Hold"&&fallback.Mixing.Opportunity==opportunity,"native refusal tries next cached rank with current diagnostic selection");
+    s.Unavailable.Clear();s.Now+=.1;
+    Check(engine.Evaluate(s).Decision==Tactic.Grenade,"next callback can retry without extra cooldown");
+    s.Now=14.01;Check(engine.NeedsEvidence(s),"capability refresh never extends source ranking lifetime");
 }
 {
     var engine=new HiddenEnemyDecision(Only(Tactic.Grenade));var s=Contact();

@@ -19,5 +19,9 @@ public sealed class PostCombatAction : BotAction
     public override void Start(){base.Start();Plugin.RunPostCombat(BotOwner,true);}
     public override void Update(CustomLayer.ActionData data)=>Plugin.RunPostCombat(BotOwner,true);
     public override void Stop(){Plugin.RunPostCombat(BotOwner,false);base.Stop();}
-    public override void OnSteeringTicked(){if(!Plugin.SteerPostCombat(BotOwner))base.OnSteeringTicked();}
+    public override void OnSteeringTicked()
+    {
+        if(TacticalSteeringFire.TryShoot(Bot,TacticalSteeringKind.PostCombat))return;
+        if(!Plugin.SteerPostCombat(BotOwner))Bot.Steering.SteerByPriority(Bot.GoalEnemy);
+    }
 }

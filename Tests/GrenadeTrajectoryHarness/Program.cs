@@ -23,10 +23,14 @@ foreach(var exclude in new Action<Plugin,BotComponent>[] {(p,b)=>p.Settings.Enab
  var(p,b)=Setup();Check(Ready(p,b),"native arc search completes across frames");
  var r=p.State(b).GrenadeTrajectory;Check(r.Trace!.Kind=="last-known"&&r.Trace.Attempts==1,$"source stops at first valid angle: kind={r.Trace.Kind}, attempts={r.Trace.Attempts}");
  Check(r.Trace.Alternatives.Any(a=>a.Accepted)&&r.Selected!=null,"native valid arc accepted without added clearance probes");
+ int preparations=b.BotOwner.WeaponManager.Grenades.Preparations;
+ Check(preparations>0&&preparations==AIGrenadeHelper.Calls,"each successful first-angle preparation goes through native group grenade registration, including expiry refreshes");
  int calls=AIGrenadeHelper.Calls,draws=p.Draws;
  Check(p.Find(b)&&AIGrenadeHelper.Calls==calls&&p.Draws==draws,"prepared arc reuse consumes no calls or rolls");
+ Check(b.BotOwner.WeaponManager.Grenades.Preparations==preparations,"cached arc does not repeat group grenade registration");
  p.Tick(b,Time.timeAsDouble+.01);b.Transform.WeaponData.WeaponRoot=new(.1f,0,0);
  Check(p.Throw(b)&&p.Requests==1,"final validation passes native request");
+ Check(b.BotOwner.WeaponManager.Grenades.Preparations==preparations+1,"recalculated execution arc uses native preparation too");
  Check(Vector3.Distance(r.Selected!.Data.Position,b.Transform.WeaponData.WeaponRoot)<.001f,"small origin change recomputes the arc from the current hand position");
  Check(r.Trace.State=="validated"&&!p.State(b).GrenadeJudgment.Policy.Trace!.Released,"validation is not projectile release");
  p.Projectile(b);Check(p.State(b).GrenadeJudgment.Policy.Trace!.Released,"G01 still observes actual projectile");

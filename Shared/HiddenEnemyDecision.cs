@@ -75,11 +75,12 @@ public sealed class HiddenEnemyDecision
     private string target = "";
     private double until, holdSince = -1, banKnownAt = -1;
     private List<Candidate> ranked = new();
+    private List<Candidate> preference = new();
     public Tactic? Current => current;
     public HiddenEnemyDecision(CometConfig config, string stream = "test", TacticalMistakes? mistakes = null)
     { config.Validate(); this.config = config; random = new Random(StableSeed.Of(stream + "|hidden-time"));
       mixer = new DecisionMixer(config.DecisionVariety, stream, false, mistakes ?? new TacticalMistakes(config.TacticalMistakes, stream)); }
-    public bool NeedsEvidence(Situation s) => current == null || target != s.Target || s.Now >= until || s.UnderFire;
+    public bool NeedsEvidence(Situation s) => ranked.Count == 0 || target != s.Target || s.Now >= until || s.UnderFire;
     public static string? Ineligible(Situation s, CometConfig c)
     {
         if (!c.Enabled) return "disabled";
@@ -98,7 +99,7 @@ public sealed class HiddenEnemyDecision
         string? rejection = Ineligible(s, config);
         if (rejection != null) return Release(rejection);
         bool same = target == s.Target;
-        if (!NeedsEvidence(s)) return Cached("zzap-ranked-memory");
+        if (!NeedsEvidence(s)) return SelectAvailable(s, "zzap-ranked-memory");
         double heldFor = holdSince >= 0 && (same || s.Frozen) ? s.Now - holdSince : 0;
         double knownAt = s.Now - s.ContactAge;
         if (!same || Math.Abs(banKnownAt - knownAt) >= .5) banKnownAt = -1;
@@ -108,27 +109,46 @@ public sealed class HiddenEnemyDecision
         var candidates = new List<Candidate>();
         foreach (Tactic tactic in Enum.GetValues(typeof(Tactic)))
         {
-            string reason = config.Weights[tactic.ToString()] == 0 ? "disabled-by-config"
-                : s.Unavailable.TryGetValue(tactic, out var why) ? why : "available";
+            // zzap caches preference scores, not temporary execution refusals.
+            string reason = config.Weights[tactic.ToString()] == 0 ? "disabled-by-config" : "available";
             candidates.Add(new Candidate { Decision = tactic.ToString(), Eligible = reason == "available", Reason = reason,
                 Score = Math.Round(scores[tactic] * config.Weights[tactic.ToString()], 2) });
         }
         var chosen = mixer.Select(candidates, s.Target, s.Personality, same ? "zzap-rescore" : "new-contact", now:s.Now);
-        var previous = same ? candidates.Find(c => c.Eligible && c.Decision == current?.ToString()) : null;
+        var previous = same ? candidates.Find(c => c.Eligible && c.Decision == preference.FirstOrDefault()?.Decision) : null;
         double best = candidates.Where(c => c.Eligible).Select(c => c.Score).DefaultIfEmpty(-10000).Max();
         if (previous != null && previous.Score >= best - (s.UnderFire ? 15 : 8))
         { chosen = previous; mixer.Retain("zzap-kept-pick", previous.Decision); }
         Tactic? next = chosen == null ? null : (Tactic)Enum.Parse(typeof(Tactic),chosen.Decision);
-        bool changed = current != next || !same;
-        if (next == Tactic.Hold || s.Frozen) { if (heldFor <= 0) holdSince = s.Now; } else holdSince = -1;
-        current = next; target = s.Target; ranked = candidates;
+        ranked = candidates;
+        preference = candidates.Where(c => c.Eligible).OrderByDescending(c => c.Score).ToList();
+        if (chosen != null) { preference.Remove(chosen); preference.Insert(0, chosen); }
         until = s.Now + (next == Tactic.Hold ? 4 + random.NextDouble()*3 : 2.5 + random.NextDouble()*1.5);
-        return new Choice { Decision = next, Changed = changed, Candidates = ranked, Mixing = mixer.Last,
-            Reason = next == null ? "no-feasible-option" : "zzap-ranked-selection" };
+        return SelectAvailable(s, "zzap-ranked-selection");
     }
-    private Choice Cached(string reason) => new Choice { Decision=current, Candidates=ranked, Mixing=mixer.Retain(reason), Reason=reason };
-    public Choice Fail(Tactic tactic, double now, string reason) { until = 0; return Release(reason); }
-    public Choice Release(string reason) { bool changed=current.HasValue; current=null; until=0; return new Choice {Changed=changed,Reason=reason}; }
+    private Choice SelectAvailable(Situation s, string reason)
+    {
+        foreach (var c in ranked)
+        {
+            var tactic = (Tactic)Enum.Parse(typeof(Tactic), c.Decision);
+            c.Reason = config.Weights[c.Decision] == 0 ? "disabled-by-config"
+                : s.Unavailable.TryGetValue(tactic, out var why) ? why : "available";
+            c.Eligible = c.Reason == "available";
+        }
+        var chosen = preference.FirstOrDefault(c => c.Eligible);
+        Tactic? next = chosen == null ? null : (Tactic)Enum.Parse(typeof(Tactic), chosen.Decision);
+        bool changed = current != next || target != s.Target;
+        if (next == Tactic.Hold || s.Frozen)
+        { if (holdSince < 0 || target != s.Target) holdSince = s.Now; }
+        else holdSince = -1;
+        current = next; target = s.Target;
+        if (changed && reason == "zzap-ranked-memory") reason = "zzap-capability-refreshed";
+        return new Choice { Decision = next, Changed = changed, Candidates = ranked,
+            Mixing = mixer.Retain(reason, chosen?.Decision ?? ""), Reason = next == null ? "no-feasible-option" : reason };
+    }
+    // The adapter marks only this call's failed option unavailable and tries the next rank.
+    public Choice Fail(Tactic tactic, double now, string reason) => new Choice { Decision=current, Reason=reason };
+    public Choice Release(string reason) { bool changed=current.HasValue; current=null; until=0; ranked.Clear(); preference.Clear(); return new Choice {Changed=changed,Reason=reason}; }
     private static bool Finite(double x) => !double.IsNaN(x) && !double.IsInfinity(x);
 }
 
