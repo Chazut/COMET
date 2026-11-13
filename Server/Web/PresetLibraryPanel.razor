@@ -10,7 +10,7 @@
     <div class="section-heading"><div><h2>My presets</h2><p>Keep personal setups and share them. Loading a preset opens a review; it does not apply it to the next raid until you save.</p></div>
         <button disabled="@(library == null || !ValidDraft || working || form.Length > 0)" @onclick="SaveAs">Save draft as…</button></div>
     @if (library != null) {
-        @if (library.Presets.Count == 0) { <p class="library-empty">No personal presets yet. Easy, Normal and Hard below always remain available.</p> }
+        @if (library.Presets.Count == 0) { <p class="library-empty">No personal presets yet. Save your current draft as a personal setup, or import one.</p> }
         else {
             <div class="library-controls"><label>Personal preset<select aria-label="Personal preset" @bind="selected" disabled="@(form.Length > 0 || working)">
                 @foreach (var p in library.Presets) { <option value="@p.Id">@p.Name · v@(p.Revision)</option> }

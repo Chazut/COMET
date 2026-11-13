@@ -1,4 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
+  <ItemGroup>
+    <EmbeddedResource Include="Web/ConfigStyles.css" LogicalName="Comet.ConfigStyles.css" />
+    <EmbeddedResource Include="../branding/comet-logo-transparent.svg" LogicalName="Comet.Logo.svg" />
+  </ItemGroup>
   <ItemGroup><Compile Include="../Shared/SourceBaselineSettings.cs" Link="Core/SourceBaselineSettings.cs" /></ItemGroup>
   <ItemGroup><Compile Include="../Shared/PreparationWait.cs" Link="Core/PreparationWait.cs" /></ItemGroup>
   <ItemGroup><Compile Include="../Shared/PerformanceConfig.cs" Link="Core/PerformanceConfig.cs" /></ItemGroup>

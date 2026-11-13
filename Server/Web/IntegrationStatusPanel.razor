@@ -1,18 +1,19 @@
 @using Comet.Server
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Web
-<details class="quiet-details protections">
-    <summary>SAIN compatibility - last startup reports</summary>
-    <p>Checks the official SAIN files and COMET hooks. This is a startup check, not a live connection monitor or proof of successful combat.</p>
+<section class="protections">
+    <div class="section-heading"><h3>Compatibility &amp; startup</h3><button @onclick="Refresh">Refresh reports</button></div>
+    <p>Reports from the last game startup. These are not a live connection status.</p>
+    <details class="quiet-details"><summary>SAIN and other AI mods</summary>
     <p><b>Automatic handoff - I02.</b> COMET supports SAIN alone, SAIN + ORBIT, or SAIN + Questing Bots + Looting Bots. After recovery it releases its own actions and observes who takes over. Quests, loot and extraction remain with your installed system. ORBIT's 15-second delay is not applied to Questing Bots. COMET pauses for ORBIT Ghost Mode or QB sleeping.</p>
     <p>Optional integration detection appears below. No extra gameplay toggle or delay is needed. Logs and Raid Review record releases, actual layer changes and prolonged waits; these observations do not prove that an action succeeded.</p>
-    <button @onclick="Refresh">Refresh reports</button>
+    </details>
     @if (reports.Count==0) {
         <p>No startup report received. This does not mean COMET is ready. Start the game, then refresh. If nothing appears, check BepInEx/LogOutput.log for I01.</p>
     }
     @foreach(var item in reports) {
         var report=item.Report;
-        <section class="feature" style="padding:1rem;margin-top:.75rem">
+        <section class="feature compat-report">
             <h3>@(report.Outcome=="ready"?"Startup checks passed":"COMET inactive") · @report.Role</h3>
             <p>@report.Message</p>
             <small>Received @item.ReceivedUtc.ToString("yyyy-MM-dd HH:mm:ss") UTC · COMET @report.Version · @report.Targets target methods / @report.Callbacks hooks</small>
@@ -20,7 +21,7 @@
             @foreach(var note in report.Notices) { <p class="notice">@note</p> }
         </section>
     }
-</details>
+</section>
 @code {
     [Parameter,EditorRequired] public IntegrationReports Reports {get;set;}=null!;
     private IReadOnlyList<ReceivedIntegrationReport> reports=Array.Empty<ReceivedIntegrationReport>();

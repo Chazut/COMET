@@ -234,6 +234,8 @@ public sealed class ConfigEditor
         draft["PresetSource"] = JsonSerializer.SerializeToNode(identity);
     }
     public EditorPreview PreviewDiscard() => Preview("Discard all unsaved edits", saved, Catalog.Fields.Keys, true);
+    public IReadOnlyList<EditorChange> PendingChanges() => PreviewDiscard().Changes
+        .Select(c => new EditorChange(c.Path, c.Label, c.After, c.Before)).ToArray();
     public void Apply(EditorPreview preview)
     {
         if (preview.Whole)
