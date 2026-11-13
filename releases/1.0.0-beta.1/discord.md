@@ -8,6 +8,8 @@ Requires **original SAIN 4.5.1** on **SPT 4.1.6**. It doesn't replace SAIN, and 
 
 Keep **Quiet logging OFF** for testing. If something goes wrong, send me the COMET diagnostics + `LogOutput.log`, ideally with the bot's name and when it happened.
 
-Fika support is experimental; use both ZIPs if you're testing with Fika.
+**Fika compatible, with support included in the main ZIP, but I haven't tested it with Fika yet.** I removed my Fika setup because I ran out of disk space for two SPT installations, and Ghost Mode gives me enough performance on its own. Fika testers are very welcome!
+
+I've also included a separate **Raid Review test ZIP** so you can follow COMET's decisions and squad tactics in the replay. Install its client and server files, restart both, then play a new raid.
 
 <https://github.com/Chazut/COMET>
