@@ -36,6 +36,41 @@ class EvidenceRegression(unittest.TestCase):
         # Never carry a previous revision's missing settings into a new revision.
         self.add(event(4,'configuration','U01',configRevision=3,config={'enabled':True,'recoilRecovery':{'enabled':True}}))
         r=analyze(self.c,'r');self.assertTrue(self.m('W09')['configChanged']);self.assertNotIn('threatSelection',r['configs']['3'])
+
+    def test_shoreline_arrival_is_not_lost_or_promoted_to_engagement(self):
+        for n in range(1,4):
+            self.add(event(n,feature='S01',crossfire={'episode':8,'state':'holding','reason':'crossfire-angle-reached'}),
+                     event(n+10,feature='S03',crossfire={'episode':4,'state':'holding','reason':'crossfire-angle-reached',
+                         'maneuver':{'plan':'maneuver-5','role':'flank','state':'active'}}),
+                     dict(event(n+20,feature='S03',crossfire={'episode':4,'state':'holding','reason':'crossfire-angle-reached',
+                         'maneuver':{'plan':'maneuver-5','role':'support','state':'active'}}),profileId='support'))
+        self.add(event(40,feature='S01',crossfire={'episode':8,'state':'ended','reason':'crossfire-hold-timeout'}),
+                 event(41,feature='S03',crossfire={'episode':4,'state':'ended','reason':'crossfire-out-of-scope',
+                     'maneuver':{'plan':'maneuver-5','role':'flank','state':'ended'}}),
+                 event(42,feature='S01',crossfire={'episode':9,'state':'ready','reason':'crossfire-angle-ready'}),
+                 event(43,feature='S04',crossfire={'episode':10,'state':'holding','reason':'crossfire-angle-reached'}),
+                 event(44,feature='S03',crossfire={'episode':11,'outcome':'engaged-from-new-angle',
+                     'maneuver':{'plan':'support-context','role':'support','state':'converging'}}))
+        self.finish();analyze(self.c,'r')
+        for feature in ('S01','S03'):
+            m=self.m(feature)
+            self.assertEqual(m['effects']['Position reached'],1)
+            self.assertEqual(m['effects']['Angle held'],1)
+            self.assertEqual(m['effects'].get('Enemy engaged from new angle',0),0)
+            self.assertEqual(m['completed'],0)
+        # A later observed engagement is a separate milestone, deduplicated.
+        for n in (50,51):
+            self.add(event(n,feature='S01',crossfire={'episode':8,'state':'ended','outcome':'engaged-from-new-angle'}))
+        analyze(self.c,'r')
+        self.assertEqual(self.m('S01')['effects']['Enemy engaged from new angle'],1)
+        self.assertEqual(self.m('S01')['effects']['Position reached'],1)
+
+    def test_arrival_without_identity_is_only_a_snapshot(self):
+        for n in (1,2):
+            self.add(event(n,feature='S01',crossfire={'state':'holding','reason':'crossfire-angle-reached'}))
+        self.finish();analyze(self.c,'r')
+        self.assertEqual(self.m('S01')['observationFacts']['Position reached'],2)
+        self.assertEqual(self.m('S01')['effects'].get('Position reached',0),0)
     def test_effects_deduplicate_only_with_identity(self):
         for n in range(1,5):
             self.add(event(n,feature='M04',combatLean={'episode':1,'tiltObserved':True,'animatorApplied':True}),

@@ -11,12 +11,12 @@ def extra_phases(feature,t,event=None):
     # A firing angle acquired during the route completes positioning, not the
     # firefight. Shared support members must not inherit the flanker outcome.
     crossfire=(event or {}).get('crossfire') or {}
-    if feature in {'S01','S03'} and (event or {}).get('feature')==feature and crossfire.get('outcome')=='engaged-from-new-angle':
+    if feature in {'S01','S03'} and (event or {}).get('feature')==feature and crossfire.get('outcome')=='engaged-from-new-angle' and (feature=='S01' or t.get('role') in (None,'','flank')):
         result.add('completed')
     # Confirmed means a measured angle/device state; not a completed combat plan.
     return result
 
-def effect_facts(feature,t):
+def effect_facts(feature,t,event=None):
     fields={
         'P02':{'applied':'Speed cap applied'},
         'M04':{'tiltObserved':'Tilt observed','headMotionObserved':'Head motion observed','animatorApplied':'Animator command applied'},
@@ -27,6 +27,16 @@ def effect_facts(feature,t):
         'S09':{'played':'Voice played'},
     }.get(feature,{})
     facts={label for key,label in fields.items() if t.get(key) is True}
+    # Positioning and engagement are distinct observations. Attribute only to
+    # the actor's own tactic, never to a support snapshot carrying shared context.
+    if feature in {'S01','S03'} and (event or {}).get('feature')==feature:
+        crossfire=(event or {}).get('crossfire') or {}
+        if feature=='S01' or t.get('role') in (None,'','flank'):
+            if crossfire.get('reason')=='crossfire-angle-reached' and crossfire.get('state')=='holding':
+                facts.add('Position reached')
+                facts.add('Angle held')
+            if crossfire.get('outcome')=='engaged-from-new-angle':
+                facts.add('Enemy engaged from new angle')
     if feature=='C04' and t.get('state')=='confirmed':facts.add('Door angle confirmed')
     if feature=='L02' and t.get('state')=='confirmed':facts.add('Device state confirmed')
     return facts
@@ -41,7 +51,7 @@ def feature_identity(e,t,spec):
     return None
 
 def evidence_note(feature):
-    if feature in {'S01','S03'}:return 'A completed new-angle outcome means positioning reached a usable firing angle, not that shots hit or the firefight was won.'
+    if feature in {'S01','S03'}:return 'Position reached and Angle held record arrival and holding separately from Enemy engaged from new angle. Completion records the latter outcome, not hits or a won firefight. Counts are per identified tactic, not per snapshot.'
     if feature in {'D02','D03','D04','D05','D06','D07','D08','D11','D12','D13','D14'}:
         return 'Requires a usable door plan. Check D01 and D09 first; no events do not prove this follow-up is broken.'
     if feature=='M06':return 'Requires an accepted corner chase (M05) and a safe prefire opportunity.'

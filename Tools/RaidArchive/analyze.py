@@ -137,7 +137,7 @@ def analyze(c,raid):
             own_config=e.get(spec.get('trace','')+'Config')
             if isinstance(own_config,dict) and isinstance(own_config.get('enabled'),bool):m['configEnabled']=own_config['enabled']
             ident=feature_identity(e,t,spec) or identity(e,t,spec['counting'])
-            effects=effect_facts(f,t)
+            effects=effect_facts(f,t,e)
             if ident is None:
                 m['unknownIdentityEvents']+=1
                 m['observationFacts'].update(phases(e,t,spec))

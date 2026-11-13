@@ -35,6 +35,7 @@ public sealed class ReadyStanceTrace
 // Owns a time-limited veto of lowered patrol posture, never a combat or movement decision.
 public sealed class ReadyStance
 {
+    private static readonly string[] StanceAlternatives={"Combat, objectives and Ghost eligibility: unchanged","ADS and aim direction: native","Hands, sprint and interactions take priority"};
     public ReadyStanceTrace? Trace { get; private set; }
     public double Deadline { get; private set; }=-1;
     private double lastFight=-1,lastCue=-1,lastNow=-1;
@@ -55,7 +56,7 @@ public sealed class ReadyStance
         t.State=!c.Enabled?"released":!Pending(now)?"expired":block.Length>0?"suspended":nativePatrol?"pending":"native";
         t.Reason=!c.Enabled?"ready-stance-disabled":!Pending(now)?"ready-stance-window-ended":block.Length>0?block:nativePatrol?"ready-stance-recent-threat":"ready-stance-native-posture";
         t.Applied=false;t.ValidFor=0;
-        t.Alternatives=new[]{"Combat, objectives and Ghost eligibility: unchanged","ADS and aim direction: native","Hands, sprint and interactions take priority"};
+        t.Alternatives=StanceAlternatives;
         return t.Requested;
     }
     public void ObservePosture(bool raised)

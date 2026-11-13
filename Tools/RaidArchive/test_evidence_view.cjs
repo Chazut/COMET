@@ -7,4 +7,8 @@ assert.equal(coverageSummary({events:10,observationFacts:{accepted:9}}),'Evaluat
 assert.equal(lifecycleValue({counting:'trace',coverage:'events-only'},'started'),null);
 assert.equal(lifecycleValue({counting:'trace',identifiedRaids:2,started:3},'started'),3);
 assert.equal(lifecycleValue({id:'A01',counting:'choice',identifiedRaids:2},'completed'),null);
-console.log('Evidence view: 7 regressions passed');
+assert.equal(coverageSummary({id:'S01',effects:{'Position reached':1,'Angle held':1},completed:0}),'Angle reached and held');
+assert.equal(coverageSummary({id:'S03',effects:{'Position reached':1},completed:0}),'Position reached');
+assert.equal(coverageSummary({id:'S03',effects:{'Position reached':1,'Angle held':1,'Enemy engaged from new angle':1},completed:1}),'Enemy engaged from new angle');
+assert.equal(coverageSummary({id:'S03',events:20,started:1}),'Execution observed');
+console.log('Evidence view: 11 regressions passed');

@@ -17,7 +17,8 @@ internal sealed class WeaponReturnRuntime
     internal readonly WeaponReturnPolicy Policy=new();
     internal WeaponReturnFrame? Frame;
     internal float Next,SampleAt,LogAt=-1000;
-    internal string Intent="",ReturnId="",LogKey="";
+    internal string Intent="",ReturnId="";
+    internal (string State,string Choice,string Reason,string From,string To,int Loaded,int TargetLoaded,bool InHands,bool Ready) LogKey;
     internal bool Fault;
 }
 internal sealed class WeaponSwitchAttempt
@@ -51,8 +52,9 @@ public sealed partial class Plugin
     private static Weapon? SlotGun(BotComponent b,EquipmentSlot slot)=>b.Player.Inventory?.Equipment?.GetSlot(slot)?.ContainedItem as Weapon;
     private static string ActualGunSlot(BotComponent b,Weapon w)
     {
-        foreach(var slot in new[]{EquipmentSlot.FirstPrimaryWeapon,EquipmentSlot.SecondPrimaryWeapon,EquipmentSlot.Holster})
-            if(ReferenceEquals(SlotGun(b,slot),w))return slot.ToString();
+        if(ReferenceEquals(SlotGun(b,EquipmentSlot.FirstPrimaryWeapon),w))return nameof(EquipmentSlot.FirstPrimaryWeapon);
+        if(ReferenceEquals(SlotGun(b,EquipmentSlot.SecondPrimaryWeapon),w))return nameof(EquipmentSlot.SecondPrimaryWeapon);
+        if(ReferenceEquals(SlotGun(b,EquipmentSlot.Holster),w))return nameof(EquipmentSlot.Holster);
         return "";
     }
     private static bool WeaponHandsReady(BotComponent b,Player.FirearmController? firearm)
@@ -90,7 +92,10 @@ public sealed partial class Plugin
         s.WeaponReturn.Frame=f;return f;
     }
     private static WeaponReturnGun ReturnTarget(WeaponReturnFrame f,string id)
-    {foreach(var g in new[]{f.Main,f.Other,f.Pistol})if(g.Id==id&&id.Length>0)return g;return new();}
+    {
+        if(id.Length>0){if(f.Main.Id==id)return f.Main;if(f.Other.Id==id)return f.Other;if(f.Pistol.Id==id)return f.Pistol;}
+        return new();
+    }
     private void ObserveWeaponReturn(BotComponent b,BotState s)
     {
         var firearm=b.Player.HandsController as Player.FirearmController;
@@ -182,7 +187,7 @@ public sealed partial class Plugin
     {
         var r=s.WeaponReturn;var t=r.Policy.Trace;if(t==null)return;
         if(b!=null)t.Action=b.Decision.CurrentSelfDecision==ESelfActionType.Reload?"Reload":b.Decision.CurrentCombatDecision.ToString();
-        string key=t.State+":"+t.Choice+":"+t.Reason+":"+t.From+":"+t.To+":"+t.Loaded+":"+t.TargetLoaded+":"+t.InHands+":"+t.Ready;
+        var key=(t.State,t.Choice,t.Reason,t.From,t.To,t.Loaded,t.TargetLoaded,t.InHands,t.Ready);
         if(!force&&key==r.LogKey&&Time.time-r.LogAt<.25f)return;r.LogKey=key;r.LogAt=Time.time;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="W03",stage="evaluated",decision="WeaponReturn",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,

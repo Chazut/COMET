@@ -18,7 +18,7 @@ internal sealed class ReadyStanceRuntime
     internal readonly ReadyStance Policy=new();
     internal float Next,LogAt,LastCombatLayer=-100;
     internal bool NativePatrol,NativeKnown,Fault;
-    internal string Key="";
+    internal (string State,string Reason,string Evidence,string Contact,bool Requested,bool ObservedRaised) Key;
 }
 public sealed partial class Plugin
 {
@@ -80,7 +80,7 @@ public sealed partial class Plugin
     private void RecordReadyStance(BotState s,bool force)
     {
         var r=s.ReadyStance;var t=r.Policy.Trace;if(t==null)return;
-        string key=t.State+":"+t.Reason+":"+t.Evidence+":"+t.Contact+":"+t.Requested+":"+t.ObservedRaised;
+        var key=(t.State,t.Reason,t.Evidence,t.Contact,t.Requested,t.ObservedRaised);
         if(!force&&key==r.Key&&(!t.Requested||Time.time<r.LogAt))return;r.Key=key;r.LogAt=Time.time+.5f;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="H05",stage="evaluated",decision="ReadyStance",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,

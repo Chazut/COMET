@@ -23,6 +23,8 @@ An accepted command does not prove the bot moved. A completed policy does not pr
 
 Distinct attempts are counted only where the journal supplies a stable occurrence identity. Otherwise the dashboard shows observations and state/reason counts. Repeated snapshots are not turned into separate actions. Attached context is linked to its parent event, but does not inherit the parent's execution status. Cards that were excluded, deferred or folded into another feature remain explicitly labelled.
 
+Crossfire and coordinated flanking distinguish **Position reached**, **Angle held** and **Enemy engaged from new angle**. Reaching and holding an angle remains visible even if the bot never engages from it. Completion still requires the recorded engagement outcome; it does not mean a hit or a won fight. Shared support context is not counted as a flanker reaching an angle.
+
 Changing settings during a raid is recorded by revision. Mixed enable/disable states are not presented as disabled for the entire raid. Build identity comes from the raid's header; installed DLL hashes captured later are labelled as collection-time context.
 
 COMET and RR copies are deduplicated by session and sequence. The local record wins, while RR provides replay timestamps. The RR database is read in a consistent SQLite transaction, including its WAL. Raid position files are archived separately.

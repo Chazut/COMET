@@ -81,5 +81,18 @@ foreach(bool ambush in new[]{false,true}){
  var(p,b,l,h)=Setup();Tick(l);Tick(l,1);Time.time+=1.1f;p.Watch(b);C(!p.states[b].LightDiscipline.Policy.Dark,"stale actuator callback yields");
  Tick(l);Tick(l,1);int commands=h.Commands.Count;p.End(b);C(h.Commands.Count==commands&&p.states[b].LightDiscipline.Weapon==null,"raid end never reactivates removed weapon");Save(p);
 }
+{
+ var(p,b,l,h)=Setup(2);Tick(l);var r=p.states[b].LightDiscipline;
+ var input=r.Frame;var snapshot=r.Devices[0];var modes=r.Modes;
+ string saved=p.diagnostics!.Lines.Last();
+ for(int i=0;i<20;i++)Tick(l,.06f);
+ C(ReferenceEquals(input,r.Frame)&&ReferenceEquals(snapshot,r.Devices[0])&&ReferenceEquals(modes,r.Modes),"stable evaluations reuse input, device entries and mode descriptions");
+ h.Item.Mods[0].Light!.SelectedMode=9;Tick(l,.06f);
+ C(ReferenceEquals(snapshot,r.Devices[0])&&r.Modes[0].EndsWith(":9"),"same-count accessory mode changes update diagnostics");
+ C(!ReferenceEquals(modes,r.Modes)&&p.diagnostics.Lines.Contains(saved),"new device descriptions do not mutate previously recorded snapshots");
+ var replacement=new LightComponent{SelectedMode=9,IsActive=false};h.Item.Mods[0]=replacement.Item;Tick(l,.06f);
+ C(ReferenceEquals(snapshot,r.Devices[0])&&ReferenceEquals(snapshot.Component,replacement),"replaced device is observed immediately without retaining the old component");
+ Save(p);
+}
 var output=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../artifacts/l01-adapter-events.jsonl"));File.WriteAllLines(output,events);
 Console.WriteLine($"{n} L01 production adapter/Harmony checks passed; {events.Count} JSON events. Controlled native doubles, not a raid.");

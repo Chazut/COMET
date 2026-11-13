@@ -20,14 +20,15 @@ internal sealed class LightDeviceSnapshot
 internal sealed class LightDisciplineRuntime
 {
     internal readonly LightDisciplinePolicy Policy = new();
+    internal readonly LightDisciplineFrame Frame = new();
     internal readonly List<LightDeviceSnapshot> Devices = new();
     internal Weapon? Weapon;
     internal object? Enemy;
-    internal bool Captured, Fault;
+    internal bool Captured, Fault, ModesDirty;
     internal string[] Modes = Array.Empty<string>();
     internal float CallbackAt, Next, LogAt, ForceAt;
     internal double LastActuatorMilliseconds;
-    internal string Key = "";
+    internal (string State,string Reason,string Contact,string Action,string Tactic,bool Requested,bool ObservedOff,int ActiveDevices,bool NightVision) Key;
     internal void Drop() { Devices.Clear(); Modes = Array.Empty<string>(); Weapon = null; Enemy = null; Captured = false; Next = 0; }
 }
 
@@ -76,10 +77,16 @@ public sealed partial class Plugin
                 bool dark = r.Policy.Evaluate(f, p.config!.LightDiscipline);
                 if (!dark) { r.Captured = false; r.Devices.Clear(); r.Modes = Array.Empty<string>(); p.RecordLightDiscipline(s); return true; }
                 p.SuspendDevicesForAmbush(s);
-                r.Captured = true; r.Devices.Clear();
+                r.Captured = true; int deviceIndex = 0;
                 foreach (var mod in weapon!.Mods)
                     if (mod.GetItemComponent<LightComponent>() is { } device)
-                        r.Devices.Add(new() { Component = device, Mode = device.SelectedMode });
+                    {
+                        if(deviceIndex==r.Devices.Count) { r.Devices.Add(new()); r.ModesDirty=true; }
+                        var snapshot=r.Devices[deviceIndex++];
+                        if(!ReferenceEquals(snapshot.Component,device)||snapshot.Mode!=device.SelectedMode)r.ModesDirty=true;
+                        snapshot.Component=device;snapshot.Mode=device.SelectedMode;
+                    }
+                if(deviceIndex<r.Devices.Count) { r.Devices.RemoveRange(deviceIndex,r.Devices.Count-deviceIndex);r.ModesDirty=true; }
                 if (Time.time >= r.ForceAt)
                 {
                     r.ForceAt = Time.time + .5f;
@@ -123,13 +130,13 @@ public sealed partial class Plugin
         string source = e?.Seen == true ? "seen" : "heard";
         string action = b.Decision.CurrentCombatDecision.ToString();
         string tactic = action != "Search" ? "holding-angle" : "";
-        return new()
-        {
-            Now = Time.time, Contact = e?.EnemyProfileId ?? "", Source = known ? source : "", Action = action, Tactic = tactic,
-            Known = place != null ? DP(place.Position) : null, ContactAge = e?.TimeSinceLastKnownUpdated ?? double.NaN,
-            Distance = e?.RealDistance ?? double.NaN,
-            Speed = b.Player.Velocity.magnitude, Visible = e?.IsVisible == true, NightVision = b.BotOwner.NightVision.UsingNow
-        };
+        // Reuse the input, not the trace: Evaluate copies values synchronously.
+        var f=s.LightDiscipline.Frame;
+        f.Now=Time.time;f.Contact=e?.EnemyProfileId??"";f.Source=known?source:"";f.Action=action;f.Tactic=tactic;
+        f.Known=place!=null?DP(place.Position):null;f.ContactAge=e?.TimeSinceLastKnownUpdated??double.NaN;
+        f.Distance=e?.RealDistance??double.NaN;f.Speed=b.Player.Velocity.magnitude;
+        f.Visible=e?.IsVisible==true;f.NightVision=b.BotOwner.NightVision.UsingNow;
+        return f;
     }
     private static bool LightDevicesUnchanged(LightDisciplineRuntime r)
     {
@@ -146,9 +153,9 @@ public sealed partial class Plugin
     private void ObserveLightDevices(BotState s, bool requested)
     {
         var r = s.LightDiscipline; int active = 0;
-        bool changed = r.Modes.Length != r.Devices.Count;
+        bool changed = r.ModesDirty || r.Modes.Length != r.Devices.Count;
         foreach (var d in r.Devices) { if (d.Component.IsActive) active++; if (d.Component.SelectedMode != d.Mode) changed = true; }
-        if (changed) { r.Modes = new string[r.Devices.Count]; for (int i = 0; i < r.Devices.Count; i++) r.Modes[i] = r.Devices[i].Component.Item.Id + ":" + r.Devices[i].Component.SelectedMode; }
+        if (changed) { r.Modes = new string[r.Devices.Count]; for (int i = 0; i < r.Devices.Count; i++) r.Modes[i] = r.Devices[i].Component.Item.Id + ":" + r.Devices[i].Component.SelectedMode; r.ModesDirty=false; }
         r.Policy.Observe(r.Devices.Count, active, r.Modes, requested);
         r.Policy.Trace!.Weapon = r.Weapon?.Id.ToString() ?? "";
     }
@@ -171,7 +178,7 @@ public sealed partial class Plugin
     private void RecordLightDiscipline(BotState s, bool force = false)
     {
         var r = s.LightDiscipline; var t = r.Policy.Trace; if (t == null) return;
-        string key = t.State + ":" + t.Reason + ":" + t.Contact + ":" + t.Action + ":" + t.Tactic + ":" + t.Requested + ":" + t.ObservedOff + ":" + t.ActiveDevices + ":" + t.NightVision;
+        var key = (t.State,t.Reason,t.Contact,t.Action,t.Tactic,t.Requested,t.ObservedOff,t.ActiveDevices,t.NightVision);
         if (!force && key == r.Key && (!r.Policy.Dark || Time.time < r.LogAt)) return;
         r.Key = key; r.LogAt = Time.time + .5f;
         var json = Diagnostics.Serialize(new { schema = 1, session, sequence = ++sequence, feature = "L01", stage = "evaluated", decision = "LightDiscipline", reason = t.Reason,

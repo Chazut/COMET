@@ -79,8 +79,13 @@ public sealed class WeaponReturnPolicy
     public string Fallback(WeaponReturnFrame f)
     {
         if(f.Current.Loaded>0)return "";
-        foreach(var g in new[]{f.Main,f.Other,f.Pistol})if(g.Id!=f.Current.Id&&g.Loaded>0)return g.Id;
-        foreach(var g in new[]{f.Main,f.Other,f.Pistol})if(g.Id!=f.Current.Id&&g.Reloadable)return g.Id;
+        // Preserve source order: every loaded alternative precedes any reloadable one.
+        if(f.Main.Id!=f.Current.Id&&f.Main.Loaded>0)return f.Main.Id;
+        if(f.Other.Id!=f.Current.Id&&f.Other.Loaded>0)return f.Other.Id;
+        if(f.Pistol.Id!=f.Current.Id&&f.Pistol.Loaded>0)return f.Pistol.Id;
+        if(f.Main.Id!=f.Current.Id&&f.Main.Reloadable)return f.Main.Id;
+        if(f.Other.Id!=f.Current.Id&&f.Other.Reloadable)return f.Other.Id;
+        if(f.Pistol.Id!=f.Current.Id&&f.Pistol.Reloadable)return f.Pistol.Id;
         return "";
     }
     public bool Evaluate(WeaponReturnFrame f,WeaponReturnGun target,string origin,WeaponReturnConfig c)
