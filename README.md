@@ -1,4 +1,9 @@
 <p align="center"><img src="branding/comet-logo-transparent.svg" alt="COMET" width="150"></p>
+<p align="center">
+  <img src="https://img.shields.io/github/stars/Chazut/COMET?style=flat-square&label=STARS&color=007ec6" />
+  <img src="https://img.shields.io/github/issues/Chazut/COMET?style=flat-square&label=ISSUES&color=44cc11" />
+  <img src="https://img.shields.io/github/downloads/Chazut/COMET/total?style=flat-square&label=DOWNLOADS&color=44cc11" />
+</p>
 
 # COMET
 
