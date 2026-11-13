@@ -32,6 +32,7 @@ checks += IntegrationTests.Run();
 checks += PresetLibraryTests.Run();
 checks += ConfigEditorTests.Run();
 checks += EditorNavigationTests.Run();
+checks += SecretBrandTests.Run();
 checks += SettingHelpTests.Run();
 checks += DifficultyPresetTests.Run();
 checks += FaultIsolationTests.Run();

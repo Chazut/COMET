@@ -2,6 +2,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Web/ConfigStyles.css" LogicalName="Comet.ConfigStyles.css" />
     <EmbeddedResource Include="../branding/comet-logo-transparent.svg" LogicalName="Comet.Logo.svg" />
+    <EmbeddedResource Include="../branding/slop-logo-transparent.svg" LogicalName="Comet.SlopLogo.svg" />
   </ItemGroup>
   <ItemGroup><Compile Include="../Shared/SourceBaselineSettings.cs" Link="Core/SourceBaselineSettings.cs" /></ItemGroup>
   <ItemGroup><Compile Include="../Shared/PreparationWait.cs" Link="Core/PreparationWait.cs" /></ItemGroup>

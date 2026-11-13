@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><Compile Include="../Server/Web/SecretBrand.cs" Link="Web/SecretBrand.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="WoodsExecutionHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="TacticalClearanceHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="CoverFallbackHarness/**/*.cs" /></ItemGroup>

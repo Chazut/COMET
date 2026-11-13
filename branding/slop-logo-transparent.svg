@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" fill="none">
+  <title>SLOP orbital soup</title>
+  <!-- Three familiar comet trails become steam over a bowl of questionable tactics. -->
+  <g stroke="#B6ED68" stroke-width="9" stroke-linecap="round">
+    <path d="M57 59c-17-16 17-20 0-37"/>
+    <path d="M81 51c-17-16 17-20 0-37"/>
+    <path d="M105 59c-17-16 17-20 0-37"/>
+  </g>
+  <path d="M26 82h108c-4 35-21 55-54 55S30 117 26 82Z" fill="#BC9CFF"/>
+  <ellipse cx="80" cy="82" rx="54" ry="16" fill="#223229" stroke="#BC9CFF" stroke-width="5"/>
+  <path d="M35 82c9-12 21 2 32-4s17-1 24 3 17-9 34 1c-6 10-22 13-45 13S40 91 35 82Z" fill="#B6ED68"/>
+  <path d="M106 85c-1 13 5 13 5 24" stroke="#B6ED68" stroke-width="8" stroke-linecap="round"/>
+  <path d="M64 144h32" stroke="#BC9CFF" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="70" cy="113" r="4" fill="#161C18"/><circle cx="91" cy="113" r="4" fill="#161C18"/>
+  <path d="m75 123 6 3 6-3" stroke="#161C18" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m13 60 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z" fill="#BC9CFF"/>
+  <circle cx="145" cy="112" r="4" fill="#B6ED68"/>
+</svg>
