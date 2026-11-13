@@ -17,4 +17,4 @@ The features in this beta come from **R_F's work**, adapted and tweaked to my ta
 
 Keep **Diagnostics > Quiet logging OFF**. Send the files from `BepInEx/COMET/diagnostics` and `BepInEx/LogOutput.log`, with the bot's name, approximate time and what went wrong.
 
-The optional `RaidReview-1.10.0-COMET-beta.1.zip` lets you follow COMET decisions and squad tactics in the replay. Install both its client and server files, then restart the game and server. Play a new raid to record COMET events.
+The optional `RaidReview-1.11.0-RC1.zip` lets you follow COMET decisions and squad tactics in the replay. Install both its client and server files, then restart the game and server. Play a new raid to record COMET events.
