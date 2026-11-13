@@ -14,6 +14,7 @@ partial class PistolSwapRuntime { public Policy<PistolSwapTrace> Policy=new(); p
 partial class WeaponRangeRuntime { public Policy<WeaponRangeTrace> Policy=new(); public float LogAt; }
 partial class DoorTransitRuntime { public Policy<DoorTransitTrace> Policy=new(); public float LogAt; }
 class BotState {
+    public ContactDiagnosticGate AbandonLogs=new();
     public SilentSearchTrace SilentTrace=new();public float SilentLogAt=-100;
     public PistolSwapRuntime PistolSwap=new(); public WeaponRangeRuntime WeaponRange=new(); public DoorTransitRuntime Transit=new();
     public string ProfileId="pmc",Name="bot",Id="instance";
@@ -63,16 +64,21 @@ partial class Probe {
         p.RecordSilent(s,true);Check(p.sequence==silentCount+1,"P08 forced transitions retained immediately");
         Time.time+=1;p.RecordSilent(s);Check(p.sequence==silentCount+2,"P08 periodic evidence retained");
         var e=new Enemy{Bot=b};b.GoalEnemy=e;p.states[b]=s;s.AbandonProbeAt=Time.time+.25f;var checker=new EnemyKnownChecker{Enemy=e};
-        Check(!NeedsAbandonment(checker,false),"dormant search skips expensive duplicate safety reads");
+        Check(NeedsAbandonment(checker,false),"native visited check is not delayed by diagnostic cadence");
         Check(!NeedsAbandonment(checker,true),"no pending forget callback");
-        Time.time+=.25f;Check(NeedsAbandonment(checker,false),"next geometry probe still runs on time");
-        s.AbandonProbeAt=Time.time+.25f;
-        s.Abandonment.Evaluate(new SearchAbandonmentFrame{Now=120,Stamp=100,Target="target",Distance=1},new SearchAbandonmentConfig());
-        Check(NeedsAbandonment(checker,false),"active inspection keeps immediate emergency checks");
-        s.Abandonment.Interrupt("combat");Check(!NeedsAbandonment(checker,false),"interrupted dormant state avoids repeat work");
+        s.Abandonment.Interrupt("combat");Check(NeedsAbandonment(checker,false),"diagnostic outcome cannot disable source visited checks");
         s.AbandonPending=new SearchAbandonmentFrame{Target="target"};Check(NeedsAbandonment(checker,true),"native forget confirmation immediate");
-        Check(NeedsAbandonment(checker,false),"pending confirmation retains safety guards");
-        e.EnemyProfileId="other";b.GoalEnemy=null;Check(!NeedsAbandonment(checker,false)&&!NeedsAbandonment(checker,true),"unrelated enemy cannot clear active work");
+        e.EnemyProfileId="other";b.GoalEnemy=null;
+        Check(NeedsAbandonment(checker,false)&&!NeedsAbandonment(checker,true),"other tracked contacts are evaluated without stealing a pending confirmation");
+        long initial=p.sequence;
+        for(int tick=0;tick<1000;tick++)for(int enemy=0;enemy<5;enemy++) {
+            s.Abandonment.Evaluate(new SearchAbandonmentFrame{Now=1,Stamp=1,Target="enemy"+enemy,Distance=50},p.config.SearchAbandonment);
+            p.RecordAbandonment(s);
+        }
+        Check(p.sequence==initial+5,"P09 alternating contacts emit five events, not 5000");
+        s.Abandonment.Interrupt("combat");p.RecordAbandonment(s);Check(p.sequence==initial+6,"P09 changed outcome immediate");
+        p.RecordAbandonment(s,true);Check(p.sequence==initial+7,"P09 forced outcome immediate");
+        Time.time+=10;p.RecordAbandonment(s);Check(p.sequence==initial+8,"P09 ten-second heartbeat preserved");
         Console.WriteLine($"Diagnostic/P09 production gate: {checks} checks passed, {allocated} bytes for 300000 suppressed calls; forced/changed/heartbeat/RR events retained.");
     }
     static string diagnosticsLine(Probe p)=>p.diagnostics.Lines[^1];

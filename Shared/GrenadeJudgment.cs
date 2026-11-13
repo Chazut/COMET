@@ -40,7 +40,8 @@ public sealed class GrenadeJudgmentTrace
     public int Count,Samples;
     public double Age,X,Y,Z,CampSeconds,BaseChance,CampBonus,RoomBonus,VulnerableBonus,LastPenalty,Fade,Chance,RetryRemaining,ValidFor;
     public double? Roll;
-    public bool Requested,Accepted,Released;
+    public bool Requested,Accepted,Released,NativeStarted;
+    public string NativePhase="",Hands="";
     public string[] Alternatives={"Keep fighting or use another COMET tactic", "Wait for a native trajectory", "Continue fighting"};
 }
 
@@ -59,6 +60,7 @@ public sealed class GrenadeJudgmentPolicy
     private double clock=-1,pendingAt;
     private string pendingTarget="",pendingItem="";
     private double pendingStamp;
+    private GrenadeJudgmentTrace? pendingTrace;
     public GrenadeJudgmentTrace? Trace { get; private set; }
     public int Count=>contacts.Count;
     public bool Pending=>pendingItem.Length>0;
@@ -128,28 +130,54 @@ public sealed class GrenadeJudgmentPolicy
     {
         if(Trace?.State!="eligible")return;
         pendingTarget=f.Target;pendingItem=f.Item;pendingStamp=f.EvidenceAt;pendingAt=f.Now;
-        Trace.Requested=true;Trace.State="requested";Trace.Reason="grenade-native-request";
+        pendingTrace=Trace;Trace.Requested=true;Trace.State="requested";Trace.Reason="grenade-native-request";
     }
     public void Result(bool accepted,double now,GrenadeJudgmentConfig c)
     {
-        if(Trace?.Requested!=true)return;
+        if(pendingTrace==null)return;
+        Trace=pendingTrace;
         if(Trace.Released)return; // native callback can fire inside DoThrow
         Trace.Accepted=accepted;Trace.State=accepted?"accepted":"refused";Trace.Reason=accepted?"grenade-native-accepted":"grenade-native-refused";
         if(!accepted){pendingItem="";if(contacts.TryGetValue(pendingTarget,out var e))e.Next=now+.5;}
+    }
+    // A true DoThrow return can be a no-op in a non-ready native phase.
+    // This observes execution only; it does not introduce another tactical gate or force hands.
+    public bool NativeProgress(bool throwing,string phase,string hands,double now)
+    {
+        if(!Pending||pendingTrace==null)return false;
+        bool changed=pendingTrace.NativePhase!=phase||pendingTrace.Hands!=hands||(throwing&&!pendingTrace.NativeStarted);
+        pendingTrace.NativePhase=phase;pendingTrace.Hands=hands;
+        if(throwing)pendingTrace.NativeStarted=true;
+        if(throwing&&pendingTrace.State=="unconfirmed")
+        {pendingTrace.State="accepted";pendingTrace.Reason="grenade-native-started";changed=true;}
+        if(!throwing&&pendingTrace.NativeStarted&&now-pendingAt>.5&&pendingTrace.State!="interrupted")
+        {pendingTrace.State="interrupted";pendingTrace.Reason="grenade-native-ended-without-projectile";changed=true;}
+        Trace=pendingTrace;
+        return changed;
+    }
+    public void ObserveRequest(bool returned,bool throwing,double now,GrenadeJudgmentConfig c)
+    {
+        Result(returned,now,c);
+        if(pendingTrace==null||pendingTrace.Released)return;
+        pendingTrace.NativeStarted|=throwing;
+        if(returned&&!throwing)
+        {pendingTrace.State="unconfirmed";pendingTrace.Reason="grenade-native-returned-without-start";}
+        // Observation cannot rewrite SAIN's result or impose another retry cooldown.
+        // Keep the request available for a delayed projectile callback.
     }
     public bool Tick(double now,GrenadeJudgmentConfig c)
     {
         if(!Pending||now-pendingAt<=10)return false;
         pendingItem=""; // Missing observer callback must not postpone the next native throw.
-        Trace!.State="timeout";Trace.Reason="grenade-release-not-observed";Trace.ValidFor=1;return false;
+        Trace=pendingTrace!;Trace.State="timeout";Trace.Reason="grenade-release-not-observed";Trace.ValidFor=1;return false;
     }
     public bool Released(string item,double now)
     {
         if(!Pending||item!=pendingItem||!Finite(now)||now<pendingAt||now-pendingAt>10)return false;
         if(contacts.TryGetValue(pendingTarget,out var e)){e.Spent=pendingStamp;e.Roll=null;}
-        pendingItem="";Trace!.Released=Trace.Accepted=true;Trace.State="released";Trace.Reason="grenade-projectile-observed";Trace.ValidFor=1;return true;
+        pendingItem="";Trace=pendingTrace!;Trace.Released=Trace.Accepted=true;Trace.State="released";Trace.Reason="grenade-projectile-observed";Trace.ValidFor=1;return true;
     }
     public void Clear(string reason)
-    {contacts.Clear();pendingItem="";clock=-1;if(Trace!=null){Trace.State="ended";Trace.Reason=reason;Trace.ValidFor=0;}}
+    {contacts.Clear();pendingItem="";pendingTrace=null;clock=-1;if(Trace!=null){Trace.State="ended";Trace.Reason=reason;Trace.ValidFor=0;}}
     private static bool Finite(double v)=>!double.IsNaN(v)&&!double.IsInfinity(v);
 }

@@ -57,14 +57,12 @@ public sealed partial class Plugin
         if(s.Abandonment.Current is SearchAbandonmentTrace t&&(t.State=="reached"||t.State=="checking"||t.State=="requested"))
         {s.Abandonment.Interrupt(reason);RecordAbandonment(s,true);}
         s.AbandonPending=null;
-        if(clear)s.Abandonment.Clear();
+        if(clear){s.Abandonment.Clear();s.AbandonLogs.Clear();}
     }
     private void RecordAbandonment(BotState s,bool force=false)
     {
         var t=s.Abandonment.Current;if(t==null)return;
-        string key=t.Target+":"+t.State+":"+t.Reason;
-        if(!force&&key==s.AbandonLogKey&&Time.time-s.AbandonLogAt<1)return;
-        s.AbandonLogAt=Time.time;s.AbandonLogKey=key;
+        if(!s.AbandonLogs.Allow(t.Target,t.State,t.Reason,Time.time,force))return;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="P09",stage="evaluated",decision="SearchAbandonment",
             reason=t.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,
             searchAbandonmentConfig=config?.SearchAbandonment,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,searchAbandonment=t});

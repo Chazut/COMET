@@ -40,4 +40,24 @@ foreach(var change in new Action<Plugin,BotComponent>[] {
 {
  var(p,b)=Setup();p.Find(b);p.Throw(b);b.GoalEnemy=null;p.Tick(b,21);Check(p.State(b).GrenadeJudgment.Policy.Trace!.State=="timeout"&&!p.State(b).GrenadeJudgment.Policy.Pending,"request timeout tracked even without a current enemy");
 }
+{
+ var(p,b)=Setup();p.Find(b);
+ Check(p.Throw(b,true,false,false),"diagnostic observer preserves native true return even without visible start");
+ Check(p.State(b).GrenadeJudgment.Policy.Trace!.State=="unconfirmed"&&!p.State(b).GrenadeJudgment.Policy.Trace!.Released,"no native start never becomes a confirmed projectile");
+ b.BotOwner.WeaponManager.Grenades.ThrowindNow=true;p.Tick(b,10.3);
+ Check(p.State(b).GrenadeJudgment.Policy.Trace!.NativeStarted&&p.State(b).GrenadeJudgment.Policy.Trace!.State=="accepted","delayed native start updates pending request without claiming release");
+ p.Projectile(b);Check(p.State(b).GrenadeJudgment.Policy.Trace!.State=="released","delayed projectile can confirm an unobserved start");
+}
+{
+ var(p,b)=Setup();p.Find(b);p.Throw(b);b.BotOwner.WeaponManager.Grenades.ThrowindNow=false;
+ p.Tick(b,11);Check(p.State(b).GrenadeJudgment.Policy.Trace!.State=="interrupted","native throw ending without projectile is explicit");
+ p.Projectile(b);Check(p.State(b).GrenadeJudgment.Policy.Trace!.Released,"interruption diagnostic does not swallow later release callback");
+}
+{
+ var(p,b)=Setup();p.Find(b);p.Throw(b);p.BrokenObserver(b);
+ Check(!p.State(b).GrenadeJudgment.Fault&&p.State(b).GrenadeJudgment.Policy.Pending,"failed observer never faults tactical adapter or clears pending request");
+ Check(p.State(b).GrenadeJudgment.ObservationWarned,"observer error emits bounded warning");
+ p.Projectile(b);Check(p.State(b).GrenadeJudgment.Policy.Trace!.Released,"projectile observation survives a failed native state read");
+ p.Tick(b,12);Check(p.Find(b),"next native grenade remains available after observation error");
+}
 Console.WriteLine($"G01 adapter: {checks} checks passed (native contracts substituted; no Unity raid)");

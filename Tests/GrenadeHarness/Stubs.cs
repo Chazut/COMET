@@ -14,7 +14,7 @@ namespace EFT.InventoryLogic {public class Item {public string Id="nade";}public
 namespace EFT {
  public enum EnvironmentType{Indoor,Outdoor}public enum EPlayerItems{Equipment}
  public class Inventory {public List<Item> Items=new();public IEnumerable<Item> GetPlayerItems(EPlayerItems type)=>Items;}
- public class Player {public EnvironmentType Environment=EnvironmentType.Outdoor;public string ProfileId="player";public Inventory Inventory=new();public Vector3 Position;public Health HealthController=new();}
+ public class Player {public object? HandsController;public EnvironmentType Environment=EnvironmentType.Outdoor;public string ProfileId="player";public Inventory Inventory=new();public Vector3 Position;public Health HealthController=new();}
  public class Health {public bool IsAlive=true;}
  public class Grenade {public string ProfileId="bot";public Item? WeaponSource;}
 }
@@ -27,7 +27,7 @@ namespace SAIN.SAINComponent.Classes.EnemyClasses {
 }
 namespace SAIN.SAINComponent.Classes.WeaponFunction {public class GrenadeThrowDecider {public BotComponent Bot=null!;private bool FindThrowTarget(Enemy e)=>true;private bool TryThrowGrenade()=>true;}}
 namespace SAIN.Components {
- public class Grenades {public ThrowWeap? grenade=new();public AIGreanageThrowData? AIGreanageThrowData=new();}
+ public class Grenades {public bool ThrowindNow;public string GrenadeActionType="ready";public ThrowWeap? grenade=new();public AIGreanageThrowData? AIGreanageThrowData=new();}
  public class Weapons {public Grenades Grenades=new();}
  public class Medicine {public bool Using;}
  public class OwnerMemory {public bool IsUnderFire;}
@@ -87,9 +87,10 @@ namespace Comet.Client {
   internal CometConfig Settings=>config!;internal int Count=>states.Count;internal int Draws=>jumpRandom.Draws;internal List<string> Events=>diagnostics!.Events;internal List<Player> Players=>world!.RegisteredPlayers;internal BotState State(BotComponent b)=>states[b];
   internal void Tick(BotComponent b,double t){Time.timeAsDouble=t;Time.frameCount++;TrackGrenadeJudgment(b);}
   internal bool Find(BotComponent b,bool arc=true){var d=new GrenadeThrowDecider{Bot=b};bool result=false;bool original=GrenadeFindBefore(d,b.GoalEnemy!,ref result,out var state);if(original)result=arc;GrenadeFindAfter(d,b.GoalEnemy!,ref result,state);return result;}
-  internal int Requests;internal bool Throw(BotComponent b,bool nativeAccepted=true,bool immediateRelease=false){var d=new GrenadeThrowDecider{Bot=b};bool result=false;bool original=GrenadeThrowBefore(d,ref result,out var state);if(original){Requests++;result=nativeAccepted;if(immediateRelease)Projectile(b);}GrenadeThrowAfter(result,state);return result;}
+  internal int Requests;internal bool Throw(BotComponent b,bool nativeAccepted=true,bool immediateRelease=false,bool nativeStarted=true){var d=new GrenadeThrowDecider{Bot=b};bool result=false;bool original=GrenadeThrowBefore(d,ref result,out var state);if(original){Requests++;result=nativeAccepted;b.BotOwner.WeaponManager.Grenades.ThrowindNow=nativeAccepted&&nativeStarted;if(immediateRelease)Projectile(b);}GrenadeThrowAfter(d,result,state);return result;}
   internal void Projectile(BotComponent b,string? id=null)=>JudgmentProjectile(new(){ProfileId=b.ProfileId,WeaponSource=new(){Id=id??b.BotOwner.WeaponManager.Grenades.grenade!.Id}});
   internal void End(BotComponent b)=>EndGrenadeJudgment(states[b],"raid-ended");
+  internal void BrokenObserver(BotComponent b){var controller=b.BotOwner.WeaponManager.Grenades;b.BotOwner.WeaponManager.Grenades=null!;try{GrenadeThrowAfter(new GrenadeThrowDecider{Bot=b},true,states[b]);}finally{b.BotOwner.WeaponManager.Grenades=controller;}}
  }
 }
 

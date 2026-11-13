@@ -3,6 +3,10 @@ from common import at
 
 def extra_phases(feature,t,event=None):
     result=set()
+    if feature=='G01':
+        if t.get('nativeStarted') is True:result.add('started')
+        if t.get('released') is True:result.update(('started','released','completed'))
+        if t.get('state')=='unconfirmed':result.add('unconfirmed')
     if feature in {'W04','H01'} and t.get('started') is True:result.add('started')
     if feature=='M04' and (t.get('tiltObserved') is True or t.get('headMotionObserved') is True):result.add('started')
     if feature=='D01':

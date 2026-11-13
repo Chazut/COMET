@@ -17,6 +17,7 @@ foreach(var (file,method,runtime,key) in new[]{
 var silent=CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Client/SilentSearchAdapter.cs"))).GetRoot();
 fragments.Add("partial class Probe {"+silent.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(x=>x.Identifier.Text=="RecordSilent")+"}");
 var abandonment=CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Client/SearchAbandonmentAdapter.cs"))).GetRoot();
+fragments.Add("partial class Probe {"+abandonment.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(x=>x.Identifier.Text=="RecordAbandonment")+"}");
 fragments.Add("partial class Probe {"+abandonment.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(x=>x.Identifier.Text=="NeedsAbandonment")+"}");
 var source="using System; using Comet.Core;\n"+string.Join("\n",fragments);
 var refs=((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator).Select(p=>MetadataReference.CreateFromFile(p)).ToList();

@@ -94,8 +94,8 @@ public sealed partial class Plugin
     private void ClearProjectileThrown(Grenade grenade,Vector3 position,Vector3 force,float mass)
     {
         if(grenade==null||world==null)return;
-        RelocationProjectile(grenade);
-        JudgmentProjectile(grenade);
+        try{JudgmentProjectile(grenade);}catch(Exception ex){Logger.LogWarning("G01 throw observation failed: "+ex.GetBaseException().Message);}
+        try{RelocationProjectile(grenade);}catch(Exception ex){Logger.LogWarning("G09 throw observation failed: "+ex.GetBaseException().Message);}
         try{OwnProjectileThrown(grenade);}catch(Exception ex){Logger.LogWarning("G04 throw observation failed: "+ex.GetBaseException().Message);}
         foreach(var pair in states)
         {

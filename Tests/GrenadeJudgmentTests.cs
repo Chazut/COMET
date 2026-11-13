@@ -78,6 +78,29 @@ static class GrenadeJudgmentTests
         // Deterministic quantile check of the percentage interpretation; not a flaky random statistical assertion.
         foreach(int items in new[]{1,2})
         {int yes=0;for(int i=0;i<1000;i++){var p=new GrenadeJudgmentPolicy();var f=Frame();f.Count=items;if(p.Evaluate(f,c,8,true,()=> (i+.5)/1000))yes++;}Check(yes==500,"50 percent source distribution regardless of remaining inventory");}
+        {
+            var p=new GrenadeJudgmentPolicy();var f=Frame();p.Evaluate(f,c,8,true,Draw);p.Request(f);
+            p.ObserveRequest(true,false,10,c);
+            Check(p.Trace!.State=="unconfirmed"&&p.Trace.Reason=="grenade-native-returned-without-start"&&!p.Trace.Released&&p.Pending,
+                "native no-op return is not a confirmed throw and still allows late confirmation");
+            f.Now=f.EvidenceAt=11;p.Evaluate(f,c,8,true,Draw);p.Request(f);p.ObserveRequest(true,true,11,c);
+            p.NativeProgress(true,"change2grenade","FirearmController",11);
+            f.Target="other-enemy";f.Now=f.EvidenceAt=12;p.Evaluate(f,c,8,true,Draw);
+            p.NativeProgress(false,"ready","FirearmController",12);
+            Check(p.Trace!.Target=="enemy"&&p.Trace.State=="interrupted"&&!p.Trace.Released,"native interruption belongs to original request, not a later assessment");
+            Check(p.Released("rgo",12.1)&&p.Trace!.Target=="enemy"&&p.Trace.Released,"late physical callback supersedes interruption without inventing a throw");
+        }
+        {
+            var g=new ContactDiagnosticGate();int emitted=0;
+            for(int tick=0;tick<1000;tick++)for(int enemy=0;enemy<5;enemy++)
+                if(g.Allow("enemy"+enemy,"watching","waiting",tick*.001))emitted++;
+            Check(emitted==5,"five alternating contacts emit five records, not 5000");
+            Check(g.Allow("enemy0","requested","forgot",1)&&g.Allow("enemy0","forgotten","confirmed",1),"all lifecycle transitions retained");
+            Check(g.Allow("enemy1","watching","waiting",10),"heartbeat retains ongoing coverage");
+            Check(g.Allow("enemy1","watching","waiting",10,true),"explicit observations bypass throttle");
+            for(int i=0;i<1000;i++)g.Allow("new"+i,"watching","waiting",i);
+            Check(g.Count==128,"diagnostic memory bounded");g.Clear();Check(g.Count==0,"raid cleanup clears diagnostic contacts");
+        }
         var root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../"));Directory.CreateDirectory(Path.Combine(root,"artifacts"));
         File.WriteAllText(Path.Combine(root,"artifacts/g01-policy-wire.json"),Newtonsoft.Json.JsonConvert.SerializeObject(wire,new Newtonsoft.Json.JsonSerializerSettings{ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()}));
         Console.WriteLine($"G01: {checks} checks passed");return checks;

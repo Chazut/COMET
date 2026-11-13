@@ -188,6 +188,9 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(r['state'],'waiting-for-raid-end')
     def test_crash_imported_as_partial(self):
         self.path.write_text(json.dumps(self.choice(1,'selected'))+'\n')
+        # Keep the crash log settled even when filesystem timestamp precision is
+        # slightly ahead of time.time() on Windows.
+        settled=time.time()-2;os.utime(self.path,(settled,settled))
         with patch('collector.game_running',return_value=False):collect(self.settings)
         r=self.c.execute('SELECT report FROM raids WHERE id=?',('comet-'+SESSION,)).fetchone();self.assertTrue(json.loads(r[0])['partial'])
     def test_rr_wal_snapshot_and_exact_mapping(self):

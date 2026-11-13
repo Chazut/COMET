@@ -872,9 +872,9 @@ internal sealed class BotState
     internal string EnvironmentLogKey="";
     internal readonly SearchAbandonment Abandonment = new();
     internal SearchAbandonmentFrame? AbandonPending;
-    internal float AbandonProbeAt, AbandonLogAt=-1000;
+    internal float AbandonProbeAt;
     internal bool AbandonFault;
-    internal string AbandonLogKey="";
+    internal readonly ContactDiagnosticGate AbandonLogs=new();
     internal SilentSearchTrace? SilentTrace;
     internal float SilentLogAt = -1000;
     internal bool SilentAccepted, SilentObserved, SilentMoved, SilentWarned, SilentFault;

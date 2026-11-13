@@ -20,7 +20,7 @@ internal sealed class GrenadeJudgmentRuntime
     internal int RoomEnemy,ArcFrame=-1,ArcEnemy;
     internal Vector3 RoomPoint,ArcPoint,ArcOrigin,ArcTarget;
     internal string LogKey="",ArcItem="";
-    internal bool Fault,Arc;
+    internal bool Fault,Arc,ObservationWarned;
 }
 public sealed partial class Plugin
 {
@@ -55,8 +55,15 @@ public sealed partial class Plugin
         try
         {
             bool pending=r.Policy.Pending;
-            r.Policy.Tick(Time.timeAsDouble,p.config!.GrenadeJudgment);
-            if(pending)p.RecordGrenadeJudgment(s);
+            try
+            {
+                if(pending && r.Policy.NativeProgress(__instance.BotOwner.WeaponManager.Grenades.ThrowindNow,
+                    __instance.BotOwner.WeaponManager.Grenades.GrenadeActionType.ToString(),
+                    __instance.Player.HandsController?.GetType().Name??"none",Time.timeAsDouble))p.RecordGrenadeJudgment(s,true);
+                r.Policy.Tick(Time.timeAsDouble,p.config!.GrenadeJudgment);
+                if(pending)p.RecordGrenadeJudgment(s);
+            }
+            catch(Exception ex){p.GrenadeObservationError(s,ex);}
             var e=__instance.GoalEnemy;if(e==null)return;
             var f=p.GrenadeFrame(__instance,e,s);
             // Observe room classification only while the target is personally visible. Keep a short-lived location fact.
@@ -154,10 +161,14 @@ public sealed partial class Plugin
             var f=p.GrenadeFrame(b,b.GoalEnemy,s);s.GrenadeJudgment.Policy.Request(f);p.RecordGrenadeJudgment(s,true);__state=s;return true;
         }catch(Exception ex){p.GrenadeJudgmentError(s,ex);__result=false;return false;}
     }
-    private static void GrenadeThrowAfter(bool __result,BotState? __state)
+    private static void GrenadeThrowAfter(GrenadeThrowDecider __instance,bool __result,BotState? __state)
     {
         var p=Instance;if(p==null||__state==null)return;
-        __state.GrenadeJudgment.Policy.Result(__result,Time.timeAsDouble,p.config!.GrenadeJudgment);p.RecordGrenadeJudgment(__state,true);
+        try
+        {
+            __state.GrenadeJudgment.Policy.ObserveRequest(__result,__instance.Bot.BotOwner.WeaponManager.Grenades.ThrowindNow,Time.timeAsDouble,p.config!.GrenadeJudgment);p.RecordGrenadeJudgment(__state,true);
+        }
+        catch(Exception ex){p.GrenadeObservationError(__state,ex);}
     }
     private void JudgmentProjectile(Grenade grenade)
     {foreach(var pair in states)if(pair.Key.ProfileId==grenade.ProfileId&&pair.Value.GrenadeJudgment.Policy.Released(grenade.WeaponSource?.Id.ToString()??"",Time.timeAsDouble))RecordGrenadeJudgment(pair.Value,true);}
@@ -165,11 +176,13 @@ public sealed partial class Plugin
     {EndGrenadeFilter(s,reason);StopGrenadeChoice(s,reason);StopGrenadeTrajectory(s,reason);s.GrenadeJudgment.Policy.Clear(reason);s.GrenadeJudgment.RoomAt=-1;s.GrenadeJudgment.Arc=false;RecordGrenadeJudgment(s);}
     private void GrenadeJudgmentError(BotState s,Exception ex)
     {bool warn=!s.GrenadeJudgment.Fault;s.GrenadeJudgment.Fault=true;EndGrenadeJudgment(s,"grenade-adapter-error");if(warn)Logger.LogWarning("G01 blocked grenade requests: "+ex.GetBaseException().Message);}
+    private void GrenadeObservationError(BotState s,Exception ex)
+    {if(s.GrenadeJudgment.ObservationWarned)return;s.GrenadeJudgment.ObservationWarned=true;Logger.LogWarning("G01 observation unavailable; native throwing unchanged: "+ex.GetBaseException().Message);}
     private void RecordGrenadeJudgment(BotState s,bool force=false)
     {
         var r=s.GrenadeJudgment;var t=r.Policy.Trace;if(t==null)return;
         double now=Time.timeAsDouble;string key=t.Target+"|"+t.State+"|"+t.Reason+"|"+t.Roll;
-        if(!force&&key==r.LogKey&&(t.ValidFor==0||now-r.LogAt<.75))return;r.LogKey=key;r.LogAt=now;
+        if(!force&&key==r.LogKey&&(t.ValidFor==0||now-r.LogAt<5))return;r.LogKey=key;r.LogAt=now;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="G01",stage="evaluated",decision="GrenadeJudgment",reason=t.Reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
             grenadeJudgment=t,grenadeJudgmentConfig=config?.GrenadeJudgment});
