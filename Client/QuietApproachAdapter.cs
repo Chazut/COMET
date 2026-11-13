@@ -207,7 +207,7 @@ public sealed partial class Plugin
         if(!force && key==s.QuietLogKey && (!t.Applied || Time.time-s.QuietLogAt<1))return;
         s.QuietLogKey=key;s.QuietLogAt=Time.time;
         var json=Diagnostics.Serialize(new {schema=1,session,sequence=++sequence,feature="P02",stage="evaluated",decision="QuietApproach",reason=t.Reason,
-            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),cometVersion="0.1.0",configRevision=config?.Revision??0,
+            realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),cometVersion=CometVersion.Release,configRevision=config?.Revision??0,
             quietConfig=config?.QuietApproach,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,quiet=t});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }

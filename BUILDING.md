@@ -1,0 +1,23 @@
+# Building COMET
+
+
+Use the **.NET 10 SDK** and your own local game/mod references. The development projects currently use Windows paths under `C:/Games/SPT-4.1` and `C:/Dev`; adjust those paths for your setup.
+
+Place the official SAIN 4.5.1 `SAIN.dll` and `SAIN.Preset.Shared.dll` in `references/sain-4.5.1/`. Game and dependency binaries are not included in this repository. The optional Fika project also needs a local Fika.Core reference.
+
+Run from the repository root:
+
+```powershell
+New-Item -ItemType Directory -Path artifacts -Force | Out-Null
+dotnet build Client/Comet.Client.csproj -c Release
+dotnet build Server/Comet.Server.csproj -c Release
+dotnet run --project Tests/Comet.Tests.csproj -c Release
+dotnet run --project Tests/IntegrationHarness/IntegrationHarness.csproj -c Release
+```
+
+These commands do not install the mod. `Tools/verify.ps1` runs the broader test suites and Raid Review integration checks; it requires the matching Raid Review checkout on its `comet-integration` branch and the Fika build reference.
+
+Sources, test fixtures, the local web preview and build/verification tools are included. Internal planning documents, generated reports, local configuration, binaries and one-time migration/preview scripts stay outside Git.
+
+
+See [SOURCE_BASELINE.md](SOURCE_BASELINE.md) for the behavior baseline.

@@ -110,7 +110,7 @@ public sealed partial class Plugin
         s.FloorNextLog = Time.time + .5f;
         var json = Diagnostics.Serialize(new { schema = 1, session, sequence = ++sequence, feature = "P04", stage = "evaluated",
             decision = "FloorHearing", reason = t.Reason, realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"),
-            cometVersion = "0.1.0", configRevision = config?.Revision ?? 0, floorConfig = config?.FloorHearing,
+            cometVersion = CometVersion.Release, configRevision = config?.Revision ?? 0, floorConfig = config?.FloorHearing,
             profileId = s.ProfileId, name = s.Name, botInstance = s.Id, floorHearing = t, coalesced = s.FloorCoalesced });
         s.FloorCoalesced = 0;
         diagnostics?.Write(json); Api.Decisions.Publish(json, ex => { if (!subscriberWarned) { subscriberWarned = true; Logger.LogWarning(ex.Message); } });

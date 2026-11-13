@@ -213,7 +213,7 @@ public sealed partial class Plugin
         string json = Diagnostics.Serialize(new {
             schema = 1, session, sequence = ++sequence, feature = "A07", stage, reason = trace.Reason,
             decision = "SelectTarget", realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"),
-            configRevision = config?.Revision ?? 0, config = config==null?null:Diagnostics.ThreatConfig(config), cometVersion = "0.1.0", profileId = state.ProfileId, name = state.Name, botInstance = state.Id,
+            configRevision = config?.Revision ?? 0, config = config==null?null:Diagnostics.ThreatConfig(config), cometVersion = CometVersion.Release, profileId = state.ProfileId, name = state.Name, botInstance = state.Id,
             threat = trace, fear = state.Fear.Current,
             contact = contact == null ? null : new { target = contact.Target, source = contact.Source, age = contact.Age, distance = contact.Distance,
                 x = contact.X, y = contact.Y, z = contact.Z }

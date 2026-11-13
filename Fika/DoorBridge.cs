@@ -13,7 +13,7 @@ using UnityEngine;
 
 namespace Comet.Fika;
 
-[BepInPlugin("com.chazut.comet.fika","COMET Fika door transport","0.1.0")]
+[BepInPlugin("com.chazut.comet.fika","COMET Fika door transport",Comet.Core.CometVersion.Plugin)]
 [BepInDependency("com.chazut.comet")]
 [BepInDependency("com.fika.core")]
 public sealed class DoorBridge : BaseUnityPlugin

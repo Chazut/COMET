@@ -317,7 +317,7 @@ public sealed partial class Plugin
             schema = 1, session, sequence = ++sequence, feature = "P01", stage = "evaluated", reason, decision = "MovementHearing",
             realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"), configRevision = config?.Revision ?? 0,
             hearingConfig = config!.MovementHearing,
-            cometVersion = "0.1.0", profileId = state.ProfileId, name = state.Name, botInstance = state.Id,
+            cometVersion = CometVersion.Release, profileId = state.ProfileId, name = state.Name, botInstance = state.Id,
             hearing = evidence, suppressed = last.Suppressed,
             contact = point == null ? null : new { target = sound.ProfileId, source = "heard", age = 0, x = point.Value.x, y = point.Value.y, z = point.Value.z }
         });

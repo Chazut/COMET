@@ -1,64 +1,56 @@
+<p align="center"><img src="branding/comet-logo-transparent.svg" alt="COMET" width="150"></p>
+
 # COMET
 
 **Coordinated Opponents, Movement & Engagement Tactics**
 
-COMET adds tactical combat behavior for PMCs and AI Player Scavs on top of the original SAIN. It has its own client plugin, server configuration and web interface. SAIN remains required; ORBIT and Raid Review are optional.
+Bots that flank you, approach quietly, work together and change tactics during a fight. COMET expands combat for **PMCs and AI Player Scavs**, building on the original **SAIN**.
 
-**Development preview.** Implementation and automated tests are in place, and live raid testing has started. This is not a finished release. Automated checks do not establish reliable behavior in Unity or multiplayer.
+**Beta 1** - playable development build, still being tested and improved.
 
-The current development build returns to R_F's zzap behavior as its baseline,
-removing the additional COMET tactical restrictions. See [the source baseline](SOURCE_BASELINE.md)
-for the pinned revision, integration boundaries and saved-settings migration.
+## What it does
 
-## Features
+- **Combat decisions:** hold an angle, push, search or retreat as the fight changes.
+- **Movement:** peek corners, move between cover and approach quietly.
+- **Squad tactics:** support teammates, find different angles and coordinate pushes.
+- **Doors:** watch entrances, feint, ambush and clear rooms.
+- **Weapons and gear:** manage reloads, weapon swaps, flashlights and tactical devices.
+- **Grenades:** choose and throw grenades, react to threats and avoid hitting squadmates.
+- **Survival:** choose when to heal, perform surgery and recover.
+- **Raid Review integration:** see what bots chose, why, and what actually happened.
 
-- Tactical choices shaped by personality, equipment, known threats and squad support.
-- Doorway approaches, peeks, feints, room entry and ambushes.
-- Cover selection, repositioning, movement and recovery from blocked routes.
-- Hearing, contact memory and reactions to observed enemy actions.
-- Reloading, weapon changes, grenades, healing and tactical equipment.
-- Squad coordination and protection against firing through teammates.
-- Server-side settings, personal presets and Easy, Normal or Hard profiles. Hard is the default.
-- Decision logs and optional Raid Review reports, map badges and hover details.
+Ordinary scavs, bosses and human players keep their usual behavior. COMET keeps your SAIN preset and personalities.
 
-COMET controls standard PMC bots and AI bots that simulate Player Scavs. Human players (including human Player Scavs), ordinary scavs, bosses and custom bot roles are excluded. SAIN must already control the bot; COMET keeps its personality and SAIN settings. In Fika, only the AI host makes decisions. ORBIT Ghost Mode still pauses COMET until the bot wakes.
+## Install and configure
 
-## Integrations
+1. Use **SPT 4.1.6** with **original SAIN 4.5.1** and SAIN's dependencies. Modified SAIN builds are not supported.
+2. Copy the COMET build's `BepInEx` and `SPT_Runtime` folders into your SPT folder.
+3. Start the server and open [COMET settings](https://127.0.0.1:6969/comet).
 
-Requires **official SAIN 4.5.1** and its dependencies on **SPT 4.1**. Startup checks the SAIN binaries and COMET hooks before activating.
+Choose **Easy, Normal or Hard** (default), explore the features and save your own presets. Changes apply next raid. These levels adjust COMET, leaving your SAIN preset unchanged.
 
-Supported integration targets are SAIN alone, SAIN with ORBIT, or SAIN with Questing Bots and Looting Bots. These combinations still need live testing. ORBIT combined with Questing Bots and Looting Bots is not a supported target.
+**ORBIT is optional.** COMET can also run with Questing Bots + Looting Bots. Use one setup or the other. Raid Review is optional and needs a build with COMET support.
 
-`Fika/` contains the optional transport plugin for COMET's door corrections. Multiplayer behavior still needs validation.
+Fika support is experimental. Use matching COMET builds and the optional COMET Fika transport on the AI host/headless and playing clients.
 
-Configuration is available in the server web interface at `/comet`. Changes apply to the next raid. Local diagnostic files are written to `BepInEx/COMET/diagnostics`. The matching Raid Review integration displays decisions and observed outcomes separately: selecting an action does not prove it completed.
-
-**Diagnostics > Logging > Quiet logging** reduces detailed local logs while keeping errors, configuration and raid summaries. Raid Review still receives the same events directly. Quiet is **off by default** for current testing; leave it off when collecting logs for an investigation. Performance capture is a separate setting and is not changed by Quiet.
-
-COMET takes priority over ordinary SAIN squad tactics when it has a usable combat plan. Grenade avoidance, active healing/reloading, close combat and safety retreats keep priority. Diagnostics distinguish accepted plans from observed native actions; an unobserved core action yields after 2 seconds of eligible observation, with a 3-second retry delay. Native cover continuation keeps the original COMET plan when its target and destination still match.
-
-For a stutter investigation, search **Performance** in that interface and enable **Record COMET performance**, then save and play a raid. It is off by default. Reports in `BepInEx/COMET/performance` contain feature timings, managed allocations, slow frames and separate diagnostic/subscriber costs. Keep the whole file and turn capture off afterwards. Measurements add overhead and cover COMET, not the entire game or GPU; a GC counter beside a hitch does not prove COMET caused it. Completed raids have a `performance-end` footer; interrupted sessions keep the report windows already written.
-
-## Build and test
-
-Use the **.NET 10 SDK** and your own local game/mod references. The development projects currently use Windows paths under `C:/Games/SPT-4.1` and `C:/Dev`; adjust those paths for your setup.
-
-Place the official SAIN 4.5.1 `SAIN.dll` and `SAIN.Preset.Shared.dll` in `references/sain-4.5.1/`. Game and dependency binaries are not included in this repository. The optional Fika project also needs a local Fika.Core reference.
-
-Run from the repository root:
-
-```powershell
-New-Item -ItemType Directory -Path artifacts -Force | Out-Null
-dotnet build Client/Comet.Client.csproj -c Release
-dotnet build Server/Comet.Server.csproj -c Release
-dotnet run --project Tests/Comet.Tests.csproj -c Release
-dotnet run --project Tests/IntegrationHarness/IntegrationHarness.csproj -c Release
-```
-
-These commands do not install the mod. `Tools/verify.ps1` runs the broader test suites and Raid Review integration checks; it requires the matching Raid Review checkout on its `comet-integration` branch and the Fika build reference.
-
-Sources, test fixtures, the local web preview and build/verification tools are included. Internal planning documents, generated reports, local configuration, binaries and one-time migration/preview scripts stay outside Git.
+For bug reports, keep **Diagnostics > Quiet logging OFF** and include the files from `BepInEx/COMET/diagnostics`. Quiet reduces local logs without removing Raid Review events.
 
 ## Credits
 
-SAIN by Solarint and its contributors provides the foundation. R_F's zzap work and developer kit informed COMET's features and regression scenarios, with permission to reuse his contributions. COMET also includes its own changes and features. No modified SAIN binary is distributed here.
+**This mod would not exist without R_F's work.** Most of its combat features come from his SAIN zzap work, ported with his permission into a separate mod that requires SAIN, with my tweaks and additions. His developer kit also helped with testing.
+
+Thanks to **Solarint and the SAIN contributors** for the foundation, and everyone testing and reporting bugs.
+
+## AI disclosure, pitchfork edition
+
+**100% AI-generated code.** Very human testing, debugging and evenings spent wondering why a bot is staring at a door.
+
+AI haters: this mod isn't for you. Bye!
+
+Don't try to read the code: it's optimized for LLMs and saving tokens, not human eyes. At least, that's my excuse.
+
+Jokes aside, bug reports and PRs are welcome. Please leave your pitchfork at the door.
+
+---
+
+[Build from source](BUILDING.md) · [MIT license](LICENSE) · [Attribution](THIRD_PARTY_NOTICES.md)

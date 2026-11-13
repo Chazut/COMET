@@ -26,7 +26,7 @@ using UnityEngine;
 
 namespace Comet.Client;
 
-[BepInPlugin("com.chazut.comet", "COMET", "0.1.0")]
+[BepInPlugin("com.chazut.comet", "COMET", CometVersion.Plugin)]
 [BepInDependency("me.sol.sain", "4.5.1")]
 [BepInDependency("com.manimal.csgas", BepInDependency.DependencyFlags.SoftDependency)]
 [BepInDependency("com.fika.core", BepInDependency.DependencyFlags.SoftDependency)]
@@ -56,6 +56,7 @@ public sealed partial class Plugin : BaseUnityPlugin
 
     private void Awake()
     {
+        Logger.LogInfo("COMET " + CometVersion.Release);
         try
         {
             RunIntegration("official-sain-contracts", VerifyIntegrationFiles);
@@ -269,7 +270,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 catch (Exception ex) { Logger.LogError("COMET cannot open diagnostic file; RR events remain available. " + ex.Message); }
                 diagnostics?.WriteEssential(Diagnostics.Serialize(new {schema=1,session,stage="raid-start",map=current.LocationId,botScope="pmc-and-ai-player-scav",
                     utc=DateTime.UtcNow.ToString("O"),realtime=Time.realtimeSinceStartup,
-                    cometVersion=typeof(Plugin).Assembly.GetName().Version?.ToString(),
+                    cometVersion=CometVersion.Release,
                     assemblyMvid=typeof(Plugin).Assembly.ManifestModule.ModuleVersionId.ToString(),
                     sainMvid=typeof(BotComponent).Assembly.ManifestModule.ModuleVersionId.ToString(),
                     authority=Authority,fika=fikaPresent,diagnosticMode="awaiting-config",segmentBytes=64L*1024*1024}));
@@ -680,7 +681,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             arbitration = featureOverride == "A13" && state.ArbitrationReason == reason
                 ? new { reason=state.ArbitrationReason, native=state.ArbitrationNative, expected=state.Expected.ToString(), decision=state.Decision } : null,
             realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"), configRevision = config?.Revision ?? 0,
-            cometVersion = "0.1.0", config=decisionConfiguration.Take(config,session),
+            cometVersion = CometVersion.Release, config=decisionConfiguration.Take(config,session),
             profileId = state.ProfileId, name = state.Name, botInstance = state.Id, botKind = state.BotKind,
             decision = state.Decision, candidates = state.Candidates, mixing = state.Mixing, tacticObservationVersion = 1,
             flank = state.Decision=="Flank" ? new { accepted=state.Flank.MoveAccepted, reason=state.Flank.Reason,

@@ -4,6 +4,13 @@ using System.Linq;
 
 namespace Comet.Core;
 
+public static class CometVersion
+{
+    // BepInEx 5 uses System.Version; the release label is carried by the DLL and reports.
+    public const string Plugin = "1.0.0";
+    public const string Release = "1.0.0-beta.1";
+}
+
 // Startup evidence, not a claim of successful live combat or a heartbeat.
 public class IntegrationReport
 {
@@ -13,7 +20,7 @@ public class IntegrationReport
     public string Phase { get; set; } = "";
     public string Message { get; set; } = "";
     public string Role { get; set; } = "unknown";
-    public string Version { get; set; } = "0.1.0";
+    public string Version { get; set; } = CometVersion.Release;
     public int Targets { get; set; }
     public int Callbacks { get; set; }
     public string[] Notices { get; set; } = Array.Empty<string>();

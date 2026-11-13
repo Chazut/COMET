@@ -94,7 +94,7 @@ public sealed partial class Plugin
         if (acquired) s.CloseNextAcquired = Time.time + .5f; else s.CloseNextLog = Time.time + .5f;
         var json = Diagnostics.Serialize(new { schema = 1, session, sequence = ++sequence, feature = "P05", stage = "evaluated",
             decision = "CloseDetection", reason = t.Reason, realtime = Time.realtimeSinceStartup, utc = DateTime.UtcNow.ToString("O"),
-            cometVersion = "0.1.0", configRevision = config?.Revision ?? 0, closeConfig = config?.CloseDetection,
+            cometVersion = CometVersion.Release, configRevision = config?.Revision ?? 0, closeConfig = config?.CloseDetection,
             profileId = s.ProfileId, name = s.Name, botInstance = s.Id, closeDetection = t, coalesced = s.CloseCoalesced });
         s.CloseCoalesced = 0;
         diagnostics?.Write(json); Api.Decisions.Publish(json, ex => { if (!subscriberWarned) { subscriberWarned = true; Logger.LogWarning(ex.Message); } });

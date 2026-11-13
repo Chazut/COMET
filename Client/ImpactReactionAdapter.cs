@@ -87,7 +87,7 @@ public sealed partial class Plugin
         if(!force&&key==r.LogKey&&Time.time-r.LastHeartbeat<.5f&&t.State=="requested")return;
         r.NextLog=Time.time+.5f;r.LogKey=key;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="P07",stage="evaluated",decision="ImpactReaction",
-            reason=t.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),cometVersion="0.1.0",configRevision=config?.Revision??0,
+            reason=t.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),cometVersion=CometVersion.Release,configRevision=config?.Revision??0,
             impactConfig=config?.ImpactReaction,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,impact=t,coalesced=r.Coalesced});
         r.Coalesced=0;diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
