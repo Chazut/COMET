@@ -71,6 +71,7 @@ public sealed partial class Plugin
             foreach(var operation in supportOperations.Values.ToArray())Step("door-support",()=>EndSupportOperation(operation,"support-raid-ended"));
             foreach(var delivery in movementPending.Values.ToArray())Step("movement-hearing",()=>RemoveMovement(delivery,"movement-cleared"));
             Step("validity-summary",ClearValidity);
+            Step("native-fixes-summary",ClearNativeFixes);
             Step("floor-summary",()=>FlushFloorCounters(true));
             Step("close-summary",()=>FlushCloseCounters(true));
             Step("light-detection",ClearLightDetection);

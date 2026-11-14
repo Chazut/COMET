@@ -48,6 +48,37 @@ foreach(var mode in new[]{"new","near","no-cover","not-protective","incomplete",
 (p,b)=Setup();Aid(b);p.Choose(b);b.Player.HealthController.Parts[EBodyPart.Chest].Current=100;p.Start(b);C(T(p,b).Reason=="medical-need-resolved"&&b.BotOwner.Medecine.FirstAid.Requests==0,"resolved injury not treated again");
 var nativeRestore=typeof(ActiveHealthController).GetMethod("RestoreBodyPart")!;var code=p.Transform(new[]{new HarmonyLib.CodeInstruction(System.Reflection.Emit.OpCodes.Callvirt,nativeRestore)}).ToArray();C(code.Length==2&&code[0].opcode==System.Reflection.Emit.OpCodes.Ldarg_0&&((System.Reflection.MethodInfo)code[1].operand).Name=="NativeRestoreAfterSurgery","scoped surgery Stop transpiler");
 try{p.Transform(Array.Empty<HarmonyLib.CodeInstruction>()).ToArray();C(false,"missing native restore accepted");}catch(InvalidOperationException){checks++;}
+// A native brain/BHF starts the operation before COMET has any per-bot state.
+foreach(bool bhf in new[]{false,true})
+{
+ (p,b)=Setup();p.config!.SurgeryInterruption.Enabled=true;b.EnemyController.KnownEnemies.Clear();
+ var item=Surgery(b);var kit=b.BotOwner.Medecine.SurgicalKit;kit.Bhf=bhf;kit.CurUsingMeds=item;kit._bodyPartToHeal=EBodyPart.LeftLeg;
+ int callbacks=0;Action callback=()=>callbacks++;kit.ApplyToCurrentPart(callback);var originalHands=b.Player.HandsController;
+ C(p.Continue(b),"external surgery adopted without an existing COMET state");
+ C(p.states[b].Medical.ExternalSurgery&&p.states[b].Medical.Interruption.Trace!.Origin=="native","native origin is logged");
+ C(!p.SurgeryAction(b)&&kit.Requests==1&&ReferenceEquals(callback,kit.Done)&&ReferenceEquals(originalHands,b.Player.HandsController),"adoption keeps native/BHF hands, kit and callback");
+ kit.Finish();C(!p.Continue(b)&&callbacks==1,"external completion observed for both callback orders");
+ C(!p.states[b].Medical.ExternalSurgery&&kit.Requests==1,"completed surgery not restarted");
+ p.RestoreOnStop(b);C(b.Player.HealthController.Restores==0,"external surgery exit cannot restore unrelated limbs");
+ events.AddRange(p.diagnostics!.Lines);
+}
+(p,b)=Setup();p.config!.SurgeryInterruption.Enabled=true;b.EnemyController.KnownEnemies.Clear();
+var externalItem=Surgery(b);var externalKit=b.BotOwner.Medecine.SurgicalKit;externalKit.CurUsingMeds=externalItem;externalKit._bodyPartToHeal=EBodyPart.LeftLeg;externalKit.ApplyToCurrentPart();
+C(p.Continue(b),"external surgery safe before contact");b.EnemyController.KnownEnemies.Add(new(b){IsVisible=true});
+C(!p.Continue(b)&&externalKit.Cancels==1,"source danger asks native CancelCurrent exactly once");
+p.Continue(b);p.SurgeryAction(b);C(externalKit.Cancels==1&&externalKit.Requests==1,"no cancel spam or duplicate kit during native return");
+externalKit.Finish(false);p.Continue(b);C(!p.states[b].Medical.ExternalSurgery&&b.Player.HealthController.IsBodyPartDestroyed(EBodyPart.LeftLeg),"cancelled external operation does not heal artificially");
+foreach(string mode in new[]{"scav","client","ghost","off","medical-off"})
+{
+ (p,b)=Setup();var item=Surgery(b);var kit=b.BotOwner.Medecine.SurgicalKit;kit.CurUsingMeds=item;kit._bodyPartToHeal=EBodyPart.LeftLeg;kit.ApplyToCurrentPart();
+ if(mode=="scav")b.Pmc=false;if(mode=="client")p.Authority=false;if(mode=="ghost")p.IsGhost=true;if(mode=="off")p.config!.Enabled=false;if(mode=="medical-off")p.config!.MedicalChoice.Enabled=false;
+ p.Continue(b);C(!p.states.ContainsKey(b)&&kit.Cancels==0&&kit.Requests==1,mode+": native operation remains untouched");
+}
+(p,b)=Setup();b.EnemyController.KnownEnemies.Clear();externalItem=Surgery(b);externalKit=b.BotOwner.Medecine.SurgicalKit;externalKit.CurUsingMeds=externalItem;externalKit._bodyPartToHeal=EBodyPart.LeftLeg;externalKit.ApplyToCurrentPart();p.Continue(b);
+b.EnemyController.KnownEnemies.Add(new(b){IsVisible=true});C(p.Continue(b)&&externalKit.Cancels==0,"disabled interruption module stays disabled for adopted operations");
+b.EnemyController.KnownEnemies.Clear();externalKit._bodyPartToHeal=EBodyPart.RightLeg;b.Player.HealthController.Destroyed.Add(EBodyPart.RightLeg);p.Continue(b);
+C(p.states[b].Medical.Interruption.Trace!.Part=="RightLeg"&&externalKit.Requests==1,"native next-part transition tracked without starting another operation");
+p.IsGhost=true;p.Sample(b);C(!p.states[b].Medical.ExternalSurgery&&externalKit.Cancels==0,"ghost handoff releases monitoring without touching native operation");
 string root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));Directory.CreateDirectory(Path.Combine(root,"artifacts"));File.WriteAllLines(Path.Combine(root,"artifacts/h01-adapter-events.jsonl"),events);
 var fixture=events.Select(JObject.Parse).First(e=>e["medicalChoice"]!["state"]!.Value<string>()=="started"&&e["medicalChoice"]!["choice"]!.Value<string>()=="Surgery");
 File.WriteAllText(Path.Combine(root,"artifacts/h01-medical-choice.json"),fixture.ToString());

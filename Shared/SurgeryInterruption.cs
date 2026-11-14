@@ -43,6 +43,7 @@ public sealed class SurgeryFrame
 }
 public sealed class SurgeryInterruptionTrace
 {
+    public string Origin { get; set; } = "comet";
     public string State { get; set; } = "monitoring";
     public string Reason { get; set; } = "surgery-continue-safe";
     public string Item { get; set; } = "";

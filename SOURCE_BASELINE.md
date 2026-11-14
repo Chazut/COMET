@@ -224,3 +224,42 @@ and difficulty-profile overrides.
   dispersion 7, own grenade 18, performance 134, embedded Fika 28. Release build
   and actual-DLL integration audit pass (766 contracts; four known CoreCLR/native
   delegate limitations). Engine doubles and build tests are not a Unity raid.
+
+### liquidwarp audit: native calculation and surgery fixes
+
+- User-authorized corrections after comparison with official SAIN 4.5.1,
+  installed DLLs, pinned zzap and liquidwarp's source. Exact upstream commits and
+  attribution are in THIRD_PARTY_NOTICES.md. These correct inherited errors;
+  they do not add tactical eligibility, delays, cancellation conditions or rolls.
+- Both PathVisionJob constructors now cast normalized rays over the full segment.
+  The existing masks and query parameters remain. Deferred path calculations no
+  longer consume changed positions, and Clear invalidates the old enemy position.
+  Native path range, knowledge and update interval checks remain unchanged.
+- Grenade landing prediction uses midPoint-to-target for the second ray. The
+  corrected prediction is computed once per throw and supplied only to supported
+  observers. Ordinary scavs, bosses and other callers keep native predictions.
+  Nested calls and exceptions restore the temporary prediction context.
+- Enemy activity reads the target component, and the existing self-target check
+  is made reachable. Native alive, AI owner, active and standby checks remain.
+- Surgery started outside SAIN is adopted without starting another kit or
+  replacing its animation, item, health effects or callbacks. Existing zzap
+  SourceSurgery rules decide whether it continues. Cancellation calls the native
+  CancelCurrent method, allowing BHF to finish the real hands operation. Native
+  instant-heal/restore-all shortcuts are suppressed for the adopted operation,
+  as they already were for COMET-started surgery. BHF remains optional and intact.
+- Baseline recoil decay now uses elapsed time and absolute residual angles.
+  W09 stays optional and unchanged; an explicit HarmonyX __runOriginal check
+  prevents applying both decay steps. Pose and lean use elapsed update time with
+  liquidwarp's 0.25 s resume cap. No recoil coefficients or personality values
+  change, and cheater recoil remains native.
+- All corrections retain COMET's supported-bot/authority/lifetime boundaries.
+  Existing G05 smoke/CS-gas and T01 light/laser corrections are not duplicated.
+  C11 native-fix-summary emits cumulative counters at most every five seconds,
+  plus a final dirty flush. H02 marks adopted surgery with origin=native. Quiet
+  logging leaves the RR event stream intact; neither observer gates gameplay.
+- NativeFixHarness exercises production Harmony patches on native-shaped
+  fixtures, including 30/60/144 Hz updates, negative recoil, W09 ordering,
+  nested/failed grenade events and excluded observers. MedicalHarness covers
+  native surgery adoption, cancellation and both BHF callback orders. Real-DLL
+  registration/IL checks complement these tests. Unity animations, physics and
+  a multiplayer raid still need in-game validation.

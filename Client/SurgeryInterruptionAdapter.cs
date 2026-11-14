@@ -36,7 +36,14 @@ public sealed partial class Plugin
         RecordSurgeryInterruption(s,false);
     }
     private void EndSurgeryInterruption(BotState s,string reason)
-    {if(!s.Medical.Interruption.Active)return;s.Medical.Interruption.End(reason);RecordSurgeryInterruption(s,true);}
+    {
+        s.Medical.ExternalSurgery = false;
+        s.Medical.ExternalSurgeryItem = "";
+        s.Medical.ExternalSurgeryPart = null;
+        if (!s.Medical.Interruption.Active) return;
+        s.Medical.Interruption.End(reason);
+        RecordSurgeryInterruption(s, true);
+    }
     private void RecordSurgeryInterruption(BotState s,bool force)
     {
         var r=s.Medical;var t=r.Interruption.Trace;if(t==null)return;

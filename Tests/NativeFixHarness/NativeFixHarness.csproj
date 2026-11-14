@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><Optimize>false</Optimize>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Client/LiquidwarpFixesAdapter.cs" Link="LiquidwarpFixesAdapter.cs" />
+    <Compile Include="../../Client/NativeTimingAdapter.cs" Link="NativeTimingAdapter.cs" />
+    <PackageReference Include="HarmonyX" Version="2.16.1" />
+  </ItemGroup>
+</Project>

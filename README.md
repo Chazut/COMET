@@ -46,6 +46,8 @@ For bug reports, keep **Diagnostics > Quiet logging OFF** and include the files 
 
 Thanks to **Solarint and the SAIN contributors** for the foundation, and everyone testing and reporting bugs.
 
+Thanks to **[liquidwarp](https://github.com/liquidwarp/SPT-SAIN)** for identifying and fixing native SAIN issues with raycasts, enemy checks, surgery, recoil and animation timing. COMET adapts these fixes while keeping Bot Healing Fixes compatible.
+
 ## AI disclosure, pitchfork edition
 
 **100% AI-generated code.** Very human testing, debugging and evenings spent wondering why a bot is staring at a door.

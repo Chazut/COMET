@@ -32,6 +32,9 @@ internal sealed class MedicalRuntime
     internal float Next, SampleAt, LogAt;
     internal double BeforeHealth, BeforeResource;
     internal bool BeforeDestroyed, Callback, Fault, SurgeryOwned;
+    internal bool ExternalSurgery;
+    internal EBodyPart? ExternalSurgeryPart;
+    internal string ExternalSurgeryItem = "";
     internal string Key = "";
 }
 public sealed partial class Plugin
@@ -218,10 +221,24 @@ public sealed partial class Plugin
     private static bool ContinueMedical(SelfActionDecisionClass __instance,ref ESelfActionType Decision,ref bool __result)
     {
         var p=Instance;var b=__instance.Bot;
-        if(p==null||!p.states.TryGetValue(b,out var s)||!p.MedicalScope(b)||s.Medical.Fault)return true;
+        if(p==null||!p.MedicalScope(b))return true;
+        if(!p.states.TryGetValue(b,out var s))
+        {
+            if(b.BotOwner.Medecine.SurgicalKit.Using!=true)return true;
+            s=new BotState(b,p.config!,p.session);p.states.Add(b,s);
+        }
+        if(s.Medical.Fault)return true;
         try
         {
+            p.AdoptExternalSurgery(b,s);
+            bool external=s.Medical.ExternalSurgery;
             p.SampleMedical(b,s);var r=s.Medical;
+            if(external)
+            {
+                __result=r.ExternalSurgery&&r.Interruption.Active&&!r.Interruption.Cancelling;
+                Decision=__result?ESelfActionType.Surgery:ESelfActionType.None;
+                return false;
+            }
             if(r.Interruption.Cancelling){Decision=ESelfActionType.None;__result=false;return false;}
             if(r.Policy.Active){Decision=MedicalAction(r.Policy.Trace!.Choice);__result=true;return false;}
             if(r.Policy.Trace?.State=="ended"&&b.Decision.CurrentSelfDecision==MedicalAction(r.Policy.Trace.Choice))
@@ -243,6 +260,12 @@ public sealed partial class Plugin
     private static bool ExecuteSurgery(object __instance)
     {
         var p=Instance;var b=(BotComponent)surgeryBot.GetValue(__instance)!;
+        if(p!=null&&p.MedicalScope(b)&&p.states.TryGetValue(b,out var external)&&external.Medical.ExternalSurgery)
+        {
+            p.SampleExternalSurgery(b,external);
+            if(external.Medical.Interruption.Active&&!external.Medical.Interruption.Cancelling)b.Mover.Stop();
+            return false; // The native/BHF operation already owns the hands. Never start another kit.
+        }
         if(p==null||!p.MedicalScope(b)||!p.states.TryGetValue(b,out var s)||s.Medical.Policy.Trace?.Choice!="Surgery")return true;
         // No native instant full-health / restore-all-parts path, only real kit operations.
         s.Medical.SurgeryOwned=true;
@@ -283,6 +306,7 @@ public sealed partial class Plugin
     private void SampleMedical(BotComponent b,BotState s,bool force=false)
     {
         var r=s.Medical;if(!MedicalScope(b)){r.Steps.Clear();EndSurgeryInterruption(s,"surgery-out-of-scope");EndMedical(s,"medical-out-of-scope");return;}
+        if(r.ExternalSurgery){SampleExternalSurgery(b,s);return;}
         SampleSurgeryInterruption(b,s,force);
         if(!r.Policy.Active)return;
         if(!force&&Time.time<r.SampleAt)return;r.SampleAt=Time.time+.1f;

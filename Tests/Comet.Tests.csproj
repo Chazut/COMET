@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><Compile Remove="NativeFixHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="MagazineRecoveryHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="EmbeddedFikaHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="LightDetectionHarness/**/*.cs" /></ItemGroup>
