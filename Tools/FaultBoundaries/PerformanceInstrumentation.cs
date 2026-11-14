@@ -24,7 +24,7 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
         string body=m.ToString();
         bool telemetry=(name.StartsWith("Record")||name.StartsWith("Emit")||name.StartsWith("Configure"))&&(body.Contains("JsonConvert.SerializeObject")||body.Contains("Diagnostics.Serialize("));
         bool diagnostic=File=="Diagnostics"&&(name is "Publish" or "Dispatch" or "Write"||telemetry);
-        bool observer=File is "CombatJournalAdapter" or "ControlJournalAdapter" or "ControlIntegration" or "TacticCountersAdapter" or "ValidityAdapter" || File.StartsWith("Lifecycle") || File.StartsWith("RaidCleanup");
+        bool observer=File is "CombatJournalAdapter" or "ShotJournalAdapter" or "ControlJournalAdapter" or "ControlIntegration" or "TacticCountersAdapter" or "ValidityAdapter" || File.StartsWith("Lifecycle") || File.StartsWith("RaidCleanup");
         if(!body.Contains("Plugin.EnterFault(")&&!telemetry&&!diagnostic&&!observer)return m;
         string module=telemetry?"Diagnostics.BuildEvent."+name:File=="Diagnostics"&&name=="Dispatch"?"Diagnostics.Subscribers":File=="Diagnostics"&&name=="Write"?"Diagnostics.Queue":File.Replace("Adapter","").Replace("Integration","");
         if(module=="Plugin")module="DecisionCoordinator."+name;

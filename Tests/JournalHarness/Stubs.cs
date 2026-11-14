@@ -16,7 +16,8 @@ namespace EFT.InventoryLogic {
  public class Item{public string Id=Guid.NewGuid().ToString("N"),ShortName="Item";public EquipmentSlot? Root;public bool Movable=true;}
  public class Magazine:Item{public int Count=20,MaxCount=20;public bool CheckCompatibility(Ammo a)=>true;}
  public class Ammo:Item{public int StackObjectsCount=30;public Result CheckAction(object? o)=>new();}
- public class Weapon:Item { public EReloadMode ReloadMode;public enum EReloadMode{ExternalMagazine,ExternalMagazineWithInternalReloadSupport,InternalMagazine,OnlyBarrel}public int ChamberAmmoCount=1;public Magazine Magazine=new();public Slot[] Chambers={new()};public Malf MalfState=new();public Slot MagSlot=new();public Magazine GetCurrentMagazine()=>Magazine;public Slot GetMagazineSlot()=>MagSlot;public class Malf{public string State="None";} }
+ public interface IWeapon {}
+ public class Weapon:Item,IWeapon { public EReloadMode ReloadMode;public enum EReloadMode{ExternalMagazine,ExternalMagazineWithInternalReloadSupport,InternalMagazine,OnlyBarrel}public int ChamberAmmoCount=1;public Magazine Magazine=new();public Slot[] Chambers={new()};public Malf MalfState=new();public Slot MagSlot=new();public Magazine GetCurrentMagazine()=>Magazine;public Slot GetMagazineSlot()=>MagSlot;public class Malf{public string State="None";} }
  public class Revolver:Weapon{}
  public class Container{public List<Item> Items=new();}
  public class ContainerCollection:Item{public List<Container> Containers=new();}
@@ -42,10 +43,10 @@ namespace EFT.Ballistics {public class DamageInfo {public Bridge? Player;public 
 namespace SAIN.Helpers{public static class Names{public static string Localized(this string s)=>s;}}
 namespace SAIN {public static class SAINEnableClass{public static Dictionary<string,BotComponent> Bots=new();public static bool GetSAIN(string id,out BotComponent b)=>Bots.TryGetValue(id,out b!);}}
 namespace SAIN.Components {
- public class BotComponent {public bool Pmc=true,BotActive=true,IsDead,GameEnding,SAINLayersActive=true;public string ProfileId=>Player.ProfileId;public Player Player=new();public Owner BotOwner=new();public object? CurrentAction=new HoldAction();public Decision Decision=new();public Enemy? GoalEnemy=new();public Info Info=new();public UnityEngine.Vector3 Position;public void ManualUpdate(){} }
+ public class BotComponent {public bool Pmc=true,BotActive=true,IsDead,GameEnding,SAINLayersActive=true;public string ProfileId=>Player.ProfileId;public Player Player=new();public Owner BotOwner=new();public object? CurrentAction=new HoldAction();public Decision Decision=new();public Enemy? GoalEnemy=new();public ShotData Shoot=new();public ManualData ManualShoot=new();public Info Info=new();public UnityEngine.Vector3 Position;public void ManualUpdate(){} }
  public class HoldAction{}
  public class Decision{public string CurrentCombatDecision="Hold",CurrentSelfDecision="None",CurrentSquadDecision="None";}
- public class Enemy{public string EnemyProfileId="enemy";public bool IsVisible;public double TimeSinceLastKnownUpdated=1;public Places KnownPlaces=new();}
+ public class Enemy:SAIN.SAINComponent.Classes.EnemyClasses.Enemy {}
  public class Places{public UnityEngine.Vector3? LastKnownPosition=new UnityEngine.Vector3();}
  public class Info{public string Personality="Normal";}
 }

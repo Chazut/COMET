@@ -8,8 +8,8 @@
   <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/IntegrationAudit&quot; -c Release -- --methods &quot;$(MSBuildProjectDirectory)/../../Client/ReloadTimingAdapter.cs&quot; &quot;$(MSBuildProjectDirectory)/obj/ReloadResources.cs&quot; ReloadResources" />
   <ItemGroup><Compile Include="obj/ReloadResources.cs" /></ItemGroup>
   <MakeDir Directories="obj/journal-input" />
-  <Copy SourceFiles="../../Client/CombatJournalAdapter.cs" DestinationFolder="obj/journal-input" />
+  <Copy SourceFiles="../../Client/CombatJournalAdapter.cs;../../Client/ShotJournalAdapter.cs" DestinationFolder="obj/journal-input" />
   <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/FaultBoundaries&quot; -c Release -- &quot;$(MSBuildProjectDirectory)/obj/journal-input&quot; &quot;$(MSBuildProjectDirectory)/obj/journal-generated&quot;" />
-  <ItemGroup><Compile Include="obj/journal-generated/CombatJournalAdapter.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="obj/journal-generated/CombatJournalAdapter.cs" /><Compile Include="obj/journal-generated/ShotJournalAdapter.cs" /></ItemGroup>
  </Target>
 </Project>

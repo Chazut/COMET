@@ -19,7 +19,7 @@ foreach(var file in files){var source=File.ReadAllText(file);var tree=CSharpSynt
  foreach(var v in f.Declaration.Variables)fields.Add(new{file=name,name=v.Identifier.Text,type=f.Declaration.Type.ToString(),modifiers=f.Modifiers.ToString()});
  // Counter observation has its own local sink boundary. Never quarantine/release
  // a combat action because a diagnostic read failed (including nested methods).
- var root=name.StartsWith("Performance")||name=="FaultIsolationAdapter"||name.StartsWith("Lifecycle")||name.StartsWith("RaidCleanup")||name=="ControlIntegration"||name=="ControlJournalAdapter"||name=="ValidityAdapter"||name=="Diagnostics"||name=="TacticCountersAdapter"||name=="CombatJournalAdapter"?tree.GetRoot():new Boundaries(name,callbacks,manifest).Visit(tree.GetRoot())!;
+ var root=name.StartsWith("Performance")||name=="FaultIsolationAdapter"||name.StartsWith("Lifecycle")||name.StartsWith("RaidCleanup")||name=="ControlIntegration"||name=="ControlJournalAdapter"||name=="ValidityAdapter"||name=="Diagnostics"||name=="TacticCountersAdapter"||name=="CombatJournalAdapter"||name=="ShotJournalAdapter"?tree.GetRoot():new Boundaries(name,callbacks,manifest).Visit(tree.GetRoot())!;
  if(performance!=null){performance.File=name;root=performance.Visit(root)!;}
  File.WriteAllText(Path.Combine(output,Path.GetFileName(file)),root.NormalizeWhitespace().ToFullString());}
 performance?.Save(output);

@@ -94,6 +94,33 @@ and difficulty-profile overrides.
 
 ## Validation and future changes
 
+### Foliage and flashlight report: native-shot observations
+
+- Compare official SAIN 4.5.1 with the pinned zzap source before changing foliage
+  behavior. Native flashlight detection also runs during daytime: an observer
+  can investigate a visible light projection near an approximate carrier
+  position. This does not directly set the carrier visible or authorize a shot.
+  White light also removes the native weather visibility penalty in its distance
+  band; it is not a universal daytime sight-speed multiplier.
+- SAIN separates cached eye visibility from muzzle clearance. Their aggregate
+  flags can come from different body parts. Native suppression and COMET's
+  source-aligned prefire can shoot toward a known position without current
+  visibility. The inspected COMET gain-sight, shot geometry, prefire and steering
+  paths do not establish an added foliage bypass. A clip alone cannot identify
+  which of these paths fired; ordinary Scavs and boss guards are outside COMET's
+  supported tactical scope.
+- T01 now observes `PlayerComponent.OnMakingShot`, separately from requests to
+  start firing. It samples target identity/source, native cached visibility,
+  muzzle-clear/visible body-part counts, manual-fire reason, contact age and
+  target white light at most once per bot per second. Cumulative counts are
+  emitted at most once per five seconds, with a final lifecycle flush.
+- These are read-only observations: no extra raycasts, aim-point selection,
+  inventory scans or firing vetoes. A failed shot observer disables only that
+  observer. A native last-shot target is labeled as such, and other-layer or
+  unknown manual targets remain unknown. Cached flags do not prove a foliage
+  collider blocked the shot. Record a new raid and correlate an actual clip
+  before making a behavioral change.
+
 ### Raid 443: steering fire and grenade preparation
 
 - Evidence: `8070d276-b0be-4e95-993e-f1e30380cd06`, skylo123, angle reached

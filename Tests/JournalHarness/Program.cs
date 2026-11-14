@@ -74,3 +74,4 @@ Check(Events().Any(x=>(string?)x["profileId"]=="retiring"&&(bool?)(x["weaponJour
 Check(retiring.Player.InventoryController.Scans==1,"suspension never scans the retired inventory");
 p.End();Console.WriteLine($"T01/T03 including service continuity and retirement: {n} checks passed.");
 Plugin.TestBeltReload();
+ShotChecks.Run();

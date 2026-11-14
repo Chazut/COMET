@@ -18,6 +18,7 @@ namespace Comet.Client;
 internal sealed class CombatJournalRuntime
 {
     internal readonly WeaponJournal Weapons=new();
+    internal readonly ShotJournalRuntime Shots=new();
     internal double SampleAt,WeaponAt,ContextAt=-1000,ResourcesAt=-1000,BudgetAt;
     internal int Events;
     internal long Omitted;
@@ -39,6 +40,7 @@ public sealed partial class Plugin
     private sealed class JournalDeath { internal bool Recorded; }
     private static void PatchCombatJournal(Harmony h)
     {
+        h.Patch(AccessTools.Method(typeof(SAIN.Components.PlayerComponentSpace.PlayerComponent),"OnMakingShot"),postfix:new HarmonyMethod(typeof(Plugin),nameof(JournalShotObserved)));
         h.Patch(AccessTools.Method(typeof(BotComponent),nameof(BotComponent.ManualUpdate)),postfix:new HarmonyMethod(typeof(Plugin),nameof(TrackCombatJournal)));
         h.Patch(AccessTools.Method(typeof(BotWeaponSelector),nameof(BotWeaponSelector.TryChangeToSlot)),
             prefix:new HarmonyMethod(typeof(I01JournalWeaponHook),nameof(I01JournalWeaponHook.Before)){priority=int.MaxValue},
@@ -114,6 +116,7 @@ public sealed partial class Plugin
         try
         {
             var r=s.Journal;
+            FlushShotJournal(s);
             if(!JournalScope(b))
             {if(r.Scoped){if(config?.CombatJournal.Enabled==true)JournalWrite(s,"T01","pause","observation-suspended",new{kind="pause"});JournalWeaponEvents(s,r.Weapons.Suspend(Time.time,"observation-suspended"),true);r.Scoped=false;r.Context="";}return;}
             r.Scoped=true;
@@ -173,6 +176,7 @@ public sealed partial class Plugin
     {
         try
         {
+            FlushShotJournal(s,true);
             if(config?.CombatJournal.Enabled==true)JournalWrite(s,"T01","pause",reason,new{kind="pause"});
             JournalWeaponEvents(s,s.Journal.Weapons.Suspend(Time.time,reason),true);
             if(s.Journal.Omitted>0){diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,feature="T03",stage="omitted",count=s.Journal.Omitted}));s.Journal.Omitted=0;}
@@ -247,6 +251,7 @@ public sealed partial class Plugin
     {
         foreach(var s in states.Values)try
         {
+            FlushShotJournal(s,true);
             JournalWeaponEvents(s,s.Journal.Weapons.Suspend(Time.time,"raid-ended"));
             if(s.Journal.Omitted>0)diagnostics?.Write(Diagnostics.Serialize(new{schema=1,session,feature="T03",stage="omitted",count=s.Journal.Omitted}));
         }catch(Exception ex){JournalError(s,ex);}
