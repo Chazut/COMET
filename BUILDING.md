@@ -20,11 +20,9 @@ dotnet run --project Tests/EmbeddedFikaHarness/EmbeddedFikaHarness.csproj -c Rel
 
 These commands do not install the mod. `Tools/verify.ps1` runs the broader test suites and Raid Review integration checks; it requires the matching Raid Review checkout on its `comet-integration` branch and the Fika build reference.
 
-Magazine recovery after an emergency reload is excluded from normal builds,
-including beta 2. Its client layer, runtime code and server setting are not compiled.
-For local development only, add `-p:EnableMagazineRecovery=true` to the client,
-server and core-test commands. Do not distribute that experimental build until
-the feature has been tested in a raid. Rebuild without the flag before packaging.
+Starting with beta 3, magazine recovery after an emergency reload is included in
+all builds and enabled by default. No build flag is needed. Its server setting is
+available under Quick reload; bots recover their dropped magazines after combat.
 
 Sources, test fixtures, the local web preview and build/verification tools are included. Internal planning documents, generated reports, local configuration, binaries and one-time migration/preview scripts stay outside Git.
 

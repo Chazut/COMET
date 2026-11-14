@@ -77,7 +77,7 @@ using (var missing = new EmbeddedFika())
     Check(errors.Count == 1 && errors[0].Contains("Missing embedded"), "bad packaging is reported without crashing the main plugin");
 }
 
-if (args.Length != 2 && args.Length != 3) throw new ArgumentException("Pass the built main DLL and integration DLL paths, optionally the beta 2 server DLL for release checks.");
+if (args.Length != 2 && args.Length != 3) throw new ArgumentException("Pass the built main DLL and integration DLL paths, optionally the server DLL for release checks.");
 using var resolver = new DefaultAssemblyResolver();
 var sptRoot = Environment.GetEnvironmentVariable("SPT_ROOT") ?? @"C:\Games\SPT-4.1";
 resolver.AddSearchDirectory(Path.Combine(sptRoot, "BepInEx", "core"));
@@ -114,13 +114,20 @@ if (args.Length == 3)
     foreach (var assembly in new[] { main, server, bridgeAssembly })
     {
         var version = assembly.CustomAttributes.Single(a => a.AttributeType.Name == "AssemblyInformationalVersionAttribute");
-        Check(Equals(version.ConstructorArguments[0].Value, "1.0.0-beta.2"), assembly.Name.Name + " has the beta 2 version");
-        var types = assembly.MainModule.GetTypes().ToArray();
-        Check(!types.Any(t => t.Name.Contains("MagazineRecovery")), assembly.Name.Name + " has no recovery layer, policy or runtime");
-        Check(!types.SelectMany(t => t.Fields).Any(f => f.Name.Contains("MagazineRecovery")), assembly.Name.Name + " has no recovery state");
-        Check(!types.SelectMany(t => t.Methods).Any(m => m.Name.Contains("MagazineRecovery") || m.Name == "RememberDroppedMagazine"), assembly.Name.Name + " has no recovery entry points");
-        Check(!types.SelectMany(t => t.Properties).Any(p => p.Name == "RecoverDroppedMagazine"), assembly.Name.Name + " has no experimental setting");
+        Check(Equals(version.ConstructorArguments[0].Value, "1.0.0-beta.3"), assembly.Name.Name + " has the beta 3 version");
     }
+    foreach (var assembly in new[] { main, server })
+        Check(assembly.MainModule.GetType("Comet.Core.QuickReloadConfig").Properties.Any(p => p.Name == "RecoverDroppedMagazine"),
+            assembly.Name.Name + " exposes the recovery setting without a build flag");
+    Check(main.MainModule.GetType("Comet.Client.MagazineRecoveryLayer") != null, "standard client includes the recovery layer");
+    Check(main.MainModule.GetType("Comet.Client.MagazineRecoveryRuntime") != null, "standard client includes recovery state");
+    Check(plugin.Methods.Any(m => m.Name == "RememberDroppedMagazine" && m.HasBody), "standard client retains dropped magazines");
+    Check(plugin.Methods.Any(m => m.HasBody
+        && m.Body.Instructions.Any(i => i.Operand is TypeReference t && t.Name == "MagazineRecoveryLayer")
+        && m.Body.Instructions.Any(i => i.Operand is MethodReference call && call.Name == "AddCustomLayer")),
+        "standard client registers recovery with BigBrain");
+    Check(plugin.Methods.Single(m => m.Name == "ObserveDroppedReloadMagazine").Body.Instructions
+        .Any(i => i.Operand is MethodReference m && m.Name == "RememberDroppedMagazine"), "actual reload drops enter the recovery queue");
     Check(main.MainModule.GetTypes().Any(t => t.Name == "QuickReloadPolicy"), "emergency quick reload is retained");
     Check(plugin.Methods.Any(m => m.Name == "ObserveDroppedReloadMagazine"), "normal dropped-magazine diagnostics are retained");
 }

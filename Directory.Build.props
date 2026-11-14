@@ -3,14 +3,11 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <Deterministic>true</Deterministic>
-    <Version>1.0.0-beta.2</Version>
+    <Version>1.0.0-beta.3</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
     <InformationalVersion>$(Version)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <RepositoryUrl>https://github.com/Chazut/COMET</RepositoryUrl>
-    <!-- Untested in raid: opt in only for local development builds. -->
-    <EnableMagazineRecovery Condition="'$(EnableMagazineRecovery)' == ''">false</EnableMagazineRecovery>
-    <DefineConstants Condition="'$(EnableMagazineRecovery)' == 'true'">$(DefineConstants);COMET_MAGAZINE_RECOVERY</DefineConstants>
   </PropertyGroup>
 </Project>

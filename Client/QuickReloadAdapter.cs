@@ -36,9 +36,7 @@ public sealed partial class Plugin
             transpiler:new HarmonyMethod(typeof(Plugin),nameof(RouteQuickReload)));
         h.Patch(AccessTools.Method(typeof(GameWorld),nameof(GameWorld.ThrowItem),new[]{typeof(Item),typeof(IPlayer),typeof(Vector3),typeof(Quaternion),typeof(Vector3),typeof(Vector3),typeof(bool),typeof(bool),typeof(float)}),
             postfix:new HarmonyMethod(typeof(Plugin),nameof(ObserveDroppedReloadMagazine)));
-#if COMET_MAGAZINE_RECOVERY
         BrainManager.AddCustomLayer(typeof(MagazineRecoveryLayer),new(){"PMC","PmcUsec","PmcBear","Assault","ExUsec","Knight","BigPipe","BirdEye"},20);
-#endif
     }
     // Redirect only the call inside BotReload. Preserve its original callback, timers, speech and bookkeeping.
     private static IEnumerable<CodeInstruction> RouteQuickReload(IEnumerable<CodeInstruction> instructions)
@@ -120,10 +118,8 @@ public sealed partial class Plugin
             if(!SAINEnableClass.GetSAIN(player.ProfileId,out var b)||b==null||!p.states.TryGetValue(b,out s)||!s.QuickReload.Policy.Active)return;
             if(!ReferenceEquals(__result.Item,item)||s.QuickReload.Policy.Trace?.OldMagazine!=item.Id.ToString())return;
             s.QuickReload.Policy.Drop(item.Id.ToString(),mag.Count);p.RecordQuickReload(b,s,true);
-#if COMET_MAGAZINE_RECOVERY
             if(p.config?.QuickReload.RecoverDroppedMagazine==true)
                 p.RememberDroppedMagazine(s,__result);
-#endif
         }
         catch(Exception ex){if(s!=null)p.QuickReloadError(s,ex);}
     }

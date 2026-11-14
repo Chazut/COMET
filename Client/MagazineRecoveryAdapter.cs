@@ -1,4 +1,3 @@
-#if COMET_MAGAZINE_RECOVERY
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -181,4 +180,3 @@ public sealed partial class Plugin
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }
-#endif

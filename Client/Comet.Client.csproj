@@ -24,7 +24,7 @@
     <Reference Include="Newtonsoft.Json" HintPath="$(SptRoot)/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" Private="false" />
   </ItemGroup>
   <Target Name="GenerateFaultBoundaries" BeforeTargets="CoreCompile">
-    <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../Tools/FaultBoundaries/FaultBoundaries.csproj&quot; -c Release -- &quot;$(MSBuildProjectDirectory)&quot; &quot;$(MSBuildProjectDirectory)/obj/fault-boundaries&quot; &quot;$(EnableMagazineRecovery)&quot;" />
+    <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../Tools/FaultBoundaries/FaultBoundaries.csproj&quot; -c Release -- &quot;$(MSBuildProjectDirectory)&quot; &quot;$(MSBuildProjectDirectory)/obj/fault-boundaries&quot;" />
     <ItemGroup><Compile Remove="*.cs" /><Compile Include="obj/fault-boundaries/*.cs" /></ItemGroup>
   </Target>
 

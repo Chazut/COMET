@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><DefineConstants>$(DefineConstants);COMET_MAGAZINE_RECOVERY</DefineConstants></PropertyGroup>
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Client/MagazineRecoveryAdapter.cs" Link="MagazineRecoveryAdapter.cs" />
     <Compile Include="../../Shared/MagazineRecovery.cs" Link="MagazineRecovery.cs" />

@@ -1,4 +1,3 @@
-#if COMET_MAGAZINE_RECOVERY
 using DrakiaXYZ.BigBrain.Brains;
 using EFT;
 using SAIN.Layers;
@@ -33,4 +32,3 @@ public sealed class MagazineRecoveryAction : BotAction
         Bot.Steering.SteerByPriority(Bot.GoalEnemy);
     }
 }
-#endif

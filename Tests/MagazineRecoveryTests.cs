@@ -1,4 +1,3 @@
-#if COMET_MAGAZINE_RECOVERY
 using Comet.Core;
 
 static class MagazineRecoveryTests
@@ -24,7 +23,10 @@ static class MagazineRecoveryTests
             Check(MagazineRecovery<object>.CanRecover(enabled,alive,authority,ghost,combat,priority)==(mask==7),"recover only out of combat with authority: "+mask);
         }
         Check(new QuickReloadConfig().RecoverDroppedMagazine,"recovery defaults on");
+        Check(Comet.Server.Editing.EditorCatalog.Read().Fields.ContainsKey("QuickReload.RecoverDroppedMagazine"),
+            "standard server editor exposes recovery");
+        Check(System.Text.Json.JsonSerializer.Deserialize<QuickReloadConfig>("{}")!.RecoverDroppedMagazine,
+            "older saved settings enable recovery without a migration");
         Console.WriteLine($"Magazine recovery policy: {checks} checks passed.");return checks;
     }
 }
-#endif

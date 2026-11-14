@@ -42,9 +42,6 @@ public sealed class EditorCatalog
         using var stream = typeof(EditorCatalog).Assembly.GetManifestResourceStream("Comet.EditorCatalog.json")
             ?? throw new InvalidOperationException("COMET editor catalogue is missing.");
         var catalog = JsonSerializer.Deserialize<EditorCatalog>(stream)!;
-#if !COMET_MAGAZINE_RECOVERY
-        catalog.Fields.Remove("QuickReload.RecoverDroppedMagazine");
-#endif
         foreach(var path in catalog.Fields.Keys.Where(SourceBaselineSettings.IsRetiredPath).ToArray())catalog.Fields.Remove(path);
         foreach (var (path, field) in catalog.Fields)
         {
