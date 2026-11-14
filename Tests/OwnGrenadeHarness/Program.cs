@@ -21,4 +21,8 @@ Physics.Hit=new Collider();C(p.Cover(),"source accepts any solid highpoly ray hi
 Time.Set(3);p.Throw(G(3,1));Time.Set(3.8f);p.Tick(owner);p.ghosts.Add(owner.ProfileId);Time.Set(4);p.Tick(owner);C(owner.Grenade.GrenadeReactionClass.DangerGrenade==null,"ghost releases override");p.ghosts.Clear();
 Time.Set(12);p.Tick(owner);C(p.Count==0,"live object expires after eight seconds");
 p.End();C(p.Count==0,"raid cleanup");
+var nativeSmoke=new SmokeGrenade{Id=-4,ProfileId=owner.ProfileId,WeaponSource=new EFT.InventoryLogic.ThrowWeap()};
+p.Throw(nativeSmoke);C(p.Count==0,"runtime smoke is not tracked as own explosive even with frag throw type");
+var collisionSmoke=G(-5,2);collisionSmoke.GrenadeSettings.CollisionSound=GrenadeSettings.CollisionSounds.smoke;
+p.Throw(collisionSmoke);C(p.Count==0,"collision smoke is not tracked as own explosive even with frag throw type");
 Console.WriteLine($"G04 production adapter: {checks} source checks passed; engine doubles, no Unity raid.");

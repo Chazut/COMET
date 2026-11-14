@@ -27,7 +27,7 @@ namespace BepInEx.Bootstrap{public class Info{public object Instance=new Manimal
 namespace HarmonyLib{public class Harmony{public void Patch(MethodInfo? m,HarmonyMethod? prefix=null,HarmonyMethod? postfix=null){if(m==null)throw new MissingMethodException();}}public class HarmonyMethod(Type t,string n){public int priority;}public static class Priority{public const int First=800;}public static class AccessTools{const BindingFlags Flags=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static;public static FieldInfo? Field(Type t,string n)=>t.GetField(n,Flags);public static MethodInfo? Method(Type t,string n,Type[]? args=null)=>args==null?t.GetMethod(n,Flags):t.GetMethod(n,Flags,null,args,null);}}
 namespace EFT{
  public class Player{public string Protection="None";public Hands HandsController=new();}public class Hands{public bool Busy;public bool IsInInteractionStrictCheck()=>Busy;}
- public class Grenade:Component{}
+ public class Grenade:Component{public GrenadeSettings GrenadeSettings=new();}
  public class SmokeGrenade:Grenade{public SmokeSettings _smokeGrenadeSettings=new();}public class SmokeSettings{public SphereCollider _emissionArea=new();}
  public static class LayersMaskController{public const int GrenadeObstaclesColliderMask=1;}
  public enum EPhraseTrigger{OnBreath}public enum ETagStatus{Dying}
@@ -93,3 +93,5 @@ namespace SAIN.SAINComponent.Classes.WeaponFunction{public class GrenadeReaction
  private SAIN.Models.Enums.EGrenadeReaction GetReaction()=>SAIN.Models.Enums.EGrenadeReaction.Scatter;
  public void Select(SAIN.SAINComponent.SubComponents.GrenadeTrackerClass t){DangerGrenade=t;Reaction=SAIN.Models.Enums.EGrenadeReaction.Scatter;}
 }}
+
+namespace EFT { public class GrenadeSettings { public enum CollisionSounds { frag, smoke } public CollisionSounds CollisionSound; } }

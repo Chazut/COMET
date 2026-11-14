@@ -22,6 +22,12 @@ internal sealed class GrenadeEscapeRuntime
 {
     internal readonly List<OwnGrenadeEvidence> Dangers=new();
     internal readonly HashSet<string> Escaping=new(StringComparer.Ordinal);
+    internal readonly HashSet<string> Live=new(StringComparer.Ordinal);
+    internal readonly OwnGrenadeSafetyConfig Safety=new();
+    internal GrenadeTrackerClass? ReportedDanger;
+    internal EGrenadeReaction ReportedReaction;
+    internal bool NativeReported;
+    internal bool NativeMismatchReported;
     internal readonly List<Vector3> Candidates=new();
     internal readonly List<string> Alternatives=new();
     internal readonly List<GrenadeDispersionLease> DispersionPeers=new();
@@ -64,15 +70,15 @@ public sealed partial class Plugin
             if(Time.time>=r.Next)
             {
                 r.Next=Time.time+(float)config!.GrenadeReaction.Refresh;
-                r.Dangers.Clear();var live=new HashSet<string>();GrenadeTrackerClass? selected=null;OwnGrenadeEvidence? selectedHazard=null;double best=double.MaxValue;
+                r.Dangers.Clear();var live=r.Live;live.Clear();r.Safety.ExitPadding=config.GrenadeReaction.ExitPadding;
+                GrenadeTrackerClass? selected=null;OwnGrenadeEvidence? selectedHazard=null;double best=18; // zzap GRENADE_REACT_DISTANCE
                 void Add(GrenadeTrackerClass? tracker,OwnGrenadeEvidence e,bool own)
                 {
                     // Enemy lifetime belongs to SAIN's live tracker. The eight-second
                     // source retention below applies only to our own thrown grenades.
                     if(e.Exploded||own&&(e.Expired(Time.time)||e.Owner==b.ProfileId&&e.Grace(Time.time,config.OwnGrenadeSafety)))return;
                     r.Dangers.Add(e);string key=e.Owner+":"+e.Projectile;live.Add(key);
-                    var safety=new OwnGrenadeSafetyConfig{ExitPadding=config.GrenadeReaction.ExitPadding};
-                    bool danger=own?OwnGrenadeSafetyRules.Threat(e,DP(b.Position),r.Escaping.Contains(key),Time.time,safety,OwnSolidCover,false)
+                    bool danger=own?OwnGrenadeSafetyRules.Threat(e,DP(b.Position),r.Escaping.Contains(key),Time.time,r.Safety,OwnSolidCover,false)
                         :(e.Position-DP(b.Position)).Length<=7||!OwnSolidCover(DP(b.Position+Vector3.up*1.2f),e.Position+new DoorPoint(0,.1,0));
                     if(!danger){r.Escaping.Remove(key);return;}r.Escaping.Add(key);
                     double score=(e.Position-DP(b.Position)).Length;
@@ -80,7 +86,7 @@ public sealed partial class Plugin
                 }
                 foreach(var t in native.EnemyGrenadesList.Values)
                 {
-                    if(t?.Grenade==null||!t.CanReact||t.Grenade.WeaponSource is not ThrowWeap item||item.IsDummy||item.ThrowType.ToString() is "smoke_grenade" or "gas_grenade")continue;
+                    if(t?.Grenade==null||!t.CanReact||GrenadeKinds.IsSmoke(t.Grenade)||t.Grenade.WeaponSource is not ThrowWeap item||item.IsDummy||item.ThrowType.ToString() is "smoke_grenade" or "gas_grenade")continue;
                     double radius=ClearDangerRadius(item)-1+config.GrenadeReaction.DangerMargin;
                     if(!GrenadeChoiceRules.Finite(radius)||radius<=0||radius>150||!DP(t.DangerPoint).Finite)continue;
 
@@ -91,7 +97,9 @@ public sealed partial class Plugin
                     SampleOwnProjectiles();
                     foreach(var own in ownProjectiles)if(own.Informed.Contains(b.ProfileId))
                     {
-                        var e=own.Evidence;if(r.Dangers.Any(x=>x.Owner==e.Owner&&x.Projectile==e.Projectile))continue;
+                        var e=own.Evidence;bool duplicate=false;
+                        foreach(var known in r.Dangers)if(known.Owner==e.Owner&&known.Projectile==e.Projectile){duplicate=true;break;}
+                        if(duplicate)continue;
                         Add(ReferenceEquals(s.OwnGrenade.Selected,own)?s.OwnGrenade.Tracker:null,e,true);
                     }
                 }
@@ -102,11 +110,13 @@ public sealed partial class Plugin
                 if(selected==null){StopEscapePath(b,r);r.Candidates.Clear();r.RetryAt=0;EndGrenadeTrace(s,"grenade-safe-or-native-track-ended");}
                 else if(r.Trace==null||r.Trace.State=="ended")Release(s,"grenade-escape-priority");
             }
-            // Gas/smoke behavior is outside G05; never overwrite a native reaction to it.
-            if(native.DangerGrenade?.Grenade?.WeaponSource is ThrowWeap special&&special.ThrowType.ToString() is "gas_grenade" or "smoke_grenade")
+            // Only verified, live CS gas owns its native dodge window. Smoke must
+            // not preserve an old Scatter reaction and strand AvoidGrenadeAction.
+            if(IsNativeGasDanger(native.DangerGrenade))
             {DropGrenadeEscape(b,s,"grenade-special-native-priority");return false;}
             if(r.Selected?.Grenade==null){r.Selected=null;r.Hazard=null;StopEscapePath(b,r);EndGrenadeTrace(s,"grenade-native-track-ended");}
-            r.Handled=true;
+            r.Handled=r.Selected!=null&&r.Hazard!=null;
+            RecordNativeGrenadeTransition(b,s,native);
             ownDangerSetter.Invoke(native,new object?[]{r.Selected});
             // Tactical movement is supplied in AvoidGrenadeAction. Native safety selection stays non-aggressive.
             ownReactionSetter.Invoke(native,new object[]{r.Selected==null?EGrenadeReaction.None:EGrenadeReaction.Scatter});
@@ -119,6 +129,8 @@ public sealed partial class Plugin
         var p=Instance;var b=__instance.Bot;
         if(p?.TryGasAction(b)==true)return false;
         if(p==null||!p.EscapeScope(b)||!p.states.TryGetValue(b,out var s)||s.GrenadeEscape.Fault||!s.GrenadeEscape.Handled)return true;
+        if(s.GrenadeEscape.Hazard==null||s.GrenadeEscape.Selected?.Grenade==null)
+        {p.DropGrenadeEscape(b,s,"grenade-action-track-ended");return true;}
         try{p.UpdateGrenadeEscape(b,s);return false;}catch(Exception ex){p.EscapeError(b,s,ex);return true;}
     }
     private void UpdateGrenadeEscape(BotComponent b,BotState s)
@@ -173,12 +185,33 @@ public sealed partial class Plugin
         var r=s.GrenadeEscape;StopEscapePath(b,r);
         if(b!=null&&r.Selected!=null&&ReferenceEquals(b.Grenade.GrenadeReactionClass.DangerGrenade,r.Selected))
         {ownDangerSetter.Invoke(b.Grenade.GrenadeReactionClass,new object?[]{null});ownReactionSetter.Invoke(b.Grenade.GrenadeReactionClass,new object[]{EGrenadeReaction.None});}
-        r.Selected=null;r.Hazard=null;r.Dangers.Clear();r.Escaping.Clear();r.Candidates.Clear();r.Handled=false;r.Next=0;r.RetryAt=0;EndGrenadeTrace(s,reason);
+        r.Selected=null;r.Hazard=null;r.Dangers.Clear();r.Escaping.Clear();r.Live.Clear();r.Candidates.Clear();r.Handled=false;r.Next=0;r.RetryAt=0;EndGrenadeTrace(s,reason);
+        r.ReportedDanger=null;r.NativeReported=false;r.NativeMismatchReported=false;
     }
     private void EscapeError(BotComponent b,BotState s,Exception ex)
     {if(!s.GrenadeEscape.Fault)Logger.LogWarning("G05 yielded to SAIN: "+ex.GetBaseException().Message);s.GrenadeEscape.Fault=true;DropGrenadeEscape(b,s,"grenade-adapter-error");}
     private void EndGrenadeTrace(BotState s,string reason)
     {if(s.GrenadeEscape.Trace is not { } t||t.State=="ended")return;t.State="ended";t.Reason=reason;t.ValidFor=0;WriteGrenadeTrace(s,true);}
+    private void RecordNativeGrenadeTransition(BotComponent b,BotState s,GrenadeReactionClass native)
+    {
+        var r=s.GrenadeEscape;
+        var reaction=r.Handled?EGrenadeReaction.Scatter:EGrenadeReaction.None;
+        bool mismatch=!ReferenceEquals(native.DangerGrenade,r.Selected)||native.Reaction!=reaction;
+        bool alreadyReported=r.NativeReported&&ReferenceEquals(r.ReportedDanger,r.Selected)&&r.ReportedReaction==reaction&&(!mismatch||r.NativeMismatchReported);
+        r.NativeMismatchReported=mismatch;
+        if(alreadyReported)return;
+        bool relevant=r.NativeReported||native.DangerGrenade!=null||native.Reaction!=EGrenadeReaction.None||r.Handled;
+        r.NativeReported=true;r.ReportedDanger=r.Selected;r.ReportedReaction=reaction;
+        if(!relevant)return;
+        var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="G05",stage="native-reaction",
+            reason=r.Handled?"grenade-native-danger-selected":"grenade-native-danger-cleared",realtime=Time.realtimeSinceStartup,
+            utc=DateTime.UtcNow.ToString("O"),profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
+            nativeBefore=native.Reaction.ToString(),reaction=reaction.ToString(),previousProjectile=native.DangerGrenade?.Grenade?.Id,
+            projectile=r.Selected?.Grenade?.Id,tracked=native.EnemyGrenadesList.Count,handled=r.Handled,
+            distance=r.Hazard==null?(double?)null:(DP(b.Position)-r.Hazard.Position).Length});
+        diagnostics?.Write(json);
+        Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
+    }
     private void RecordGrenadeEscape(BotComponent b,BotState s,string state,string reason,bool force=false)
     {
         var r=s.GrenadeEscape;var e=r.Hazard;if(e==null)return;

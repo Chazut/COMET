@@ -188,3 +188,39 @@ and difficulty-profile overrides.
 - For a future deviation: record the raid/bot/time, source behavior, actual failure,
   smallest proposed change and regression test. Compare with a new raid before
   broadening the change.
+
+### Raid 445: stale grenade reaction and non-GC decision spike
+
+- Customs, 2026-11-14: AK_kN stayed stationary from about 85 s until death at
+  641.53 s, with 545.88 s recorded as SAIN AvoidGrenade and no shots. The loot
+  transaction had already released its lock when combat interrupted it. The old
+  diagnostics did not record the native danger identity; the exact projectile
+  responsible for this raid cannot be established retrospectively.
+- Restore the pinned source's smoke classification (runtime SmokeGrenade or
+  smoke collision sound), nearest danger within 18 m, and rebuilding from live
+  trackers instead of retaining an old DangerGrenade. Verified Manimal CS gas
+  keeps the source's first five seconds of native dodge. Ordinary smoke must not
+  preserve Scatter. Own-grenade tracking uses the same smoke classification.
+- AvoidGrenadeAction is owned only with an actual selected hazard. Losing it
+  releases COMET's movement/prone state and yields to native behavior. Enemy
+  lifetime still belongs to SAIN; no new expiry or tactical gate is introduced.
+  Transition-only `G05/native-reaction` events expose old/new danger identity,
+  reaction, range and live tracker count in the async diagnostics and RR stream.
+- Frame 6371 took 162.918 ms, with 102.8774 ms inside COMET and no GC collection.
+  Choose had 30.116 ms self time; the previous instrumentation cannot establish
+  what caused all of it. Cache the exact sorted squad-member identity using a
+  weak dictionary key, checking membership every read without a refresh delay.
+  Reuse grenade selection scratch collections/configuration and avoid duplicate
+  lookup closures. These remove repeated work without altering action selection.
+- Add nested DecisionEvidence scopes for utility capture and native/visible
+  evidence preparation. This measures the formerly opaque decision work rather
+  than adding throttling, cancellation or eligibility rules. A new raid is still
+  required to assess the residual spike and confirm AK_kN's failure is absent.
+- Regression coverage: smoke with misleading frag ThrowType, removed/inactive/
+  distant trackers, lost hazard between selection and action, movement/prone
+  release, repeated diagnostic deduplication, and squad member arrival/departure/
+  same-count replacement with zero allocations over 10,000 unchanged reads.
+- Validation: core 110,361 checks; gas 326, crossfire 285, grenade reaction 63,
+  dispersion 7, own grenade 18, performance 134, embedded Fika 28. Release build
+  and actual-DLL integration audit pass (766 contracts; four known CoreCLR/native
+  delegate limitations). Engine doubles and build tests are not a Unity raid.

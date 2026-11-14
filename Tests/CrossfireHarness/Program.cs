@@ -78,5 +78,17 @@ foreach(TacticalSteeringKind kind in Enum.GetValues<TacticalSteeringKind>())
  C(TacticalSteeringFire.TryShoot(b,kind)==suppress&&b.Suppression.Calls-calls==(suppress?1:0),"source suppression semantics: "+kind);
  b.Suppression.Result=false;C(!TacticalSteeringFire.TryShoot(b,kind),"no eligible shot returns to tactical steering: "+kind);
 }
+var roster=new Dictionary<string,int>{{"b",2},{"a",1}};
+var identity=Comet.Core.SquadMemberIdentity.Get(roster);C(identity=="a|b","identity uses sorted member ids");
+long before=GC.GetAllocatedBytesForCurrentThread();
+for(int i=0;i<10000;i++)Comet.Core.SquadMemberIdentity.Get(roster);
+long allocated=GC.GetAllocatedBytesForCurrentThread()-before;
+C(allocated==0,"unchanged roster has no identity allocations");
+roster.Remove("b");roster.Add("c",3);C(Comet.Core.SquadMemberIdentity.Get(roster)=="a|c","same-count replacement refreshes identity");
+roster.Remove("a");C(Comet.Core.SquadMemberIdentity.Get(roster)=="c","departure refreshes identity");
+roster.Add("z",9);C(Comet.Core.SquadMemberIdentity.Get(roster)=="c|z","arrival refreshes identity");
+roster["c"]=100;C(Comet.Core.SquadMemberIdentity.Get(roster)=="c|z","member value does not affect identity");
+C(Comet.Core.SquadMemberIdentity.Get(new Dictionary<string,int>{{"z",1},{"c",2}})=="c|z","different rosters retain equivalent identity");
+roster.Clear();C(Comet.Core.SquadMemberIdentity.Get(roster)=="","empty roster clears identity");
 var file=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../artifacts/s01-adapter-events.jsonl"));File.WriteAllLines(file,events);
 Console.WriteLine($"S01 source adapter: {n} checks; {events.Count} events. Engine doubles, no raid simulation.");

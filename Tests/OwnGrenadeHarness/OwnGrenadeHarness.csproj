@@ -2,4 +2,4 @@
  <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><NoWarn>CS9113</NoWarn></PropertyGroup>
  <ItemGroup><Compile Include="../../Client/OwnGrenadeSafetyAdapter.cs" Link="OwnGrenadeSafetyAdapter.cs" /><Compile Include="../../Shared/OwnGrenadeSafety.cs" Link="OwnGrenadeSafety.cs" /></ItemGroup>
  <ItemGroup><Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" /></ItemGroup>
-</Project>
+<ItemGroup><Compile Include="../../Client/GrenadeKinds.cs" /></ItemGroup></Project>

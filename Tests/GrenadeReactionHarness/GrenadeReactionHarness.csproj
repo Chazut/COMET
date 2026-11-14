@@ -4,4 +4,4 @@
  <ItemGroup><Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" /></ItemGroup>
  <ItemGroup><Compile Include="../../Client/GrenadeReactionAdapter.cs" Link="GrenadeReactionAdapter.cs" /><Compile Include="../../Shared/GrenadeReaction.cs" Link="GrenadeReaction.cs" /></ItemGroup>
  <ItemGroup><Compile Include="../../Client/GrenadeDispersionAdapter.cs" Link="GrenadeDispersionAdapter.cs" /><Compile Include="../../Shared/GrenadeDispersion.cs" Link="GrenadeDispersion.cs" /></ItemGroup>
-</Project>
+<ItemGroup><Compile Include="../../Client/GrenadeKinds.cs" /></ItemGroup></Project>

@@ -44,5 +44,14 @@ foreach(bool volume in new[]{false,true}){
  if(volume){c.Dead=true;Step(p,b,18.25f);C(p.State(b).Inside&&p.State(b).Trace!.Variant==kind.Item1,"variant retained with lingering volume");}
  streams.AddRange(p.diagnostics!.Lines);p.End();Step(p,b,19);C(!p.State(b).Inside,"variant registry cleared");
 }
-(p,b,c)=Setup();c.Dead=true;var smokeTrack=new GrenadeTrackerClass{Grenade=new EFT.SmokeGrenade()};b.Grenade.GrenadeReactionClass.Select(smokeTrack);p.Filter(b);C(ReferenceEquals(b.Grenade.GrenadeReactionClass.DangerGrenade,smokeTrack),"unregistered smoke untouched");
+(p,b,c)=Setup();c.Dead=true;var smokeTrack=new GrenadeTrackerClass{Grenade=new EFT.SmokeGrenade()};b.Grenade.GrenadeReactionClass.Select(smokeTrack);p.Filter(b);C(b.Grenade.GrenadeReactionClass.DangerGrenade==null,"ordinary smoke cannot preserve a native dodge");
+(p,b,c)=Setup();
+var stale=new GrenadeTrackerClass{Grenade=new EFT.Grenade(),DangerPoint=new(1,0,0)};
+var current=b.Grenade.GrenadeReactionClass;
+current.Select(stale);p.Filter(b);C(current.DangerGrenade==null,"removed grenade clears stale selection");
+current.EnemyGrenadesList[1]=stale;
+stale.CanReact=false;current.Select(stale);p.Filter(b);C(current.DangerGrenade==null,"inactive grenade clears stale selection");
+stale.CanReact=true;stale.DangerPoint=new(50,0,0);current.Select(stale);p.Filter(b);C(current.DangerGrenade==null,"distant grenade clears stale selection");
+stale.DangerPoint=new(1,0,0);stale.Grenade!.GrenadeSettings.CollisionSound=EFT.GrenadeSettings.CollisionSounds.smoke;
+current.Select(stale);p.Filter(b);C(current.DangerGrenade==null,"collision smoke clears stale selection");
 var dir=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../artifacts"));Directory.CreateDirectory(dir);File.WriteAllLines(Path.Combine(dir,"g08-adapter-events.jsonl"),streams);Console.WriteLine($"G08 production adapter + provider bridge: {checks} checks passed (controlled engine doubles, not a raid).");

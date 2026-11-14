@@ -50,6 +50,38 @@ foreach(var scope in new[]{"scav","client","disabled","inactive"}){
 (p,b,t)=Setup();p.config!.OwnGrenadeSafety.Enabled=false;Step(p,b,10);C(p.EscapeTrace(b)?.State=="moving","G05 independent of G04 toggle");
 (p,b,t)=Setup();t.Grenade.WeaponSource!.ThrowType="smoke_grenade";Step(p,b,10);C(b.Mover.Requests==0,"smoke not treated as explosion");
 (p,b,t)=Setup();Step(p,b,10);var owned=b.Mover.ActivePath;var foreign=new BotPathDataManual{PathFinder=b.Mover,NavMeshPath=new()};b.Mover.ActivePath=foreign;p.End();C(ReferenceEquals(b.Mover.ActivePath,foreign),"cleanup never cancels foreign path");C(p.states[b].GrenadeEscape.Dangers.Count==0,"raid clears references");
+// AK_kN regression: a stale native AvoidGrenade must not consume the action
+// when COMET has no live hazard. Use the production postfix without the mock
+// native Update, which would otherwise erase the stale state before the test.
+void NativeState(BotComponent bot,GrenadeTrackerClass? track,EGrenadeReaction reaction){
+ var native=bot.Grenade.GrenadeReactionClass;
+ native.GetType().GetProperty("DangerGrenade")!.SetValue(native,track);
+ native.GetType().GetProperty("Reaction")!.SetValue(native,reaction);
+}
+void FilterOnly(Plugin plugin,BotComponent bot){
+ typeof(Plugin).GetMethod("OwnNativeDanger",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic)!.Invoke(null,new object[]{bot.Grenade.GrenadeReactionClass});
+}
+foreach(var smoke in new Grenade[]{new SmokeGrenade(),new Grenade{GrenadeSettings=new(){CollisionSound=GrenadeSettings.CollisionSounds.smoke}}}){
+ (p,b,t)=Setup();b.Grenade.GrenadeReactionClass.EnemyGrenadesList.Clear();
+ t=new GrenadeTrackerClass(b,smoke,Vector3.zero,1,true){CanReact=true};b.Grenade.GrenadeReactionClass.EnemyGrenadesList.Add(smoke,t);
+ NativeState(b,t,EGrenadeReaction.Scatter);FilterOnly(p,b);
+ C(b.Grenade.GrenadeReactionClass.DangerGrenade==null&&b.Grenade.GrenadeReactionClass.Reaction==EGrenadeReaction.None,"source smoke ignored, including native collision-sound classification");
+ C(p.Act(b)&&!p.states[b].GrenadeEscape.Handled,"smoke releases native action");
+ C(p.diagnostics!.Lines.Any(x=>x.Contains("grenade-native-danger-cleared")),"native stale reaction repair logged");
+}
+(p,b,t)=Setup();b.Grenade.GrenadeReactionClass.EnemyGrenadesList.Clear();FilterOnly(p,b);
+NativeState(b,t,EGrenadeReaction.Scatter);Time.Set(10.2f);FilterOnly(p,b);
+C(p.Act(b)&&b.Grenade.GrenadeReactionClass.Reaction==EGrenadeReaction.None,"stale removed tracker cannot keep AvoidGrenade active");
+int repairLogs=p.diagnostics!.Lines.Count(x=>x.Contains("native-reaction"));
+for(int i=0;i<100;i++){NativeState(b,t,EGrenadeReaction.Scatter);Time.Set(10.4f+i*.2f);FilterOnly(p,b);}
+C(p.diagnostics!.Lines.Count(x=>x.Contains("native-reaction"))==repairLogs,"repeated same native mismatch does not spam diagnostics");
+(p,b,t)=Setup();Step(p,b,10);b.Grenade.GrenadeReactionClass.EnemyGrenadesList.Clear();Step(p,b,10.2f);
+C(p.Act(b)&&b.Mover.ActivePath==null&&!p.states[b].GrenadeEscape.Handled,"last live hazard removal stops owned path and releases native action");
+(p,b,t)=Setup();b.Grenade.GrenadeReactionClass.EstimatedTimeRemaining=.1f;Step(p,b,10);C(b.Mover.Prone.Value,"test reaches source imminent-blast prone");
+b.Grenade.GrenadeReactionClass.EnemyGrenadesList.Clear();Step(p,b,10.2f);C(!b.Mover.Prone.Value&&p.Act(b),"expired prone does not leave bot pinned");
+(p,b,t)=Setup();Step(p,b,10);p.states[b].GrenadeEscape.Hazard=null;C(p.Act(b)&&!p.states[b].GrenadeEscape.Handled,"hazard disappears between selection and action: return to native");
+(p,b,t)=Setup();b.Position=new(19,0,0);Step(p,b,10);C(p.Act(b)&&b.Grenade.GrenadeReactionClass.DangerGrenade==null,"source 18m native reaction range");
+(p,b,t)=Setup();Step(p,b,10);p.End();C(p.states[b].GrenadeEscape.ReportedDanger==null&&p.states[b].GrenadeEscape.Live.Count==0,"cleanup releases cached diagnostic and hazard references");
 var artifacts=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../artifacts"));Directory.CreateDirectory(artifacts);
 File.WriteAllLines(Path.Combine(artifacts,"g05-adapter-events.jsonl"),streams.Where(l=>l.Contains("\"feature\":\"G05\"")));
 Console.WriteLine($"G05 production adapter: {checks} checks passed (controlled engine doubles, not a raid).");

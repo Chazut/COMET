@@ -13,7 +13,7 @@ namespace UnityEngine {
  public struct RaycastHit{public Collider? collider;}
  public static class Physics{public static Collider? Hit;public static bool Linecast(Vector3 a,Vector3 b,int mask)=>Hit!=null;public static bool Linecast(Vector3 a,Vector3 b,out RaycastHit hit,int mask){hit=new(){collider=Hit};return Hit!=null;}}
 }
-namespace EFT {public static class LayersMaskController{public static int HighPolyWithTerrainMask=1;}public class Player{public Vector3 Last;public void Move(Vector2 v){Last=Vector3.zero;}}public class Grenade{public string ProfileId="owner";public int Id;public EFT.InventoryLogic.ThrowWeap? WeaponSource=new();public Transform transform=new();}}
+namespace EFT {public static class LayersMaskController{public static int HighPolyWithTerrainMask=1;}public class Player{public Vector3 Last;public void Move(Vector2 v){Last=Vector3.zero;}}public class Grenade{public GrenadeSettings GrenadeSettings=new();public string ProfileId="owner";public int Id;public EFT.InventoryLogic.ThrowWeap? WeaponSource=new();public Transform transform=new();}}
 namespace EFT.Interactive{public class Door{}}
 namespace EFT.InventoryLogic{public class ThrowWeap{public string Id="item",ThrowType="frag_grenade";public bool IsDummy;public double GetExplDelay=3.5;}}
 namespace EFT.Ballistics{public enum MaterialType{Glass,GlassShattered,Concrete,Stone,MetalThick,MetalThin,WoodThin}public class BallisticCollider{public MaterialType TypeOfMaterial;}}
@@ -62,3 +62,5 @@ namespace Comet.Client{
   internal int Count=>ownProjectiles.Count;internal OwnGrenadeSafetyTrace? Trace(BotComponent b)=>states[b].OwnGrenade.Trace;internal bool Cover()=>OwnSolidCover(new(3,0,0),new(0,0,0));internal void Lose(int id){ownProjectiles.Single(x=>x.Evidence.Projectile==id).Grenade.SetTarget(null!);}
  }
 }
+
+namespace EFT { public class GrenadeSettings { public enum CollisionSounds { frag, smoke } public CollisionSounds CollisionSound; } public class SmokeGrenade:Grenade{} }

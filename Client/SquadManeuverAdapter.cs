@@ -12,7 +12,7 @@ public sealed partial class Plugin
 {
     private readonly SquadManeuverBoard maneuverBoard=new();
     private static string ManeuverGroup(BotComponent b)
-    {var ids=new List<string>(b.Squad.Members.Keys);ids.Sort(StringComparer.Ordinal);return string.Join("|",ids);}
+    => SquadMemberIdentity.Get(b.Squad.Members);
     private static double ManeuverAmmo(BotComponent b)
     {var mag=b.BotOwner.WeaponManager.CurrentWeapon?.GetCurrentMagazine();return mag==null||mag.MaxCount<=0?0:100d*mag.Count/mag.MaxCount;}
     private string ManeuverRearContact(BotComponent b,Vector3 known,out Vector3 rear)

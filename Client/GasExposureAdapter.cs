@@ -53,19 +53,20 @@ public sealed partial class Plugin
   &&NativeAdapter.IsSupportedAi(b)&&b.BotActive&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId);
  private void DisableGas(Exception ex)
  {gasBridge.Ready=false;gasBridge.Clear();Logger.LogWarning("G08 inactive, native AI retained: "+ex.GetBaseException().Message);foreach(var pair in states)DropGas(pair.Key,pair.Value,"gas-provider-unavailable");}
- // Runs before the existing G04/G05 arbitration. Only a verified Manimal grenade is removed
- // from native explosive selection; known explosive tracks remain in their original dictionary.
+ // Rebuild the source's nearest live danger before G04/G05 arbitration. Ordinary
+ // smoke is never an explosive danger; verified CS gas keeps its five-second dodge.
+ private bool IsNativeGasDanger(GrenadeTrackerClass? tracker) =>
+  tracker?.Grenade!=null && gasBridge.Ready && gasBridge.Owns(tracker.Grenade) && tracker.TimeSinceThrown<5;
  private void FilterNativeGas(GrenadeReactionClass native)
  {
   if(!GasScope(native.Bot))return;
   try {
-   var selected=native.DangerGrenade;
-   if(selected!=null&&gasBridge.Owns(selected.Grenade)&&selected.TimeSinceThrown>=5)selected=null;
-   float nearest=selected==null?324:(selected.DangerPoint-native.Bot.Position).sqrMagnitude;
+    GrenadeTrackerClass? selected=null;
+    float nearest=324;
    foreach(var t in native.EnemyGrenadesList.Values){
     if(t?.Grenade==null||!t.CanReact)continue;
     bool gas=gasBridge.Owns(t.Grenade);
-    if(gas?t.TimeSinceThrown>=5:t.Grenade is SmokeGrenade)continue;
+     if(gas?t.TimeSinceThrown>=5:GrenadeKinds.IsSmoke(t.Grenade))continue;
     float d=(t.DangerPoint-native.Bot.Position).sqrMagnitude;
     if(d<nearest){nearest=d;selected=t;}
    }

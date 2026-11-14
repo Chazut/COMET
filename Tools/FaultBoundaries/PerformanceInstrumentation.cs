@@ -25,9 +25,13 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
         bool telemetry=(name.StartsWith("Record")||name.StartsWith("Emit")||name.StartsWith("Configure"))&&(body.Contains("JsonConvert.SerializeObject")||body.Contains("Diagnostics.Serialize("));
         bool diagnostic=File=="Diagnostics"&&(name is "Publish" or "Dispatch" or "Write"||telemetry);
         bool observer=File is "CombatJournalAdapter" or "ShotJournalAdapter" or "ControlJournalAdapter" or "ControlIntegration" or "TacticCountersAdapter" or "ValidityAdapter" || File.StartsWith("Lifecycle") || File.StartsWith("RaidCleanup");
-        if(!body.Contains("Plugin.EnterFault(")&&!telemetry&&!diagnostic&&!observer)return m;
+        bool evidence=File=="ZzapUtilityCapture"&&name=="Fill" ||
+            File=="NativeAdapter"&&name is "Capture" or "Capabilities" or "GrenadeCapability" or "ContinueGrenadeSearch" or "PrepareRoomGrenade" ||
+            File=="VisibleAdapter"&&name is "Capture" or "SelectCover";
+        if(!body.Contains("Plugin.EnterFault(")&&!telemetry&&!diagnostic&&!observer&&!evidence)return m;
         string module=telemetry?"Diagnostics.BuildEvent."+name:File=="Diagnostics"&&name=="Dispatch"?"Diagnostics.Subscribers":File=="Diagnostics"&&name=="Write"?"Diagnostics.Queue":File.Replace("Adapter","").Replace("Integration","");
         if(module=="Plugin")module="DecisionCoordinator."+name;
+        if(evidence)module="DecisionEvidence."+File.Replace("Adapter","")+"."+name;
         int id=modules.IndexOf(module);if(id<0){id=modules.Count;modules.Add(module);}
         var original=m.Body??SyntaxFactory.Block(SyntaxFactory.ParseStatement(m.ReturnType.ToString()=="void"?m.ExpressionBody!.Expression+";":"return "+m.ExpressionBody!.Expression+";"));
         var enter=SyntaxFactory.ParseStatement($"using var __cometPerformanceScope = global::Comet.Client.PerformanceCapture.Enter({id});");

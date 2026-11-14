@@ -70,7 +70,7 @@ public sealed partial class Plugin
     private void OwnProjectileThrown(Grenade grenade)
     {
         if(config?.Enabled!=true||!config.OwnGrenadeSafety.Enabled||!Authority||grenade.WeaponSource is not ThrowWeap item||item.IsDummy
-            ||item.ThrowType.ToString() is "smoke_grenade" or "gas_grenade")return;
+            ||GrenadeKinds.IsSmoke(grenade)||item.ThrowType.ToString() is "smoke_grenade" or "gas_grenade")return;
         var b=states.Keys.FirstOrDefault(x=>x!=null&&x.ProfileId==grenade.ProfileId&&OwnScope(x));if(b==null)return;
         if(ownProjectiles.Any(x=>x.Grenade.TryGetTarget(out var g)&&ReferenceEquals(g,grenade)))return;
         double radius=6; // OwnGrenadeTracker.DANGER_RADIUS

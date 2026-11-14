@@ -10,4 +10,4 @@
   <Compile Include="../../Shared/GrenadeDispersion.cs" Link="GrenadeDispersion.cs" />
   <Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" />
  </ItemGroup>
-</Project>
+<ItemGroup><Compile Include="../../Client/GrenadeKinds.cs" /></ItemGroup></Project>
