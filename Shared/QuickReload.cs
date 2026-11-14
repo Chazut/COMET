@@ -5,6 +5,7 @@ namespace Comet.Core;
 public sealed class QuickReloadConfig
 {
     public bool Enabled { get; set; } = true;
+    public bool RecoverDroppedMagazine { get; set; } = true;
     public double MaxAmmoPercent { get; set; } = 30;
     public double ThreatDistance { get; set; } = 35;
     public double ContactMemory { get; set; } = 3;

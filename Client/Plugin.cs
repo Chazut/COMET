@@ -740,6 +740,8 @@ public sealed partial class Plugin : BaseUnityPlugin
     }
     private void Release(BotState state, string reason, bool clearIntent = true, bool preserveVisiblePlan = false, bool suspendPlan = false)
     {
+        if(MagazineRecovery<object>.ShouldPause(reason))
+            PauseMagazineRecovery(state,reason,MagazineRecovery<object>.ShouldClear(reason));
         if(!suspendPlan)state.PlanService.Clear();
         if(state.ActiveLabel.Length>0 && !suspendPlan)ObserveControlRelease(state,reason);
         EndDoorSpatial(state,reason);
@@ -821,6 +823,7 @@ internal sealed class BotState
     internal readonly CombatJournalRuntime Journal=new();
     internal bool Retired;
     internal readonly BotComponent Owner;
+    internal readonly MagazineRecoveryRuntime MagazineRecovery=new();
     internal readonly MovementRecoveryRuntime MovementRecovery=new();
     internal readonly EncounterRuntime Encounter=new();
     internal readonly DoorTransitRuntime Transit=new();

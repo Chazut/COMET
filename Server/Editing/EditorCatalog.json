@@ -3631,6 +3631,15 @@
       "Section": "QuickReload",
       "Simple": false
     },
+    "QuickReload.RecoverDroppedMagazine": {
+      "Label": "Recover dropped magazines after combat",
+      "Help": "After an emergency reload, return for the discarded magazine when the fight is over. Keeps its remaining ammunition. Combat interrupts recovery; blocked or unavailable magazines are left behind.",
+      "Min": null,
+      "Max": null,
+      "Scale": 1,
+      "Section": "QuickReload",
+      "Simple": false
+    },
     "QuickReload.MaxAmmoPercent": {
       "Label": "Ammo remaining at most",
       "Help": "",
