@@ -22,6 +22,8 @@ public static class ProbeAccess
         return iterator==null?throw new MissingMethodException("No iterator metadata: "+method):Method(iterator,"MoveNext");
     }
     const BindingFlags Flags=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static|BindingFlags.Instance|BindingFlags.DeclaredOnly;
+    public static ConstructorInfo? Constructor(Type type,Type[]? parameters=null,bool searchForStatic=false)
+        =>type.GetConstructor(Flags & ~(searchForStatic?BindingFlags.Instance:BindingFlags.Static),null,parameters??Type.EmptyTypes,null);
     public static MethodInfo? Method(Type? type,string name,Type[]? parameters=null,Type[]? generics=null)
     {
         for(var t=type;t!=null;t=t.BaseType)

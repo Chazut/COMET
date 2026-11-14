@@ -124,6 +124,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             RunIntegration("PatchFloorHearing",()=>PatchFloorHearing(harmony));
 
             RunIntegration("PatchCloseDetection",()=>PatchCloseDetection(harmony));
+            RunIntegration("PatchLightDetection",()=>PatchLightDetection(harmony));
 
             RunIntegration("PatchImpactReaction",()=>PatchImpactReaction(harmony));
 
@@ -254,6 +255,7 @@ public sealed partial class Plugin : BaseUnityPlugin
         }
         FlushFloorCounters();
         FlushCloseCounters();
+        FlushLightDetection();
         FlushImpactCounters();
         var current = Singleton<GameWorld>.Instance;
         if (current == null) current = null; // Normalize destroyed Unity objects.

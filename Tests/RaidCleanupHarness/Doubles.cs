@@ -69,6 +69,8 @@ namespace Comet.Client {
   private void FlushTacticalProbes(bool force=false){} private void ClearLocalDoors(){OtherSteps++;}
   private void ClearValidity(){OtherSteps++;}private void ClearLifecycles(){OtherSteps++;}private void ClearEnvironment(){OtherSteps++;}
   private void FlushFloorCounters(bool all){}private void FlushCloseCounters(bool all){}private void FlushImpactCounters(bool all){}private void FlushMovementSummary(){}
+  public int LightClears;
+  private void ClearLightDetection(){LightClears++;}
   private void WarnFaultSink(Exception e){}private void SafeFaultLog(string text){}
  }
 }

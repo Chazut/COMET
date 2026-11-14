@@ -147,6 +147,38 @@ and difficulty-profile overrides.
   projectile events remain distinct. Confirm real firing/throws in the next raid;
   detached harnesses do not execute Unity animations or prove complete port parity.
 
+### Flashlight and laser detection: inherited native defects
+
+- Report: Scootis described SAIN's light/laser detection as still broken after
+  a partial merge. Source comparison and installed official SAIN 4.5.1 IL
+  confirm two defects; the system itself is registered and is not entirely off.
+  `FlashlightRaycastJob`, `RaycastJob` and `LightDetectionClass` have the same
+  relevant implementation in the pinned zzap reference.
+- The observer-to-light `List<Vector3>` ray constructor uses a non-normalized
+  direction and a constant 1 m range. COMET replaces only its light-job call
+  site with normalized, full-distance rays, matching the correct native array
+  overload. Other consumers of the constructor remain untouched.
+- The native `AddLaserPathPoints` helper has no caller. COMET calls that existing
+  helper after native source ray completion, using pooled private point lists.
+  This restores its 5 m beam sampling, 75 m cap and first-hit truncation, including
+  lasers without a surface impact. Native lists remain unchanged for other bots.
+- This accepted fix intentionally differs from both baselines. It applies only
+  to COMET-supported observers on the AI authority. Native enemy selection,
+  125 m range, IR/NVG gate, ray mask and approximate search reaction remain.
+  It grants neither visual identification nor shooting permission. It does not
+  address every possible device-state issue or prove foliage detection in game.
+- T01 records bounded `light-detection` observations and ten-second counters,
+  distinguishing an occluded job from a native investigation request. A request
+  is not proof the bot completed a search. Quiet logging leaves RR events intact.
+  Stop and raid cleanup release cached references; completed native arrays are
+  never retained. No additional cooldown or gameplay veto is introduced.
+- `LightDetectionHarness` executes the production Harmony transpiler and adapter
+  against detached native-shaped jobs: occlusion beyond 1 m, surface-free lasers,
+  beam truncation, IR vision, authority/scope, cleanup and diagnostic behavior.
+  The real-DLL integration audit separately checks actual SAIN hook signatures
+  and IL matching. Unity physics and the resulting raid behavior still require
+  an in-game test.
+
 - Build client, Fika and server; run the core policy suites and production-adapter
   harnesses with `Tools/verify.ps1`.
 - Validate hook signatures and transpilers against the pinned official SAIN/EFT

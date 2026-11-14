@@ -73,6 +73,7 @@ public sealed partial class Plugin
             Step("validity-summary",ClearValidity);
             Step("floor-summary",()=>FlushFloorCounters(true));
             Step("close-summary",()=>FlushCloseCounters(true));
+            Step("light-detection",ClearLightDetection);
             Step("impact-summary",()=>FlushImpactCounters(true));
             Step("movement-summary",FlushMovementSummary);
             Step("tactical-probe-summary",()=>FlushTacticalProbes(true));

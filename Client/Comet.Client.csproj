@@ -14,6 +14,7 @@
     <Reference Include="Comfort" HintPath="$(SptRoot)/EscapeFromTarkov_Data/Managed/Comfort.dll" Private="false" />
     <Reference Include="DissonanceVoip" HintPath="$(SptRoot)/EscapeFromTarkov_Data/Managed/DissonanceVoip.dll" Private="false" />
     <Reference Include="UnityEngine" HintPath="$(SptRoot)/EscapeFromTarkov_Data/Managed/UnityEngine.dll" Private="false" />
+    <Reference Include="Unity.Collections" HintPath="$(SptRoot)/EscapeFromTarkov_Data/Managed/Unity.Collections.dll" Private="false" />
     <Reference Include="UnityEngine.AudioModule" HintPath="$(SptRoot)/EscapeFromTarkov_Data/Managed/UnityEngine.AudioModule.dll" Private="false" />
     <Reference Include="UnityEngine.AnimationModule" HintPath="$(SptRoot)/EscapeFromTarkov_Data/Managed/UnityEngine.AnimationModule.dll" Private="false" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(SptRoot)/EscapeFromTarkov_Data/Managed/UnityEngine.CoreModule.dll" Private="false" />

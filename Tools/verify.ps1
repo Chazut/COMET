@@ -52,6 +52,7 @@ try {
     Run dotnet @('run', '--project', 'Tests/PostCombatHarness/PostCombatHarness.csproj', '-c', 'Release')
     Run dotnet @('run', '--project', 'Tests/SquadVoiceHarness/SquadVoiceHarness.csproj', '-c', 'Release')
     Run dotnet @('run', '--project', 'Tests/LightHarness/LightHarness.csproj', '-c', 'Release')
+    Run dotnet @('run', '--project', 'Tests/LightDetectionHarness/LightDetectionHarness.csproj', '-c', 'Release')
     Run dotnet @('run', '--project', 'Tests/DevicesHarness/DevicesHarness.csproj', '-c', 'Release')
     Run dotnet @('run', '--project', 'Tests/RestLightsHarness/RestLightsHarness.csproj', '-c', 'Release')
     Run dotnet @('run', '--project', 'Tests/SquadFireHarness/SquadFireHarness.csproj', '-c', 'Release')

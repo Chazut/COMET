@@ -24,6 +24,7 @@ Check(p.Cleaned==4,"all bots cleaned after earlier failures");
 Check(p.states.Count==0&&p.maintenanceSnapshot.Count==0&&p.coverScans.Count==0&&p.clearOwnGrenades.Count==0,"owned bot/scan/tracker registries cleared");
 Check(p.supportOperations.Count==0&&p.movementPending.Count==0,"failed operations do not keep owners");
 Check(p.world==null&&p.config==null&&!p.loading.Pending,"raid world/config detached");
+Check(p.LightClears==1,"raid cleanup invokes light detection cache cleanup");
 Check(ev.Count==0&&p.clearEvents==null,"both event handlers detached despite one failure");
 Check(p.motionWatches.Refs.Count==0&&p.spatialPanels[0]==null&&p.quietCaller==null,"audited secondary roots cleared");
 Check(iterator.Disposed==1&&!scan.MoveNext(),"disposed native search cannot resume even when Dispose throws");
