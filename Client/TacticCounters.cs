@@ -86,6 +86,15 @@ internal sealed class TacticCounters
             // Bounded depth also protects offline fixtures and corrupted diagnostic input.
             using var reader=new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(json)){MaxDepth=48,DateParseHandling=Newtonsoft.Json.DateParseHandling.None};
             var e=JObject.Load(reader);
+            Observe(e);
+        }
+        catch { InvalidEvents++; }
+    }
+    internal void Observe(JObject e)
+    {
+        if(closed)return;
+        try
+        {
             if(S(e["session"])!=session||N(e["schema"])!=1)return;
             string feature=S(e["feature"]),stage=S(e["stage"]);
             if(feature=="T02"&&stage=="configuration")

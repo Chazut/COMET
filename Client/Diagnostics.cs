@@ -308,6 +308,7 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
             writer = Task.Run(() =>
             {
                 var counters=new TacticCounters(session);var journal=new CombatReport(session);
+                var eventReader=new DiagnosticEventReader();
                 StreamWriter? output=null;long bytes=0,skipped=0,quietSuppressed=0;int segment=0;
                 string SegmentPath()=>segment==0?path:Path.Combine(directory,Path.GetFileNameWithoutExtension(path)+".part"+segment.ToString("D4")+".jsonl");
                 void Open(){output=new StreamWriter(new FileStream(SegmentPath(),FileMode.CreateNew,FileAccess.Write,FileShare.Read));bytes=0;}
@@ -334,7 +335,7 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
                         long allocated=sample!=null?(PerformanceAllocation?.Invoke()??0):0;
                         // Quiet only filters the local copy. Counters/reports still
                         // consume all events, and RR's separate publisher is untouched.
-                        counters.Observe(entry.Json);journal.Observe(entry.Json);
+                        eventReader.Observe(entry.Json,counters,journal);
                         if(entry.Persist)Line(entry.Json);else quietSuppressed++;
                         if(queue.Count==0&&output!=null)try{output.Flush();}catch(Exception ex){try{output.Dispose();}catch{}output=null;Warn("COMET diagnostic flush failed: "+ex.Message);}
                         if(sample!=null)try{sample(System.Diagnostics.Stopwatch.GetTimestamp()-start,(PerformanceAllocation?.Invoke()??0)-allocated);}catch{}
@@ -347,6 +348,9 @@ internal sealed class SnapshotDiagnosticResolver : PreparedDiagnosticResolver
                     }
                     Line(JsonConvert.SerializeObject(new { schema = 1, session, stage = "diagnostics-end", segments=segment+1,
                         quietLogging=Volatile.Read(ref quiet)!=0, quietSuppressed,
+                        summaryReader=new { mode="shared-projection-v1", parsedEvents=eventReader.ParsedEvents,
+                            projectedEvents=eventReader.ProjectedEvents, skippedProperties=eventReader.SkippedProperties,
+                            legacyFallbacks=eventReader.LegacyFallbacks },
                         queueDropped = Interlocked.Read(ref dropped), fileLimitDropped = 0, writeFailed = skipped }, Json),true);
                 }
                 catch (Exception ex) { Interlocked.Exchange(ref closed,1); Warn("COMET diagnostics writer failed: " + ex.Message); }

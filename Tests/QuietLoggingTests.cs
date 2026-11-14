@@ -94,6 +94,8 @@ static class QuietLoggingTests
             foreach(var result in new[]{full,quiet})
             {
                 var footer=result.Files.Single(p=>(string?)p["stage"]=="diagnostics-end");
+                Check((string?)footer["summaryReader"]?["mode"]=="shared-projection-v1"&&(long)footer["summaryReader"]!["legacyFallbacks"]! ==0,"projected background reader completed without fallback");
+                Check((long)footer["summaryReader"]!["projectedEvents"]! >0&&(long)footer["summaryReader"]!["skippedProperties"]! >0,"unused snapshots were skipped while keeping reports and RR intact");
                 Check((int)footer["queueDropped"]! ==0&&(int)footer["writeFailed"]! ==0,"no accidental data loss");
                 Check((int)footer["quietSuppressed"]! ==((bool)footer["quietLogging"]!?events.Count:0),"intentional omissions separately counted");
             }

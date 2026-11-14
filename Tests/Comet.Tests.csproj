@@ -16,6 +16,7 @@
   <ItemGroup><Compile Remove="Raid387Harness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="PerformanceHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Include="../Client/PerformanceWriter.cs" Link="PerformanceWriter.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Client/DiagnosticEventReader.cs" Link="DiagnosticEventReader.cs" /></ItemGroup>
   <ItemGroup><Compile Include="../Client/DiagnosticWarmup.cs" Link="DiagnosticWarmup.cs" /></ItemGroup>
   <ItemGroup><None Include="fixtures/u01-original-defaults.json" Link="u01-original-defaults.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
   <ItemGroup><Compile Remove="WeaponReturnHarness/**/*.cs" /></ItemGroup>

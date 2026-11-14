@@ -5,7 +5,7 @@
     <Compile Include="../../Shared/*.cs" />
     <Compile Include="../../Client/PerformanceCapture.cs" />
     <Compile Include="../../Client/PerformanceWriter.cs" />
-    <Compile Include="../../Client/Diagnostics.cs" />
+    <Compile Include="../../Client/DiagnosticEventReader.cs" /><Compile Include="../../Client/Diagnostics.cs" />
     <Compile Include="../../Client/TacticCounters.cs" />
     <Compile Include="../../Client/CombatReport.cs" />
     <Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" />

@@ -57,7 +57,15 @@ internal sealed class CombatReport
         {
             if(json.Length>262144){invalid++;if(json.Contains("\"T04\""))controlInvalid++;return;}
             using var reader=new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(json)){MaxDepth=48,DateParseHandling=Newtonsoft.Json.DateParseHandling.None};
-            var e=JObject.Load(reader);if(S(e["session"],128)!=session||N(e["schema"])!=1)return;
+            Observe(JObject.Load(reader));
+        }catch{invalid++;if(json.Contains("\"T04\""))controlInvalid++;}
+    }
+    internal void Observe(JObject e)
+    {
+        if(closed)return;
+        try
+        {
+            if(S(e["session"],128)!=session||N(e["schema"])!=1)return;
             string feature=S(e["feature"]),stage=S(e["stage"]);
             if(feature=="T04")
             {
@@ -108,7 +116,7 @@ internal sealed class CombatReport
                 case "death":r.Deaths++;last.Remove(bot);break;
                 default:invalid++;break;
             }
-        }catch{invalid++;if(json.Contains("\"T04\""))controlInvalid++;}
+        }catch{invalid++;if(S(e["feature"])=="T04")controlInvalid++;}
     }
     private void Control(JObject e)
     {
