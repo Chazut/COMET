@@ -55,10 +55,13 @@ public sealed partial class Plugin : BaseUnityPlugin
     private bool fikaPresent;
     private Func<string, bool>? isGhost;
     private bool orbitUnavailable;
+    private RaidDiagnostics.DiagnosticStorage? diagnosticStorage;
 
     private void Awake()
     {
         Logger.LogInfo("COMET " + CometVersion.Release);
+        try { diagnosticStorage = new(Config, Path.Combine(BepInEx.Paths.BepInExRootPath, "COMET"), "COMET", message => Logger.LogInfo(message), message => Logger.LogWarning(message)); }
+        catch (Exception e) { Logger.LogWarning("Diagnostic storage configuration: " + e.Message); }
         try
         {
             RunIntegration("official-sain-contracts", VerifyIntegrationFiles);
@@ -260,6 +263,7 @@ public sealed partial class Plugin : BaseUnityPlugin
     private void Update()
     {
         embeddedFika.Update();
+        diagnosticStorage?.Tick(Singleton<GameWorld>.Instantiated, Time.realtimeSinceStartup);
         PerformanceCapture.Tick();
         Api.Decisions.Pump(Time.frameCount);
         if(world!=null&&Time.realtimeSinceStartup>=nextDeliveryReport)
@@ -800,7 +804,7 @@ public sealed partial class Plugin : BaseUnityPlugin
     }
     private void OnDestroy()
     {
-        try { EndRaid("plugin-destroyed"); }
+        try { diagnosticStorage?.Dispose(); EndRaid("plugin-destroyed"); }
         finally { try { embeddedFika.Dispose(); harmony?.UnpatchSelf(); } finally { if (Instance == this) Instance = null; } }
     }
 

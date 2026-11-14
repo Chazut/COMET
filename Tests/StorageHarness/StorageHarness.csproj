@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><StorageSource Condition="'$(StorageSource)' == ''">../../Client/Storage</StorageSource></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(StorageSource)/*.cs" Link="Storage/%(Filename)%(Extension)" />
+    <Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" />
+    <Reference Include="BepInEx" HintPath="C:/Games/SPT-4.1/BepInEx/core/BepInEx.dll" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/UnityEngine.CoreModule.dll" />
+    <Reference Include="UnityEngine" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/UnityEngine.dll" />
+  </ItemGroup>
+</Project>

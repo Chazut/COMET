@@ -40,6 +40,8 @@ Fika support is built into `COMET.dll` and activates automatically when Fika is 
 
 For bug reports, keep **Diagnostics > Quiet logging OFF** and include the files from `BepInEx/COMET/diagnostics`. Quiet reduces local logs without removing Raid Review events.
 
+**F12 > COMET > Diagnostics storage** keeps 20 recent raids and archives older logs within a 5 GB budget, with no age limit. [Storage settings and protected comparisons](DIAGNOSTIC_STORAGE.md).
+
 ## Credits
 
 **This mod would not exist without R_F's work.** Most of its combat features come from his SAIN zzap work, ported with his permission into a separate mod that requires SAIN, with my tweaks and additions. His developer kit also helped with testing.
