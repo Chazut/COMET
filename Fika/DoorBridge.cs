@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using BepInEx;
+using BepInEx.Logging;
 using Comet.Api;
 using Fika.Core.Main.Players;
 using Fika.Core.Modding;
@@ -13,10 +13,7 @@ using UnityEngine;
 
 namespace Comet.Fika;
 
-[BepInPlugin("com.chazut.comet.fika","COMET Fika door transport",Comet.Core.CometVersion.Plugin)]
-[BepInDependency("com.chazut.comet")]
-[BepInDependency("com.fika.core")]
-public sealed class DoorBridge : BaseUnityPlugin
+public sealed class DoorBridge : IDisposable
 {
     private static DoorBridge? instance;
     private IFikaNetworkManager? network;
@@ -34,8 +31,14 @@ public sealed class DoorBridge : BaseUnityPlugin
     private long generation;
     private Func<bool>? readyCallback;
     private Func<EFT.Player,Vector3,bool>? teleportCallback;
-    private void Awake()
+    private ManualLogSource Logger = null!;
+    private bool initialized;
+
+    public void Initialize(ManualLogSource logger)
     {
+        if (initialized) return;
+        initialized = true;
+        Logger = logger;
         instance=this;FikaEventDispatcher.OnFikaEvent+=OnEvent;
         DoorMotionNetwork.Changed+=Changed;DoorMotionNetwork.RaidEnded+=EndRaid;
         DoorMotionNetwork.Ready=readyCallback=()=>network!=null&&host&&peers.SetEquals(ready);
@@ -123,7 +126,7 @@ public sealed class DoorBridge : BaseUnityPlugin
         queued[packet.Door]=packet;
         expires[packet.Door]=Time.unscaledTime+120;applyAt=0;
     }
-    private void Update()
+    public void Update()
     {
         if(network==null)return;
         try
@@ -150,8 +153,10 @@ public sealed class DoorBridge : BaseUnityPlugin
         }
         catch(Exception ex){queued.Clear();expires.Clear();Logger.LogWarning("COMET door sync: "+ex.Message);}
     }
-    private void OnDestroy()
+    public void Dispose()
     {
+        if (!initialized) return;
+        initialized = false;
         FikaEventDispatcher.OnFikaEvent-=OnEvent;DoorMotionNetwork.Changed-=Changed;DoorMotionNetwork.RaidEnded-=EndRaid;
         if(ReferenceEquals(DoorMotionNetwork.Ready,readyCallback))DoorMotionNetwork.Ready=null;
         if(ReferenceEquals(MovementRecoveryNetwork.Teleport,teleportCallback))MovementRecoveryNetwork.Teleport=null;

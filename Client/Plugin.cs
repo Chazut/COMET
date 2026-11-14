@@ -37,6 +37,8 @@ namespace Comet.Client;
 public sealed partial class Plugin : BaseUnityPlugin
 {
     internal static Plugin? Instance;
+    private readonly EmbeddedFika embeddedFika = new();
+    private bool fikaIntegrationReady;
     private readonly Dictionary<BotComponent, BotState> states = new Dictionary<BotComponent, BotState>();
     private Harmony? harmony;
     private GameWorld? world;
@@ -61,7 +63,7 @@ public sealed partial class Plugin : BaseUnityPlugin
         {
             RunIntegration("official-sain-contracts", VerifyIntegrationFiles);
             integration.Report.Phase="optional-integrations";
-            fikaPresent = Chainloader.PluginInfos.Keys.Any(k => k.IndexOf("fika", StringComparison.OrdinalIgnoreCase) >= 0);
+            fikaPresent = Chainloader.PluginInfos.ContainsKey("com.fika.core");
             fikaServer = AccessTools.TypeByName("Fika.Core.Main.Utils.FikaBackendUtils")?.GetProperty("IsServer", BindingFlags.Public | BindingFlags.Static);
             if (fikaPresent && fikaServer?.PropertyType != typeof(bool)) throw new InvalidOperationException("Unknown Fika authority API. COMET is inactive.");
             if(fikaPresent)readFikaServer=(Func<bool>)Delegate.CreateDelegate(typeof(Func<bool>),fikaServer!.GetGetMethod()!);
@@ -237,7 +239,18 @@ public sealed partial class Plugin : BaseUnityPlugin
             }
             catch (Exception ex) { Logger.LogWarning("Diagnostic warmup unavailable: " + ex.Message); }
         }
-        catch (Exception ex) { FailIntegration(ex); }
+        catch (Exception ex) { FailIntegration(ex); return; }
+        fikaIntegrationReady = true;
+    }
+
+    private void Start()
+    {
+        // Start runs after the chainloader has registered every plugin, including
+        // legacy addons that depend on COMET and therefore awaken after us.
+        if (!fikaIntegrationReady) return;
+        embeddedFika.Start(fikaPresent, Chainloader.PluginInfos.ContainsKey("com.chazut.comet.fika"),
+            () => EmbeddedFika.Load(typeof(Plugin).Assembly, "COMET.Fika.Integration.dll", "Comet.Fika.DoorBridge"),
+            Logger, message => Logger.LogInfo(message), message => Logger.LogError(message));
     }
 
     private bool Authority => !fikaPresent || readFikaServer!();
@@ -245,6 +258,7 @@ public sealed partial class Plugin : BaseUnityPlugin
 
     private void Update()
     {
+        embeddedFika.Update();
         PerformanceCapture.Tick();
         Api.Decisions.Pump(Time.frameCount);
         if(world!=null&&Time.realtimeSinceStartup>=nextDeliveryReport)
@@ -783,7 +797,7 @@ public sealed partial class Plugin : BaseUnityPlugin
     private void OnDestroy()
     {
         try { EndRaid("plugin-destroyed"); }
-        finally { try { harmony?.UnpatchSelf(); } finally { if (Instance == this) Instance = null; } }
+        finally { try { embeddedFika.Dispose(); harmony?.UnpatchSelf(); } finally { if (Instance == this) Instance = null; } }
     }
 
 }

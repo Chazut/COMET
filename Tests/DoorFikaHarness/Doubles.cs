@@ -1,10 +1,6 @@
 using Comet.Fika;
 using Fika.Core.Networking.LiteNetLib;
-namespace BepInEx {
- [AttributeUsage(AttributeTargets.Class)]public class BepInPlugin(string a,string b,string c):Attribute{}
- [AttributeUsage(AttributeTargets.Class,AllowMultiple=true)]public class BepInDependency(string a):Attribute{}
- public class BaseUnityPlugin {public Log Logger=new();} public class Log{public void LogWarning(string s)=>Console.WriteLine(s);}
-}
+namespace BepInEx.Logging { public class ManualLogSource { public void LogWarning(string text)=>Console.WriteLine(text); } }
 namespace UnityEngine {public struct Vector3(float x,float y,float z){public float x=x,y=y,z=z;public static float Distance(Vector3 a,Vector3 b)=>(float)Math.Sqrt(Math.Pow(a.x-b.x,2)+Math.Pow(a.y-b.y,2)+Math.Pow(a.z-b.z,2));} public static class Time{public static float unscaledTime;}}
 namespace EFT.Interactive {public class WorldInteractiveObject{public string Id="door";}}
 namespace Fika.Core.Main.Players {public class FikaPlayer:EFT.Player{public void ExecuteInteraction(EFT.Interactive.WorldInteractiveObject door){}}}

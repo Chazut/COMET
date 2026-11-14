@@ -8,8 +8,8 @@ using Fika.Core.Networking.LiteNetLib;
 using Fika.Core.Networking.LiteNetLib.Utils;
 
 int checks=0;void Check(bool value,string why){checks++;if(!value)throw new Exception(why);}
-void Call(DoorBridge b,string name,params object[] args)=>typeof(DoorBridge).GetMethod(name,BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static)!.Invoke(b,args);
-var host=new DoorBridge();Call(host,"Awake");var server=new FikaServer();FikaEventDispatcher.Emit(new FikaNetworkManagerCreatedEvent(server));
+void Call(DoorBridge b,string name,params object[] args)=>typeof(DoorBridge).GetMethod(name,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static)!.Invoke(b,args);
+var host=new DoorBridge();host.Initialize(new BepInEx.Logging.ManualLogSource());var server=new FikaServer();FikaEventDispatcher.Emit(new FikaNetworkManagerCreatedEvent(server));
 var peer=new NetPeer();FikaEventDispatcher.Emit(new PeerConnectedEvent(server,peer));
 Check(!DoorMotionNetwork.Ready!(),"unknown client prevents authoring custom angles");
 server.Receiver!(new(){Kind=2,Door="bad"},peer);Check(!DoorMotionNetwork.Ready!(),"client cannot author state");
@@ -28,9 +28,9 @@ var second=new NetPeer();FikaEventDispatcher.Emit(new PeerConnectedEvent(server,
 server.Receiver!(new(){Kind=0},second);Check(server.Sent.Last().packet.Angle==-90&&server.Sent.Last().peer==second,"late peer receives current custom state");
 Call(host,"AfterInteraction",new EFT.Interactive.WorldInteractiveObject());Call(host,"Update");var fence=server.Sent.Last().packet;
 Check(fence.Kind==3&&fence.Revision>sent.Revision,"new interaction fences old correction");
-Call(host,"OnDestroy");Check(DoorMotionNetwork.Ready==null&&server.Receiver==null,"host subscriptions released");
+Call(host,"Dispose");Check(DoorMotionNetwork.Ready==null&&server.Receiver==null,"host subscriptions released");
 
-var clientBridge=new DoorBridge();Call(clientBridge,"Awake");var client=new FikaClient();FikaEventDispatcher.Emit(new FikaNetworkManagerCreatedEvent(client));Call(clientBridge,"Update");
+var clientBridge=new DoorBridge();clientBridge.Initialize(new BepInEx.Logging.ManualLogSource());var client=new FikaClient();FikaEventDispatcher.Emit(new FikaNetworkManagerCreatedEvent(client));Call(clientBridge,"Update");
 Check(!MovementRecoveryNetwork.Teleport!(bot,new(2,0,0)),"C06 client cannot author relocation");
 Check(client.Sent.Last().packet.Kind==0,"client requests handshake automatically");
 client.Receiver!(new(){Kind=1,Session=session},client.ServerConnection);
@@ -62,4 +62,4 @@ nextClient.Receiver!(sent,nextClient.ServerConnection);Call(clientBridge,"Update
 Check(DoorMotionNetwork.Applied.Count==applications,"C13 stale welcome cannot roll session backwards");
 var nextPacket=sent;nextPacket.Session=nextSession;nextClient.Receiver!(nextPacket,nextClient.ServerConnection);Call(clientBridge,"Update");
 Check(DoorMotionNetwork.Applied.Count==applications+1,"C13 current session still applies");
-Call(clientBridge,"OnDestroy");Check(MovementRecoveryNetwork.Teleport==null,"C06 optional bridge released");Console.WriteLine($"C04 production Fika transport: {checks} checks passed.");
+Call(clientBridge,"Dispose");Check(MovementRecoveryNetwork.Teleport==null,"C06 optional bridge released");Console.WriteLine($"C04 production Fika transport: {checks} checks passed.");

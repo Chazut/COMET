@@ -8,7 +8,7 @@ function Run([string]$Program, [string[]]$Arguments) {
 Push-Location $cometRoot
 try {
     Run dotnet @('build', 'Client/Comet.Client.csproj', '-c', 'Release', '--nologo', '-v', 'quiet')
-    Run dotnet @('build', 'Fika/Comet.Fika.csproj', '-c', 'Release', '--nologo', '-v', 'quiet')
+    Run dotnet @('run', '--project', 'Tests/EmbeddedFikaHarness/EmbeddedFikaHarness.csproj', '-c', 'Release', '--', 'Client/bin/Release/netstandard2.1/COMET.dll', 'Fika/bin/Release/netstandard2.1/COMET.Fika.Integration.dll')
     Run dotnet @('build', 'Server/Comet.Server.csproj', '-c', 'Release', '--nologo', '-v', 'quiet')
     Run dotnet @('run', '--project', 'Tests/Comet.Tests.csproj', '-c', 'Release')
     Run dotnet @('run', '--project', 'Tests/WoodsExecutionHarness/WoodsExecutionHarness.csproj', '-c', 'Release')

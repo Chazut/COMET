@@ -31,7 +31,7 @@ Choose **Easy, Normal or Hard** (default), explore the features and save your ow
 
 **ORBIT is optional.** COMET can also run with Questing Bots + Looting Bots. Use one setup or the other. Raid Review is optional and needs a build with COMET support.
 
-Fika support is included in the same ZIP but hasn't been tested in multiplayer yet. Use matching COMET builds on the AI host/headless and playing clients, with the server files on your SPT server. The Fika component stays inactive in solo.
+Fika support is built into `COMET.dll` and activates automatically when Fika is installed. Remove the old `COMET.Fika.dll` when upgrading. Use matching COMET builds on the AI host/headless and playing clients, with the server files on your SPT server. Solo does not load the Fika component. Multiplayer raid testing is still pending.
 
 For bug reports, keep **Diagnostics > Quiet logging OFF** and include the files from `BepInEx/COMET/diagnostics`. Quiet reduces local logs without removing Raid Review events.
 

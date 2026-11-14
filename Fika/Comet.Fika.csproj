@@ -1,5 +1,5 @@
-<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><AssemblyName>COMET.Fika</AssemblyName><SptRoot>C:\Games\SPT-4.1</SptRoot></PropertyGroup>
-<ItemGroup><ProjectReference Include="../Client/Comet.Client.csproj" Private="false" /><Reference Include="Fika.Core" HintPath="C:/Dev/Fika-Plugin/Fika.Core/bin/Release/netstandard2.1/Fika.Core.dll" Private="false" /></ItemGroup>
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><AssemblyName>COMET.Fika.Integration</AssemblyName><MainAssemblyPath Condition="'$(MainAssemblyPath)' == ''">$(MSBuildProjectDirectory)/../Client/bin/$(Configuration)/netstandard2.1/COMET.dll</MainAssemblyPath><SptRoot>C:\Games\SPT-4.1</SptRoot></PropertyGroup>
+<ItemGroup><Reference Include="COMET" HintPath="$(MainAssemblyPath)" Private="false" /><Reference Include="Fika.Core" HintPath="C:/Dev/Fika-Plugin/Fika.Core/bin/Release/netstandard2.1/Fika.Core.dll" Private="false" /></ItemGroup>
   <ItemGroup>
     <Reference Include="DrakiaXYZ-BigBrain" HintPath="$(SptRoot)/BepInEx/plugins/DrakiaXYZ-BigBrain.dll" Private="false" />
     <Reference Include="BepInEx" HintPath="$(SptRoot)/BepInEx/core/BepInEx.dll" Private="false" />
