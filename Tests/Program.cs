@@ -20,7 +20,13 @@ if(args.Length==2 && args[0]=="--suite")
 }
 
 int checks = 0;
+#if COMET_MAGAZINE_RECOVERY
 checks += MagazineRecoveryTests.Run();
+#else
+if (typeof(QuickReloadConfig).GetProperty("RecoverDroppedMagazine") != null)
+    throw new Exception("Release builds must not expose experimental magazine recovery.");
+checks++;
+#endif
 checks += HotPathAllocationTests.Run();
 checks += DiagnosticWarmupTests.Run();
 checks += DiagnosticEventReaderTests.Run();

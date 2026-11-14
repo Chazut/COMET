@@ -77,7 +77,7 @@ using (var missing = new EmbeddedFika())
     Check(errors.Count == 1 && errors[0].Contains("Missing embedded"), "bad packaging is reported without crashing the main plugin");
 }
 
-if (args.Length != 2) throw new ArgumentException("Pass the built main DLL and integration DLL paths.");
+if (args.Length != 2 && args.Length != 3) throw new ArgumentException("Pass the built main DLL and integration DLL paths, optionally the beta 2 server DLL for release checks.");
 using var resolver = new DefaultAssemblyResolver();
 var sptRoot = Environment.GetEnvironmentVariable("SPT_ROOT") ?? @"C:\Games\SPT-4.1";
 resolver.AddSearchDirectory(Path.Combine(sptRoot, "BepInEx", "core"));
@@ -108,4 +108,20 @@ Check(reference.FullName == main.Name.FullName, "bootstrap reference matches the
 var entry = bridgeAssembly.MainModule.GetType("Comet.Fika.DoorBridge");
 Check(entry != null && new[] { "Initialize", "Update", "Dispose" }.All(n => entry.Methods.Any(m => m.Name == n && m.IsPublic)),
     "embedded bridge exposes the required lifecycle");
+if (args.Length == 3)
+{
+    using var server = AssemblyDefinition.ReadAssembly(args[2]);
+    foreach (var assembly in new[] { main, server, bridgeAssembly })
+    {
+        var version = assembly.CustomAttributes.Single(a => a.AttributeType.Name == "AssemblyInformationalVersionAttribute");
+        Check(Equals(version.ConstructorArguments[0].Value, "1.0.0-beta.2"), assembly.Name.Name + " has the beta 2 version");
+        var types = assembly.MainModule.GetTypes().ToArray();
+        Check(!types.Any(t => t.Name.Contains("MagazineRecovery")), assembly.Name.Name + " has no recovery layer, policy or runtime");
+        Check(!types.SelectMany(t => t.Fields).Any(f => f.Name.Contains("MagazineRecovery")), assembly.Name.Name + " has no recovery state");
+        Check(!types.SelectMany(t => t.Methods).Any(m => m.Name.Contains("MagazineRecovery") || m.Name == "RememberDroppedMagazine"), assembly.Name.Name + " has no recovery entry points");
+        Check(!types.SelectMany(t => t.Properties).Any(p => p.Name == "RecoverDroppedMagazine"), assembly.Name.Name + " has no experimental setting");
+    }
+    Check(main.MainModule.GetTypes().Any(t => t.Name == "QuickReloadPolicy"), "emergency quick reload is retained");
+    Check(plugin.Methods.Any(m => m.Name == "ObserveDroppedReloadMagazine"), "normal dropped-magazine diagnostics are retained");
+}
 Console.WriteLine($"COMET embedded Fika: {checks} checks passed (solo, Fika, failures, legacy upgrade, built artifacts).");

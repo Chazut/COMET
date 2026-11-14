@@ -1,3 +1,4 @@
+#if COMET_MAGAZINE_RECOVERY
 using System.Collections.Generic;
 
 namespace Comet.Core;
@@ -22,3 +23,4 @@ public sealed class MagazineRecovery<T> where T:class
     public static bool CanRecover(bool enabled,bool alive,bool authority,bool ghost,bool combat,bool nativePriority)
         =>enabled&&alive&&authority&&!ghost&&!combat&&!nativePriority;
 }
+#endif

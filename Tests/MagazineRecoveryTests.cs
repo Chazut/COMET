@@ -1,3 +1,4 @@
+#if COMET_MAGAZINE_RECOVERY
 using Comet.Core;
 
 static class MagazineRecoveryTests
@@ -26,3 +27,4 @@ static class MagazineRecoveryTests
         Console.WriteLine($"Magazine recovery policy: {checks} checks passed.");return checks;
     }
 }
+#endif

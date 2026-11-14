@@ -42,7 +42,9 @@ public sealed partial class Plugin
             Step("PistolSwap",()=>EndPistolSwap(s,reason));
             Step("WeaponReturn",()=>EndWeaponReturn(s,reason));
             Step("QuickReload",()=>EndQuickReload(s,reason));
-            Step("MagazineRecovery",()=>PauseMagazineRecovery(s,reason,true));
+#if COMET_MAGAZINE_RECOVERY
+        Step("MagazineRecovery",()=>PauseMagazineRecovery(s,reason,true));
+#endif
             Step("WeaponRange",()=>EndWeaponRange(s,reason));
             Step("WeaponSync",()=>EndWeaponSync(s,reason));
             Step("Discipline",()=>EndDiscipline(s,reason));

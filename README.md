@@ -11,7 +11,7 @@
 
 Bots that flank you, approach quietly, work together and change tactics during a fight. COMET expands combat for **PMCs and AI Player Scavs**, building on the original **SAIN**.
 
-**Beta 1** - playable development build, still being tested and improved.
+**Beta 2** - playable development build, still being tested and improved.
 
 ## What it does
 

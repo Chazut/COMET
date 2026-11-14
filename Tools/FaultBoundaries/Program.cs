@@ -8,13 +8,16 @@ using System.Text.RegularExpressions;
 // or reflection Invoke in the normal execution path. Originals remain usable by narrow harnesses.
 var input=Path.GetFullPath(args[0]);var output=Path.GetFullPath(args[1]);Directory.CreateDirectory(output);
 var files=Directory.GetFiles(input,"*.cs");var callbacks=new Dictionary<string,string>();
+var parseOptions = new CSharpParseOptions(preprocessorSymbols:
+    args.Length > 2 && bool.TryParse(args[2], out var recovery) && recovery
+        ? new[] { "COMET_MAGAZINE_RECOVERY" } : Array.Empty<string>());
 var sourceNames=new HashSet<string>(files.Select(f=>Path.GetFileName(f)!),StringComparer.OrdinalIgnoreCase);
 foreach(var stale in Directory.GetFiles(output,"*.cs"))if(!sourceNames.Contains(Path.GetFileName(stale)))File.Delete(stale);
 foreach(var file in files)foreach(Match m in Regex.Matches(File.ReadAllText(file),@"(prefix|postfix|finalizer|transpiler):\s*new HarmonyMethod\(typeof\(\w+\),\s*nameof\((?:\w+\.)?(\w+)\)"))callbacks[m.Groups[2].Value]=m.Groups[1].Value;
 var manifest=new List<object>();
 var fields=new List<object>();
 var performance=File.Exists(Path.Combine(input,"PerformanceCapture.cs"))?new PerformanceInstrumentation():null;
-foreach(var file in files){var source=File.ReadAllText(file);var tree=CSharpSyntaxTree.ParseText(source);var name=Path.GetFileNameWithoutExtension(file);
+foreach(var file in files){var source=File.ReadAllText(file);var tree=CSharpSyntaxTree.ParseText(source, parseOptions);var name=Path.GetFileNameWithoutExtension(file);
  foreach(var f in tree.GetRoot().DescendantNodes().OfType<FieldDeclarationSyntax>().Where(f=>(f.Parent as ClassDeclarationSyntax)?.Identifier.Text=="Plugin"))
  foreach(var v in f.Declaration.Variables)fields.Add(new{file=name,name=v.Identifier.Text,type=f.Declaration.Type.ToString(),modifiers=f.Modifiers.ToString()});
  // Counter observation has its own local sink boundary. Never quarantine/release
