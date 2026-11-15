@@ -27,7 +27,13 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
         bool observer=File is "CombatJournalAdapter" or "ShotJournalAdapter" or "ControlJournalAdapter" or "ControlIntegration" or "TacticCountersAdapter" or "ValidityAdapter" || File.StartsWith("Lifecycle") || File.StartsWith("RaidCleanup");
         bool evidence=File=="ZzapUtilityCapture"&&name=="Fill" ||
             File=="NativeAdapter"&&name is "Capture" or "Capabilities" or "GrenadeCapability" or "ContinueGrenadeSearch" or "PrepareRoomGrenade" ||
-            File=="VisibleAdapter"&&name is "Capture" or "SelectCover";
+            File=="VisibleAdapter"&&name is "Capture" or "SelectCover" ||
+            File=="MedicalChoiceAdapter"&&name is "MedicalFrame" or "MedicalSupplies" ||
+            File=="LoadoutAdapter"&&name=="Read" ||
+            File=="OpponentAdapter"&&name=="ReadOpponent" ||
+            File=="EnvironmentContextAdapter"&&name=="RefreshEnvironment" ||
+            File=="SightIntegration"&&name=="RefreshSight" ||
+            File=="Diagnostics"&&name=="Serialize";
         if(!body.Contains("Plugin.EnterFault(")&&!telemetry&&!diagnostic&&!observer&&!evidence)return m;
         string module=telemetry?"Diagnostics.BuildEvent."+name:File=="Diagnostics"&&name=="Dispatch"?"Diagnostics.Subscribers":File=="Diagnostics"&&name=="Write"?"Diagnostics.Queue":File.Replace("Adapter","").Replace("Integration","");
         if(module=="Plugin")module="DecisionCoordinator."+name;

@@ -19,7 +19,9 @@ internal sealed class MagazineRecoveryRuntime
     internal readonly MagazineRecovery<LootItem> Pending=new();
     internal IBotPathData? Path;
     internal Task<IResult>? Transaction;
-    internal bool Active,Picking,Ready;
+    internal bool Active,Arrived,Picking,Ready;
+    internal object? PickupRequestedFrom;
+    internal Action? PickupCallback;
     internal int Token;
     internal float NextMove,ProgressAt,BestDistance,PickupAt,TransactionAt;
 }
@@ -29,7 +31,7 @@ public sealed partial class Plugin
     private void RememberDroppedMagazine(BotState s,LootItem item)
     {
         if(s.MagazineRecovery.Pending.Remember(item.Item.Id.ToString(),item))
-            RecordMagazineRecovery(s,"queued","actual emergency reload drop",item.Item.Id.ToString());
+            RecordMagazineRecovery(s,"queued","actual emergency reload drop",item.Item.Id.ToString(),item);
     }
 
     internal static bool MagazineRecoveryActive(BotOwner owner)
@@ -111,16 +113,41 @@ public sealed partial class Plugin
             return;
         }
         StopMagazineRoute(b,r);
+        if(b.Mover.ActivePath==null)b.Player.Move(Vector2.zero);
         // Proximity alone must not collect a magazine through a wall or on another floor.
         var head=b.Position+Vector3.up*1.4f;
         if(Physics.Linecast(head,goal+Vector3.up*.05f,out var hit,LayerMask.GetMask("HighPolyCollider","Terrain","Door"),QueryTriggerInteraction.Ignore)
             &&hit.collider.GetComponentInParent<LootItem>()!=loot)
         {FinishMagazineRecovery(s,"failed","pickup obstructed: "+hit.collider.name);return;}
+        if(!r.Arrived)
+        {
+            r.Arrived=true;r.Ready=false;r.PickupAt=Time.time;
+            RecordMagazineRecovery(s,"arrived","within pickup range");
+        }
+        if(r.Picking&&!r.Ready&&!ReferenceEquals(b.Player.MovementContext.OverridenState,b.Player.MovementContext.PickUpState))
+        {
+            r.Picking=false;r.PickupRequestedFrom=null;r.Token++;
+            RecordMagazineRecovery(s,"pickup-wait","native pickup state interrupted");
+        }
         if(!r.Picking)
         {
-            r.Picking=true;r.Ready=false;r.PickupAt=Time.time;int token=++r.Token;
-            b.Player.CurrentManagedState.Pickup(true,()=>{if(r.Token==token)r.Ready=true;});
-            RecordMagazineRecovery(s,"arrived","pickup animation started");return;
+            // MovePlayerState inherits the empty Pickup implementation. Stopping the
+            // route does not synchronously enter Idle, so retry after the native state
+            // changes instead of treating the first call as a started animation.
+            var movement=b.Player.MovementContext;
+            var current=b.Player.CurrentManagedState;
+            if(movement.OverridenState==null&&!ReferenceEquals(r.PickupRequestedFrom,current))
+            {
+                r.PickupRequestedFrom=current;int token=++r.Token;
+                r.PickupCallback=()=>{if(r.Token==token)r.Ready=true;};
+                current.Pickup(true,r.PickupCallback);
+                r.Picking=ReferenceEquals(movement.OverridenState,movement.PickUpState);
+                RecordMagazineRecovery(s,r.Picking?"pickup-started":"pickup-wait",
+                    r.Picking?"native pickup state entered":"waiting for native idle state");
+            }
+            if(!r.Picking&&Time.time-r.PickupAt>8)
+                FinishMagazineRecovery(s,"failed","native pickup state not entered");
+            return;
         }
         if(!r.Ready)
         {if(Time.time-r.PickupAt>8)FinishMagazineRecovery(s,"failed","pickup animation did not finish");return;}
@@ -129,6 +156,7 @@ public sealed partial class Plugin
         if(!place.Succeeded){FinishMagazineRecovery(s,"failed","no compatible inventory space");return;}
         // Native transaction consumes the existing LootItem. No spawned or duplicated magazine.
         r.TransactionAt=Time.time;
+        RecordMagazineRecovery(s,"pickup-ready","native animation callback received");
         r.Transaction=inventory.TryRunNetworkTransaction(place,null);
     }
 
@@ -154,7 +182,13 @@ public sealed partial class Plugin
         var r=s.MagazineRecovery;
         if(r.Active&&emit)RecordMagazineRecovery(s,"interrupted",reason);
         r.Active=false;StopMagazineRoute(s.Owner,r);
-        if(r.Picking){r.Picking=false;r.Ready=false;r.Token++;try{s.Owner.Player.CurrentManagedState.Pickup(false,null);s.Owner.Player.UpdateInteractionCast();}catch{}}
+        var movement=s.Owner.Player.MovementContext;
+        if(r.Picking&&ReferenceEquals(movement.OverridenState,movement.PickUpState)
+            &&(ReferenceEquals(movement.PickupAction,r.PickupCallback)||r.Ready&&movement.PickupAction==null))
+        {try{s.Owner.Player.CurrentManagedState.Pickup(false,null);s.Owner.Player.UpdateInteractionCast();}catch{}}
+        if(ReferenceEquals(movement.PickupAction,r.PickupCallback))movement.PickupAction=null;
+        r.Picking=false;r.Ready=false;r.Arrived=false;r.Token++;
+        r.PickupRequestedFrom=null;r.PickupCallback=null;
         if(clear)
         {
             // Observe late faults without retaining a bot/world in a continuation.
@@ -170,13 +204,17 @@ public sealed partial class Plugin
         r.Path=null;
     }
 
-    private void RecordMagazineRecovery(BotState s,string stage,string reason,string? magazine=null)
+    private void RecordMagazineRecovery(BotState s,string stage,string reason,string? magazine=null,LootItem? dropped=null)
     {
-        var item=s.MagazineRecovery.Pending.Item;var at=item==null?(Vector3?)null:item.transform.position;
+        var item=dropped??s.MagazineRecovery.Pending.Item;var at=item==null?(Vector3?)null:item.transform.position;
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="W04",stage,decision="RecoverMagazine",reason,
             realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,
             profileId=s.ProfileId,name=s.Name,botInstance=s.Id,
-            magazineRecovery=new{magazine=magazine??s.MagazineRecovery.Pending.Id,pending=s.MagazineRecovery.Pending.Count,x=at?.x,y=at?.y,z=at?.z}});
+            magazineRecovery=new{magazine=magazine??s.MagazineRecovery.Pending.Id,pending=s.MagazineRecovery.Pending.Count,
+                template=item?.Item?.TemplateId.ToString(),itemName=item?.Item?.LocalizedShortName(),
+                movementState=s.Owner.Player.CurrentManagedState?.GetType().Name,
+                pickupStateEntered=s.MagazineRecovery.Picking,callbackReceived=s.MagazineRecovery.Ready,
+                x=at?.x,y=at?.y,z=at?.z}});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }
 }

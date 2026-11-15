@@ -263,3 +263,34 @@ and difficulty-profile overrides.
   native surgery adoption, cancellation and both BHF callback orders. Real-DLL
   registration/IL checks complement these tests. Unity animations, physics and
   a multiplayer raid still need in-game validation.
+
+## Raid 454: native magazine pickup and observer work
+
+The discarded-magazine feature is a COMET integration, not an extra tactical
+constraint on the pinned zzap decisions. The installed EFT MovePlayerState
+inherits an empty Pickup method; IdlePlayerState enters the actual pickup state,
+which invokes its callback from the animation. Stop movement and retry when the
+native state changes. Confirm success only from the existing item transaction
+and inventory membership. Combat handoff, authority, supported bots and Ghost
+behavior retain their existing rules. Interrupted callbacks cannot transfer an
+item later or cancel an unrelated pickup. Arrival is no longer logged as proof
+that the animation started.
+
+RR receives the same W04 recovery lifecycle in Quiet mode, including the actual
+dropped item's identity and position. The compact map projection, replay parser,
+action labels and ground-loot timeline now consume it. Failed/interrupted recovery
+does not remove the item marker. Confirmed pickup, including by another bot, does.
+Historical raid 454 remains a failed pickup, not a retroactive success.
+
+Medical evaluation reads the seven body parts once within each synchronous call,
+reuses private scratch dictionaries and creates options only for winning candidates.
+Ranks, tie breaking, native eligibility, surgery policy, random draws and evaluation
+frequency are unchanged. No cross-frame health cache or new cooldown is introduced.
+Separate performance scopes expose medical sampling, inventory evaluation, equipment,
+environment, sight and diagnostic serialization costs. The recorded non-GC spikes
+are not proof that every millisecond came from these repeated reads; the next raid
+must establish the actual gain and any remaining scheduling/serialization spikes.
+
+Regression coverage includes production pickup adapters, real installed EFT IL,
+medical inventory sizes 1-32, previous trace immutability, Ghost/Fika ownership,
+RR historical event replay, rewind and repeated drop/pickup, and compact projection.

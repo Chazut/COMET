@@ -39,8 +39,9 @@ namespace EFT.HealthSystem {
  public enum EStimulatorBuffType{HealthRate,RemoveAllBloodLosses,SkillRate}
  public class ActiveHealthController{
   public Dictionary<EBodyPart,ValueStruct> Parts=Enum.GetValues<EBodyPart>().ToDictionary(x=>x,x=>new ValueStruct());public List<IEffect> Effects=new();public HashSet<EBodyPart> Destroyed=new();public int Restores;
-  public ValueStruct GetBodyPartHealth(EBodyPart p,bool ignored=false)=>Parts[p];
-  public T? FindExistingEffect<T>(EBodyPart p=EBodyPart.Common)where T:class=>Effects.Where(x=>p==EBodyPart.Common||x.BodyPart==p).OfType<T>().FirstOrDefault();
+  public int HealthReads,EffectReads;
+  public ValueStruct GetBodyPartHealth(EBodyPart p,bool ignored=false){HealthReads++;return Parts[p];}
+  public T? FindExistingEffect<T>(EBodyPart p=EBodyPart.Common)where T:class{EffectReads++;return Effects.Where(x=>p==EBodyPart.Common||x.BodyPart==p).OfType<T>().FirstOrDefault();}
   public bool IsBodyPartDestroyed(EBodyPart p)=>Destroyed.Contains(p);
   public bool CanApplyItem(Meds item,EBodyPart p)=>item.Applicable&&!item.Removed&&(!item.AllowedPart.HasValue||item.AllowedPart==p);
   public bool RestoreBodyPart(EBodyPart p,float penalty){Restores++;return Destroyed.Remove(p);}

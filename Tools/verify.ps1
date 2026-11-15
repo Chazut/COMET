@@ -72,6 +72,7 @@ try { Run npm.cmd @('run', 'build') } finally { Pop-Location }
 Push-Location $RaidReview
 try {
     Run node @('Tests/comet-map.cjs')
+    Run node @('Tests/magazine-recovery.cjs')
     Run node @('Tests/comet-counters.cjs')
     Run node @('Tests/comet-journal.cjs')
     Run node @('Tests/participant-visuals.cjs')

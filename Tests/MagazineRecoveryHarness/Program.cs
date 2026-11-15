@@ -67,6 +67,39 @@ namespace Comet.Client
             b.Player.InventoryController.Completion.SetResult(new Result(true));
             MagazineRecoveryActive(b.BotOwner);
             Check(s.MagazineRecovery.Pending.Count==0,"late successful transaction is still confirmed");
+
+            (p,b,s,loot)=Setup();var movement=b.Player.MovementContext;
+            movement.NativeState=movement.MoveState;
+            RunMagazineRecovery(b.BotOwner,true);
+            Check(!s.MagazineRecovery.Picking&&movement.Starts==0&&b.Player.StopInputs==1,"raid454: moving Pickup is a no-op, arrival does not claim animation started");
+            Check(Api.Decisions.Events.Any(e=>e.Contains("pickup-wait"))&&!Api.Decisions.Events.Any(e=>e.Contains("pickup-started")),"ignored native call is diagnosed accurately");
+            int before=Api.Decisions.Events.Count;
+            for(int i=0;i<100;i++)RunMagazineRecovery(b.BotOwner,true);
+            Check(Api.Decisions.Events.Count==before,"unchanged rejected movement state does not spam logs or retry callbacks");
+            movement.NativeState=movement.IdleState;Time.time=.25f;
+            RunMagazineRecovery(b.BotOwner,true);
+            Check(s.MagazineRecovery.Picking&&movement.Starts==1,"transition to native idle retries and actually enters pickup");
+            Check(b.Player.InventoryController.Calls==0,"entering pickup alone never grants the magazine");
+            movement.PickupAction!();RunMagazineRecovery(b.BotOwner,true);
+            Check(b.Player.InventoryController.Calls==1,"native callback unlocks the original item transaction");
+
+            (p,b,s,loot)=Setup();movement=b.Player.MovementContext;movement.NativeState=movement.MoveState;
+            RunMagazineRecovery(b.BotOwner,true);Time.time=9;RunMagazineRecovery(b.BotOwner,true);
+            Check(s.MagazineRecovery.Pending.Count==0&&movement.Stops==0,"unentered animation expires without cancelling another movement state");
+            Check(Api.Decisions.Events.Any(e=>e.Contains("native pickup state not entered")),"unentered state differs from missing callback");
+
+            (p,b,s,loot)=Setup();RunMagazineRecovery(b.BotOwner,true);movement=b.Player.MovementContext;
+            Action other=()=>{};movement.PickupAction=other;b.Danger=true;MagazineRecoveryActive(b.BotOwner);
+            Check(movement.Stops==0&&movement.PickupAction==other,"interruption never cancels a replacement pickup operation");
+
+            (p,b,s,loot)=Setup();var second=new LootItem("second-drop");second.transform.position=new(9,2,3);
+            p.RememberDroppedMagazine(s,second);
+            Check(Api.Decisions.Events.Last().Contains("\"x\":9")&&Api.Decisions.Events.Last().Contains("second-drop"),"queued telemetry uses that magazine position, not the first pending drop");
+            (p,b,s,loot)=Setup();RunMagazineRecovery(b.BotOwner,true);movement=b.Player.MovementContext;
+            var stale=movement.PickupAction;movement.OverridenState=null;RunMagazineRecovery(b.BotOwner,true);
+            stale!();Check(!s.MagazineRecovery.Ready&&movement.Starts==2,"interrupted native animation retries and rejects stale callback");
+            Authority=false;Check(!MagazineRecoveryActive(b.BotOwner)&&s.MagazineRecovery.Pending.Count==1,"Fika client yields native recovery and retains original drop");
+            Check(movement.PickupAction==null,"cancel releases owned native callback");
             Console.WriteLine($"Magazine recovery adapter: {checks} checks passed.");
         }
     }

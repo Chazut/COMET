@@ -31,6 +31,15 @@ static class Audit
         // Metadata preparation runs against the actual built client, without JITing Unity
         // callbacks on the .NET test host or executing any game action.
         var client = typeof(Comet.Client.Plugin).Assembly;
+        // Use the installed EFT bodies, not a stub that accepts Pickup in every state.
+        var movingPickup=typeof(EFT.MovePlayerState).GetMethod("Pickup")!;
+        var idlePickup=typeof(EFT.IdlePlayerState).GetMethod("Pickup")!;
+        if(Calls(movingPickup).Any() || !Calls(idlePickup).Any(m=>m.Name=="OverrideState"))
+            throw new Exception("Native pickup state contract changed; review the movement-to-idle retry.");
+        var animatedPickup=typeof(EFT.Player).Assembly.GetType("EFT.PickUpState",true)!.GetMethod("ManualAnimatorMoveUpdate")!;
+        if(!Calls(animatedPickup).Any(m=>m.DeclaringType==typeof(Action)&&m.Name=="Invoke"))
+            throw new Exception("Native pickup animation no longer invokes its inventory-ready callback.");
+        Console.WriteLine("Native pickup real-DLL audit: moving no-op, idle override and animation callback confirmed.");
         // Check the shipped callbacks, not only helper behavior against stubs.
         var fire = client.GetType("Comet.Client.TacticalSteeringFire",true)!.GetMethod("TryShoot",BindingFlags.Static|BindingFlags.NonPublic)!;
         foreach(var pair in new[]{("CrossfireAction","OnSteeringTicked"),("PostCombatAction","OnSteeringTicked"),("Plugin","ChaseSteering"),("Plugin","FeintSteering")})

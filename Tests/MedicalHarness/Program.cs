@@ -10,6 +10,7 @@ using SAIN.SAINComponent.Classes.EnemyClasses;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
 int checks=0;var events=new List<string>();
+Console.WriteLine($"Medical inventory work: {Plugin.SuppliesRegression()} checks passed (7 health reads regardless of kit count).");
 void C(bool x,string why){checks++;if(!x)throw new Exception("H01 adapter: "+why);}
 (Plugin p,BotComponent b) Setup(){Time.time=10;Time.frameCount++;var p=new Plugin();var b=new BotComponent();b.EnemyController.KnownEnemies.Add(new(b));return(p,b);}
 Meds Aid(BotComponent b,string id="aid"){var item=new MedKit{Id=id,AllowedPart=EBodyPart.Chest};b.Player.HealthController.Parts[EBodyPart.Chest].Current=50;b.Player.InventoryController.Items.Add(item);return item;}

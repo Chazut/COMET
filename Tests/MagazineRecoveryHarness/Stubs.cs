@@ -20,6 +20,7 @@ namespace UnityEngine
         public static float Distance(Vector3 a,Vector3 b)=>(float)Math.Sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y)+(a.z-b.z)*(a.z-b.z));
     }
     public class Transform { public Vector3 position; }
+    public struct Vector2 { public static Vector2 zero=>new(); }
     public class GameObject { public bool activeInHierarchy=true; }
     public class Collider { public string name="wall"; public object? Parent; public T? GetComponentInParent<T>() where T:class=>Parent as T; }
     public struct RaycastHit { public Collider collider; }
@@ -34,7 +35,7 @@ namespace UnityEngine
 }
 namespace EFT.InventoryLogic
 {
-    public class Item(string id) { public string Id=id; }
+    public class Item(string id) { public string Id=id,TemplateId="template";public string LocalizedShortName()=>"6L20"; }
     public class Equipment { public readonly List<Item> Items=new(); public IEnumerable<Item> GetAllItems()=>Items; }
     public class Inventory { public Equipment Equipment=new(); }
     public class InventoryController
@@ -66,14 +67,28 @@ namespace EFT
     {
         public EFT.InventoryLogic.InventoryController InventoryController=new();
         public EFT.InventoryLogic.Inventory Inventory=>InventoryController.Inventory;
-        public ManagedState CurrentManagedState=new();public Movement MovementContext=new();
+        public Movement MovementContext=new();
+        public ManagedState CurrentManagedState=>MovementContext.OverridenState??MovementContext.NativeState;
+        public int StopInputs;
+        public void Move(Vector2 input){StopInputs++;}
         public void UpdateInteractionCast(){}
     }
-    public class Movement { public bool IsGrounded=true; }
-    public class ManagedState
+    public class Movement
     {
-        public Action? Callback;public int Starts,Stops;
-        public void Pickup(bool start,Action? callback){if(start){Starts++;Callback=callback;}else Stops++;}
+        public bool IsGrounded=true;public Action? PickupAction;public int Starts,Stops;
+        public ManagedState? OverridenState;
+        public ManagedState NativeState,PickUpState,IdleState,MoveState;
+        public Movement(){NativeState=IdleState=new(this,true);MoveState=new(this,false);PickUpState=new(this,false);}
+    }
+    public class ManagedState(Movement movement,bool acceptsPickup)
+    {
+        public Action? Callback=>movement.PickupAction;
+        public int Starts=>movement.Starts;public int Stops=>movement.Stops;
+        public void Pickup(bool start,Action? callback)
+        {
+            if(ReferenceEquals(movement.OverridenState,this)){movement.Stops++;movement.OverridenState=null;return;}
+            if(start&&acceptsPickup){movement.Starts++;movement.OverridenState=movement.PickUpState;movement.PickupAction=callback;}
+        }
     }
 }
 namespace SAIN.Preset.Shared.Enums { public enum ECombatDecision { None,Fight } public enum ESquadDecision { None,Help } public enum ESelfActionType { None,Heal } }

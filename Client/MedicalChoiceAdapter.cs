@@ -25,6 +25,9 @@ internal sealed class MedicalRuntime
     internal float InterruptionAt, InterruptionLogAt;
     internal string InterruptionKey = "";
     internal readonly List<Meds> Items = new();
+    internal readonly Dictionary<string,(Meds item,EBodyPart part)> Chosen = new();
+    internal readonly Dictionary<string,MedicalOption> Best = new();
+    internal readonly (double health,bool heavy,bool light,bool destroyed)[] Parts = new (double,bool,bool,bool)[7];
     internal readonly Queue<(float at,Vector3 position)> Steps=new();
     internal WeakReference<Meds>? Item;
     internal EBodyPart Part;
@@ -41,6 +44,7 @@ public sealed partial class Plugin
 {
     private static PropertyInfo surgeryBot = null!;
     private static readonly EBodyPart[] medicalParts = { EBodyPart.Head,EBodyPart.Chest,EBodyPart.Stomach,EBodyPart.LeftArm,EBodyPart.RightArm,EBodyPart.LeftLeg,EBodyPart.RightLeg };
+    private static readonly string[] medicalActions = { "FirstAid", "Stims", "Surgery" };
     private static void PatchMedicalChoice(Harmony h)
     {
         h.Patch(AccessTools.Method(typeof(SelfActionDecisionClass),"StartBotHeal"),prefix:new HarmonyMethod(typeof(Plugin),nameof(ChooseMedical)));
@@ -106,14 +110,14 @@ public sealed partial class Plugin
             p.doorClock.Restart();
             try
             {
-                var f=p.MedicalFrame(b,s);var items=new Dictionary<string,(Meds item,EBodyPart part)>();
+                var f=p.MedicalFrame(b,s);var items=r.Chosen;
                 if(f.Priority.Length==0)p.MedicalSupplies(b,s,f,items);
                 var t=r.Policy.Evaluate(f,p.config.MedicalChoice);
                 if(t.Choice!="Wait"&&items.TryGetValue(t.Choice,out var chosen))
                 {r.Item=new(chosen.item);r.Part=chosen.part;r.Callback=false;r.Token++;Decision=MedicalAction(t.Choice);__result=true;}
                 p.RecordMedical(s,false);
             }
-            finally{p.doorClock.Stop();p.doorBudget.Charge(p.doorClock.Elapsed.TotalMilliseconds);r.Items.Clear();}
+            finally{p.doorClock.Stop();p.doorBudget.Charge(p.doorClock.Elapsed.TotalMilliseconds);r.Items.Clear();r.Chosen.Clear();r.Best.Clear();}
             return false;
         }
         catch(Exception ex){if(s!=null)p.MedicalError(s,ex);return true;}
@@ -174,16 +178,23 @@ public sealed partial class Plugin
     {
         var med=b.BotOwner.Medecine;var r=s.Medical;
         b.Player.InventoryController.GetAcceptableItemsNonAlloc<Meds>(LoadoutAdapter.Carried,r.Items);
-        var best=new Dictionary<string,MedicalOption>();f.Meds=r.Items.Count;
+        var best=r.Best;best.Clear();chosen.Clear();f.Meds=r.Items.Count;
+        // All candidates in this synchronous evaluation use the same body state.
+        // Read it once, without caching health between decisions or changing ranks.
+        for(int i=0;r.Items.Count>0&&i<medicalParts.Length;i++)
+        {
+            var part=medicalParts[i];var health=b.Player.HealthController;
+            r.Parts[i]=(health.GetBodyPartHealth(part,false).Normalized,
+                health.FindExistingEffect<IHeavyBleeding>(part)!=null,
+                health.FindExistingEffect<ILightBleeding>(part)!=null,health.IsBodyPartDestroyed(part));
+        }
         foreach(var item in r.Items)
         {
             var slot=LoadoutAdapter.RootSlot(item,b.Player.Inventory.Equipment);if(slot==null)continue;
-            foreach(var part in medicalParts)
+            for(int i=0;i<medicalParts.Length;i++)
             {
-                var hp=b.Player.HealthController.GetBodyPartHealth(part,false);
-                bool heavy=b.Player.HealthController.FindExistingEffect<IHeavyBleeding>(part)!=null;
-                bool light=b.Player.HealthController.FindExistingEffect<ILightBleeding>(part)!=null;
-                bool destroyed=b.Player.HealthController.IsBodyPartDestroyed(part);
+                var part=medicalParts[i];var body=r.Parts[i];
+                bool heavy=body.heavy,light=body.light,destroyed=body.destroyed;
                 string action="",need="";int rank=0;
                 if(item is Stimulator)
                 {
@@ -201,22 +212,25 @@ public sealed partial class Plugin
                 {
                     if(!med.FirstAid.CanUseByTime()||destroyed||b.BotOwner.Settings.FileSettings.Mind.MEDS_ONLY_SAFE_CONTAINER&&slot!=EquipmentSlot.SecuredContainer)continue;
                     if(heavy&&Treats(item,EDamageEffectType.HeavyBleeding)){need="heavy-bleed";rank=5;}
-                    else if((part==EBodyPart.Head||part==EBodyPart.Chest)&&hp.Normalized<=.25){need="vital";rank=4;}
+                    else if((part==EBodyPart.Head||part==EBodyPart.Chest)&&body.health<=.25){need="vital";rank=4;}
                     else if(light&&Treats(item,EDamageEffectType.LightBleeding)){need="light-bleed";rank=3;}
-                    else if(hp.Normalized<b.BotOwner.Settings.FileSettings.Mind.PART_PERCENT_TO_HEAL){need="injury";rank=2;}
+                    else if(body.health<b.BotOwner.Settings.FileSettings.Mind.PART_PERCENT_TO_HEAL){need="injury";rank=2;}
                     else continue;
                     // A splint or bandage may be applicable but cannot heal missing HP.
                     if((need=="vital"||need=="injury")&&(!(item is MedKit)||item.MedKitComponent==null))continue;
                     action="FirstAid";
                 }
-                if(!MedicalUsable(b,item,part))continue;
+                double resource=item.MedKitComponent?.HpResource??1;
+                if(!(resource>0&&MedicalChoice.Finite(resource)&&b.Player.HealthController.CanApplyItem(item,part)))continue;
                 double duration=item.HealthEffectsComponent.UseTimeFor(part);
-                var o=new MedicalOption{Action=action,Item=item.Id.ToString(),Part=part.ToString(),Need=need,Usable=true,Duration=duration,Resource=item.MedKitComponent?.HpResource??0,Score=rank};
                 if(!best.TryGetValue(action,out var old)||rank>old.Score||rank==old.Score&&duration<old.Duration)
-                {best[action]=o;chosen[action]=(item,part);}
+                {
+                    best[action]=new MedicalOption{Action=action,Item=item.Id.ToString(),Part=part.ToString(),Need=need,Usable=true,Duration=duration,Resource=item.MedKitComponent?.HpResource??0,Score=rank};
+                    chosen[action]=(item,part);
+                }
             }
         }
-        foreach(var action in new[]{"FirstAid","Stims","Surgery"})f.Options.Add(best.TryGetValue(action,out var o)?o:new MedicalOption{Action=action});
+        foreach(var action in medicalActions)f.Options.Add(best.TryGetValue(action,out var o)?o:new MedicalOption{Action=action});
     }
     private static bool ContinueMedical(SelfActionDecisionClass __instance,ref ESelfActionType Decision,ref bool __result)
     {
