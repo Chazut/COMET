@@ -17,6 +17,18 @@ internal static class MedicalChoiceTests
   MedicalOption Aid(string need="injury")=>new(){Action="FirstAid",Usable=true,Item="aid",Part="Chest",Need=need,Duration=4};
   MedicalOption Stim()=>new(){Action="Stims",Usable=true,Item="stim",Part="Chest",Need="low-health",Duration=2};
   MedicalOption Surg()=>new(){Action="Surgery",Usable=true,Item="kit",Part="LeftLeg",Need="destroyed-limb",Duration=20};
+  foreach(var action in new[]{"FirstAid","Surgery","Stims"})
+  {
+   var solid=Frame();solid.Health=.3;solid.Visible=action=="Stims";
+   solid.Options.Add(action=="FirstAid"?Aid():action=="Surgery"?Surg():Stim());
+   var protectedResult=new MedicalChoice().Evaluate(solid,c);
+   solid.ProtectiveCover=false;
+   var camouflageResult=new MedicalChoice().Evaluate(solid,c);
+   double delta=protectedResult.Alternatives.Single(x=>x.Action==action).Score-camouflageResult.Alternatives.Single(x=>x.Action==action).Score;
+   C(Math.Abs(delta-(action=="FirstAid"?20:action=="Surgery"?15:35))<.0001,"foliage loses only source protection score: "+action);
+   C(camouflageResult.ReachedCover&&!camouflageResult.Cover,"arrival and protection remain separately observable");
+   C(camouflageResult.Alternatives.Single(x=>x.Action==action).Usable,"no hard medical veto for camouflage: "+action);
+  }
   var f=Frame();f.Options.Add(Surg());C(new MedicalChoice().Evaluate(f,c).Choice=="Surgery","safe surgery");
   foreach(var mutation in new Action<MedicalFrame>[] {x=>x.Moving=true,x=>x.ProtectiveCover=false,x=>x.ThreatsIncomplete=true,x=>x.HeavyBleed=true,x=>x.LightBleed=true,x=>x.Vital=true,x=>x.Quiet=24.99})
   {f=Frame();f.Options.Add(Surg());mutation(f);C(new MedicalChoice().Evaluate(f,c).Choice=="Surgery","no added hard veto for a source-eligible surgery");}

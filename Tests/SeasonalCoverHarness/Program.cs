@@ -25,6 +25,7 @@ namespace Comet.Client
         private static CoverPoint Point(bool foliage) => new() { Collider = new() { gameObject = new() { layer = foliage ? 7 : 4 } } };
         public static void Test()
         {
+            TestExposure();
             foreach (var season in Enum.GetValues<ESeason>())
             {
                 var (p, b, a) = Setup(season);

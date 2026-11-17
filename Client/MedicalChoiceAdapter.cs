@@ -130,7 +130,9 @@ public sealed partial class Plugin
             LightBleed=health.FindExistingEffect<ILightBleeding>()!=null,Priority=MedicalPriority(b,s),Moving=b.Player.Velocity.magnitude>.35f||b.Player.IsSprintEnabled};
         f.Vital=health.GetBodyPartHealth(EBodyPart.Head,false).Normalized<=.25||health.GetBodyPartHealth(EBodyPart.Chest,false).Normalized<=.25;
         if(config!.Aggression.TryGetValue(b.Info.Personality.ToString(),out var aggression))f.Aggression=aggression;
-        f.ReachedCover=b.Cover.CoverInUse?.BotInThisCover==true||PostReachedCover(b,s);f.ProtectiveCover=f.ReachedCover;
+        bool postCover=PostReachedCover(b,s);
+        f.ReachedCover=b.Cover.CoverInUse?.BotInThisCover==true||postCover;
+        f.ProtectiveCover=NativeCoverProtects(b)||postCover;
         f.Health=b.Memory.Health.HealthStatus switch { ETagStatus.Injured=>.7, ETagStatus.BadlyInjured=>.35, ETagStatus.Dying=>.1, _=>1 };
         f.RunningToCover=!f.ReachedCover&&b.Player.Velocity.magnitude>.5f&&b.Decision.CurrentCombatDecision is ECombatDecision.SeekCover or ECombatDecision.Retreat or ECombatDecision.RunAway;
         f.LegsHold=!b.Player.MovementContext.CanSprint;

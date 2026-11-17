@@ -1,0 +1,6 @@
+<Project>
+  <Target Name="ExtractCoverProtection" BeforeTargets="CoreCompile">
+    <Exec Command="python &quot;$(MSBuildThisFileDirectory)prepare_cover_protection.py&quot; &quot;$(MSBuildProjectDirectory)&quot;" />
+    <ItemGroup><Compile Include="obj/CoverProtection.cs" /></ItemGroup>
+  </Target>
+</Project>

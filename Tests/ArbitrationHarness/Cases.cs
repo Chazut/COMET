@@ -87,6 +87,13 @@ public static class Cases
   }
   // Direct zzap continuation cases: three-second stalled route and break-off
   // only for a visible close shooter while SeekCover, not Retreat/self-action.
+  {
+   var(p,b,s)=Setup();var point=b.Cover.CoverPoint_MovingTo;point.Spotted=true;point.Distance=2;
+   b.Decision.TimeSinceChangeDecision=1;s.CoverRunAnchorAt=1;
+   bool continued=true;p.Continue(b.Decision,ref continued);
+   Check(!continued&&b.Cover.CoverInUse==null&&b.Cover.CoverPoint_MovingTo==null,"exposed nearby point cannot be accepted by stalled-cover fallback");
+   Check(!point.CoverData.IsBad&&s.CoverRunAnchorAt==-1,"exposed fallback does not permanently blacklist cover");
+  }
   foreach(bool close in new[]{false,true}) {
    var(p,b,s)=Setup();b.Decision.TimeSinceChangeDecision=1;
    var point=b.Cover.CoverPoint_MovingTo;point.Distance=close?2:5;
@@ -214,7 +221,7 @@ class Enemy{public bool CanShoot;public float RealDistance=10;public bool IsZomb
 struct Vector3{public float x,y,z;public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}public float sqrMagnitude=>x*x+y*y+z*z;public static Vector3 operator -(Vector3 a,Vector3 b)=>new(a.x-b.x,a.y-b.y,a.z-b.z);}
 enum CoverStatus{Far,CloseToCover,InCover}
 class CoverData{public bool IsBad;}
-class CoverPoint{public bool Valid=true;public float Distance=5;public CoverStatus PathDistanceStatus;public CoverData CoverData=new();public float GetDistance(Vector3 pos)=>Distance;}
+class CoverPoint{public bool Valid=true,Spotted;public float Distance=5;public CoverStatus PathDistanceStatus;public CoverData CoverData=new();public float GetDistance(Vector3 pos)=>Distance;}
 class Cover{public CoverPoint CoverPoint_MovingTo,CoverInUse;public bool Sprinting=true;}
 static class SourceCoverAccess{public static void Accept(Cover cover){cover.CoverInUse=cover.CoverPoint_MovingTo;cover.CoverPoint_MovingTo=null;cover.Sprinting=false;}}
 class Config{public bool Enabled=true;public ConfigToggle MedicalChoice=new(),ReloadTiming=new();public float ContactLifetime=30,Commitment=2;public VisibleConfig VisibleCombat=new();}class VisibleConfig{public float Commitment=2,RiskTolerance=1;}class ConfigToggle{public bool Enabled=true;}
@@ -239,6 +246,9 @@ class Log{public void LogWarning(string text)=>throw new Exception(text);}
 class FreezeAction{}class StandAndShootAction{}class RushEnemyAction{}class SearchAction{}class ShiftCoverAction{}class SeekCoverAction{}class ThrowGrenadeAction{}
 partial class Plugin
 {
+ // Native scope/release helpers are exercised with production bodies in SeasonalCoverHarness.
+ static bool CoverExposed(BotComponent b,CoverPoint p)=>p?.Spotted==true;
+ static void CoverExposureRetained(Cover c){if(c.CoverInUse?.Spotted==true)c.CoverInUse=null;if(c.CoverPoint_MovingTo?.Spotted==true)c.CoverPoint_MovingTo=null;}
  private static bool ReadDowned(Player p)=>p.Downed;
  public int Suspends;public bool Service(BotComponent b,BotState s,bool committed)=>ObservePlanService(b,s,committed);
  public string ServiceOwned(BotComponent b,BotState s,bool committed)=>OwnedPlanService(b,s,committed);

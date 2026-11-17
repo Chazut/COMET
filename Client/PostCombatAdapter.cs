@@ -112,7 +112,7 @@ public sealed partial class Plugin
         {
             // A previous episode's reached cover or failed supply scan is not evidence for this fight.
             // Reset before building the frame: otherwise Tick can mark cover complete using stale protection.
-            r.ProneInOpen=false;r.Protected=b.Cover.CoverInUse!=null||!SourceOpenGround.IsOpen(b.Position,r.Threat);r.ProtectedAt=b.Position;r.CoverCandidate=0;
+            r.ProneInOpen=false;r.Protected=NativeCoverProtects(b)||!SourceOpenGround.IsOpen(b.Position,r.Threat);r.ProtectedAt=b.Position;r.CoverCandidate=0;
             r.MedicalFailures=0;r.MedicalDisabled=false;r.MedicalUseful=false;r.MedicalUrgent=false;r.MedicalNext=0;
         }
         ListenPostCombat(b,r);

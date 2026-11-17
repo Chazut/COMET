@@ -42,16 +42,19 @@ internal static class ShotChecks
         Check((string?)shot["target"] == "secondary" && (string?)shot["goalTarget"] == "enemy", "actual native target is not silently replaced with GoalEnemy");
         Check((int?)shot["seenParts"] == 1 && (int?)shot["shootParts"] == 1 && (int?)shot["bothParts"] == 0, "visibility and muzzle checks may concern different body parts");
         Check((bool?)shot["targetWhiteLight"] == true && (bool?)shot["visible"] == true, "target light and native visibility recorded separately");
+        Check((string?)shot["intent"] == "direct" && (string?)shot["visibilitySource"] == "cached-native-flags", "intent is distinct from cached vision evidence");
         b.ManualShoot.Reason = EShootReason.Suppress;
         b.ManualShoot.ManualShootEnemy = new SAIN.Components.Enemy { EnemyProfileId = "prefire", IsVisible = false, Seen = true, TimeSinceSeen = 4 };
         At(101); p.Shot(b); shot = LastShot();
         Check((string?)shot["target"] == "prefire" && (string?)shot["targetSource"] == "manual-shot" && (bool?)shot["visible"] == false, "suppression at a hidden known contact is observable, not vetoed");
         Check((string?)shot["manualReason"] == "Suppress" && (double?)shot["secondsSinceSeen"] == 4, "manual purpose and contact age survive output");
+        Check((string?)shot["intent"] == "suppression", "hidden-contact suppression is not mislabeled direct detection");
         for (int i = 0; i < 99; i++) p.Shot(b);
         Check(Events().Count(x => (string?)x["eventKind"] == "shot") == 2, "actual shot storm produces at most one detail per second");
         p.Stop(b);
         var total = Events().Last(x => (string?)x["eventKind"] == "shot-summary")["combatJournal"]!;
         Check((int?)total["totalShots"] == 101 && (int?)total["hiddenTargetShots"] == 100 && (int?)total["manualShots"] == 100 && (int?)total["sampledOutShots"] == 99, "all shots counted even when details sampled, lifecycle flush retains final counts");
+        Check((int?)total["suppressionShots"] == 100 && (int?)total["directHiddenTargetShots"] == 0, "summary separates suppression from suspicious direct shots");
         Check(b.Player.InventoryController.Scans == 0 && b.ManualShoot.Reason == EShootReason.Suppress && target.IsVisible, "observation never scans inventory or alters combat state");
         int before = Events().Length; p.Stop(b);
         Check(Events().Skip(before).All(x => (string?)x["eventKind"] != "shot-summary"), "summary not duplicated when lifecycle ends twice");
@@ -59,7 +62,14 @@ internal static class ShotChecks
         Check((string?)shot["target"] == "" && (string?)shot["targetSource"] == "unknown-other-layer", "other-layer fire cannot inherit a stale SAIN target");
         b.SAINLayersActive = true; b.ManualShoot.ManualShootEnemy = null; At(103); p.Shot(b);
         Check((string?)LastShot()["target"] == "" && LastShot()["visible"]!.Type == JTokenType.Null, "unknown manual target does not fall back to old normal target or invent visibility");
-        b.ManualShoot.Reason = EShootReason.None; target.Vision = null!; At(104); p.Shot(b);
+        foreach(var mode in new[]{EShootReason.SquadSuppressing,EShootReason.WalkToCoverSuppress,EShootReason.Blindfire})
+        {
+            b.ManualShoot.Reason=mode;b.ManualShoot.ManualShootEnemy=target;At(Time.time+1);p.Shot(b);
+            Check((string?)LastShot()["intent"]==(mode==EShootReason.Blindfire?"blindfire":"suppression"), "manual mode classification: "+mode);
+        }
+        b.ManualShoot.Reason=EShootReason.None;target.IsVisible=false;target.EnemyPlayerComponent.Flashlight.Laser=true;At(Time.time+1);p.Shot(b);
+        Check((string?)LastShot()["intent"]=="direct"&&(bool?)LastShot()["visible"]==false&&(bool?)LastShot()["targetLaser"]==true,"direct shot at hidden contact retained for investigation, light does not imply vision");
+        target.Vision = null!; At(Time.time+1); p.Shot(b);
         Check(p.states[b].Journal.Shots.Fault && !p.states[b].Journal.Fault && p.config.Enabled, "failed native shot read disables only shot observer");
         p.world = null; before = Events().Length; p.Shot(b);
         Check(Events().Length == before, "closed raid ignores late shots");

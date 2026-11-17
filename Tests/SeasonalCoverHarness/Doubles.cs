@@ -51,7 +51,7 @@ namespace SAIN.Models.Enums { public enum ESprintUrgency { Low, High } }
 namespace SAIN.SAINComponent.SubComponents.CoverFinder
 {
     public class CoverData { public bool IsBad; }
-    public class CoverPoint { public Collider Collider = new(); public Vector3 Position; public CoverData CoverData = new(); }
+    public class CoverPoint { public Collider Collider = new(); public Vector3 Position; public CoverData CoverData = new(); public bool Spotted, BotInThisCover = true; }
     public class CoverAnalyzer { public BotComponent Bot = new(); }
 }
 namespace SAIN.SAINComponent.Classes
@@ -77,6 +77,7 @@ namespace Comet.Client
     internal class BotState
     {
         internal SeasonalCoverRuntime SeasonalCover = new();
+        internal CoverExposureRuntime CoverExposure = new();
         internal string ProfileId = "test", Name = "Test", Id = "instance";
     }
     internal static class NativeAdapter { internal static bool IsSupportedAi(BotComponent b) => b.Supported; }

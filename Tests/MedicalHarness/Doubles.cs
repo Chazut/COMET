@@ -77,7 +77,7 @@ public class BotStimulators(Player p):NativeMed(p){public Stimulator? _stimulato
 namespace SAIN.Preset.Shared.Enums{public enum ESelfActionType{None,Reload,FirstAid,Stims,Surgery}public enum ECombatDecision{None,AvoidGrenade,SeekCover,Retreat,RunAway}public enum SAINSoundType{FootStep,Sprint,Shot}}
 namespace SAIN.Components{
  public class BotComponent{public HealthMemory Memory=new();public string ProfileId="pmc";public bool Pmc=true,BotActive=true,IsDead,GameEnding,SAINLayersActive=true;public Player Player=new();public BotOwner BotOwner;public Medical Medical=new();public Info Info=new();public Cover Cover=new();public Vector3 Position;public EnemyController EnemyController=new();public Decision Decision=new();public Grenade Grenade=new();public Mover Mover=new();public BotComponent(){BotOwner=new(Player);}}
- public class Medical{private float hitAt=Time.time-10;public float TimeSinceShot{get=>Time.time-hitAt;set=>hitAt=Time.time-value;}}public class Info{public string Personality="Normal";}public class Cover{public Point? CoverInUse=new();}public class Point{public Vector3 Position;public bool BotInThisCover=true;}
+ public class Medical{private float hitAt=Time.time-10;public float TimeSinceShot{get=>Time.time-hitAt;set=>hitAt=Time.time-value;}}public class Info{public string Personality="Normal";}public class Cover{public Point? CoverInUse=new();}public class Point{public CoverData CoverData=new();public Vector3 Position;public bool BotInThisCover=true,Spotted;public UnityEngine.Collider Collider=new();}
  public class EnemyController{public List<Enemy> KnownEnemies=new();}public class Decision{public ESelfActionType CurrentSelfDecision;public ECombatDecision CurrentCombatDecision;}
  public class Grenade{public object? GrenadeDangerPoint;}public class Mover{public int Stops;public void Stop()=>Stops++;}
 }
@@ -124,5 +124,9 @@ namespace SAIN.SAINComponent.Classes.EnemyClasses {public class EnemyPath {publi
 
 namespace EFT {public class Movement {public bool CanSprint=true;}}
 namespace UnityEngine {public static class Physics {public static bool Block;public static bool Linecast(Vector3 a,Vector3 b,int mask)=>Block;}}
-public static class LayersMaskController {public const int HighPolyWithTerrainMask=1;}
+public static class LayersMaskController {public const int HighPolyWithTerrainMask=1;public const int Foliage=128;}
 namespace UnityEngine {public static class Random {public static float Range(float min,float max)=>min;}}
+
+namespace SAIN.Components{public class CoverData{public bool IsBad;}}
+
+namespace UnityEngine{public class GameObject{public int layer=4;}public class Collider{public GameObject gameObject=new();}}

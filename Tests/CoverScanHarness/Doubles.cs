@@ -64,6 +64,7 @@ namespace Comet.Client {
  internal class BotState {public string Id="bot-instance";}
  public sealed partial class Plugin {
   internal static bool SeasonalCoverUsable(BotComponent b,CoverPoint? point)=>point?.SeasonalUsable??true;
+  internal static bool CoverExposed(BotComponent b,CoverPoint? point)=>point?.Spotted==true;
   internal static Plugin? Instance;internal CometConfig config=new();internal bool Authority=true,IsGhost;
   internal bool Ghost(string id)=>IsGhost;private readonly Log Logger=new();private string session="c07-test";private long sequence;private bool subscriberWarned;private Diagnostics? diagnostics;
   private readonly Dictionary<BotComponent,BotState> states=new();

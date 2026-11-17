@@ -12,6 +12,15 @@ int n=0;var events=new List<string>();void C(bool ok,string why){n++;if(!ok)thro
 (Plugin p,BotComponent b,PostCombatLayer layer,PostCombatAction action) Setup(bool fight=true){Time.time=Time.realtimeSinceStartup=10;Time.frameCount++;var p=new Plugin();var b=new BotComponent();foreach(var hp in b.Player.HealthController.Parts.Values)hp.Current=100;b.Player.HandsController=new Player.FirearmController();b.SAINLayersActive=false;b.GoalEnemy=new(b){IsVisible=fight};b.GoalEnemy.KnownPlaces.LastSeenPlace!.Position=new(20,0,0);b.GoalEnemy.KnownPlaces.LastSeenPlace.TimeSincePositionUpdated=0;p.Observe(b);if(fight){b.GoalEnemy.IsVisible=false;b.GoalEnemy.EnemyKnown=false;}return(p,b,new(b.BotOwner,21),new(b.BotOwner));}
 void Step(float dt=.3f){Time.time+=dt;Time.realtimeSinceStartup=Time.time;Time.frameCount++;}
 void Save(Plugin p){events.AddRange(p.diagnostics!.Lines.Where(x=>x.Contains("\"feature\":\"H04\"")));}
+foreach(var kind in new[]{"bush","moving","bad","spotted","solid"})
+{
+ var(p,b,l,a)=Setup();
+ b.Cover.CoverInUse=new(){BotInThisCover=kind!="moving",Spotted=kind=="spotted"};
+ b.Cover.CoverInUse.CoverData.IsBad=kind=="bad";
+ b.Cover.CoverInUse.Collider.gameObject.layer=kind=="bush"?7:4;
+ C(l.IsActive(),"post-combat recovery still allowed: "+kind);
+ C(p.states[b].PostCombat.Protected==(kind=="solid"),"no stale/camouflage protection at episode start: "+kind);
+}
 {
  var(p,b,l,a)=Setup(false);C(!l.IsActive()&&p.states.Count==0,"no fight no state or recovery scan");
 }

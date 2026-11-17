@@ -16,6 +16,12 @@ public sealed partial class Plugin
     private bool SourceContinueCover(BotComponent bot, BotState state)
     {
         var point=bot.Cover.CoverPoint_MovingTo;
+        if(CoverExposed(bot,point))
+        {
+            CoverExposureRetained(bot.Cover);
+            state.CoverRunAnchorAt=-1f;
+            return false;
+        }
         var enemy=bot.GoalEnemy;
         var weapon=bot.BotOwner.WeaponManager;
         if(bot.Decision.CurrentCombatDecision==ECombatDecision.SeekCover
@@ -75,7 +81,7 @@ internal static class SourceCoverAccess
 
     internal static void Forget(SAINCoverClass cover, CoverPoint point)
     {
-        // Release only this invalid seasonal point; preserve another valid route.
+        // Release only this invalid point; preserve another valid route.
         if (ReferenceEquals(cover.CoverInUse, point)) SetInUse(cover, null!);
         if (ReferenceEquals(cover.CoverPoint_MovingTo, point)) SetMovingTo(cover, null!);
     }

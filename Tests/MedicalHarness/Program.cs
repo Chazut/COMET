@@ -17,6 +17,14 @@ Meds Aid(BotComponent b,string id="aid"){var item=new MedKit{Id=id,AllowedPart=E
 Meds Surgery(BotComponent b){var item=new Meds{Id="surgery",AllowedPart=EBodyPart.LeftLeg};item.HealthEffectsComponent.Duration=20;item.HealthEffectsComponent.DamageEffects[EDamageEffectType.DestroyedPart]=new();b.Player.HealthController.Destroyed.Add(EBodyPart.LeftLeg);b.Player.InventoryController.Items.Add(item);return item;}
 Stimulator Stim(BotComponent b,bool useful=true){var item=new Stimulator{Id="stim",MedKitComponent=null,AllowedPart=EBodyPart.Chest};item.HealthEffectsComponent.Duration=2;item.HealthEffectsComponent.BuffSettings=new[]{new Buff{BuffType=useful?EStimulatorBuffType.HealthRate:EStimulatorBuffType.SkillRate}};b.Player.InventoryController.Items.Add(item);b.Player.HealthController.Parts[EBodyPart.Common].Current=30;b.Memory.Health.HealthStatus=ETagStatus.BadlyInjured;return item;}
 MedicalTrace T(Plugin p,BotComponent b)=>p.states[b].Medical.Policy.Trace!;
+foreach(var kind in new[]{"bush","moving","bad","spotted","solid"})
+{
+ var trial=Setup();Aid(trial.b);var cover=trial.b.Cover.CoverInUse!;
+ cover.Collider.gameObject.layer=kind=="bush"?7:4;cover.Spotted=kind=="spotted";
+ cover.CoverData.IsBad=kind=="bad";cover.BotInThisCover=kind!="moving";
+ trial.p.Choose(trial.b);var trace=T(trial.p,trial.b);
+ C(trace.ReachedCover==(kind!="moving")&&trace.Cover==(kind=="solid"),"adapter distinguishes arrival from protection: "+kind);
+}
 var(p,b)=Setup();Aid(b);var choice=p.Choose(b);C(!choice.native&&choice.decision==ESelfActionType.FirstAid,"real start hook selects aid");C(!T(p,b).Started,"selection not started");p.Start(b);C(b.BotOwner.Medecine.FirstAid.Requests==1&&T(p,b).State=="started","native action and observed hands");events.AddRange(p.diagnostics!.Lines);Time.time=18;p.Sample(b);C(p.Continue(b),"8 seconds does not cancel native med at 6 second SAIN timeout");p.Start(b);C(b.BotOwner.Medecine.FirstAid.Requests==1,"no second attempt during operation");b.BotOwner.Medecine.FirstAid.Finish();p.Sample(b);C(T(p,b).State=="ended"&&T(p,b).Outcome=="health-improved","actual health improvement observed");C(!p.Continue(b),"native continuation released at completion");C(p.Choose(b).result,"source medical retry has no added quiet delay while treatment is still needed");events.AddRange(p.diagnostics.Lines.Skip(events.Count));
 foreach(var bhf in new[]{false,true}){
  (p,b)=Setup();Surgery(b);b.BotOwner.Medecine.SurgicalKit.Bhf=bhf;C(p.Choose(b).decision==ESelfActionType.Surgery,"surgery selected");p.Start(b);C(b.BotOwner.Medecine.SurgicalKit.Requests==1&&T(p,b).Started,"native surgery start");Time.time=25;p.Sample(b);C(p.Continue(b),"long real surgery retained");b.BotOwner.Medecine.SurgicalKit.Finish();p.Sample(b);C(T(p,b).State=="ended"&&T(p,b).Outcome=="health-improved","native/BHF callback ordering");C(b.Player.HealthController.Restores==0,"no synthetic restoration");events.AddRange(p.diagnostics!.Lines);

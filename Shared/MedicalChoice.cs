@@ -68,6 +68,7 @@ public sealed class MedicalTrace
     public bool LightBleed { get; set; }
     public bool Vital { get; set; }
     public bool Cover { get; set; }
+    public bool ReachedCover { get; set; }
     public bool Visible { get; set; }
     public bool Footsteps { get; set; }
     public bool ThreatsIncomplete { get; set; }
@@ -100,7 +101,7 @@ public sealed class MedicalChoice
     {
         if (Active) return Trace!;
         var t = new MedicalTrace { Health=f.Health,HeavyBleed=f.HeavyBleed,LightBleed=f.LightBleed,Vital=f.Vital,
-            Cover=f.ReachedCover&&f.ProtectiveCover,Visible=f.Visible,Footsteps=f.Footsteps,Contacts=f.Contacts,
+            Cover=f.ReachedCover&&f.ProtectiveCover,ReachedCover=f.ReachedCover,Visible=f.Visible,Footsteps=f.Footsteps,Contacts=f.Contacts,
             Contact=f.Contact,X=f.X,Y=f.Y,Z=f.Z,Quiet=f.Quiet,Distance=f.Nearest,SinceHit=f.SinceHit,ThreatsIncomplete=f.ThreatsIncomplete };
         var options=f.Options.Select(o=>o.Copy()).ToList();
         // HealUtility (zzap): pressure changes utility, it does not ban a treatment.
@@ -114,12 +115,12 @@ public sealed class MedicalChoice
             {o.Score=-10000;o.Reason=f.Priority.Length>0?f.Priority:"medical-no-usable-treatment";continue;}
             double score=o.Action switch
             {
-                "FirstAid"=>medBias+.2+.5*(1-f.Health)+(f.ReachedCover?.2:0)+.3*safe
+                "FirstAid"=>medBias+.2+.5*(1-f.Health)+(t.Cover?.2:0)+.3*safe
                     -(f.Visible?.6:0)-(f.Footsteps?.55:0)-(f.SinceHit<c.HitDelay?.3:0)
                     -(f.InHisView?.4:0)-(f.RunningToCover?(f.LegsHold?.2:.5):0)-.35*close-(f.CoverTowardHim?.5:0),
-                "Stims" when f.Health<=c.StimHealth=>.3+.4*(1-f.Health)+(f.Visible?(f.ReachedCover?.1:-.25):0)
-                    -(f.InHisView&&!f.ReachedCover?.2:0)-(f.SinceHit<c.EmergencyStimDelay?.2:0),
-                "Surgery"=>.1+.4*safe+(f.ReachedCover?.15:0)-(f.Visible?.8:0)-(f.Footsteps?.7:0)
+                "Stims" when f.Health<=c.StimHealth=>.3+.4*(1-f.Health)+(f.Visible?(t.Cover?.1:-.25):0)
+                    -(f.InHisView&&!t.Cover?.2:0)-(f.SinceHit<c.EmergencyStimDelay?.2:0),
+                "Surgery"=>.1+.4*safe+(t.Cover?.15:0)-(f.Visible?.8:0)-(f.Footsteps?.7:0)
                     -(f.Quiet<10?.3:0)-(f.InHisView?.5:0)-(f.CoverTowardHim?.5:0),
                 _=>-10000
             };

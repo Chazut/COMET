@@ -134,6 +134,55 @@ solid/foliage/inside-foliage positions, unchanged native failures, retained and
 custom destinations, authority/role/ghost/handoff boundaries, cache invalidation
 and diagnostic faults. Actual scene geometry and movement still need raid QA.
 
+### Discord foliage reports: protection, exposed cover and shot evidence
+
+The user requested these three follow-ups after the autumn correction. Reports
+describe bots staying behind bushes while taking hits, and fire through foliage
+whose intent cannot be established from the clips alone. These are explicit,
+localized differences from pinned zzap, not new general tactical vetoes.
+
+Both official 4.5.1 (also verified in the pinned DLL) and zzap count damage in
+CoverPoint.GetHit and expose a temporary Spotted flag. However, the main
+SAINCoverClass.FindCoverPoint/UpdateCover route accepts/retains points using
+IsBad alone. FindPointInDirection already excludes Spotted. OnSpottedInCover
+has no decision subscriber in either source tree; official AvoidThreat only
+uses it to label an already-selected DogFight action. Geometry rescans do not
+repair this discrepancy: their IsBad result is separate from the damage flag.
+
+COMET now releases an exposed held/moving point after native hit accounting,
+before retained-cover updates and before move requests. A refused move lets
+the existing native picker try its next candidate. Retained COMET selection
+and the source's near-point stalled-arrival fallback respect the same flag.
+There is no permanent blacklist, replacement ranking, new hit threshold,
+expiry extension, forced DogFight, forced sprint or medicine cancellation.
+The native two-second Spotted lifetime remains authoritative. Unrelated routes
+are preserved. Only authoritative supported COMET combat bots are affected;
+ghosts, Fika replicas, ordinary scavs/bosses and other layers retain native flow.
+
+Medical scoring distinguishes arrival from protection. Foliage, native bad or
+spotted points do not earn the existing FirstAid/Surgery protection bonus or
+the protected stimulant terms. Their source weights, eligibility, emergency
+choices and treatment execution remain unchanged, including BHF callbacks.
+Arrival still informs travel separately. Post-combat episode setup also checks
+arrived, protective native cover before falling back to the existing solid
+enclosure/last-known-threat geometry. A bush destination is not evidence of
+protection. Summer camouflage destinations remain available; autumn exclusion
+continues independently. This is collider classification, not a bullet
+penetration or leaf-density simulation, and cannot guarantee invulnerable cover.
+
+C07 CoverExposure events report native Spotted/IsBad, collider, position and
+cumulative hits/releases/refusals. Details are bounded to five seconds, with
+the first release allowed through even after a below-threshold hit. H01 exposes
+ReachedCover separately from Cover. T01 counts and samples actual shots with
+separate intent (direct, suppression, blindfire, other/unknown) and cached native
+visibility; flashlight/laser state is contextual evidence, not proof of detection.
+No visibility flag, shooting gate, ray mask or SAIN preset is changed here.
+No additional physics query runs for exposure or medical classification.
+Quiet disk logging does not gate the event API. Observer failure cannot veto
+movement. Tests cover native-state release/expiry ownership, retained/custom
+paths, medical scores/adapters, post-combat stale cover, scope, observer faults
+and actual-shot classifications. Actual foliage geometry still needs raid QA.
+
 ### Raid457: physically compatible magazines with the wrong ammunition
 
 Woods_Keep3r_01 collected a .300-loaded STANAG magazine for a 5.56 M4, then

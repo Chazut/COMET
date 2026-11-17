@@ -3,7 +3,7 @@ using SAIN.Components;
 
 namespace SAIN.Models.Enums
 {
-    public enum EShootReason { None, Suppress }
+    public enum EShootReason { None, Suppress, SquadSuppressing, WalkToCoverSuppress, Blindfire }
 }
 namespace SAIN.Components.PlayerComponentSpace
 {
@@ -13,7 +13,7 @@ namespace SAIN.Components.PlayerComponentSpace
         public Flashlight Flashlight = new();
         public void OnMakingShot() { }
     }
-    public class Flashlight { public bool WhiteLight; }
+    public class Flashlight { public bool WhiteLight, Laser; }
 }
 namespace SAIN.SAINComponent.Classes.EnemyClasses
 {

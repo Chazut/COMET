@@ -11,7 +11,7 @@ namespace Comet.Client;
 // Native visibility is cached and is not proof of what a player can see in a clip.
 internal sealed class ShotJournalRuntime
 {
-    internal long Total, Hidden, Manual, Unknown, Detailed, Reported;
+    internal long Total, Hidden, Manual, Unknown, Detailed, Reported, Suppression, Blindfire, DirectHidden;
     internal float DetailAt = -1000, SummaryAt;
     internal bool Fault;
 }
@@ -36,8 +36,18 @@ public sealed partial class Plugin
                 bool manual = b.SAINLayersActive && b.ManualShoot.Reason != EShootReason.None;
                 Enemy? enemy = !b.SAINLayersActive ? null : manual
                     ? prefireEnemy.GetValue(b.ManualShoot) as Enemy : b.Shoot.LastShotEnemy;
+                string intent = !b.SAINLayersActive ? "unknown-other-layer" : b.ManualShoot.Reason switch
+                {
+                    EShootReason.Suppress or EShootReason.SquadSuppressing or EShootReason.WalkToCoverSuppress => "suppression",
+                    EShootReason.Blindfire => "blindfire",
+                    EShootReason.None => "direct",
+                    _ => "other-manual"
+                };
                 r.Total++;
                 if (manual) r.Manual++;
+                if (intent == "suppression") r.Suppression++;
+                if (intent == "blindfire") r.Blindfire++;
+                if (intent == "direct" && enemy?.IsVisible == false) r.DirectHidden++;
                 if (enemy == null) r.Unknown++;
                 else if (!enemy.IsVisible) r.Hidden++;
                 if (Time.time < r.DetailAt) return;
@@ -58,6 +68,7 @@ public sealed partial class Plugin
                 p.JournalWrite(s, "T01", "shot", "native-shot-observed", new
                 {
                     kind = "shot", totalShots = r.Total,
+                    intent, visibilitySource = "cached-native-flags",
                     targetSource = !b.SAINLayersActive ? "unknown-other-layer" : manual ? "manual-shot" : "last-sain-shot",
                     target = enemy?.EnemyProfileId ?? "", goalTarget = b.GoalEnemy?.EnemyProfileId ?? "",
                     manualReason = manual ? b.ManualShoot.Reason.ToString() : "",
@@ -68,6 +79,7 @@ public sealed partial class Plugin
                     chosenPart = enemy?.AimTarget.ChosenPart?.ToString(),
                     partsAvailable = parts != null, seenParts, shootParts, bothParts,
                     targetWhiteLight = (bool?)light?.WhiteLight,
+                    targetLaser = (bool?)light?.Laser,
                     context = p.JournalContext(s)
                 });
             }
@@ -90,6 +102,7 @@ public sealed partial class Plugin
         {
             kind = "shot-summary", totalShots = r.Total, hiddenTargetShots = r.Hidden,
             manualShots = r.Manual, unknownTargetShots = r.Unknown, detailedShots = r.Detailed,
+            suppressionShots = r.Suppression, blindfireShots = r.Blindfire, directHiddenTargetShots = r.DirectHidden,
             sampledOutShots = r.Total - r.Detailed
         });
         r.Reported = r.Total;
