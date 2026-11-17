@@ -94,6 +94,46 @@ and difficulty-profile overrides.
 
 ## Validation and future changes
 
+### Autumn foliage cover: requested seasonal correction
+
+The user and Discord clips report bots treating bare autumn bushes as cover,
+while native foliage vision still obstructs their view. Official SAIN 4.5.1 and
+the pinned zzap CoverAnalyzer both accept Foliage colliders through the same
+geometry test, without season awareness. Native Autumn/AutumnLate state changes
+materials; SAIN's cover and vision masks still include the Foliage layer.
+
+COMET now excludes foliage-only cover candidates in Autumn and AutumnLate.
+Successful native candidate positions are also checked for foliage occupancy
+at the native cover ray's one-metre body height. This avoids choosing a position
+inside a bush even when the cover collider is a wall. Retained, custom, flank,
+directional and relocation cover paths use the same seasonal exclusion. Native
+cover selection/ranking and alternative movement remain responsible for the
+replacement. Invalid retained pointers are cleared individually, not marked
+permanently bad. Other seasons retain the source behavior, including evergreen
+concealment; no inference from the real-world date or a mod's name is made.
+
+This is a deliberately conservative cover choice, not a leaf-density model:
+autumn foliage volumes are excluded even if a particular bush retains leaves.
+Solid trunks, walls and rocks remain eligible when the destination is outside
+foliage. Unknown seasons and external bot ownership retain native behavior.
+Only supported, active, authoritative COMET bots with an enemy are affected.
+
+No vision/raycast mask, collider, detection preset, target position, accuracy or
+suppression rule is changed. Do not call this a fix for every reported shot
+through bushes. Native raycasts, origin-inside-collider behavior, stale contacts
+and suppression must be distinguished with actual shot evidence before changing
+visibility. In particular, removing all foliage from vision would also expose
+players hidden behind dense bushes and evergreen vegetation.
+
+Occupancy uses a shared non-allocating buffer, cleared after use. Retained/custom
+point checks are cached by weak point identity, position and season. No physics
+scan runs for a foliage-layer rejection or outside the affected seasons/scope.
+Aggregated C07 SeasonalCover events are limited to one per bot per five seconds
+and observer failure cannot veto gameplay. Regression tests cover all seasons,
+solid/foliage/inside-foliage positions, unchanged native failures, retained and
+custom destinations, authority/role/ghost/handoff boundaries, cache invalidation
+and diagnostic faults. Actual scene geometry and movement still need raid QA.
+
 ### Raid457: physically compatible magazines with the wrong ammunition
 
 Woods_Keep3r_01 collected a .300-loaded STANAG magazine for a 5.56 M4, then

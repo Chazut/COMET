@@ -72,4 +72,11 @@ internal static class SourceCoverAccess
         ShallSprint.SetValue(cover,False);
         SetState(cover,ECoverSeekingState.HoldInCover);
     }
+
+    internal static void Forget(SAINCoverClass cover, CoverPoint point)
+    {
+        // Release only this invalid seasonal point; preserve another valid route.
+        if (ReferenceEquals(cover.CoverInUse, point)) SetInUse(cover, null!);
+        if (ReferenceEquals(cover.CoverPoint_MovingTo, point)) SetMovingTo(cover, null!);
+    }
 }

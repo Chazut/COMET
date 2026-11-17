@@ -1,4 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><Compile Remove="SeasonalCoverHarness/**/*.cs" /></ItemGroup>
+  <ItemGroup><Compile Remove="OwnerWarmupHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="StorageHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="NativeFixHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="MagazineRecoveryHarness/**/*.cs" /></ItemGroup>

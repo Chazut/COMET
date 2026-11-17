@@ -59,6 +59,22 @@ static class Audit
         Console.WriteLine("Four shipped steering overrides preserve native multi-target firing; suppression bindings verified.");
         RuntimeHelpers.RunClassConstructor(client.GetType("Comet.Client.SourceCoverAccess",true)!.TypeHandle);
         Console.WriteLine("zzap native cover arrival accessors: official SAIN bindings initialized.");
+        foreach(var hook in new[]{"SeasonalCoverCandidate","SeasonalCoverPosition","SeasonalCoverSelection","SeasonalCoverRetained","SeasonalCoverMove"})
+            if(!probe.Hooks.Any(h=>h.Callback.Contains(hook)))throw new Exception("Seasonal cover hook missing: "+hook);
+        var nativeCoverType=typeof(SAIN.SAINComponent.Classes.SAINCoverClass);
+        var nativePointType=typeof(SAIN.SAINComponent.SubComponents.CoverFinder.CoverPoint);
+        var cover=RuntimeHelpers.GetUninitializedObject(nativeCoverType);
+        var invalid=RuntimeHelpers.GetUninitializedObject(nativePointType);
+        var valid=RuntimeHelpers.GetUninitializedObject(nativePointType);
+        var inUse=nativeCoverType.GetProperty("CoverInUse")!;
+        var moving=nativeCoverType.GetProperty("CoverPoint_MovingTo")!;
+        inUse.SetValue(cover,invalid);moving.SetValue(cover,valid);
+        var forget=client.GetType("Comet.Client.SourceCoverAccess",true)!.GetMethod("Forget",BindingFlags.Static|BindingFlags.NonPublic)!;
+        forget.Invoke(null,new[]{cover,invalid});
+        if(inUse.GetValue(cover)!=null||!ReferenceEquals(moving.GetValue(cover),valid))throw new Exception("Seasonal release changed another native cover route");
+        moving.SetValue(cover,invalid);forget.Invoke(null,new[]{cover,invalid});
+        if(moving.GetValue(cover)!=null)throw new Exception("Seasonal release retained invalid native movement target");
+        Console.WriteLine("Seasonal cover: five callbacks registered; shipped release method verified against real SAIN state/accessors (no Unity callbacks).");
         var warmup = client.GetType("Comet.Client.DiagnosticWarmup", true)!;
         var prepare = warmup.GetMethod("Prepare", BindingFlags.Static | BindingFlags.NonPublic)!;
         var resolver = (Newtonsoft.Json.Serialization.IContractResolver)Activator.CreateInstance(client.GetType("Comet.Client.SnapshotDiagnosticResolver",true)!,true)!;

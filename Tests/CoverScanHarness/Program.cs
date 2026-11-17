@@ -24,6 +24,7 @@ Tick(e,20.2);b.GoalEnemy!.EnemyProfileId="new-contact";plugin.Sweep();Check(f.Co
 Tick(e,21);Tick(e,22);Tick(e,23);Tick(e,24);
 var selected=f.CoverPoints[0];
 Check(plugin.Validate(b,selected)&&f.Analyzer.Calls==0,"source cover selection does not run an extra analyzer pass");
+selected.SeasonalUsable=false;Check(!plugin.Validate(b,selected),"seasonal rejection reaches retained selection without another analyzer pass");selected.SeasonalUsable=true;
 selected.Spotted=true;Check(plugin.Validate(b,selected),"native picker owns spotted-cover filtering");selected.CoverData.IsBad=true;Check(!plugin.Validate(b,selected),"source bad cover rejected");selected.CoverData.IsBad=false;selected.Spotted=false;
 plugin.IsGhost=true;plugin.Sweep();int calls=f.Iterations;Tick(e,25);Check(calls==f.Iterations&&f.CoverPoints.Count==0,"ghost no scan or retained cover");
 plugin.IsGhost=false;Tick(e,26);plugin.Stop(f);Check(plugin.Count==0&&!e.MoveNext(),"StopLooking releases iterator and references");

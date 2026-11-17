@@ -39,7 +39,7 @@ internal sealed class ExposureProbe
 internal static class VisibleAdapter
 {
     internal static bool WeaponReady(BotComponent bot) => bot.BotOwner.WeaponManager?.HaveBullets == true;
-    internal static bool ValidCover(BotComponent bot, CoverPoint? p) => p != null && !p.CoverData.IsBad && !p.Spotted;
+    internal static bool ValidCover(BotComponent bot, CoverPoint? p) => p != null && !p.CoverData.IsBad && !p.Spotted && Plugin.SeasonalCoverUsable(bot,p);
     internal static bool ValidPath(NavMeshPath? path, Vector3 start, Vector3 end)
         => path?.status == NavMeshPathStatus.PathComplete;
     internal static CoverPoint? SelectCover(BotComponent bot, PlanProgress? progress = null)
@@ -51,7 +51,7 @@ internal static class VisibleAdapter
         Vector3 eye=(enemy.IsVisible?enemy.EnemyPosition:enemy.KnownPlaces.LastKnownPosition??bot.Position)+Vector3.up*1.5f;
         foreach(var p in bot.Cover.CoverPoints)
         {
-            if(p==null)continue;
+            if(p==null||!Plugin.SeasonalCoverUsable(bot,p))continue;
             float d=Vector3.Distance(p.Position,bot.Position);
             if(d>=distance||!Physics.Linecast(eye,p.Position+Vector3.up,LayersMaskController.HighPolyWithTerrainMask))continue;
             best=p;distance=d;

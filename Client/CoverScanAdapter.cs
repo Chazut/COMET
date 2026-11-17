@@ -86,9 +86,9 @@ public sealed partial class Plugin
     private void EndCoverScans() { foreach (var r in coverScans.Values) r.Runner.Dispose(); coverScans.Clear(); }
     internal static bool RetainedCover(BotComponent b, CoverPoint point) => Instance is Plugin p && b.Cover?.CoverFinder is CoverFinderComponent f
         && p.coverScans.TryGetValue(f, out var r) && r.Runner.Retains(CoverContact(b)) && f.CoverPoints.Contains(point);
-    // zzap lets CoverAnalyzer validate points during the scan. Selection does not run another scan.
+    // Native geometry stays in the scan; the requested autumn exclusion also applies to retained points.
     internal static bool SelectionCoverUsable(BotComponent b,CoverPoint point,out string reason)
-    {reason="cover-selected";return point!=null&&!point.CoverData.IsBad;}
+    {reason=SeasonalCoverUsable(b,point)?"cover-selected":"autumn-foliage-is-not-cover";return point!=null&&!point.CoverData.IsBad&&reason=="cover-selected";}
     private void RecordCoverScan(BotComponent b, CoverScanRuntime r, CoverScanTrace t)
     {
         // Normal short scans need no per-frame events. Summarize at most once per second,

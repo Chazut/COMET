@@ -34,7 +34,7 @@ namespace SAIN.Components {
  public class Cover {public CoverFinderComponent CoverFinder=null!;}
 }
 namespace SAIN.SAINComponent.SubComponents.CoverFinder {
- public class CoverPoint {public string Id="cover-1";public bool Spotted;public object? Collider=new();public Data CoverData=new();public bool Pass=true;}
+ public class CoverPoint {public string Id="cover-1";public bool Spotted;public object? Collider=new();public Data CoverData=new();public bool Pass=true,SeasonalUsable=true;}
  public class Data {public bool IsBad;}
  public class CoverAnalyzer {public int Calls;public bool Throws;public bool RecheckCoverPoint(CoverPoint p,Vector3 a,Vector3 b,Vector3 c,out string why){Calls++;if(Throws)throw new Exception("geometry unavailable");why=p.Pass?"ok":"path-blocked";return p.Pass;}}
 }
@@ -63,6 +63,7 @@ namespace Comet.Client {
  internal class Log {public List<string> Warnings=new();public void LogWarning(string s)=>Warnings.Add(s);}
  internal class BotState {public string Id="bot-instance";}
  public sealed partial class Plugin {
+  internal static bool SeasonalCoverUsable(BotComponent b,CoverPoint? point)=>point?.SeasonalUsable??true;
   internal static Plugin? Instance;internal CometConfig config=new();internal bool Authority=true,IsGhost;
   internal bool Ghost(string id)=>IsGhost;private readonly Log Logger=new();private string session="c07-test";private long sequence;private bool subscriberWarned;private Diagnostics? diagnostics;
   private readonly Dictionary<BotComponent,BotState> states=new();

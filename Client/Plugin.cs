@@ -147,6 +147,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             RunIntegration("PatchMovementRecovery",()=>PatchMovementRecovery(harmony));
 
             RunIntegration("PatchCoverScan",()=>PatchCoverScan(harmony));
+            RunIntegration("PatchSeasonalCover",()=>PatchSeasonalCover(harmony));
 
             RunIntegration("PatchSilentSearch",()=>PatchSilentSearch(harmony));
             RunIntegration("PatchSearchExecution",()=>PatchSearchExecution(harmony));
@@ -877,6 +878,7 @@ internal sealed class BotState
     internal readonly QuickReloadRuntime QuickReload = new();
     internal readonly WeaponReturnRuntime WeaponReturn = new();
     internal readonly CoverFeintRuntime CoverFeint = new();
+    internal readonly SeasonalCoverRuntime SeasonalCover = new();
     internal readonly RelocationRuntime Relocation = new();
     internal readonly HoldAngleRuntime HoldAngle = new();
     internal readonly CornerPrefireRuntime CornerPrefire = new();

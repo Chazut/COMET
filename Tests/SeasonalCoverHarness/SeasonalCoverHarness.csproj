@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup><Compile Include="../../Client/SeasonalCoverAdapter.cs" Link="SeasonalCoverAdapter.cs" /></ItemGroup>
+  <Target Name="ExtractAccess" BeforeTargets="CoreCompile">
+    <Exec Command="python &quot;$(MSBuildProjectDirectory)/prepare.py&quot;" />
+    <ItemGroup><Compile Include="obj/SourceCoverAccess.cs" /></ItemGroup>
+  </Target>
+</Project>
