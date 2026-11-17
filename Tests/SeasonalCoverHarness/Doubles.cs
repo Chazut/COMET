@@ -84,9 +84,9 @@ namespace Comet.Client
     internal static class Diagnostics
     {
         internal static bool Fail;
-        internal static string Serialize(object value) => Fail ? throw new Exception("observer fault") : "event";
+        internal static string Serialize(object value) => Fail ? throw new Exception("observer fault") : System.Text.Json.JsonSerializer.Serialize(value);
     }
-    internal class Writer { public int Count; public void Write(string json) { Count++; } }
+    internal class Writer { public int Count; public string? Last; public void Write(string json) { Count++; Last = json; } }
     internal static class Api
     {
         internal static class Decisions { public static int Count; public static void Publish(string json, Action<Exception> onError) { Count++; } }

@@ -30,12 +30,12 @@ namespace Comet.Client
             {
                 var (p, b, a) = Setup(season);
                 var bush = Point(true); var wall = Point(false);
-                bool autumn = season is ESeason.Autumn or ESeason.AutumnLate;
+                bool bareSeason = season is ESeason.Autumn or ESeason.AutumnLate or ESeason.Winter;
                 bool result = true; string reason = "native"; var hit = new NavMeshHit { position = new(5, 2, 3) };
                 bool run = SeasonalCoverCandidate(a, bush.Collider, ref reason, ref hit, ref result);
-                Check(run != autumn && result != autumn, season + ": foliage candidate");
+                Check(run != bareSeason && result != bareSeason, season + ": foliage candidate");
                 Check(Physics.Calls == 0, "Foliage layer rejection has no physics query");
-                Check(SeasonalCoverUsable(b, bush) != autumn, "Cached/custom bush respects season");
+                Check(SeasonalCoverUsable(b, bush) != bareSeason, "Cached/custom bush respects season");
                 Check(SeasonalCoverUsable(b, wall), "Solid wall retained");
                 Check(!wall.CoverData.IsBad && !bush.CoverData.IsBad, "No permanent native blacklist");
                 result = true; reason = "native";
@@ -43,15 +43,16 @@ namespace Comet.Client
                 Physics.Inside = _ => true;
                 result = true;
                 SeasonalCoverPosition(a, wall.Collider, hit, ref reason, ref result);
-                Check(result != autumn, "Solid candidate inside foliage rejected only in autumn");
+                Check(result != bareSeason, "Solid candidate inside foliage rejected only in autumn/winter");
                 int calls = Physics.Calls;
                 result = false;
                 SeasonalCoverPosition(a, wall.Collider, hit, ref reason, ref result);
                 Check(!result && Physics.Calls == calls, "Native geometry failure unchanged without extra query");
             }
+            foreach (var season in new[] { ESeason.Autumn, ESeason.AutumnLate, ESeason.Winter })
             foreach (string outside in new[] { "disabled", "replica", "scav-or-boss", "ghost", "dead", "inactive", "ending", "external-layer", "no-enemy", "unknown-season", "missing-plugin" })
             {
-                var (p, b, a) = Setup(ESeason.AutumnLate);
+                var (p, b, a) = Setup(season);
                 switch (outside)
                 {
                     case "disabled": p.config!.Enabled = false; break;
@@ -73,8 +74,9 @@ namespace Comet.Client
                 Check(b.Cover.CoverPoints.Count == 1 && ReferenceEquals(b.Cover.CoverInUse, bush), outside + ": retained untouched");
                 Check(Physics.Calls == 0 && p.diagnostics!.Count == 0, outside + ": no scan/log work");
             }
+            foreach (var season in new[] { ESeason.Autumn, ESeason.AutumnLate, ESeason.Winter })
             {
-                var (p, b, _) = Setup(ESeason.Autumn);
+                var (p, b, _) = Setup(season);
                 var bush = Point(true); var wall = Point(false);
                 b.Cover.CoverPoints.AddRange(new[] { bush, wall }); b.Cover.CoverInUse = bush; b.Cover.CoverPoint_MovingTo = wall;
                 SeasonalCoverSelection(b.Cover); SeasonalCoverRetained(b.Cover);
@@ -87,8 +89,11 @@ namespace Comet.Client
                 Check(b.Cover.CoverPoint_MovingTo == null, "Retained invalid destination released");
                 result = false;
                 Check(SeasonalCoverMove(new() { Bot = b }, wall, ref result) && !result, "Native solid move result is not forced true");
-                Check(!bush.CoverData.IsBad, "Autumn refusal is reversible");
+                Check(!bush.CoverData.IsBad, "Seasonal refusal is reversible");
                 Check(p.diagnostics!.Count == 1 && Api.Decisions.Count == 1, "Many cover refusals have one bounded log and RR event");
+                using var logged = System.Text.Json.JsonDocument.Parse(p.diagnostics.Last!);
+                Check(logged.RootElement.GetProperty("seasonalCover").GetProperty("season").GetString() == season.ToString(), "Diagnostic reports actual season");
+                Check(logged.RootElement.GetProperty("reason").GetString() == "seasonal-cached-foliage-cover-removed", "Shared seasonal reason remains accurate in winter");
                 Time.time += 5;
                 SeasonalCoverMove(new() { Bot = b }, bush, ref result);
                 Check(p.diagnostics.Count == 2 && p.states[b].SeasonalCover.Rejected == 5, "Next bounded log preserves cumulative refusals");
@@ -113,8 +118,12 @@ namespace Comet.Client
                 b.Cover.CoverInUse = wall;
                 SeasonalCoverRetained(b.Cover);
                 Check(b.Cover.CoverInUse == null, "Solid cover inside foliage released too");
-                SeasonsController.Controller.Season = ESeason.Summer;
-                Check(SeasonalCoverUsable(b, wall), "Summer restores native policy without bad-point flag");
+                SeasonsController.Controller.Season = ESeason.Winter;
+                Check(!SeasonalCoverUsable(b, wall) && Physics.Calls == 4, "Winter rechecks cached autumn position and still rejects bush occupancy");
+                for (int i = 0; i < 1000; i++) Check(!SeasonalCoverUsable(b, wall), "Winter decisions reuse occupancy result");
+                Check(Physics.Calls == 4, "Winter adds no repeated physics queries");
+                SeasonsController.Controller.Season = ESeason.Spring;
+                Check(SeasonalCoverUsable(b, wall) && Physics.Calls == 4, "Spring restores native policy without scan or permanent bad-point flag");
                 Physics.Fail = true;
                 try { CoverPositionInFoliage(default); throw new Exception("Expected physics fault"); }
                 catch (Exception ex) when (ex.Message == "Physics test fault") { }

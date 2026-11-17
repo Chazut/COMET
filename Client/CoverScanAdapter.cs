@@ -88,7 +88,7 @@ public sealed partial class Plugin
         && p.coverScans.TryGetValue(f, out var r) && r.Runner.Retains(CoverContact(b)) && f.CoverPoints.Contains(point);
     // Native geometry stays in the scan; the requested autumn exclusion also applies to retained points.
     internal static bool SelectionCoverUsable(BotComponent b,CoverPoint point,out string reason)
-    {reason=CoverExposed(b,point)?"native-cover-spotted":SeasonalCoverUsable(b,point)?"cover-selected":"autumn-foliage-is-not-cover";return point!=null&&!point.CoverData.IsBad&&reason=="cover-selected";}
+    {reason=CoverExposed(b,point)?"native-cover-spotted":SeasonalCoverUsable(b,point)?"cover-selected":"seasonal-foliage-is-not-cover";return point!=null&&!point.CoverData.IsBad&&reason=="cover-selected";}
     private void RecordCoverScan(BotComponent b, CoverScanRuntime r, CoverScanTrace t)
     {
         // Normal short scans need no per-frame events. Summarize at most once per second,

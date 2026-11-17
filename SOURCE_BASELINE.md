@@ -135,7 +135,7 @@ and difficulty-profile overrides.
 
 ## Validation and future changes
 
-### Autumn foliage cover: requested seasonal correction
+### Autumn and winter foliage cover: requested seasonal correction
 
 The user and Discord clips report bots treating bare autumn bushes as cover,
 while native foliage vision still obstructs their view. Official SAIN 4.5.1 and
@@ -143,7 +143,10 @@ the pinned zzap CoverAnalyzer both accept Foliage colliders through the same
 geometry test, without season awareness. Native Autumn/AutumnLate state changes
 materials; SAIN's cover and vision masks still include the Foliage layer.
 
-COMET now excludes foliage-only cover candidates in Autumn and AutumnLate.
+COMET now excludes foliage-only cover candidates in Autumn, AutumnLate and Winter.
+Winter applies the same user-requested cover policy as autumn, without changing
+perception or adding a new tactical condition. C07 diagnostics identify the
+actual season; refusal reasons use the shared `seasonal-` prefix.
 Successful native candidate positions are also checked for foliage occupancy
 at the native cover ray's one-metre body height. This avoids choosing a position
 inside a bush even when the cover collider is a wall. Retained, custom, flank,
@@ -154,7 +157,7 @@ permanently bad. Other seasons retain the source behavior, including evergreen
 concealment; no inference from the real-world date or a mod's name is made.
 
 This is a deliberately conservative cover choice, not a leaf-density model:
-autumn foliage volumes are excluded even if a particular bush retains leaves.
+autumn/winter foliage volumes are excluded even if a particular bush retains leaves.
 Solid trunks, walls and rocks remain eligible when the destination is outside
 foliage. Unknown seasons and external bot ownership retain native behavior.
 Only supported, active, authoritative COMET bots with an enemy are affected.

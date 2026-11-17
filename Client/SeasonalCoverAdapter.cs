@@ -19,7 +19,7 @@ internal sealed class SeasonalCoverRuntime
 
 public sealed partial class Plugin
 {
-    // Foliage volumes do not follow the autumn material change. Do not change
+    // Foliage volumes do not follow autumn/winter material changes. Do not change
     // their layers or the vision masks: evergreens and other observers need them.
     private static readonly Collider[] seasonalCoverOverlaps = new Collider[8];
     private sealed class SeasonalPositionCheck
@@ -46,11 +46,11 @@ public sealed partial class Plugin
             prefix: new HarmonyMethod(typeof(Plugin), nameof(SeasonalCoverMove)));
     }
 
-    private static bool AutumnCoverScope(BotComponent b)
+    private static bool SeasonalCoverScope(BotComponent b)
     {
         var p = Instance;
         var season = SeasonsController.Controller?.Season;
-        return (season == ESeason.Autumn || season == ESeason.AutumnLate)
+        return (season == ESeason.Autumn || season == ESeason.AutumnLate || season == ESeason.Winter)
             && p?.config?.Enabled == true && p.Authority && b != null
             && b.BotActive && !b.IsDead && !b.GameEnding && b.SAINLayersActive
             && b.GoalEnemy != null && NativeAdapter.IsSupportedAi(b) && !p.Ghost(b.ProfileId);
@@ -75,8 +75,8 @@ public sealed partial class Plugin
     private static bool SeasonalCoverCandidate(CoverAnalyzer __instance, Collider collider,
         ref string reason, ref NavMeshHit navMeshHit, ref bool __result)
     {
-        if (!AutumnCoverScope(__instance.Bot) || !FoliageCoverCollider(collider)) return true;
-        reason = "autumn-foliage-is-not-cover";
+        if (!SeasonalCoverScope(__instance.Bot) || !FoliageCoverCollider(collider)) return true;
+        reason = "seasonal-foliage-is-not-cover";
         navMeshHit = default;
         __result = false;
         RecordSeasonalCover(__instance.Bot, collider, reason);
@@ -86,15 +86,15 @@ public sealed partial class Plugin
     private static void SeasonalCoverPosition(CoverAnalyzer __instance, Collider collider,
         NavMeshHit navMeshHit, ref string reason, ref bool __result)
     {
-        if (!__result || !AutumnCoverScope(__instance.Bot) || !CoverPositionInFoliage(navMeshHit.position)) return;
+        if (!__result || !SeasonalCoverScope(__instance.Bot) || !CoverPositionInFoliage(navMeshHit.position)) return;
         __result = false;
-        reason = "autumn-cover-position-inside-foliage";
+        reason = "seasonal-cover-position-inside-foliage";
         RecordSeasonalCover(__instance.Bot, collider, reason);
     }
 
     internal static bool SeasonalCoverUsable(BotComponent b, CoverPoint? point)
     {
-        if (point == null || !AutumnCoverScope(b)) return true;
+        if (point == null || !SeasonalCoverScope(b)) return true;
         if (FoliageCoverCollider(point.Collider)) return false;
         // Retained/custom points may predate the seasonal change or bypass the
         // native analyzer. Cache static occupancy by point/position/season.
@@ -113,32 +113,32 @@ public sealed partial class Plugin
     private static void SeasonalCoverSelection(SAINCoverClass __instance)
     {
         var b = __instance.Bot;
-        if (!AutumnCoverScope(b)) return;
+        if (!SeasonalCoverScope(b)) return;
         var points = __instance.CoverPoints;
         for (int i = points.Count - 1; i >= 0; i--)
             if (points[i] != null && !SeasonalCoverUsable(b, points[i]))
             {
                 var collider = points[i].Collider;
                 points.RemoveAt(i);
-                RecordSeasonalCover(b, collider, "autumn-cached-foliage-cover-removed");
+                RecordSeasonalCover(b, collider, "seasonal-cached-foliage-cover-removed");
             }
     }
 
     private static void SeasonalCoverRetained(SAINCoverClass __instance)
     {
         var b = __instance.Bot;
-        if (!AutumnCoverScope(b)) return;
+        if (!SeasonalCoverScope(b)) return;
         var held = __instance.CoverInUse;
         var moving = __instance.CoverPoint_MovingTo;
         if (held != null && !SeasonalCoverUsable(b, held))
         {
             SourceCoverAccess.Forget(__instance, held);
-            RecordSeasonalCover(b, held.Collider, "autumn-held-foliage-cover-released");
+            RecordSeasonalCover(b, held.Collider, "seasonal-held-foliage-cover-released");
         }
         if (moving != null && !SeasonalCoverUsable(b, moving))
         {
             SourceCoverAccess.Forget(__instance, moving);
-            RecordSeasonalCover(b, moving.Collider, "autumn-moving-foliage-cover-released");
+            RecordSeasonalCover(b, moving.Collider, "seasonal-moving-foliage-cover-released");
         }
     }
 
@@ -147,7 +147,7 @@ public sealed partial class Plugin
         if (SeasonalCoverUsable(__instance.Bot, point)) return true;
         __result = false;
         SourceCoverAccess.Forget(__instance.Bot.Cover, point);
-        RecordSeasonalCover(__instance.Bot, point.Collider, "autumn-foliage-cover-move-refused");
+        RecordSeasonalCover(__instance.Bot, point.Collider, "seasonal-foliage-cover-move-refused");
         return false;
     }
 
