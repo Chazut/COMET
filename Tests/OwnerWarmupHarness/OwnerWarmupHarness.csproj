@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+ <ItemGroup><Reference Include="Assembly-CSharp" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Assembly-CSharp.dll" Private="false" /></ItemGroup>
+ <Target Name="Extract" BeforeTargets="CoreCompile">
+  <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/IntegrationAudit&quot; -c Release -- --methods &quot;$(MSBuildProjectDirectory)/../../Client/FaultIsolationAdapter.cs&quot; &quot;$(MSBuildProjectDirectory)/obj/Warmup.cs&quot; PrepareFaultOwners" />
+  <ItemGroup><Compile Include="obj/Warmup.cs" /></ItemGroup>
+ </Target>
+</Project>

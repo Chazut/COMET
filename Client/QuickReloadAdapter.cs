@@ -106,7 +106,7 @@ public sealed partial class Plugin
             Incoming=underFire,UtilityReload=config!.ReloadTiming.Enabled};
         var slot=w.GetMagazineSlot();var equipment=b.Player.Inventory?.Equipment;
         if(slot!=null&&equipment!=null)foreach(var item in equipment.GetAllItems())
-            if(item is Magazine m&&!ReferenceEquals(m,old)&&slot.CanAccept(m))f.SpareMagazines++;
+            if(item is Magazine m&&!ReferenceEquals(m,old)&&slot.CanAccept(m)&&m.IsAmmoCompatible(w.Chambers))f.SpareMagazines++;
         return f;
     }
     private static void ObserveDroppedReloadMagazine(Item item,IPlayer player,LootItem __result)

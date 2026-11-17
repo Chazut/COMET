@@ -67,7 +67,11 @@ public sealed partial class Plugin
             ?0:weapon.ChamberAmmoCount;
     private bool ReloadScope(BotComponent b)=>config?.Enabled==true&&(config.ReloadTiming.Enabled||config.PistolSwap.Enabled)&&NativeAdapter.IsSupportedAi(b)
         &&b.BotActive&&!b.IsDead&&!b.GameEnding&&Authority&&!Ghost(b.ProfileId)&&b.SAINLayersActive;
-    private static int ReloadLoaded(Weapon w)=>w.ChamberAmmoCount+(w.ReloadMode==Weapon.EReloadMode.OnlyBarrel?0:w.GetCurrentMagazine()?.Count??0);
+    // A STANAG magazine can fit a 5.56 weapon while containing .300 ammunition.
+    // Use EFT's next-cartridge check; mixed magazines are re-evaluated as they feed.
+    private static int ReloadMagazineRounds(Weapon w)=>w.ReloadMode!=Weapon.EReloadMode.OnlyBarrel
+        &&w.GetCurrentMagazine() is Magazine mag&&mag.IsAmmoCompatible(w.Chambers)?mag.Count:0;
+    private static int ReloadLoaded(Weapon w)=>w.ChamberAmmoCount+ReloadMagazineRounds(w);
     private static bool ChooseReloadTiming(SelfActionDecisionClass __instance,Enemy enemy,BotComponent bot,ref bool __result)
     {
         var p=Instance;
@@ -137,7 +141,7 @@ public sealed partial class Plugin
             Target=e.EnemyProfileId,Distance=e.RealDistance,ContactAge=e.TimeSinceLastKnownUpdated,SightAge=e.Seen?e.TimeSinceSeen:999,
             Visible=e.IsVisible,Looking=e.IsVisible&&e.EnemyLookingAtMe,Incoming=b.Medical.TimeSinceShot<1.5,
             Protected=b.Cover.CoverInUse?.BotInThisCover==true,BusyObserved=e.Status.VulnerableAction!=SAIN.Models.Enums.EEnemyAction.None,
-            Chamber=w.ChamberAmmoCount,Magazine=w.ReloadMode==Weapon.EReloadMode.OnlyBarrel?0:mag?.Count??0,
+            Chamber=w.ChamberAmmoCount,Magazine=ReloadMagazineRounds(w),
             Capacity=w.ReloadMode==Weapon.EReloadMode.OnlyBarrel?w.Chambers.Length:(mag?.MaxCount??0)+w.Chambers.Length};
         f.Loaded=f.Chamber+f.Magazine;return f;
     }
@@ -155,6 +159,7 @@ public sealed partial class Plugin
                 f.MagazineCandidates++;
                 if(ReloadInventory.Location(m,b.Player.Inventory.Equipment)=="ArmBand")f.BeltMagazines++;
                 if(m.Count<=f.Magazine){f.NonImprovingMagazines++;continue;}
+                if(!m.IsAmmoCompatible(w.Chambers)){f.RejectedMagazines++;f.ResourceRejection="magazine-ammo-incompatible";continue;}
                 if(slot==null){f.ResourceRejection="no-magazine-slot";continue;}
                 var check=ItemManipulator.CheckMoveIgnoringTargetItem(m,slot,b.Player.InventoryController);
                 if(!check.Succeeded){f.RejectedMagazines++;if(f.ResourceRejection.Length==0){var why=check.Error?.ToString()??"inventory-move-refused";f.ResourceRejection=why.Substring(0,Math.Min(160,why.Length));}continue;}

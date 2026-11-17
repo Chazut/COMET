@@ -147,7 +147,7 @@ public sealed partial class Plugin
             ammo.Clear();
             if(!inventoryComplete||magazines.Count>128)complete=false;
             for(int i=0;i<Math.Min(128,magazines.Count);i++)
-            {var m=magazines[i];if(!ReferenceEquals(m,mag)&&m.Count>0&&magSlot!=null
+            {var m=magazines[i];if(!ReferenceEquals(m,mag)&&m.Count>0&&magSlot!=null&&m.IsAmmoCompatible(w.Chambers)
                 &&ItemManipulator.CheckMoveIgnoringTargetItem(m,magSlot,b.Player.InventoryController).Succeeded){spares++;reserve+=m.Count;}}
             if(w.Chambers.Length>0)
             {
@@ -157,7 +157,9 @@ public sealed partial class Plugin
             }
             int loose=0;for(int i=0;i<Math.Min(128,ammo.Count);i++)loose+=ammo[i].StackObjectsCount;
             result.Add(new{id=w.Id.ToString(),name=w.ShortName.Localized(),slot=slot.ToString(),chamber=w.ChamberAmmoCount,magazine=mag?.Count??0,
-                malfunction=w.MalfState.State.ToString(),reachableMagazines=spares,reachableMagazineRounds=reserve,
+                weaponCaliber=w.AmmoCaliber,magazineAmmoCompatible=mag==null||mag.IsAmmoCompatible(w.Chambers),
+                nextAmmo=mag?.Cartridges.Last?.TemplateId.ToString(),nextCaliber=(mag?.Cartridges.Last as Ammo)?.Caliber,
+                usableLoaded=ReloadLoaded(w),malfunction=w.MalfState.State.ToString(),reachableMagazines=spares,reachableMagazineRounds=reserve,
                 looseRounds=loose,resourcesComplete=complete});
         }
         r.ResourcesAt=Time.time;return r.Resources=result.ToArray();

@@ -240,7 +240,10 @@ public sealed partial class Plugin
             foreach(var parameter in method.GetParameters())
             {
                 var type=parameter.ParameterType;if(type.IsByRef)type=type.GetElementType()!;
-                if(type.IsClass&&(type.Namespace?.StartsWith("SAIN")==true||type.Namespace?.StartsWith("EFT")==true))
+                // Several native bot classes (BotReload, BotWeaponManager, etc.)
+                // have no namespace. Prepare their reflection accessors at startup
+                // too, rather than compiling expressions on the first combat call.
+                if(type.IsClass&&(type.Assembly==typeof(EFT.Player).Assembly||type.Namespace?.StartsWith("SAIN")==true||type.Namespace?.StartsWith("EFT")==true))
                     try{FaultOwnerAccessor(type);}catch{faultOwners[type]=_=>null;}
             }
     }

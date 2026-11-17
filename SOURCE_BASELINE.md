@@ -94,6 +94,30 @@ and difficulty-profile overrides.
 
 ## Validation and future changes
 
+### Raid457: physically compatible magazines with the wrong ammunition
+
+Woods_Keep3r_01 collected a .300-loaded STANAG magazine for a 5.56 M4, then
+stopped firing after its chambered round despite a loaded secondary. The pinned
+fork counts magazine rounds and tests the magazine body, just like the native
+reload selector. This accepted correction uses EFT's IsAmmoCompatible chamber
+check for reload candidates, resources, weapon fallback and quick-reload spares.
+An incompatible magazine no longer keeps HaveBullets true after the chamber is
+empty. The native critical-bullet threshold, last chambered shot, mixed-magazine
+next-cartridge semantics, transaction callbacks and fallback ranking remain.
+Wrong-caliber rejection records include weapon/magazine IDs and ammunition;
+observer failure cannot change the selection. Regression coverage reproduces
+the M4/.300 case, a loaded ISO secondary, empty/mixed magazines and host scope.
+
+Raid457 also contains long native Search episodes. Diagnostic reasons now
+distinguish an unvisited place from insufficient silence, with cached native
+search/path state. No search timeout or movement constraint was added.
+
+Fault-owner warmup now includes native classes from the game's assembly even
+when they have no namespace. This moves first-use expression compilation to
+startup; it does not change tactics or sampling frequency. Raid457's measured
+spikes alone do not prove how much time came from this cold path. The integration
+audit checks the actual native types; frame-time gains still need a new raid.
+
 ### Foliage and flashlight report: native-shot observations
 
 - Compare official SAIN 4.5.1 with the pinned zzap source before changing foliage

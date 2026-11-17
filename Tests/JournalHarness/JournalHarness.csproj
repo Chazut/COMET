@@ -5,8 +5,9 @@
  <Compile Include="../../Client/ReloadInventoryAdapter.cs" Link="ReloadInventoryAdapter.cs" />
  <Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" /></ItemGroup>
  <Target Name="JournalBoundary" BeforeTargets="CoreCompile">
-  <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/IntegrationAudit&quot; -c Release -- --methods &quot;$(MSBuildProjectDirectory)/../../Client/ReloadTimingAdapter.cs&quot; &quot;$(MSBuildProjectDirectory)/obj/ReloadResources.cs&quot; ReloadResources" />
-  <ItemGroup><Compile Include="obj/ReloadResources.cs" /></ItemGroup>
+  <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/IntegrationAudit&quot; -c Release -- --methods &quot;$(MSBuildProjectDirectory)/../../Client/ReloadTimingAdapter.cs&quot; &quot;$(MSBuildProjectDirectory)/obj/ReloadResources.cs&quot; ReloadResources,ReloadLoaded,ReloadMagazineRounds" />
+  <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/IntegrationAudit&quot; -c Release -- --methods &quot;$(MSBuildProjectDirectory)/../../Client/WeaponReturnAdapter.cs&quot; &quot;$(MSBuildProjectDirectory)/obj/ReadReturnGun.cs&quot; ReadReturnGun" />
+  <ItemGroup><Compile Include="obj/ReloadResources.cs" /><Compile Include="obj/ReadReturnGun.cs" /></ItemGroup>
   <MakeDir Directories="obj/journal-input" />
   <Copy SourceFiles="../../Client/CombatJournalAdapter.cs;../../Client/ShotJournalAdapter.cs" DestinationFolder="obj/journal-input" />
   <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/FaultBoundaries&quot; -c Release -- &quot;$(MSBuildProjectDirectory)/obj/journal-input&quot; &quot;$(MSBuildProjectDirectory)/obj/journal-generated&quot;" />

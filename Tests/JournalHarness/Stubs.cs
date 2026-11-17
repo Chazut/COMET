@@ -7,23 +7,24 @@ namespace UnityEngine { public static class Time{public static float time,realti
 namespace HarmonyLib {
  public class Harmony {public void Patch(object? x,HarmonyMethod? prefix=null,HarmonyMethod? postfix=null,HarmonyMethod? finalizer=null){} }
  public class HarmonyMethod {public int priority;public HarmonyMethod(Type t,string n){} }
- public static class AccessTools {public static object? Method(Type t,string n)=>null;}
+ public static class AccessTools {public static object? Method(Type t,string n)=>null;public static object? PropertyGetter(Type t,string n)=>null;}
 }
 namespace EFT.InventoryLogic {
  public enum EquipmentSlot{FirstPrimaryWeapon,SecondPrimaryWeapon,Holster,ArmBand,Pockets,TacticalVest,Backpack,SecuredContainer}
  public sealed class Result{public bool Succeeded=true;public object? Error;}
  public class Slot {public Item? Item;public Item? ContainedItem=>Item;public bool Accept=true;public bool CanAccept(Item a)=>Accept;}
- public class Item{public string Id=Guid.NewGuid().ToString("N"),ShortName="Item";public EquipmentSlot? Root;public bool Movable=true;}
- public class Magazine:Item{public int Count=20,MaxCount=20;public bool CheckCompatibility(Ammo a)=>true;}
- public class Ammo:Item{public int StackObjectsCount=30;public Result CheckAction(object? o)=>new();}
+ public class Item{public string Id=Guid.NewGuid().ToString("N"),ShortName="Item",TemplateId="template";public EquipmentSlot? Root;public bool Movable=true;}
+ public class Cartridges { public Item? Last=new Ammo(); }
+ public class Magazine:Item{public Cartridges Cartridges=new();public bool AmmoCompatible=true;public bool IsAmmoCompatible(Slot[] chambers)=>Count==0||AmmoCompatible;public int Count=20,MaxCount=20;public bool CheckCompatibility(Ammo a)=>true;}
+ public class Ammo:Item{public string Caliber="Caliber556x45NATO";public int StackObjectsCount=30;public Result CheckAction(object? o)=>new();}
  public interface IWeapon {}
- public class Weapon:Item,IWeapon { public EReloadMode ReloadMode;public enum EReloadMode{ExternalMagazine,ExternalMagazineWithInternalReloadSupport,InternalMagazine,OnlyBarrel}public int ChamberAmmoCount=1;public Magazine Magazine=new();public Slot[] Chambers={new()};public Malf MalfState=new();public Slot MagSlot=new();public Magazine GetCurrentMagazine()=>Magazine;public Slot GetMagazineSlot()=>MagSlot;public class Malf{public string State="None";} }
+ public class Weapon:Item,IWeapon { public string AmmoCaliber="Caliber556x45NATO"; public EReloadMode ReloadMode;public enum EReloadMode{ExternalMagazine,ExternalMagazineWithInternalReloadSupport,InternalMagazine,OnlyBarrel}public int ChamberAmmoCount=1;public Magazine Magazine=new();public Slot[] Chambers={new()};public Malf MalfState=new();public Slot MagSlot=new();public Magazine GetCurrentMagazine()=>Magazine;public Slot GetMagazineSlot()=>MagSlot;public class Malf{public string State="None";} }
  public class Revolver:Weapon{}
  public class Container{public List<Item> Items=new();}
  public class ContainerCollection:Item{public List<Container> Containers=new();}
  public class InventoryEquipment{public Slot Belt=new();public Slot? GetSlot(EquipmentSlot s)=>s==EquipmentSlot.ArmBand?Belt:null;}
  public class Inventory{public InventoryEquipment Equipment=new();}
- public class InventoryController {public Inventory Inventory=new();public bool Fail;public int Scans;public List<Item> Reachable=new();public bool Examined(Item x)=>true;public void GetReachableItemsOfTypeNonAlloc<T>(IList<T> items,Predicate<T>? predicate=null){Scans++;if(Fail)throw new Exception("inventory unavailable");foreach(var x in Reachable.OfType<T>())if(predicate==null||predicate(x))items.Add(x);}public void GetAcceptableItemsNonAlloc<T>(object slots,List<T> items,Func<T,bool> predicate){if(Fail)throw new Exception("inventory unavailable");}}
+ public class InventoryController {public Inventory Inventory=new();public bool Fail;public int Scans;public List<Item> Reachable=new();public bool Examined(Item x)=>true;public void GetReachableItemsOfTypeNonAlloc<T>(IList<T> items,Predicate<T>? predicate=null){Scans++;if(Fail)throw new Exception("inventory unavailable");foreach(var x in Reachable.OfType<T>())if(predicate==null||predicate(x))items.Add(x);}public void GetAcceptableItemsNonAlloc<T>(object slots,List<T> items,Func<T,bool>? predicate=null){if(Fail)throw new Exception("inventory unavailable");}}
  public static class ItemManipulator{public static Result CheckMoveIgnoringTargetItem(Magazine m,Slot s,InventoryController i)=>new(){Succeeded=m.Movable&&s.Accept,Error=m.Movable?"incompatible-slot":"item-locked"};}
 }
 namespace EFT {
@@ -36,6 +37,7 @@ namespace EFT {
  public class BotReload{public static object _availableEquipmentSlots=new();public Player _player=new();public Player.FirearmController? ShootController;public int Refilled;public bool FailFill;public Magazine? GetMagazineForReload()=>null;public void AddAmmoToMagazines(){}public void AddAmmoToMag(Weapon w,Magazine m){if(FailFill)throw new Exception("refill unavailable");Refilled++;m.Count=m.MaxCount;}}
  public class BotWeaponSelector {public Owner _owner=new(); public bool Ready=true;public void TryChangeToSlot(){} }
  public class Owner{public Player GetPlayer=new();public Manager WeaponManager=new();public Memory Memory=new();}
+ public class BotWeaponManager{public Weapon? CurrentWeapon;public BotWeaponSelector Selector=new();public float CriticalBulletCount;public bool HaveBullets=>true;}
  public class Manager {public BotWeaponSelector Selector=null!;}
  public class Memory {public bool IsUnderFire;}
 }
@@ -52,7 +54,7 @@ namespace SAIN.Components {
 }
 namespace Comet.Api {public static class Decisions {public static List<string> Events=new();public static void Publish(string j,Action<Exception> cb)=>Events.Add(j);}}
 namespace Comet.Client {
- internal class Diagnostics { internal static string Serialize(object value)=>Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public List<string> Events=new();public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};public void Write(string j)=>Events.Add(j);public void WriteEssential(string j)=>Write(j);}
+ internal class Diagnostics { internal static bool Fail; internal static string Serialize(object value)=>Fail?throw new Exception("observer failed"):Newtonsoft.Json.JsonConvert.SerializeObject(value,Json);public List<string> Events=new();public static Newtonsoft.Json.JsonSerializerSettings Json=new(){ContractResolver=new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()};public void Write(string j)=>Events.Add(j);public void WriteEssential(string j)=>Write(j);}
  internal static class NativeAdapter {internal static bool IsSupportedAi(BotComponent b)=>b.Pmc&&b.Player.IsAI;}
  internal class BotState {internal readonly BotComponent Owner;internal string ProfileId=>Owner.ProfileId;internal string Name="PMC",Id=Guid.NewGuid().ToString("N"),ActiveLabel="",Feature="A01",Decision="Hold",Expected="Hold";internal Choice? Choice;internal readonly CombatJournalRuntime Journal=new();internal ReloadTimingRuntime ReloadTiming=new();internal SwitchIntent WeaponReturn=new();internal Recovery HandsRecovery=new();internal BotState(BotComponent b,CometConfig c,string s){Owner=b;} }
  internal class ReloadTimingRuntime {internal bool InventoryFault;internal float BeltRefillAt;internal List<Magazine> BeltMagazines=new(),Magazines=new();internal List<Ammo> Ammo=new();}
@@ -62,6 +64,10 @@ namespace Comet.Client {
  internal class Log{public void LogWarning(string s){} }
  public sealed partial class Plugin {
   internal static Plugin? Instance;internal CometConfig? config=new();internal object? world=new();internal bool Authority=true,Sleep;internal string session="raid";internal long sequence;internal Diagnostics diagnostics=new();internal Log Logger=new();internal Dictionary<BotComponent,BotState> states=new();
+  private bool WeaponReturnState(BotWeaponSelector selector,out BotComponent b,out BotState s){
+   b=null!;s=null!;if(!SAIN.SAINEnableClass.GetSAIN(selector._owner.GetPlayer.ProfileId,out b))return false;
+   s=JournalState(b.Player)!;return s!=null;
+  }
   internal bool Ghost(string id)=>Sleep;internal static bool ReadDowned(Player p)=>p.Downed;
   // H01/W01 ownership is exercised by ArbitrationHarness; this harness verifies its journal attribution.
   internal string TestOwnedService="";

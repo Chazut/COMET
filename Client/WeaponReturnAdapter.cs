@@ -70,7 +70,7 @@ public sealed partial class Plugin
         bool emptyMag=false;
         try{
             if(magSlot!=null){r.Magazines.Clear();inventory.GetReachableItemsOfTypeNonAlloc(r.Magazines);
-                foreach(var m in r.Magazines)if(magSlot.CanAccept(m)){if(m.Count>0){g.Reserve=m.Count;g.Resource="magazine";return g;}emptyMag=true;}}
+                foreach(var m in r.Magazines)if(magSlot.CanAccept(m)&&m.IsAmmoCompatible(w.Chambers)){if(m.Count>0){g.Reserve=m.Count;g.Resource="magazine";return g;}emptyMag=true;}}
             if(chamber==null||w.ReloadMode==Weapon.EReloadMode.ExternalMagazine&&!emptyMag)return g;
             r.Ammo.Clear();inventory.GetAcceptableItemsNonAlloc(BotReload._availableEquipmentSlots,r.Ammo);
             foreach(var a in r.Ammo)if(a.StackObjectsCount>0&&chamber.CanAccept(a)){g.Reserve=a.StackObjectsCount;g.Resource="loose-ammo";return g;}

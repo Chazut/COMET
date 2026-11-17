@@ -31,6 +31,12 @@ static class Audit
         // Metadata preparation runs against the actual built client, without JITing Unity
         // callbacks on the .NET test host or executing any game action.
         var client = typeof(Comet.Client.Plugin).Assembly;
+        if (!probe.Hooks.Any(h=>h.Callback.Contains("CompatibleBullets")&&h.Target.Contains("get_HaveBullets")))
+            throw new Exception("Wrong-caliber native ammo-count hook was not registered.");
+        var magazineCheck=typeof(EFT.InventoryLogic.Magazine).GetMethod("IsAmmoCompatible")!;
+        if(!Calls(magazineCheck).Any(m=>m.Name=="CanAccept")||!Calls(magazineCheck).Any(m=>m.Name=="get_Last"))
+            throw new Exception("Native magazine/chamber next-cartridge contract changed.");
+        Console.WriteLine("Wrong-caliber integration: native HaveBullets hook and next-cartridge chamber contract verified.");
         // Use the installed EFT bodies, not a stub that accepts Pickup in every state.
         var movingPickup=typeof(EFT.MovePlayerState).GetMethod("Pickup")!;
         var idlePickup=typeof(EFT.IdlePlayerState).GetMethod("Pickup")!;

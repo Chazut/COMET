@@ -63,6 +63,17 @@ public sealed partial class Plugin
     {
         var t=s.Abandonment.Current;if(t==null)return;
         if(!s.AbandonLogs.Allow(t.Target,t.State,t.Reason,Time.time,force))return;
+        // Read cached native state only when a throttled diagnostic is emitted.
+        // These fields do not participate in the source abandonment decision.
+        try {
+            var search=s.Owner.Search;
+            t.NativeSearchState=search?.CurrentState.ToString()??"unavailable";
+            t.NativeSearchTarget=search?.SearchTarget?.EnemyProfileId??"";
+            t.NativeSearchActive=search?.SearchActive==true;
+            t.NativeSearchHasTarget=search?.PathFinder?.TargetPlace!=null;
+            var goal=s.Owner.GoalEnemy;
+            t.EnemyPathStatus=goal?.EnemyProfileId==t.Target?goal.Path?.PathToEnemy?.status.ToString()??"none":"not-current-target";
+        } catch { t.NativeSearchState="unavailable"; }
         var json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="P09",stage="evaluated",decision="SearchAbandonment",
             reason=t.Reason,realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),configRevision=config?.Revision??0,
             searchAbandonmentConfig=config?.SearchAbandonment,profileId=s.ProfileId,name=s.Name,botInstance=s.Id,searchAbandonment=t});

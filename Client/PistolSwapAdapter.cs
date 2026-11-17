@@ -29,7 +29,7 @@ public sealed partial class Plugin
             ||ReferenceEquals(eq?.GetSlot(EquipmentSlot.SecondPrimaryWeapon)?.ContainedItem,main)};
         if(w==null)return p;
         p.Pistol=w.Id.ToString();p.Chamber=w.ChamberAmmoCount;
-        p.Magazine=w.ReloadMode==Weapon.EReloadMode.OnlyBarrel?0:w.GetCurrentMagazine()?.Count??0;
+        p.Magazine=ReloadMagazineRounds(w);
         p.Loaded=p.Chamber+p.Magazine;
         p.Capacity=w.ReloadMode==Weapon.EReloadMode.OnlyBarrel?w.Chambers.Length:(w.GetCurrentMagazine()?.MaxCount??0)+w.Chambers.Length;
         p.Usable=!ReferenceEquals(w,main);

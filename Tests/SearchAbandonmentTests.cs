@@ -6,7 +6,8 @@ static class SearchAbandonmentTests
         Check(p.Evaluate(f,c).ForgetRequested,"source reached and silent 20 seconds");
         f.Visible=true;Check(!p.Evaluate(f,c).ForgetRequested,"visible kept");f.Visible=false;
         f.Now=19.99;Check(!p.Evaluate(f,c).ForgetRequested,"source silence threshold");f.Now=20;
-        f.PersonalSearch=false;Check(!p.Evaluate(f,c).ForgetRequested,"unvisited place kept");f.PersonalSearch=true;
+        f.PersonalSearch=false;Check(!p.Evaluate(f,c).ForgetRequested,"unvisited place kept");
+        Check(p.Current!.Reason=="search-place-not-visited"&&!p.Current.PlaceVisited,"unvisited search is not mislabeled as waiting for silence");f.PersonalSearch=true;
         f.Distance=100;f.Unsafe=true;f.Active=false;f.Sampled=f.Facing=f.ClearView=f.SameFloor=false;
         Check(p.Evaluate(f,c).ForgetRequested,"no COMET geometry inspection or priority veto");
         Check(p.ObserveForgotten(f,c,true)&&p.RememberedCount==0,"no artificial failed-memory ban");
