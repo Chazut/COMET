@@ -29,6 +29,6 @@ public sealed class MagazineRecoveryAction : BotAction
     public override void OnSteeringTicked()
     {
         if(TacticalSteeringFire.TryShoot(Bot,TacticalSteeringKind.PostCombat))return;
-        Bot.Steering.SteerByPriority(Bot.GoalEnemy);
+        if(!Plugin.SteerMagazineRecovery(BotOwner))Bot.Steering.SteerByPriority(Bot.GoalEnemy);
     }
 }

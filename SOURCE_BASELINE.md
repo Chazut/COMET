@@ -12,6 +12,17 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### Discarded-magazine travel facing (2026-11-17)
+
+The user's raid observation showed bots repeatedly walking backwards during
+"Returning for a discarded magazine". This custom post-combat feature passed
+the retained enemy to native priority steering, which can face the old contact
+instead of the path. Recovery now looks along its own native route, then at the
+magazine during pickup. Shooting and new combat/movement owners retain priority;
+zzap combat selection and the existing recovery eligibility are unchanged.
+W04 events report the requested facing mode without adding per-frame logging.
+MagazineRecoveryHarness covers route facing, pickup, danger, Ghost and Fika replicas.
+
 | Area | Baseline restored | Additional COMET restrictions removed |
 | --- | --- | --- |
 | Decisions | Source hidden/visible utility, ranking, selection windows and retained-choice margin; RR displays scores multiplied by 100 | Progress penalties, generic execution retry bans, additional plan validity/snapshot/commitment rules |

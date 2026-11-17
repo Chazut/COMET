@@ -87,6 +87,20 @@ public sealed partial class Plugin
         catch(Exception ex){p.FinishMagazineRecovery(s,"failed",ex.GetBaseException().Message);}
     }
 
+    internal static bool SteerMagazineRecovery(BotOwner owner)
+    {
+        var p=Instance;
+        if(p==null||!SAINEnableClass.GetSAIN(owner.ProfileId,out var b)||b==null||!p.states.TryGetValue(b,out var s))return false;
+        var r=s.MagazineRecovery;
+        if(!r.Active||!p.Authority||p.Ghost(b.ProfileId)||p.PostDanger(b)||r.Pending.Item==null)return false;
+        if(r.Path!=null&&b.Mover.ActivePath!=null&&!ReferenceEquals(r.Path,b.Mover.ActivePath))return false;
+        // Recovery is a post-combat trip. Retained enemy memory must not keep the
+        // bot looking behind itself while its mover follows the magazine route.
+        if(!r.Arrived&&r.Path!=null&&ReferenceEquals(r.Path,b.Mover.ActivePath)&&b.Steering.LookToMovingDirection())return true;
+        b.Steering.LookToPoint(r.Pending.Item.transform.position+Vector3.up*.2f);
+        return true;
+    }
+
     private void ExecuteMagazineRecovery(BotComponent b,BotState s)
     {
         var r=s.MagazineRecovery;
@@ -214,6 +228,7 @@ public sealed partial class Plugin
                 template=item?.Item?.TemplateId.ToString(),itemName=item?.Item?.LocalizedShortName(),
                 movementState=s.Owner.Player.CurrentManagedState?.GetType().Name,
                 pickupStateEntered=s.MagazineRecovery.Picking,callbackReceived=s.MagazineRecovery.Ready,
+                facing=s.MagazineRecovery.Active?(s.MagazineRecovery.Arrived?"magazine":"route"):"released",
                 x=at?.x,y=at?.y,z=at?.z}});
         diagnostics?.Write(json);Api.Decisions.Publish(json,ex=>{if(!subscriberWarned){subscriberWarned=true;Logger.LogWarning(ex.Message);}});
     }

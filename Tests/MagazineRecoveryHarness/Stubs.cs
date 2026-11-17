@@ -116,6 +116,13 @@ namespace SAIN.Components
         public bool BotActive=true,IsDead,GameEnding,Danger,Supported=true;
         public BotOwner BotOwner=new();public Player Player=new();public Decision Decision=new();public Mover Mover=new();
         public Vector3 Position;public string ProfileId=>BotOwner.ProfileId;
+        public Steering Steering=new();
+    }
+    public class Steering
+    {
+        public bool Moving=true;public int RouteLooks,PointLooks;public Vector3 Point;
+        public bool LookToMovingDirection(bool sprint=false){RouteLooks++;return Moving;}
+        public void LookToPoint(Vector3 point){PointLooks++;Point=point;}
     }
 }
 namespace SAIN
@@ -143,9 +150,9 @@ namespace Comet.Client
             public string ProfileId=>Owner.ProfileId;public string Name="PMC",Id="instance";
         }
         public static Plugin? Instance;private Dictionary<BotComponent,BotState> states=new();
-        private Config? config=new();private object? world=new();private static bool Authority=true;private static bool Sleeping;
+        private Config? config=new();private object? world=new();private bool Authority=true;private static bool Sleeping;
         private string session="test";private long sequence;private Writer? diagnostics=new();private bool subscriberWarned;private Log Logger=new();
         private static MethodInfo combatStopPath=typeof(BotPathDataManual).GetMethod("Stop")!;
-        private static bool Ghost(string id)=>Sleeping;private static bool PostDanger(BotComponent bot)=>bot.Danger;
+        private bool Ghost(string id)=>Sleeping;private bool PostDanger(BotComponent bot)=>bot.Danger;
     }
 }

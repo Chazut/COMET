@@ -19,7 +19,7 @@ namespace Comet.Client
             {
                 var p=new Plugin();Instance=p;var b=new BotComponent();SAINEnableClass.Bot=b;
                 var s=new BotState(b);p.states.Add(b,s);var loot=new LootItem("actual-drop");
-                Time.time=0;Physics.Obstacle=null;Authority=true;Sleeping=false;Api.Decisions.Events.Clear();
+                Time.time=0;Physics.Obstacle=null;p.Authority=true;Sleeping=false;Api.Decisions.Events.Clear();
                 p.RememberDroppedMagazine(s,loot);return(p,b,s,loot);
             }
             void Arrive(BotComponent b){RunMagazineRecovery(b.BotOwner,true);b.Player.CurrentManagedState.Callback!();RunMagazineRecovery(b.BotOwner,true);}
@@ -48,11 +48,22 @@ namespace Comet.Client
             oldCallback();Check(!s.MagazineRecovery.Ready&&s.MagazineRecovery.Pending.Count==1,"late callback cannot reactivate cancelled pickup");
             b.Danger=false;Arrive(b);Check(b.Player.InventoryController.Calls==1,"retry original magazine after fight");
             (p,b,s,loot)=Setup();loot.transform.position=new(10,0,0);RunMagazineRecovery(b.BotOwner,true);
+            Check(SteerMagazineRecovery(b.BotOwner)&&b.Steering.RouteLooks==1&&b.Steering.PointLooks==0,"return trip follows native route corners rather than old enemy memory");
+            b.Steering.Moving=false;
+            Check(SteerMagazineRecovery(b.BotOwner)&&b.Steering.Point.x==10,"before native movement begins face the actual magazine");
+            b.Danger=true;int looks=b.Steering.RouteLooks+b.Steering.PointLooks;
+            Check(!SteerMagazineRecovery(b.BotOwner)&&looks==b.Steering.RouteLooks+b.Steering.PointLooks,"fresh danger keeps native combat steering");
+            b.Danger=false;Sleeping=true;Check(!SteerMagazineRecovery(b.BotOwner),"ghost recovery never steers a body");Sleeping=false;
+            p.Authority=false;Check(!SteerMagazineRecovery(b.BotOwner),"Fika replica recovery never steers");p.Authority=true;
             var owned=(BotPathDataManual)b.Mover.ActivePath!;b.Danger=true;MagazineRecoveryActive(b.BotOwner);
             Check(owned.Stops==1&&s.MagazineRecovery.Pending.Count==1,"yield owned route and retain item");
             (p,b,s,loot)=Setup();loot.transform.position=new(10,0,0);RunMagazineRecovery(b.BotOwner,true);
             var combatPath=new BotPathDataManual();b.Mover.ActivePath=combatPath;RunMagazineRecovery(b.BotOwner,false);
             Check(combatPath.Stops==0,"never stop a newer combat route");
+            (p,b,s,loot)=Setup();loot.transform.position=new(10,0,0);RunMagazineRecovery(b.BotOwner,true);
+            b.Mover.ActivePath=new BotPathDataManual();Check(!SteerMagazineRecovery(b.BotOwner),"new movement owner keeps its steering");
+            (p,b,s,loot)=Setup();RunMagazineRecovery(b.BotOwner,true);
+            Check(SteerMagazineRecovery(b.BotOwner)&&b.Steering.PointLooks==1,"at pickup range face magazine instead of old target");
             (p,b,s,loot)=Setup();loot.gameObject.activeInHierarchy=false;
             Check(!MagazineRecoveryActive(b.BotOwner)&&s.MagazineRecovery.Pending.Count==0,"someone else took the drop");
             (p,b,s,loot)=Setup();Sleeping=true;Check(!MagazineRecoveryActive(b.BotOwner)&&s.MagazineRecovery.Pending.Count==1,"ghost pauses pickup");
@@ -98,7 +109,7 @@ namespace Comet.Client
             (p,b,s,loot)=Setup();RunMagazineRecovery(b.BotOwner,true);movement=b.Player.MovementContext;
             var stale=movement.PickupAction;movement.OverridenState=null;RunMagazineRecovery(b.BotOwner,true);
             stale!();Check(!s.MagazineRecovery.Ready&&movement.Starts==2,"interrupted native animation retries and rejects stale callback");
-            Authority=false;Check(!MagazineRecoveryActive(b.BotOwner)&&s.MagazineRecovery.Pending.Count==1,"Fika client yields native recovery and retains original drop");
+            p.Authority=false;Check(!MagazineRecoveryActive(b.BotOwner)&&s.MagazineRecovery.Pending.Count==1,"Fika client yields native recovery and retains original drop");
             Check(movement.PickupAction==null,"cancel releases owned native callback");
             Console.WriteLine($"Magazine recovery adapter: {checks} checks passed.");
         }
