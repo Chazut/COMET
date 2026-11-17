@@ -255,7 +255,7 @@ public sealed partial class Plugin
         v.OriginalProtection=0;v.Protection=0;
         if(!Physics.Linecast(known+Vector3.up*1.5f,goal+Vector3.up*1.3f,out var obstacle,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore)
             ||obstacle.collider==null){v.Refusal="relocate-no-cover-surface";return v;}
-        if(SeasonalCoverScope(b)&&CoverPositionInFoliage(goal))
+        if(SeasonalCoverScope(b)&&BareFoliageAt(goal,known))
         {v.Refusal="seasonal-cover-position-inside-foliage";RecordSeasonalCover(b,obstacle.collider,v.Refusal);return v;}
         var route=new PathData();route.CalcPath(b.Position,goal);v.PathLength=route.PathLength;
         var corners=route.Path?.corners;

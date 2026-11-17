@@ -27,6 +27,9 @@ public sealed partial class Plugin
         internal ESeason Season;
         internal Vector3 Position;
         internal bool Checked, Inside;
+        internal int ProtectionFrame = -1;
+        internal Vector3 Threat;
+        internal bool Protected;
     }
     private static readonly ConditionalWeakTable<CoverPoint, SeasonalPositionCheck> seasonalCoverPositions = new();
 
@@ -59,9 +62,7 @@ public sealed partial class Plugin
     private static bool FoliageCoverCollider(Collider? collider)
         => collider != null && ((1 << collider.gameObject.layer) & (int)LayersMaskController.Foliage) != 0;
 
-    // Only invoked after native candidate geometry succeeds, never as a per-bot
-    // per-frame vision scan. A solid wall is useful, but standing inside a bush
-    // next to it still blinds the bot under the unmodified native vision rules.
+    // Static foliage occupancy can be cached independently of the threat.
     private static bool CoverPositionInFoliage(Vector3 position)
     {
         try
@@ -83,10 +84,24 @@ public sealed partial class Plugin
         return false;
     }
 
-    private static void SeasonalCoverPosition(CoverAnalyzer __instance, Collider collider,
+    // SAIN tests nearby cover within three metres. Cast from the bot's body
+    // towards the known threat so a trunk behind the bot or beyond the enemy
+    // cannot qualify. Only solid world geometry can return a hit.
+    private static bool SolidCoverBetween(Vector3 position, Vector3 threat)
+    {
+        var towardThreat = threat - position;
+        float distance = towardThreat.magnitude;
+        return distance > 0f && Physics.Raycast(position + Vector3.up, towardThreat / distance,
+            Mathf.Min(distance, 3f), LayersMaskController.HighPolyWithTerrainMask, QueryTriggerInteraction.Ignore);
+    }
+
+    private static bool BareFoliageAt(Vector3 position, Vector3 threat)
+        => CoverPositionInFoliage(position) && !SolidCoverBetween(position, threat);
+
+    private static void SeasonalCoverPosition(CoverAnalyzer __instance, Collider collider, Vector3 targetPosition,
         NavMeshHit navMeshHit, ref string reason, ref bool __result)
     {
-        if (!__result || !SeasonalCoverScope(__instance.Bot) || !CoverPositionInFoliage(navMeshHit.position)) return;
+        if (!__result || !SeasonalCoverScope(__instance.Bot) || !BareFoliageAt(navMeshHit.position, targetPosition)) return;
         __result = false;
         reason = "seasonal-cover-position-inside-foliage";
         RecordSeasonalCover(__instance.Bot, collider, reason);
@@ -106,8 +121,17 @@ public sealed partial class Plugin
             check.Season = season;
             check.Position = point.Position;
             check.Checked = true;
+            check.ProtectionFrame = -1;
         }
-        return !check.Inside;
+        if (!check.Inside) return true;
+        if (b.GoalEnemy?.LastKnownPosition is not Vector3 threat) return false;
+        if (check.ProtectionFrame != Time.frameCount || check.Threat != threat)
+        {
+            check.Protected = SolidCoverBetween(point.Position, threat);
+            check.Threat = threat;
+            check.ProtectionFrame = Time.frameCount;
+        }
+        return check.Protected;
     }
 
     private static void SeasonalCoverSelection(SAINCoverClass __instance)

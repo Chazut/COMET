@@ -19,13 +19,15 @@ namespace Comet.Client
             Instance.states[b] = new();
             SeasonsController.Controller = new() { Season = season };
             Physics.Inside = _ => false; Physics.Calls = 0; Physics.Fail = false;
+            Physics.Obstacles = []; Physics.SolidQueries = 0; Time.frameCount = 1;
             Diagnostics.Fail = false; Api.Decisions.Count = 0; Time.time = 10;
             return (Instance, b, new() { Bot = b });
         }
-        private static CoverPoint Point(bool foliage) => new() { Collider = new() { gameObject = new() { layer = foliage ? 7 : 4 } } };
+        private static CoverPoint Point(bool foliage) => new() { Collider = new() { gameObject = new() { layer = foliage ? 26 : 12 } } };
         public static void Test()
         {
             TestExposure();
+            TestTrunkCover();
             foreach (var season in Enum.GetValues<ESeason>())
             {
                 var (p, b, a) = Setup(season);
@@ -42,11 +44,11 @@ namespace Comet.Client
                 Check(SeasonalCoverCandidate(a, wall.Collider, ref reason, ref hit, ref result) && result, "Solid candidate runs native geometry");
                 Physics.Inside = _ => true;
                 result = true;
-                SeasonalCoverPosition(a, wall.Collider, hit, ref reason, ref result);
-                Check(result != bareSeason, "Solid candidate inside foliage rejected only in autumn/winter");
+                SeasonalCoverPosition(a, wall.Collider, new(10, 0, 0), hit, ref reason, ref result);
+                Check(result != bareSeason, "Exposed position inside foliage rejected only in autumn/winter");
                 int calls = Physics.Calls;
                 result = false;
-                SeasonalCoverPosition(a, wall.Collider, hit, ref reason, ref result);
+                SeasonalCoverPosition(a, wall.Collider, new(10, 0, 0), hit, ref reason, ref result);
                 Check(!result && Physics.Calls == calls, "Native geometry failure unchanged without extra query");
             }
             foreach (var season in new[] { ESeason.Autumn, ESeason.AutumnLate, ESeason.Winter })

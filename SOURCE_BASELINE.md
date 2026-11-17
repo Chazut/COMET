@@ -148,8 +148,11 @@ Winter applies the same user-requested cover policy as autumn, without changing
 perception or adding a new tactical condition. C07 diagnostics identify the
 actual season; refusal reasons use the shared `seasonal-` prefix.
 Successful native candidate positions are also checked for foliage occupancy
-at the native cover ray's one-metre body height. This avoids choosing a position
-inside a bush even when the cover collider is a wall. Retained, custom, flank,
+one metre above the standing point. Inside foliage, a short ray from that point
+towards the known threat checks solid geometry (HighPolyCollider or Terrain).
+It ends at the threat or SAIN's three-metre local cover range, whichever is
+closer. A trunk, wall or rock shielding the bot can qualify even when its
+branches overlap the standing point. Retained, custom, flank,
 directional and relocation cover paths use the same seasonal exclusion. Native
 cover selection/ranking and alternative movement remain responsible for the
 replacement. Invalid retained pointers are cleared individually, not marked
@@ -158,8 +161,8 @@ concealment; no inference from the real-world date or a mod's name is made.
 
 This is a deliberately conservative cover choice, not a leaf-density model:
 autumn/winter foliage volumes are excluded even if a particular bush retains leaves.
-Solid trunks, walls and rocks remain eligible when the destination is outside
-foliage. Unknown seasons and external bot ownership retain native behavior.
+Grass has its own layer and is absent from both the foliage and solid tests.
+Unknown seasons and external bot ownership retain native behavior.
 Only supported, active, authoritative COMET bots with an enemy are affected.
 
 No vision/raycast mask, collider, detection preset, target position, accuracy or
@@ -170,7 +173,9 @@ visibility. In particular, removing all foliage from vision would also expose
 players hidden behind dense bushes and evergreen vegetation.
 
 Occupancy uses a shared non-allocating buffer, cleared after use. Retained/custom
-point checks are cached by weak point identity, position and season. No physics
+point occupancy is cached by weak point identity, position and season. Inside
+foliage, repeated checks of the same point share the solid ray for that frame
+and known threat position. No physics
 scan runs for a foliage-layer rejection or outside the affected seasons/scope.
 Aggregated C07 SeasonalCover events are limited to one per bot per five seconds
 and observer failure cannot veto gameplay. Regression tests cover all seasons,
