@@ -20,6 +20,7 @@ if(args.Length==2 && args[0]=="--suite")
 }
 
 int checks = 0;
+checks += HiddenExecutionTests.Run();
 checks += MagazineRecoveryTests.Run();
 checks += HotPathAllocationTests.Run();
 checks += DiagnosticWarmupTests.Run();
@@ -164,6 +165,7 @@ foreach (var mutation in new Action<Situation>[] {
 foreach (Tactic tactic in Enum.GetValues<Tactic>())
 {
     var config=Only(tactic);var engine=new HiddenEnemyDecision(config);var s=Contact();
+    if(tactic==Tactic.FallBack)s.Health=.7; // Healthy/full-ammo fallback scores exactly 5 and is not runnable in zzap.
     Check(engine.Evaluate(s).Decision==tactic,"source selectable "+tactic);
     s.Unavailable[tactic]="test-route-blocked";s.Now+=.1;
     var result=engine.Evaluate(s);
@@ -192,14 +194,14 @@ foreach (Tactic tactic in Enum.GetValues<Tactic>())
     s.Unavailable[Tactic.Grenade]="no-ready-throw-trajectory";
     var pending=engine.Evaluate(s);int opportunity=pending.Mixing!.Opportunity;
     var scores=pending.Candidates.Select(c=>c.Score).ToArray();
-    Check(pending.Decision==Tactic.Hold,"pending grenade falls through to hold");
+    Check(pending.Decision==null,"pending grenade yields to native when Hold is below the source score floor");
     s.Now+=.1;s.Unavailable.Clear();
     var ready=engine.Evaluate(s);
     Check(ready.Decision==Tactic.Grenade&&ready.Changed&&ready.Reason=="zzap-capability-refreshed","prepared grenade replaces cached fallback immediately");
     Check(ready.Mixing!.Opportunity==opportunity&&ready.Mixing.DrawIndex==pending.Mixing.DrawIndex&&ready.Candidates.Select(c=>c.Score).SequenceEqual(scores),"arc readiness does not change scores or reroll");
     engine.Fail(Tactic.Grenade,s.Now,"native-throw-refused");s.Unavailable[Tactic.Grenade]="native-throw-refused";
     var fallback=engine.Evaluate(s);
-    Check(fallback.Decision==Tactic.Hold&&fallback.Mixing!.Selected=="Hold"&&fallback.Mixing.Opportunity==opportunity,"native refusal tries next cached rank with current diagnostic selection");
+    Check(fallback.Decision==null&&fallback.Mixing!.Selected==""&&fallback.Mixing.Opportunity==opportunity,"native refusal cannot promote a below-floor fallback or reroll its preference");
     s.Unavailable.Clear();s.Now+=.1;
     Check(engine.Evaluate(s).Decision==Tactic.Grenade,"next callback can retry without extra cooldown");
     s.Now=14.01;Check(engine.NeedsEvidence(s),"capability refresh never extends source ranking lifetime");

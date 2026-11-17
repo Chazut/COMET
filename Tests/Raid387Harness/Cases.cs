@@ -16,7 +16,9 @@ namespace SAIN.SAINComponent.Classes.EnemyClasses {
  public sealed class Enemy { public Places KnownPlaces=new(); }
 }
 namespace SAIN.Classes.Bot.Search {
- public sealed class SearchClass { public Finder PathFinder=new(); }
+ public sealed class Reasons { public string PathCalcFailReason="",NotSearchReason="native",Want=""; public Reasons WantSearchReasons=>this; public string NotWantToSearchReason="audio",CantStartReason="suppressed"; }
+ public sealed class Decider { public bool Allowed; public Reasons Reasons=new(); public int Calls; public bool ShallStartSearch(Enemy e,out Reasons r){Calls++;r=Reasons;return Allowed;} }
+ public sealed class SearchClass { public Finder PathFinder=new(); public Decider Decider=new(); }
  public sealed class Finder {
   public Place TargetPlace;public int Checks;public bool Available=true;
   public bool CheckEnemyPath(Enemy e,out string why){Checks++;why="unreachable";if(!Available)return false;TargetPlace=e.KnownPlaces.LastKnownPlace;return true;}
@@ -50,6 +52,13 @@ namespace Comet.Client {
   static int checks;static void Check(bool ok,string reason){checks++;if(!ok)throw new Exception(reason);}
   public static void Run(){
    var e=new Enemy();var search=new SearchClass();
+   search.PathFinder.TargetPlace=e.KnownPlaces.LastKnownPlace;
+   Check(!SearchExecutionAdapter.CanStart(search,e,out var rejection)&&rejection.Contains("audio"),"prepared path cannot bypass native eligibility");
+   search.Decider.Reasons.PathCalcFailReason="partial";
+   Check(!SearchExecutionAdapter.CanStart(search,e,out rejection)&&rejection=="search-native-path-refused:partial","native path refusal preserved");
+   search.Decider.Allowed=true;
+   Check(SearchExecutionAdapter.CanStart(search,e,out rejection)&&rejection==""&&search.Decider.Calls==3,"native decider queried lazily and can recover without cooldown");
+   search.PathFinder.TargetPlace=null;
    Check(SearchExecutionAdapter.Prepare(search,e,out var reason)&&reason=="search-target-prepared","direct Search prepares SAIN target");
    Check(ReferenceEquals(search.PathFinder.TargetPlace,e.KnownPlaces.LastKnownPlace),"uses known place, not live target");
    for(int i=0;i<100;i++)Check(SearchExecutionAdapter.Prepare(search,e,out reason)&&reason=="search-target-retained","keep native peek/wait state");

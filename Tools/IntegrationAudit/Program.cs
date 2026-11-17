@@ -25,6 +25,8 @@ var fields=new List<FieldDeclarationSyntax>();
 bool again=true;while(again){again=false;foreach(var f in declarations)
     if(!fields.Contains(f)&&f.Declaration.Variables.Any(v=>needed.Contains(v.Identifier.Text))){fields.Add(f);foreach(var n in f.DescendantNodes().OfType<IdentifierNameSyntax>())needed.Add(n.Identifier.Text);again=true;}}
 var helpers=files.SelectMany(f=>f.DescendantNodes().OfType<MethodDeclarationSyntax>()).Where(m=>m.Identifier.Text=="SeekCoverType");
+var delegates=files.SelectMany(f=>f.DescendantNodes().OfType<DelegateDeclarationSyntax>())
+    .Where(d=>(d.Parent as ClassDeclarationSyntax)?.Identifier.Text=="Plugin"&&needed.Contains(d.Identifier.Text));
 // Run production transpiler bodies against real method IL as well as resolving registrations.
 // Only reflection lookup helpers are substituted: the bundled Harmony runtime targets Unity Mono.
 var transpilers=files.SelectMany(f=>f.DescendantNodes().OfType<MethodDeclarationSyntax>())
@@ -34,6 +36,7 @@ var usings=files.SelectMany(f=>f.Usings).Select(u=>u.ToString()).Distinct().Orde
 var rewrite=new RegistrationRewrite();
 string body=string.Join("\n",fields.Select(f=>(f.Modifiers.Any(SyntaxKind.StaticKeyword)||f.Modifiers.Any(SyntaxKind.ConstKeyword)?f:f.AddModifiers(SyntaxFactory.Token(SyntaxKind.StaticKeyword))).NormalizeWhitespace().ToFullString()))+"\n"+string.Join("\n",methods.Select(m=>rewrite.Visit(m.Modifiers.Any(SyntaxKind.StaticKeyword)?m:m.AddModifiers(SyntaxFactory.Token(SyntaxKind.StaticKeyword)))!.NormalizeWhitespace().ToFullString()));
 body+="\n"+string.Join("\n",helpers.Select(m=>m.ToFullString()));
+body+="\n"+string.Join("\n",delegates.Select(d=>d.ToFullString()));
 var transpilerRewrite=new TranspilerRewrite();
 body+="\n"+string.Join("\n",transpilers.Concat(transpilerHelpers).Select(m=>transpilerRewrite.Visit(m)!.ToFullString()));
 var awake=files.SelectMany(r=>r.DescendantNodes().OfType<MethodDeclarationSyntax>()).Single(m=>m.Identifier.Text=="Awake");

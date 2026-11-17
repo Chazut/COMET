@@ -89,7 +89,7 @@ public sealed partial class Plugin
             if(e.IsVisible||e.InLineOfSight)return true;
             var last=e.KnownPlaces.LastKnownPosition;
             bool seen=e.Seen&&e.TimeSinceSeen<15&&e.RealDistance<80;
-            bool heard=e.KnownPlaces.LastHeardPlace is {} h&&h.TimeSincePositionUpdated<6&&e.RealDistance<25;
+            bool heard=e.Heard&&e.TimeSinceHeard<6&&e.RealDistance<25;
             if((seen||heard)&&last.HasValue&&!Physics.Linecast(last.Value+Vector3.up*1.5f,b.Transform.EyePosition,LayersMaskController.HighPolyWithTerrainMask))return true;
         }
         return false;

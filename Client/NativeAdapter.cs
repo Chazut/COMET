@@ -58,18 +58,9 @@ internal static class NativeAdapter
     }
     internal static void Capabilities(BotComponent bot, Enemy enemy, Situation s, BotState state, CometConfig config)
     {
-        bool complete = enemy.Path.PathToEnemy?.status == NavMeshPathStatus.PathComplete;
         var known = enemy.KnownPlaces.LastKnownPosition!.Value;
-        if (!complete) s.Unavailable[Tactic.Push] = "no-current-complete-path";
-        else if (enemy.Path.PathLength > config.PushMaxDistance) s.Unavailable[Tactic.Push] = "push-path-too-long";
-        if(bot.Info.Personality.ToString()=="Coward")s.Unavailable[Tactic.Push]="coward-keeps-distance";
-        if(bot.Decision.SelfActionDecisions.LowOnAmmo(.35f))s.Unavailable[Tactic.Push]="low-ammo";
-        if (!bot.Info.PersonalitySettings.Search.WillSearchForEnemy) s.Unavailable[Tactic.Search] = "sain-personality-search-disabled";
-        if (!enemy.Seen && !bot.Info.PersonalitySettings.Search.WillSearchFromAudio)
-            s.Unavailable[Tactic.Search] = "sain-personality-audio-search-disabled";
         state.SelectedCover=VisibleAdapter.SelectCover(bot);
-        string flankReason=FlankAdapter.Capability(bot,state);
-        if(flankReason.Length>0)s.Unavailable[Tactic.Flank]=flankReason;
+        // Push, Search and ShiftCover execute their native deciders lazily in rank order.
         s.Unavailable[Tactic.Grenade] = GrenadeCapability(bot, enemy, known, state, config);
         if (s.Unavailable[Tactic.Grenade] == "ready") s.Unavailable.Remove(Tactic.Grenade);
     }
@@ -127,7 +118,7 @@ internal static class NativeAdapter
     internal static ECombatDecision Map(Tactic tactic) => tactic switch {
         Tactic.Push => ECombatDecision.RushEnemy, Tactic.Grenade => ECombatDecision.ThrowGrenade,
         Tactic.Hold => ECombatDecision.Freeze, Tactic.Flank => ECombatDecision.ShiftCover,
-        Tactic.Search => ECombatDecision.Search, Tactic.FallBack => ECombatDecision.Retreat,
+        Tactic.Search => ECombatDecision.Search, Tactic.FallBack => ECombatDecision.SeekCover,
         _ => throw new ArgumentOutOfRangeException(nameof(tactic))
     };
 }

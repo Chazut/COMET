@@ -28,6 +28,8 @@ internal static class DiagnosticEventReaderTests
                 mixing=new {opportunity=1, encounter=1, selected="Hold", roll=.2, state="weighted-roll", options=new[] {new {decision="Hold", probability=1d}}},
                 unneeded=new {feature="T04", schema=99, stage="configuration", config=new CometConfig()}}));
         long sequence = 0;
+        events.Add(Json(new {schema=1, session="raid", feature="A01", stage="execution-check", profileId="pmc", decision="Flank",
+            reason="native-shift:dontWantTo", hiddenExecution=new {enemyPath="PathPartial",moving=false,shiftComplete=true}}));
         foreach (double time in new[] {1d, 2d})
             events.Add(Json(new {schema=1, session="raid", sequence=++sequence, feature="T01", stage="evaluated", realtime=time, botInstance="bot", profileId="pmc", name="PMC", personality="Normal",
                 combatJournal=new {kind="context", context=new {action="Hold", feature="A01", target="enemy"}}}));

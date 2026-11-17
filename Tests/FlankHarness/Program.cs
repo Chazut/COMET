@@ -6,10 +6,7 @@ using System.Runtime.Loader;
 var root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));
 var tree=CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Client/FlankAdapter.cs"))).GetRoot();
 string source="using System;using System.Collections.Generic;namespace Comet.Client;"+string.Join("\n",tree.DescendantNodes().OfType<ClassDeclarationSyntax>().Where(c=>c.Identifier.Text!="Plugin"))
- +"partial class Plugin {"+tree.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m=>m.Identifier.Text=="SelectFlankPoint")+"}";
-var visible=CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Client/VisibleAdapter.cs"))).GetRoot();
-source+="static partial class VisibleAdapter {"+visible.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m=>m.Identifier.Text=="SameThreats")+"}";
-source+=visible.DescendantNodes().OfType<ClassDeclarationSyntax>().Single(c=>c.Identifier.Text=="KnownThreat");
+ +"partial class Plugin {"+tree.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m=>m.Identifier.Text=="ObserveFlankPoint")+"}";
 var refs=((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator).Select(p=>MetadataReference.CreateFromFile(p));
 var compilation=CSharpCompilation.Create("FlankRegression",new[]{CSharpSyntaxTree.ParseText(source),CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"Cases.cs")))},refs,new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 using var bytes=new MemoryStream();var result=compilation.Emit(bytes);

@@ -12,6 +12,36 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### Hidden-action execution after Back4Streetz raid 459 (2026-11-17)
+
+The recorded 03:10.603 candidate list selected a negative Hold after Search
+failed. Selection now follows `EnemyDecisionClass.TryUtility`: stop at scores
+at or below 0.05 (5 in COMET telemetry), allow Hold/FallBack only at the top or
+within 0.12, and retain the source's danger exception for FallBack. Failed
+execution probes do not reroll cached preferences. The last native action may
+survive a transient refusal for the source constant of **2 seconds**, without
+renewing its deadline or logging another selection on every tick.
+
+ShiftCover uses native `shallShiftCover` and native point selection, including
+personality, suppression, movement, completion and reset timers. The COMET
+observer records that route without submitting a replacement. FallBack maps to
+SeekCover. Search uses the full native decider rather than a direct path probe,
+with zzap's 15-second quiet heard-only exception and walking behavior restored.
+Reached partial path ends use the source two-metre arrival rule.
+
+The related movement watchdog uses the source thresholds: 0.5 m progress,
+5 seconds for utility FallBack, 2 seconds for Search near the last known spot,
+6 seconds for other Search/Push stalls, then source 15/12-second bans. It does
+not classify Hold, Flank or ordinary native SeekCover as stalled utility work.
+Ghost/inactive lifetime pauses do not count as movement stalls.
+
+Diagnostics group native refusals, path endpoints, mover and cover state into
+at most one A01 `execution-check` per bot every three seconds. Quiet logging
+still preserves RR publication. Tests replay the recorded candidate list and
+exercise native acceptance/refusal, retention, search completion and authority
+boundaries. These checks do not prove that the original Unity geometry will
+produce a valid route or that native SeekCover cannot stall after COMET yields.
+
 ### Discarded-magazine travel facing (2026-11-17)
 
 The user's raid observation showed bots repeatedly walking backwards during

@@ -72,6 +72,9 @@ public sealed class HiddenEnemyDecision
     private readonly DecisionMixer mixer;
     private readonly Random random;
     private Tactic? current;
+    private Tactic? beforeSelection;
+    private string targetBeforeSelection = "";
+    private double holdBeforeSelection;
     private string target = "";
     private double until, holdSince = -1, banKnownAt = -1;
     private List<Candidate> ranked = new();
@@ -94,12 +97,13 @@ public sealed class HiddenEnemyDecision
         if (s.ContactAge > 60) return "contact-expired";
         return null;
     }
-    public Choice Evaluate(Situation s)
+    public Choice Evaluate(Situation s, Func<Tactic, string>? canRun = null)
     {
+        beforeSelection=current;targetBeforeSelection=target;holdBeforeSelection=holdSince;
         string? rejection = Ineligible(s, config);
         if (rejection != null) return Release(rejection);
         bool same = target == s.Target;
-        if (!NeedsEvidence(s)) return SelectAvailable(s, "zzap-ranked-memory");
+        if (!NeedsEvidence(s)) return SelectAvailable(s, "zzap-ranked-memory", canRun);
         double heldFor = holdSince >= 0 && (same || s.Frozen) ? s.Now - holdSince : 0;
         double knownAt = s.Now - s.ContactAge;
         if (!same || Math.Abs(banKnownAt - knownAt) >= .5) banKnownAt = -1;
@@ -124,9 +128,9 @@ public sealed class HiddenEnemyDecision
         preference = candidates.Where(c => c.Eligible).OrderByDescending(c => c.Score).ToList();
         if (chosen != null) { preference.Remove(chosen); preference.Insert(0, chosen); }
         until = s.Now + (next == Tactic.Hold ? 4 + random.NextDouble()*3 : 2.5 + random.NextDouble()*1.5);
-        return SelectAvailable(s, "zzap-ranked-selection");
+        return SelectAvailable(s, "zzap-ranked-selection", canRun);
     }
-    private Choice SelectAvailable(Situation s, string reason)
+    private Choice SelectAvailable(Situation s, string reason, Func<Tactic, string>? canRun = null)
     {
         foreach (var c in ranked)
         {
@@ -135,7 +139,29 @@ public sealed class HiddenEnemyDecision
                 : s.Unavailable.TryGetValue(tactic, out var why) ? why : "available";
             c.Eligible = c.Reason == "available";
         }
-        var chosen = preference.FirstOrDefault(c => c.Eligible);
+        Candidate? chosen = null;
+        bool holdSkipped = false;
+        var top = preference.FirstOrDefault();
+        foreach (var c in preference)
+        {
+            // TryUtility uses the preference order (including its deliberate mistakes),
+            // then tests execution. Its 0.05/0.12 scores are x100 in the UI contract.
+            if (c.Score <= 5) { c.Eligible = false; c.Reason = "zzap-score-too-low"; break; }
+            if (!c.Eligible) continue;
+            var tactic = (Tactic)Enum.Parse(typeof(Tactic), c.Decision);
+            if ((tactic is Tactic.Hold or Tactic.FallBack) && c != top && c.Score < top!.Score - 12
+                && !(tactic == Tactic.FallBack && holdSkipped))
+            { c.Eligible = false; c.Reason = "zzap-fallback-not-preferred"; continue; }
+            string refusal = canRun?.Invoke(tactic) ?? "";
+            if (refusal.Length > 0)
+            {
+                c.Eligible = false; c.Reason = refusal;
+                if (tactic == Tactic.Hold && refusal is "zzap-hold-under-fire" or "zzap-hold-other-enemy") holdSkipped = true;
+                continue;
+            }
+            chosen = c;
+            break;
+        }
         Tactic? next = chosen == null ? null : (Tactic)Enum.Parse(typeof(Tactic), chosen.Decision);
         bool changed = current != next || target != s.Target;
         if (next == Tactic.Hold || s.Frozen)
@@ -148,6 +174,14 @@ public sealed class HiddenEnemyDecision
     }
     // The adapter marks only this call's failed option unavailable and tries the next rank.
     public Choice Fail(Tactic tactic, double now, string reason) => new Choice { Decision=current, Reason=reason };
+    public Choice Keep(Tactic tactic, string contact)
+    {
+        bool changed = beforeSelection != tactic || targetBeforeSelection != contact;
+        if(tactic==Tactic.Hold&&beforeSelection==tactic)holdSince=holdBeforeSelection;
+        current = tactic; target = contact;
+        return new Choice { Decision=tactic, Changed=changed, Candidates=ranked, Reason="utilityKeep",
+            Mixing=mixer.Retain("utilityKeep",tactic.ToString()) };
+    }
     public Choice Release(string reason) { bool changed=current.HasValue; current=null; until=0; ranked.Clear(); preference.Clear(); return new Choice {Changed=changed,Reason=reason}; }
     private static bool Finite(double x) => !double.IsNaN(x) && !double.IsInfinity(x);
 }

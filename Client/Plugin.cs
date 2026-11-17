@@ -152,6 +152,8 @@ public sealed partial class Plugin : BaseUnityPlugin
 
             RunIntegration("PatchSilentSearch",()=>PatchSilentSearch(harmony));
             RunIntegration("PatchSearchExecution",()=>PatchSearchExecution(harmony));
+            RunIntegration("PatchHiddenExecution",()=>PatchHiddenExecution(harmony));
+            RunIntegration("PatchSourceSearch",()=>PatchSourceSearch(harmony));
 
             RunIntegration("PatchSearchAbandonment",()=>PatchSearchAbandonment(harmony));
 
@@ -538,13 +540,17 @@ public sealed partial class Plugin : BaseUnityPlugin
             situation.Encounter = plugin.ReadEncounter(bot,enemy,state,situation);
             situation.Outcome = plugin.ReviewOutcome(bot,state);
             situation.Opportunity = plugin.ReadOpportunity(bot, enemy, state, situation);
-            for (int attempt = 0; attempt < 6; attempt++)
+            state.HiddenExecution.Refusals.Clear();
+            plugin.WatchHiddenMovement(bot,enemy,state);
+            bool beingShot=HiddenBeingShot(bot);
             {
-                Choice choice = state.Engine.Evaluate(situation);
+                Choice choice = state.Engine.Evaluate(situation,tactic=>plugin.HiddenCanRun(bot,enemy,state,tactic,beingShot));
+                choice=plugin.KeepHiddenChoice(bot,enemy,state,choice,beingShot);
                 state.OpponentAtSelection = situation.Opponent?.Copy();
                 state.Choice = choice;
                 state.Mixing = choice.Mixing;
                 state.Decision = choice.Decision?.ToString() ?? ""; state.Candidates = choice.Candidates;
+                if(state.HiddenExecution.Refusals.Count>0)plugin.RecordHiddenExecution(bot,state,choice.Decision.HasValue?"hidden-native-fallback":"hidden-none-runnable");
                 RecordOutcomeChoice(state,situation);
                 plugin.RecordOpportunity(state, situation);
                 plugin.RecordSilentChoice(state,situation);
@@ -558,26 +564,11 @@ public sealed partial class Plugin : BaseUnityPlugin
                 }
                 if (!choice.Decision.HasValue) { plugin.YieldToSain(state, "no-feasible-option"); return true; }
                 var tactic = choice.Decision.Value;
-                if (tactic == Tactic.Search && !SearchExecutionAdapter.Prepare(bot.Search, enemy, out var searchReason))
-                {
-                    plugin.Emit(state, "rejected", searchReason);
-                    state.Engine.Fail(tactic, situation.Now, searchReason);
-                    situation.Unavailable[tactic] = searchReason;
-                    continue;
-                }
-                if (tactic == Tactic.Grenade && !NativeAdapter.Throw(bot, enemy, out var reason))
-                {
-                    plugin.Emit(state, "rejected", "native-throw-refused:" + reason);
-                    state.Engine.Fail(tactic, situation.Now, reason);
-                    situation.Unavailable[tactic] = reason;
-                    continue;
-                }
                 state.Expected = NativeAdapter.Map(tactic);
                 state.RequestedFrame = Time.frameCount;
                 result = state.Expected; __result = true;
                 return false;
             }
-            plugin.YieldToSain(state,"native-alternatives-exhausted");return true;
         }
         catch (Exception ex)
         {
@@ -746,8 +737,10 @@ public sealed partial class Plugin : BaseUnityPlugin
         diagnostics?.Write(json);
         Api.Decisions.Publish(json, ex => { if (!subscriberWarned) { subscriberWarned = true; Logger.LogWarning("COMET telemetry subscriber failed: " + ex.Message); } });
     }
-    private void Release(BotState state, string reason, bool clearIntent = true, bool preserveVisiblePlan = false, bool suspendPlan = false)
+    private void Release(BotState state, string reason, bool clearIntent = true, bool preserveVisiblePlan = false, bool suspendPlan = false, bool preserveHiddenPreference = false)
     {
+        if(reason.Contains("ghost")||reason.Contains("inactive")||reason.Contains("authority")||reason.Contains("ended")||reason.Contains("error")||reason.Contains("exception"))
+        {state.HiddenExecution.Movement.Pause();state.HiddenExecution.Pick=null;state.HiddenExecution.PickEnemy=null;state.HiddenExecution.LastReason="";}
         if(MagazineRecovery<object>.ShouldPause(reason))
             PauseMagazineRecovery(state,reason,MagazineRecovery<object>.ShouldClear(reason));
         if(!suspendPlan)state.PlanService.Clear();
@@ -790,7 +783,7 @@ public sealed partial class Plugin : BaseUnityPlugin
         if (state.Engine.Current.HasValue || state.VisibleEngine.Current.HasValue || state.ActiveLabel.Length > 0
             || (state.Feature == "A03" && state.Decision.Length > 0)) Emit(state, "released", reason);
         } finally {
-        if(!suspendPlan)state.Engine.Release(reason); state.ActiveLabel = ""; state.RequestedFrame = -1; state.Execution.Clear();
+        if(!suspendPlan&&!preserveHiddenPreference)state.Engine.Release(reason); state.ActiveLabel = ""; state.RequestedFrame = -1; state.Execution.Clear();
         if (preserveVisiblePlan || suspendPlan) { state.VisibleEngine.SuspendForSight(); state.Mixing = state.VisibleEngine.Mixing; }
         else { state.VisibleEngine.Release(reason); state.Mixing = null; }
         state.Decision = "";
@@ -931,6 +924,7 @@ internal sealed class BotState
     internal float MovementHeardAt = float.NegativeInfinity;
     internal readonly string BotKind, ProfileId, Name, Id = Guid.NewGuid().ToString("N");
     internal readonly HiddenEnemyDecision Engine;
+    internal readonly HiddenExecutionRuntime HiddenExecution = new();
     internal readonly VisibleEnemyDecision VisibleEngine;
     internal readonly CoverIntent Intent = new CoverIntent();
     internal readonly SightContinuity Sight;

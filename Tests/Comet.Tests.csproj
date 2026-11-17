@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><Compile Remove="HiddenExecutionHarness/**/*.cs" /><None Include="fixtures/back4streetz-hidden.json" Link="back4streetz-hidden.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
   <ItemGroup><Compile Remove="SeasonalCoverHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="OwnerWarmupHarness/**/*.cs" /></ItemGroup>
   <ItemGroup><Compile Remove="StorageHarness/**/*.cs" /></ItemGroup>

@@ -18,7 +18,8 @@ public sealed partial class Plugin
         bool changed=state.Handoff.Begin(Time.time,reason,kind,HandoffContact(state.Situation));
         if(kind=="error")state.FaultUntil=Time.time+(float)state.Handoff.Current.RetryRemaining;
         // Only COMET references are released. Native movement, hands and animations are left intact.
-        try { Release(state,reason); }
+        // Native fallback does not discard zzap's cached utility ranking.
+        try { Release(state,reason,preserveHiddenPreference:state.Feature=="A01"&&reason=="no-feasible-option"); }
         finally { state.GrenadeReady=false;state.GrenadeTarget=default;state.NextGrenadeProbe=0; }
         if(changed)Emit(state,"released",reason,"A13");
     }

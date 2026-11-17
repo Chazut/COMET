@@ -5,6 +5,15 @@ namespace Comet.Client;
 
 internal static class SearchExecutionAdapter
 {
+    internal static bool CanStart(SearchClass search, Enemy enemy, out string reason)
+    {
+        if(search.Decider.ShallStartSearch(enemy,out var reasons)) { reason=""; return true; }
+        reason=reasons.PathCalcFailReason!=null&&reasons.PathCalcFailReason.Length>0
+            ? "search-native-path-refused:"+reasons.PathCalcFailReason
+            : "search-native-refused:"+reasons.NotSearchReason+"/"+reasons.WantSearchReasons.NotWantToSearchReason
+                +"/"+reasons.WantSearchReasons.CantStartReason;
+        return false;
+    }
     internal static bool Prepare(SearchClass search, Enemy enemy, out string reason)
     {
         var place = enemy.KnownPlaces.LastKnownPlace;
