@@ -9,6 +9,7 @@ using UnityEngine;
 using UnityEngine.AI;
 int n=0;var events=new List<string>();void C(bool ok,string why){n++;if(!ok)throw new Exception("S01 adapter: "+why);}
 SquadGrenadeHarness.Run();
+SiegeHarness.Run();
 void Step(float dt=.02f){Time.time+=dt;Time.realtimeSinceStartup=Time.time;Time.frameCount++;}
 (Plugin p,BotComponent b,BotComponent support) Setup(){Time.time=Time.realtimeSinceStartup=10;Time.frameCount=0;NavMesh.Valid=true;Physics.Blocked=false;SAINEnableClass.Bots.Clear();Api.Decisions.Labels.Clear();var p=new Plugin();p.config!.Crossfire.Participation=100;var b=new BotComponent{Position=new(-3,0,0)};var support=new BotComponent();support.GoalEnemy!.IsVisible=true;var members=new Dictionary<string,BotComponent>{{b.ProfileId,b},{support.ProfileId,support}};foreach(var bot in members.Values){bot.Squad.Members=members;bot.EnemyController.KnownEnemies.Add(bot.GoalEnemy!);SAINEnableClass.Bots[bot.ProfileId]=bot;}return(p,b,support);}
 void Plan(Plugin p,BotComponent b,Vector3? goal=null){p.Observe(b);if(goal.HasValue){var r=p.states[b].Crossfire;r.Candidates.Clear();r.Candidates.Add(goal.Value);r.Candidate=0;r.Route=null;r.Samples.Clear();}for(int i=0;i<200&&p.states[b].Crossfire.Policy.Trace?.State=="planning";i++){Step();p.Observe(b);}C(p.states[b].Crossfire.Policy.Trace?.State=="ready","reachable useful angle planned: "+p.states[b].Crossfire.Policy.Trace?.Reason);}

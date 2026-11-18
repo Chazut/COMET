@@ -12,6 +12,21 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### Squad siege (S11)
+
+S11 adds a collective watch to COMET. S02 still follows its original secondary
+access decision. S11 uses the squad's latest SAIN visual contact inside an EFT
+room and the map's connected indoor rooms. Exterior door IDs refer to physical
+doors. Open passages require a direct NavMesh crossing between the two room
+volumes. An unresolved exterior portal makes the building ineligible.
+
+At least two different exits must be visible from different available members'
+current outdoor positions. Only assigned members request native Freeze and look
+at their exit. The leader's S02 personality settings determine the maximum wait.
+Fresh visual evidence that the contact left, lost coverage, self-care or stale
+contact releases the squad. A new attempt requires a new sighting. Decisions
+run on raid authority and emit S11 selection, acceptance and release events.
+
 ### Grenade suppression
 
 This COMET squad choice extends the baseline's individual hidden-contact grenade

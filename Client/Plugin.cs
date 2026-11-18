@@ -329,6 +329,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             { SampleDecisionExecution(pair.Key,pair.Value); SampleCombatJournal(pair.Key,pair.Value); SampleCounterExecution(pair.Key,pair.Value); SampleOutcome(pair.Key,pair.Value); SampleEncounter(pair.Key,pair.Value); try { SampleMedicalPosture(pair.Key,pair.Value); } catch(Exception ex) { MedicalPostureError(pair.Value,ex); }
               RefreshFear(pair.Key, pair.Value); if (config.SightContinuity.Enabled) RefreshSight(pair.Key, pair.Value);
               try { SampleCoverTravel(pair.Key,pair.Value); } catch(Exception ex) { CoverTravelError(pair.Value,ex); }
+              if (pair.Value.Siege != null) SampleSiege(pair.Key,pair.Value);
               try { SampleHoldAngle(pair.Key,pair.Value); } catch(Exception ex) { HoldAngleError(pair.Value,ex); }
               try { SampleAngle(pair.Key,pair.Value); } catch(Exception ex) { AngleError(pair.Value,ex); }
               try { SampleChase(pair.Key,pair.Value); RefreshPrefire(pair.Key,pair.Value); } catch(Exception ex) { ChaseError(pair.Value,ex); } }
@@ -450,6 +451,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             {plugin.YieldToSain(state,"handoff-native-priority","priority");return true;}
             if(MedicalPostureGuard(bot))return true;
             if(plugin.HoldForSquadGrenade(bot,state,enemy,ref result,ref __result))return false;
+            if(plugin.HoldForSiege(bot,state,ref result,ref __result))return false;
             if(plugin.ChooseNativeStorm(bot,state,ref result,ref __result))return false;
             if(plugin.ContinueCrossfireDecision(bot,state,ref result,ref __result))return false;
             if(state.Handoff.Blocked(Time.time,HandoffContact(situation)))return true;
@@ -714,6 +716,8 @@ public sealed partial class Plugin : BaseUnityPlugin
             decision = state.Decision, candidates = state.Candidates, mixing = state.Mixing, tacticObservationVersion = 1,
             squadGrenade = state.Feature == "S10" && state.SquadGrenade is {} pair
                 ? new { pair.Thrower, pair.Holder, pair.Contact, pair.StartFrame } : null,
+            siege = state.Feature == "S11" && state.Siege is {} watch
+                ? new { target = watch.Contact, exit = state.SiegeExit?.Id, exits = watch.Watches.Count, until = watch.Until } : null,
             flank = state.Decision=="Flank" ? new { accepted=state.Flank.MoveAccepted, reason=state.Flank.Reason,
                 destination=state.Flank.Point==null?null:new {x=state.Flank.Point.Position.x,y=state.Flank.Point.Position.y,z=state.Flank.Point.Position.z} } : null,
             doorEmergency = state.Feature=="D13" ? state.Emergency.Policy.Trace : null,
@@ -758,6 +762,8 @@ public sealed partial class Plugin : BaseUnityPlugin
     }
     private void Release(BotState state, string reason, bool clearIntent = true, bool preserveVisiblePlan = false, bool suspendPlan = false, bool preserveHiddenPreference = false)
     {
+        if (state.Siege != null && state.Feature == "S11" && state.Decision.Length > 0)
+            EndSiege(state.Siege, reason);
         if(reason.Contains("ghost")||reason.Contains("inactive")||reason.Contains("authority")||reason.Contains("ended")||reason.Contains("error")||reason.Contains("exception"))
         {state.HiddenExecution.Movement.Pause();state.HiddenExecution.Pick=null;state.HiddenExecution.PickEnemy=null;state.HiddenExecution.LastReason="";}
         if(MagazineRecovery<object>.ShouldPause(reason))
@@ -827,6 +833,8 @@ public sealed partial class Plugin : BaseUnityPlugin
 internal sealed class BotState
 {
     internal SquadGrenadePlan? SquadGrenade;
+    internal SiegeSquad? Siege;
+    internal SiegeExit? SiegeExit;
     internal readonly EscortSighting EscortSighting = new();
         public float CoverRunAnchorAt=-1f, CoverRunBreakCountedAt;
         public Vector3 CoverRunAnchor;

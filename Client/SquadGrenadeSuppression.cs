@@ -85,7 +85,7 @@ public sealed partial class Plugin
                 memberState = new BotState(member, config, session);
                 states.Add(member, memberState);
             }
-            if (!HolderAvailable(member, memberState)) continue;
+            if (memberState.Siege != null || !HolderAvailable(member, memberState)) continue;
             bestDistance = distance;
             partner = memberState;
         }

@@ -67,6 +67,12 @@ public sealed partial class Plugin
     {
         __state=default;var p=Instance;var b=__instance.Bot;
         if(p?.config==null||!p.states.TryGetValue(b,out var s) )return;
+        if (s.SiegeExit != null && p.SiegeGaze(b, s, out var exitDirection))
+        {
+            __state = new() { Changed = true, Original = ____targetLookDirection };
+            ____targetLookDirection = exitDirection;
+            return;
+        }
         try {
             if(p.WeaveGaze(b,s,out var weaveDirection)) {
                 __state=new(){Changed=true,Original=____targetLookDirection};____targetLookDirection=weaveDirection;return;

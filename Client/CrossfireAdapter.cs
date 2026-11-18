@@ -107,7 +107,7 @@ public sealed partial class Plugin
             {
                 if(Time.time<s.Crossfire.NextEligibility)return;
                 s.Crossfire.NextEligibility=Time.time+(float)p.config!.Crossfire.Interval;
-                if(p.ActiveSquadGrenade(b,s))return;
+                if(s.Siege != null || p.ActiveSquadGrenade(b,s))return;
             }
             p.RefreshCrossfire(b,s,true);
         }catch(Exception ex){if(p.states.TryGetValue(b,out var s))p.CrossfireError(b,s,ex);}

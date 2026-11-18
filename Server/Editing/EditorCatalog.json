@@ -1170,6 +1170,15 @@
       "Section": "SecondaryEntrance",
       "Simple": false
     },
+    "SecondaryEntrance.Siege": {
+      "Label": "Squad siege",
+      "Help": "Let an outside squad wait when different members can already see every mapped exit of the occupied building.",
+      "Min": null,
+      "Max": null,
+      "Scale": 1,
+      "Section": "SecondaryEntrance",
+      "Simple": false
+    },
     "SecondaryEntrance.AllowEntry": {
       "Label": "Allow entry after watching",
       "Help": "",

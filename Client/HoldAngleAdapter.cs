@@ -60,6 +60,7 @@ public sealed partial class Plugin
     {
         var p=Instance;var b=__instance.Bot;
         if(p?.config==null||!p.states.TryGetValue(b,out var s)||s.HoldAngle.Fault)return;
+        if(s.SiegeExit != null && s.Feature == "S11")return;
         try {
             p.SampleHoldAngle(b,s);
             if(!p.config.Enabled||!p.config.HoldAngle.Enabled||!p.Authority||p.Ghost(s.ProfileId)||!NativeAdapter.IsSupportedAi(b))return;

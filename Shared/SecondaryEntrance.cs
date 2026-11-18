@@ -6,6 +6,7 @@ public sealed class SecondaryEntranceConfig
 {
     public bool Enabled {get;set;}=true;
     public bool AllowEntry {get;set;}=true;
+    public bool Siege {get;set;}=true;
     public double WatchMin {get;set;}=10;
     public double WatchMax {get;set;}=15;
     public double Extension {get;set;}=15;
