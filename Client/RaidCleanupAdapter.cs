@@ -15,6 +15,7 @@ public sealed partial class Plugin
     partial void ClearControlHandoffs();
     partial void FinishCombatJournal();
     partial void ClearRemixRaidState();
+    partial void FinishLocalExposure();
     private readonly RaidLifetime raidLifetime = new();
     private float nextDeliveryReport;
     private static void PatchRaidCleanup(Harmony h) => h.Patch(
@@ -77,6 +78,7 @@ public sealed partial class Plugin
             Step("floor-summary",()=>FlushFloorCounters(true));
             Step("close-summary",()=>FlushCloseCounters(true));
             Step("light-detection",ClearLightDetection);
+            Step("local-exposure",()=>FinishLocalExposure());
             Step("impact-summary",()=>FlushImpactCounters(true));
             Step("movement-summary",FlushMovementSummary);
             Step("tactical-probe-summary",()=>FlushTacticalProbes(true));

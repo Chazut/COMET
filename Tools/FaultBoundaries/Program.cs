@@ -96,7 +96,9 @@ sealed class Boundaries(string file,Dictionary<string,string> callbacks,List<obj
   // Read-only rejection gates stay inside the exception boundary, but do not
   // resolve/validate a bot when this callback has no work for it. Relevant work
   // always passes the same lifecycle, authority and quarantine checks below.
-  string preflight = file=="CloseDetectionAdapter" && name=="CloseVisibleAfter"
+  string preflight = file=="LocalExposureAdapter" && name=="ApplyLocalExposure"
+   ? "if (enemy?.EnemyPlayer == null || enemy.IsAI || Instance?.Authority != true) return;"
+   : file=="CloseDetectionAdapter" && name=="CloseVisibleAfter"
    ? "if (__state || !__instance.IsVisible) return;"
    : file=="SearchAbandonmentAdapter" && name=="CheckSearchedPlace"
    ? "if (!NeedsAbandonment(__instance, false)) return;"

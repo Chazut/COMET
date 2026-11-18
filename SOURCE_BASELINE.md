@@ -466,3 +466,18 @@ must establish the actual gain and any remaining scheduling/serialization spikes
 Regression coverage includes production pickup adapters, real installed EFT IL,
 medical inventory sizes 1-32, previous trace immutability, Ghost/Fika ownership,
 RR historical event replay, rewind and repeated drop/pickup, and compact projection.
+
+### Local light and visual contact
+
+On the AI authority, supported bots use local light at a human target's eye position
+to scale SAIN's acquisition modifier by up to 1.35. The effect starts beyond
+6 metres and reaches full strength at 30 metres. Each player's scene sample
+is reused across observers for up to 0.35 seconds, with an early refresh after
+1.5 metres of movement. This includes remote players on a Fika host.
+
+Contact history comes from SAIN and EFT for each observer and target. A confirmed
+sighting in the last 10 seconds or an exchanged hit in the last 8 seconds removes
+the extra delay. Active NVGs, a target's white light, bright conditions and an
+unavailable measurement also preserve the native value. The adjustment never sets
+visibility or changes a preset. Local-exposure diagnostics record outcomes and
+remote observations, with detailed samples when quiet logging is off.

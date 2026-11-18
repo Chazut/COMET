@@ -129,6 +129,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             RunIntegration("PatchFloorHearing",()=>PatchFloorHearing(harmony));
 
             RunIntegration("PatchCloseDetection",()=>PatchCloseDetection(harmony));
+            RunIntegration("PatchLocalExposure",()=>PatchLocalExposure(harmony));
             RunIntegration("PatchLightDetection",()=>PatchLightDetection(harmony));
             RunIntegration("PatchLiquidwarpFixes",()=>PatchLiquidwarpFixes(harmony));
             RunIntegration("PatchRemixDecisions",()=>PatchRemixDecisions(harmony));
@@ -317,6 +318,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             if (loaded?.Enabled == true) ConfigureExistingRemixBots();
         }
         UpdateLocalDoors();
+        UpdateExposureDiagnostics();
         FlushTacticalProbes();
         SampleSainPreset();
         SampleControlHandoffs();
