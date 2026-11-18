@@ -331,6 +331,7 @@ public sealed partial class Plugin
     private static double ClearDangerRadius(ThrowWeap item)=>Math.Max(6,Math.Max(item.MaxExplosionDistance,Math.Max(item.Blindness.y,item.Contusion.y)))+1;
     private string PrepareClearGrenade(BotComponent b,Enemy e,BotState s)
     {
+        if (config!.DoorRoomClear.GrenadePreference <= 0) return "clear-real-grenade-disabled";
         string why=NativeAdapter.PrepareRoomGrenade(b,e,s,config!);if(why.Length>0)return why;
         var manager=b.BotOwner.WeaponManager.Grenades;var item=manager.grenade;
         if(item==null||item.ThrowType.ToString().IndexOf("smoke",StringComparison.OrdinalIgnoreCase)>=0||item.IsDummy)return "clear-no-suitable-grenade";

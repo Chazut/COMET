@@ -11,8 +11,7 @@ MethodDeclarationSyntax Method(string file, string name) => CSharpSyntaxTree.Par
 
 // Execute the actual production calculations, replacing only engine objects.
 // Do not copy the algorithms into tests: changes in these methods must be tested.
-var capabilities = Method("NativeAdapter", "Capabilities").Body!.Statements
-    .TakeWhile(s => !s.ToString().Contains("bot.Info"));
+var capabilities = Method("NativeAdapter", "Capabilities").Body!.Statements;
 var opportunity = Method("OpportunityAdapter", "ReadOpportunity").DescendantNodes()
     .OfType<TryStatementSyntax>().First().Block.Statements
     .SkipWhile(s => !s.ToString().StartsWith("var corners ="))
@@ -28,7 +27,8 @@ namespace Comet.Client;
 internal static class Probe {
     internal static readonly List<Vector3> Samples = new();
     private static double Exposure(Vector3 p, List<KnownThreat> threats, double lifetime) { Samples.Add(p); return 1; }
-""" + "internal static Situation Capabilities(Bot bot, Enemy enemy, Config config) { var s=new Situation();\n" +
+    private static string GrenadeCapability(Bot bot, Enemy enemy, Vector3 known, State state, Config config) => "ready";
+""" + "internal static Situation Capabilities(Bot bot, Enemy enemy, Config config) { var s=new Situation(); var state=new State();\n" +
     string.Join("\n", capabilities) + "\nreturn s; }\n" +
     "internal static (int Count, double Length, double Vertical) Opportunity(Enemy enemy) {\n" +
     string.Join("\n", opportunity) + "\nreturn (count,length,vertical); }\n" +

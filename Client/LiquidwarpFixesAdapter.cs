@@ -19,10 +19,12 @@ namespace Comet.Client;
 public sealed partial class Plugin
 {
     private enum NativeFix { PathRays, DeferredPathCache, ClearedPathCache, GrenadePrediction,
-        TargetActivity, SelfTarget, RecoilStep, SignedRecoil, PoseStep, LeanStep, Count }
+        TargetActivity, SelfTarget, RecoilStep, SignedRecoil, PoseStep, LeanStep,
+        FollowSearchingLeader, SpawnPreset, WoundVoiceRoll, OffMeshStart, DoorCoverRejected, Count }
     private readonly long[] nativeFixCounts = new long[(int)NativeFix.Count];
     private static readonly string[] nativeFixLabels = { "PathRays", "DeferredPathCache", "ClearedPathCache",
-        "GrenadePrediction", "TargetActivity", "SelfTarget", "RecoilStep", "SignedRecoil", "PoseStep", "LeanStep" };
+        "GrenadePrediction", "TargetActivity", "SelfTarget", "RecoilStep", "SignedRecoil", "PoseStep", "LeanStep",
+        "FollowSearchingLeader", "SpawnPreset", "WoundVoiceRoll", "OffMeshStart", "DoorCoverRejected" };
     private readonly string[] nativeFixBots = new string[(int)NativeFix.Count];
     private bool nativeFixDirty;
     private float nativeFixNext;
@@ -200,7 +202,7 @@ public sealed partial class Plugin
         nativeFixDirty = false;
         nativeFixNext = Time.realtimeSinceStartup + 5;
         var json = Diagnostics.Serialize(new { schema = 1, session, sequence = ++sequence, feature = "C11",
-            stage = "native-fix-summary", reason = "liquidwarp-native-corrections", final,
+            stage = "native-fix-summary", reason = "sain-native-corrections", final,
             realtime = Time.realtimeSinceStartup, counts = nativeFixCounts, lastBot = nativeFixBots,
             labels = nativeFixLabels, configRevision = config?.Revision ?? 0 });
         if (final) diagnostics?.WriteEssential(json); else diagnostics?.Write(json);

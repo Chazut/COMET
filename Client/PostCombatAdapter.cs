@@ -44,7 +44,7 @@ public sealed partial class Plugin
         BrainManager.AddCustomLayer(typeof(PostCombatLayer),new(){"PMC","PmcUsec","PmcBear","Assault","ExUsec","Knight","BigPipe","BirdEye"},21);
     }
     private static void PostSoundAttach(SAIN.Components.BotManagerComponent __instance)=>SourceSoundWatch.Attach(__instance.BotHearing);
-    private static void PostSoundDetach()=>SourceSoundWatch.Detach();
+    private static void PostSoundDetach(SAIN.Components.BotManagerComponent __instance)=>SourceSoundWatch.Detach(__instance.BotHearing);
     private static void PostSoundShot(SAIN.Components.PlayerComponentSpace.PlayerComponent __instance)=>SourceSoundWatch.OnShot(__instance,__instance.Player.Position);
     private void ListenPostCombat(BotComponent b,PostCombatRuntime r)
     {

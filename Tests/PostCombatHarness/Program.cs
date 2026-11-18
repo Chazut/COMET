@@ -88,4 +88,18 @@ foreach(bool regroup in new[]{false,true}){
  C(r.Policy.Trace!.Episode==2&&r.ProneInOpen&&!r.Protected,"second fight reevaluates shelter instead of retaining previous protection");
  C(!r.MedicalDisabled&&r.MedicalFailures==0&&!r.MedicalUseful&&!r.MedicalUrgent&&r.MedicalNext<1000,"second episode resets failed and stale medical observations before evaluation");Save(p);
 }
+{
+ var (_,bot,_,_)=Setup(false);
+ var oldSource=new SAIN.Components.BotControllerSpace.Classes.BotHearingClass();
+ var activeSource=new SAIN.Components.BotControllerSpace.Classes.BotHearingClass();
+ var stranger=new SAIN.Components.PlayerComponentSpace.PlayerComponent{ProfileId="other-squad"};
+ SourceSoundWatch.Attach(oldSource);
+ SourceSoundWatch.Attach(activeSource);
+ SourceSoundWatch.Detach(oldSource);
+ activeSource.Emit(SAINSoundType.FootStep,bot.Position,stranger);
+ C(SourceSoundWatch.Heard(bot,out _,out var coming,out _) && coming,"old raid disposal preserves new publisher");
+ SourceSoundWatch.Detach(activeSource);
+ activeSource.Emit(SAINSoundType.FootStep,bot.Position,stranger);
+ C(!SourceSoundWatch.Heard(bot,out _,out _,out _),"current owner detaches and clears sound history");
+}
 var output=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../artifacts/h04-adapter-events.jsonl"));File.WriteAllLines(output,events);Console.WriteLine($"{n} H04 production adapter checks passed; {events.Count} JSON events; controlled doubles, not Unity.");

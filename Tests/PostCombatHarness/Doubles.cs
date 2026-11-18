@@ -100,6 +100,7 @@ namespace Comet.Client{
  internal class Logger{public static void LogWarning(string m){}}
  internal static class Api{public static class Decisions{public static Dictionary<string,string> Recovery=new();public static void SetPostCombat(string id,string value){if(value.Length==0)Recovery.Remove(id);else Recovery[id]=value;}public static void Publish(string json,Action<Exception> error){}}}
  public sealed partial class Plugin{
+  internal static UnityEngine.Vector3 RemixMovementOrigin(BotComponent bot, UnityEngine.Vector3 original) => original;
   internal static Plugin? Instance;internal object? world=new();internal CometConfig? config=new();internal bool Authority=true,IsGhost,subscriberWarned;internal int Protection=7;internal Vector3 ProtectionOrigin;
   internal string session="h01-harness";internal long sequence;internal Dictionary<BotComponent,BotState> states=new();internal Budget doorBudget=new();internal System.Diagnostics.Stopwatch doorClock=new();internal Diagnostic? diagnostics=new();
   private static bool WeaponHandsReady(BotComponent b,Player.FirearmController? firearm)=>firearm?.Ready==true;

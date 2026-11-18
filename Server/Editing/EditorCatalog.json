@@ -5630,8 +5630,8 @@
       "Unit": "s"
     },
     "DoorRoomClear.GrenadePreference": {
-      "Label": "Grenade preference when both options are safe",
-      "Help": "",
+      "Label": "Grenade preference for room entry",
+      "Help": "Set to 0 to disable real grenades for room entry. Above 0, shared grenade judgment takes priority when enabled.",
       "Min": 0.0,
       "Max": 100.0,
       "Scale": 1,

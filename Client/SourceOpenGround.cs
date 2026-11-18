@@ -74,6 +74,7 @@ internal static class SourceOpenGround
         Vector3? best = null;
         float bestScore = minScore;
         var path = new NavMeshPath();
+        var pathStart = Plugin.RemixMovementOrigin(bot, pos);
         foreach (float r in rings)
         {
             for (int i = 0; i < 12; i++)
@@ -96,7 +97,7 @@ internal static class SourceOpenGround
                 {
                     continue;
                 }
-                if (!NavMesh.CalculatePath(pos, p, -1, path) || path.status != NavMeshPathStatus.PathComplete || PathLength(path) > maxPath)
+                if (!NavMesh.CalculatePath(pathStart, p, -1, path) || path.status != NavMeshPathStatus.PathComplete || PathLength(path) > maxPath)
                 {
                     continue;
                 }

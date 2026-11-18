@@ -38,6 +38,12 @@ static class TranspilerAudit
         {
             var label=original.labels.Single();
             if(after.Count(i=>i.labels.Contains(label))!=1)throw new Exception($"{transpiler.Name}: lost/duplicated instruction label");
+            if (original.operand is MonoGrenadeToken token)
+            {
+                var same = after.Single(i => i.labels.Contains(label));
+                if (same.opcode != original.opcode || !Equals(same.operand, token))
+                    throw new Exception("Unrelated native grenade event instruction was modified");
+            }
             if(original.operand is not MethodInfo call||original.opcode!=OpCodes.Call&&original.opcode!=OpCodes.Callvirt)continue;
             int start=Array.FindIndex(after,i=>i.labels.Contains(label)),end=start+1;
             while(end<after.Length&&after[end].labels.Count==0)end++;
@@ -89,6 +95,8 @@ static class TranspilerAudit
         }
     }
 
+    private sealed record MonoGrenadeToken(int Token);
+
     static List<CodeInstruction> Read(MethodBase method)
     {
         var bytes=method.GetMethodBody()?.GetILAsByteArray()??throw new Exception("No method body: "+method);
@@ -110,7 +118,7 @@ static class TranspilerAudit
                 OperandType.InlineSwitch=>Enumerable.Range(0,reader.ReadInt32()).Select(_=>reader.ReadInt32()).ToArray(),
                 OperandType.InlineString=>module.ResolveString(reader.ReadInt32()),
                 OperandType.InlineSig=>module.ResolveSignature(reader.ReadInt32()),
-                OperandType.InlineMethod or OperandType.InlineField or OperandType.InlineType or OperandType.InlineTok=>module.ResolveMember(reader.ReadInt32(),types,methods),
+                OperandType.InlineMethod or OperandType.InlineField or OperandType.InlineType or OperandType.InlineTok=>Resolve(reader.ReadInt32()),
                 _=>throw new NotSupportedException(op.OperandType.ToString())
             };
             result.Add(new CodeInstruction(op,operand));
@@ -128,5 +136,17 @@ static class TranspilerAudit
                 instruction.operand=((int[])instruction.operand).Select(delta=>labels[ends[i]+delta]).ToArray();
         }
         return result;
+
+        object? Resolve(int token)
+        {
+            try { return module.ResolveMember(token, types, methods); }
+            catch (TypeLoadException e) when (method.DeclaringType == typeof(SAIN.SAINComponent.Classes.Talk.EnemyTalk)
+                && method.Name == "Dispose" && e.Message.Contains("'GDelegate17'") && e.Message.Contains("must be sealed"))
+            {
+                // CoreCLR rejects this EFT grenade delegate. Preserve the exact token and
+                // opcode so the assertion above still checks this unrelated event teardown.
+                return new MonoGrenadeToken(token);
+            }
+        }
     }
 }

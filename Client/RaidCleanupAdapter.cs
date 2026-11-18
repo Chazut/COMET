@@ -14,6 +14,7 @@ public sealed partial class Plugin
     partial void StopPerformance(System.Threading.Tasks.Task? diagnosticsDone);
     partial void ClearControlHandoffs();
     partial void FinishCombatJournal();
+    partial void ClearRemixRaidState();
     private readonly RaidLifetime raidLifetime = new();
     private float nextDeliveryReport;
     private static void PatchRaidCleanup(Harmony h) => h.Patch(
@@ -72,6 +73,7 @@ public sealed partial class Plugin
             foreach(var delivery in movementPending.Values.ToArray())Step("movement-hearing",()=>RemoveMovement(delivery,"movement-cleared"));
             Step("validity-summary",ClearValidity);
             Step("native-fixes-summary",ClearNativeFixes);
+            Step("remix-raid-state",()=>ClearRemixRaidState());
             Step("floor-summary",()=>FlushFloorCounters(true));
             Step("close-summary",()=>FlushCloseCounters(true));
             Step("light-detection",ClearLightDetection);

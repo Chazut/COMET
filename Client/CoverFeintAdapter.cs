@@ -160,7 +160,7 @@ public sealed partial class Plugin
         int side=(i<8?1:-1)*r.FirstSide;
         var lateral=Vector3.Cross(Vector3.up,forward);float[] distances={1.1f,1.5f,.9f,2f};float d=distances[i%4];
         var raw=VP(p.Home)+lateral*side*d+forward*(i%8<4?0:.6f)*d;
-        if(!NavMesh.SamplePosition(raw,out var nav,.6f,NavMesh.AllAreas)||NavMesh.Raycast(b.Position,nav.position,out _,NavMesh.AllAreas))return;
+        if(!NavMesh.SamplePosition(raw,out var nav,.6f,NavMesh.AllAreas)||NavMesh.Raycast(RemixMovementOrigin(b,b.Position,preserveOnMesh:true),nav.position,out _,NavMesh.AllAreas))return;
         for(int t=0;t<3;t++) {
             var target=VP(p.Known)+Vector3.up*1.3f+lateral*(t==0?0:t==1?.8f:-.8f);
             if(Physics.Linecast(nav.position+Vector3.up*1.4f,target,LayersMaskController.HighPolyWithTerrainMask))continue;

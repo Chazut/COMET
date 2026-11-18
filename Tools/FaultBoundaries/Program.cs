@@ -59,6 +59,11 @@ sealed class Boundaries(string file,Dictionary<string,string> callbacks,List<obj
   string name=m.Identifier.Text,owner=(m.Parent as TypeDeclarationSyntax)?.Identifier.Text??"";
   bool callback=callbacks.TryGetValue(name,out var kind)&&kind!="transpiler";
   if(file is "ContactSafety" or "BotEligibility"||m.Body==null&&m.ExpressionBody==null||m.Modifiers.Any(SyntaxKind.PartialKeyword)||name.StartsWith("Patch")||kind=="transpiler"||name.EndsWith("Error")||name=="IsSupportedAi")return m;
+  // These native lifecycle callbacks run before COMET's first update or after its last.
+  // A blocked path getter returning default(Vector3) would send unrelated bots to (0,0,0).
+  if (file == "RemixTeardown" || name is "PostSoundAttach" or "PostSoundDetach"
+      || file == "RemixNavigation" && name is "RemixBotOrigin" or "RemixMovementOrigin" or "RegisterPathOwner" or "RemoveCachedDoorCover"
+      || file == "RemixDecisions" && name is "RemixBotSpawned" or "ConfigureRemixBot" or "RemixTalkUpdated" or "RemixGrenadeUpdated") return m;
   // Skip diagnostics as their own independent sink boundary below; never quarantine combat for a consumer failure.
   bool telemetry=(name.StartsWith("Record")||name=="Emit")
    &&(m.ToString().Contains("JsonConvert.SerializeObject")||m.ToString().Contains("Diagnostics.Serialize("));

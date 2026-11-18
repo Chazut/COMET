@@ -131,7 +131,7 @@ public sealed partial class Plugin
         r.Rejected=Array.Empty<string>();return true;
     }
     private static bool LaneSideOpen(BotComponent b,Vector3 side,FireLaneConfig c)
-        =>!NavMesh.Raycast(b.Position,b.Position+side*(float)c.SideDistance,out _,NavMesh.AllAreas)
+        =>!NavMesh.Raycast(RemixMovementOrigin(b,b.Position,preserveOnMesh:true),b.Position+side*(float)c.SideDistance,out _,NavMesh.AllAreas)
           &&!Physics.Raycast(b.Position+Vector3.up*1.1f,side,.9f,LayersMaskController.HighPolyWithTerrainMask);
     private void SampleLane(BotComponent b,BotState s)
     {

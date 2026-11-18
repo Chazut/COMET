@@ -127,7 +127,7 @@ public sealed partial class Plugin
         foreach(int sign in new[]{-1,1}) {
             var raw=r.Corner-toward.normalized*1.2f+side*sign*(float)config.CornerChase.WideOffset;
             if(NavMesh.SamplePosition(raw,out var nav,.8f,NavMesh.AllAreas)
-                &&!NavMesh.Raycast(b.Position,nav.position,out _,NavMesh.AllAreas))
+                &&!NavMesh.Raycast(RemixMovementOrigin(b,b.Position,preserveOnMesh:true),nav.position,out _,NavMesh.AllAreas))
             {r.Wide=nav.position;r.WideSafe=true;r.Side=sign;break;}
         }
         r.JumpSafe=!Physics.Raycast(b.Position+Vector3.up*1.7f,Vector3.up,.7f,LayersMaskController.HighPolyWithTerrainMask);
@@ -135,7 +135,7 @@ public sealed partial class Plugin
     }
     private bool ChaseRoute(BotComponent b,Vector3 from,Vector3 goal,double limit,out NavMeshPath route,out double length)
     {
-        route=new();NavMesh.CalculatePath(from,goal,NavMesh.AllAreas,route);
+        route=new();NavMesh.CalculatePath(RemixMovementOrigin(b,from,preserveOnMesh:true),goal,NavMesh.AllAreas,route);
         return CornerChase.Route(DP(from),DP(goal),route.corners.Select(DP).ToArray(),route.status==NavMeshPathStatus.PathComplete,limit,out length);
     }
     private static bool OwnChase(CornerChaseRuntime r)=>r.Owner!=null&&r.Path!=null&&ReferenceEquals(r.Owner.Mover.ActivePath,r.Path)

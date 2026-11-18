@@ -164,6 +164,7 @@ public sealed partial class Plugin
         end=raw;path=new();why="corner-no-local-navmesh";
         if(!NavMesh.SamplePosition(raw,out var sample,.5f,NavMesh.AllAreas))return false;
         end=sample.position;
+        start=RemixMovementOrigin(b,start,preserveOnMesh:true);
         if(NavMesh.Raycast(start,end,out _,NavMesh.AllAreas)){why="corner-navmesh-blocked";return false;}
         NavMesh.CalculatePath(start,end,NavMesh.AllAreas,path);why="";return true;
     }

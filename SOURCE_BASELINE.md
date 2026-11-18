@@ -12,6 +12,16 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### Selected fixes from R_F's zzap Remix7.6 (2026-11-18)
+
+- `93f81272` fixes GroupSearch. Followers can join their leader's search for a shared enemy. The leader continues its own decision.
+- `8a5c7d7d` uses SAIN's existing successful NavMesh sample as the path start beyond 0.35 m of horizontal displacement. The bot returns to its usual start at 0.25 m. Enemy, cover, mover and strafe queries use this origin. The same correction covers COMET routes starting at the bot. Aiming and target coordinates still use the physical positions. COMET already defers the enemy path cache update until recalculation.
+- `8a63bf9c` releases SAIN's three raid statics by owner at disposal or scene destruction. Hearing and post-combat sound listeners detach from the publisher they subscribed to, including when disposal overlaps the next raid.
+- `d0d031c1` applies the installed SAIN voice, squad talk and grenade settings at bot initialization and on preset reload. Fake-death voice rolls once per eligible wound. A room-entry grenade preference of zero disables real throws even with shared grenade judgment enabled. The native grenade arc cutoff remains zero as in Remix7.6.
+- `902cd039` excludes a door leaf and its descendants from cover, as well as a sibling frame whose bounds center is strictly within 1.5 m of a door pivot. COMET applies the same test when creating its own outdoor cover. Collider classifications are cached per raid. The separate seasonal foliage filter still applies.
+
+The optional NavMesh carver, idle hold behavior and new fork-specific preset switches are outside this port. C11 batches the new counters with the existing native-fix summary.
+
 ### Hidden-action execution after Back4Streetz raid 459 (2026-11-17)
 
 The recorded 03:10.603 candidate list selected a negative Hold after Search

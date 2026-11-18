@@ -71,6 +71,8 @@ namespace Comet.Client {
   private void FlushFloorCounters(bool all){}private void FlushCloseCounters(bool all){}private void FlushImpactCounters(bool all){}private void FlushMovementSummary(){}
   public int LightClears;
   private void ClearLightDetection(){LightClears++;}
+  internal int RemixClears;
+  partial void ClearRemixRaidState(){RemixClears++;}
   private void ClearNativeFixes(){OtherSteps++;}
   private void WarnFaultSink(Exception e){}private void SafeFaultLog(string text){}
  }

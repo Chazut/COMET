@@ -146,6 +146,7 @@ public sealed class DoorRoomClear
     public bool Choose(bool direct,bool grenade,string directWhy,string grenadeWhy,double roll,double pauseRoll,double now,DoorRoomClearConfig c,bool sharedGrenadeJudgment=false)
     {
         if(!Active||Trace!.State!="ready"||!Roll(roll)||!Roll(pauseRoll))return false;
+        if (c.GrenadePreference <= 0) { grenade = false; grenadeWhy = "disabled by preset"; }
         Trace.VariantRoll=roll*100;Trace.Alternatives=new[]{"Direct entry: "+(direct?"eligible":directWhy),"Grenade entry: "+(grenade?"eligible":grenadeWhy),"Resume native combat/search if the selected plan becomes invalid"};
         if(!direct&&!grenade){End("clear-no-safe-variant");return false;}
         Trace.Variant=grenade&&(sharedGrenadeJudgment||!direct||roll*100<c.GrenadePreference)?"grenade":"direct";

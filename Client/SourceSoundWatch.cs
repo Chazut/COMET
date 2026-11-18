@@ -42,6 +42,11 @@ internal static class SourceSoundWatch
         }
     }
 
+    public static void Detach(BotHearingClass owner)
+    {
+        if (_hearing == null || ReferenceEquals(_hearing, owner)) Detach();
+    }
+
     public static void Detach()
     {
         if (_hearing != null)

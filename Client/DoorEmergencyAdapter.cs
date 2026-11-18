@@ -190,6 +190,7 @@ public sealed partial class Plugin
         }
         else
         {
+            origin=RemixMovementOrigin(b,origin,preserveOnMesh:true);
             if(!NavMesh.CalculatePath(origin,destination,NavMesh.AllAreas,path)||path.status!=NavMeshPathStatus.PathComplete)return "incomplete-route";
             corners=path.corners;
         }

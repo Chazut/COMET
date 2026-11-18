@@ -255,9 +255,15 @@ public sealed partial class Plugin
         v.OriginalProtection=0;v.Protection=0;
         if(!Physics.Linecast(known+Vector3.up*1.5f,goal+Vector3.up*1.3f,out var obstacle,LayersMaskController.HighPolyWithTerrainMask,QueryTriggerInteraction.Ignore)
             ||obstacle.collider==null){v.Refusal="relocate-no-cover-surface";return v;}
+        if(IsDoorCover(obstacle.collider))
+        {
+            v.Refusal="door-leaf-or-frame";
+            CountNativeFix(NativeFix.DoorCoverRejected,b);
+            return v;
+        }
         if(SeasonalCoverScope(b)&&BareFoliageAt(goal,known))
         {v.Refusal="seasonal-cover-position-inside-foliage";RecordSeasonalCover(b,obstacle.collider,v.Refusal);return v;}
-        var route=new PathData();route.CalcPath(b.Position,goal);v.PathLength=route.PathLength;
+        var route=new PathData();route.CalcPath(RemixMovementOrigin(b,b.Position,preserveOnMesh:true),goal);v.PathLength=route.PathLength;
         var corners=route.Path?.corners;
         if(route.Path?.status!=NavMeshPathStatus.PathComplete||corners==null||corners.Length<2||v.PathLength>c.MaxPath
             ){v.Refusal="relocate-no-complete-bounded-route";return v;}
@@ -282,7 +288,7 @@ public sealed partial class Plugin
                 var actual=RemainingRelocationRoute(b,active!);
                 if(actual==null||!RelocationRouteSafety(b,s,actual,r.Selected!.Position,out _,out _))return false;
             }
-            r.Selected!.PathData.CalcPath(b.Position,r.Selected.Position);if(r.Selected.PathToPoint.status!=NavMeshPathStatus.PathComplete)return false;
+            r.Selected!.PathData.CalcPath(RemixMovementOrigin(b,b.Position,preserveOnMesh:true),r.Selected.Position);if(r.Selected.PathToPoint.status!=NavMeshPathStatus.PathComplete)return false;
         }
         r.LastSafety=Time.time;r.NextProbe=Time.time+.25f;return true;
     }

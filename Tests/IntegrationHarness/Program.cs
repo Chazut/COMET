@@ -31,6 +31,23 @@ static class Audit
         // Metadata preparation runs against the actual built client, without JITing Unity
         // callbacks on the .NET test host or executing any game action.
         var client = typeof(Comet.Client.Plugin).Assembly;
+        var routes = probe.Hooks.Where(h => h.Callback=="RemixPathInstructions").ToArray();
+        if (routes.Length!=8 || !routes.Any(h=>h.Target.Contains("PlayerDataExtensions.Update("))
+            || probe.Hooks.Count(h=>h.Callback=="RemixHearingTeardown")!=2
+            || probe.Hooks.Count(h=>h.Callback=="RemixCoverPathOrigin")!=2)
+            throw new Exception("Incomplete Remix navigation/teardown coverage");
+        foreach (string name in new[]{"CheckCreateNewCoverPoint","RecheckCoverPoint"})
+        {
+            var target=typeof(SAIN.SAINComponent.SubComponents.CoverFinder.CoverAnalyzer).GetMethod(name)!;
+            if (!Calls(target).Any(m=>m.Name=="CheckColliderForCover"))
+                throw new Exception("Cover no longer passes through the door filter: "+name);
+        }
+        var botManager=typeof(SAIN.Components.BotManagerComponent);
+        foreach (var owner in new[]{botManager,typeof(SAIN.Components.BotController.BotSpawnController),
+            typeof(SAIN.Components.BotController.SAINWeatherClass)})
+            if (owner.GetProperty("Instance")?.GetSetMethod(true) is not {IsStatic:true})
+                throw new Exception("Missing owner-scoped native singleton setter: "+owner);
+        Console.WriteLine("Remix coverage: eight native path methods, both cover checks and hearing disposals, three singleton setters.");
         if (!probe.Hooks.Any(h=>h.Callback.Contains("CompatibleBullets")&&h.Target.Contains("get_HaveBullets")))
             throw new Exception("Wrong-caliber native ammo-count hook was not registered.");
         var magazineCheck=typeof(EFT.InventoryLogic.Magazine).GetMethod("IsAmmoCompatible")!;

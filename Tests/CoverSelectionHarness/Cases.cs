@@ -1,137 +1,112 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+
 namespace Comet.Client;
+
 public static class Cases
 {
- static int checks;
- static void Check(bool ok,string why){checks++;if(!ok)throw new Exception(why);}
- static (Plugin,BotComponent,BotState,CoverPoint) Setup(string feature="A02")
- {
-  Time.time=10;ContactSafety.Allowed=true;
-  var p=new Plugin();var b=new BotComponent();b.Cover.Bot=b;
-  var c=new CoverPoint("owned",8);var s=new BotState{SelectedCover=c,Feature=feature,ActiveLabel=feature=="A02"?"COMET:Cover":"COMET:FallBack",Probe=new(){Cover=c,At=10}};
-  b.Cover.CoverInUse=c;b.Cover.CoverPoints.Add(c);p.states.Add(b,s);Plugin.Instance=p;return(p,b,s,c);
- }
- public static void Run()
- {
-  {
-   var(p,b,s,c)=Setup("A01");
-   Check(NativeAdapter.RetreatAvailable(b,s,p.config),"guided retreat requires and retains its actual valid cover");
-   c.Valid=false;
-   Check(!NativeAdapter.RetreatAvailable(b,s,p.config)&&s.SelectedCover==null,"loose native existence cannot advertise rejected guided cover");
-   p.config.Progress.Enabled=false;
-   Check(NativeAdapter.RetreatAvailable(b,s,p.config),"explicit progress OFF preserves native cover fallback");
-   p.config.Progress.Enabled=true;s.ProgressUnavailable=true;
-   Check(NativeAdapter.RetreatAvailable(b,s,p.config),"unavailable progress also preserves native fallback");
-   c.PathToPoint.status=NavMeshPathStatus.PathPartial;
-   Check(!NativeAdapter.RetreatAvailable(b,s,p.config),"native fallback still requires complete route");
-  }
-  foreach(string feature in new[]{"A01","A02"})foreach(bool inUse in new[]{true,false})
-  {
-   var(p,b,s,c)=Setup(feature);var alternative=new CoverPoint("next-cover",12);b.Cover.CoverPoints.Add(alternative);
-   b.Cover.CoverInUse=inUse?c:null;b.Cover.CoverPoint_MovingTo=inUse?null:c;
-   Check(!ProgressAdapter.RetireFailedCover(b,s.Progress,10),"useful native cover is untouched");
-   s.Progress.Fail(c.Key,10,"progress-arrived-idle");
-   s.SelectedCover=VisibleAdapter.SelectCover(b,s.Progress);
-   s.Probe.Cover=s.SelectedCover;
-   Check(ReferenceEquals(s.SelectedCover,alternative),"new feasible destination selected after old cover failed");
-   Check(ProgressAdapter.RetireFailedCover(b,s.Progress,10.047),"MD_WAHAHA stale native destination is retired");
-   Check(b.Cover.CoverInUse==null&&b.Cover.CoverPoint_MovingTo==null,"native holding branch cannot keep failed cover");
-   Check(!ProgressAdapter.RetireFailedCover(b,s.Progress,10.08),"retirement happens once");
-   CoverPoint chosen=null;Check(!p.Find(b.Cover,ref chosen)&&ReferenceEquals(chosen,alternative),"native cover chooser receives replacement");
-   Check(c.Valid,"failed destination not permanently blacklisted");
-  }
-  {
-   var(p,b,s,c)=Setup();var replacement=new CoverPoint("replacement",4);b.Cover.CoverPoints.Add(replacement);
-   Check(ReferenceEquals(VisibleAdapter.SelectCover(b,s.Progress),c),"valid owned cover retains priority");
-   c.Valid=false;Check(ReferenceEquals(VisibleAdapter.SelectCover(b,s.Progress),replacement),"invalid owned cover cannot mask valid alternative");
-   c.Valid=true;s.Progress.Fail("owned",10,"refused");Check(ReferenceEquals(VisibleAdapter.SelectCover(b,s.Progress),replacement),"temporarily blocked owned cover cannot mask alternative");
-   s.Progress.Fail("replacement",10,"refused");Check(VisibleAdapter.SelectCover(b,s.Progress)==null,"all refused candidates unavailable");
-  }
-  foreach(string feature in new[]{"A01","A02"})foreach(string failure in new[]{"invalid","stale-probe","native-refusal","geometry"})
-  {
-   if(feature=="A01"&&failure=="stale-probe")continue;
-   var(p,b,s,c)=Setup(feature);
-   if(failure=="invalid")c.Valid=false;
-   if(failure=="stale-probe")s.Probe.At=0;
-   if(failure=="native-refusal")b.Mover.Accept=false;
-   if(failure=="geometry")c.Geometry=false;
-   CoverPoint result=null;Check(p.Find(b.Cover,ref result),"failed COMET move yields native chooser");
-   Check(s.Progress.Blocked(c.Key,Time.time),"failed cover remembered even before mover was called");
-   Check(b.Mover.Calls==(failure=="native-refusal"?1:0),"mover called only for validated cover");
-   Check(p.Events.Contains(failure=="native-refusal"?"selected-cover-refused-by-native-mover":failure=="geometry"?"cover-selected-invalid-pointVisibleToTarget":"selected-cover-invalidated-before-move"),"precise failure evidence");
-   Check(p.Yields==1&&s.VisibleEngine.Refusals==1,"one failed plan release");
-   var other=new CoverPoint("other",12);b.Cover.CoverPoints.Add(other);
-   Check(ReferenceEquals(VisibleAdapter.SelectCover(b,s.Progress),other),"next choice can use other cover");
-  }
-  {
-   var(p,b,s,c)=Setup();var replacement=new CoverPoint("safe",12);b.Cover.CoverPoints.Add(replacement);c.Geometry=false;
-   Check(ReferenceEquals(VisibleAdapter.SelectCover(b,s.Progress),replacement),"raid 431 exposed retained cover cannot mask safe alternative");
-  }
-  foreach(string scope in new[]{"authority","inactive","self","squad","combat","non-pmc"})
-  {
-   var(p,b,s,c)=Setup();
-   if(scope=="authority")p.Authority=false;if(scope=="inactive")b.BotActive=false;if(scope=="self")b.Decision.CurrentSelfDecision=ESelfActionType.Reload;
-   if(scope=="squad")b.Decision.CurrentSquadDecision=ESquadDecision.Help;if(scope=="combat")b.Decision.CurrentCombatDecision=ECombatDecision.Shoot;if(scope=="non-pmc")b.Pmc=false;
-   CoverPoint result=null;Check(p.Find(b.Cover,ref result)&&b.Mover.Calls==0&&s.Progress.Failures.Count==0&&s.VisibleEngine.Refusals==0,"control interruption never poisons cover: "+scope);
-   Check(p.Events.Contains("selected-cover-control-changed"),"scope interruption trace: "+scope);
-  }
-  {
-   var(p,b,s,c)=Setup();CoverPoint result=null;
-   Check(!p.Find(b.Cover,ref result)&&ReferenceEquals(result,c)&&b.Mover.Calls==1,"native successful or already-moving return accepted");
-   Check(s.Progress.Failures.Count==0&&p.Yields==0,"no rejection for successful continuation");
-  }
-  {
-   var(p,b,s,c)=Setup();ContactSafety.Allowed=false;CoverPoint result=null;
-   Check(p.Find(b.Cover,ref result)&&b.Mover.Calls==0&&s.Progress.Failures.Count==0,"own squad yields without COMET movement or poisoning cover");
-  }
-  {
-   var(p,b,s,c)=Setup();c.Valid=false;b.Cover.CoverPoints.Clear();
-   for(int i=0;i<24;i++)b.Cover.CoverPoints.Add(new("bad"+i,1){Valid=false});
-   b.Cover.CoverPoints.Add(new("late",1));Check(VisibleAdapter.SelectCover(b)==null,"candidate scan remains bounded");
-  }
-  {
-   var(p,b,s,c)=Setup();b.Cover.CoverInUse=null;b.Cover.CoverPoints.Clear();
-   for(int i=24;i>0;i--)b.Cover.CoverPoints.Add(new("candidate"+i,i));
-   Plugin.GeometryCalls=0;
-   Check(VisibleAdapter.SelectCover(b)?.Key=="candidate1"&&Plugin.GeometryCalls==1,"unsorted list rechecks only cheapest candidate, not 24 improvements");
-   b.Cover.CoverPoints[23].Geometry=false;Plugin.GeometryCalls=0;
-   Check(VisibleAdapter.SelectCover(b)?.Key=="candidate2"&&Plugin.GeometryCalls==2,"refused cheapest candidate falls through to next with two rechecks");
-  }
-  Console.WriteLine($"Cover selection: {checks} production adapter checks passed; native movement doubled, no raid.");
- }
+    public static void Run()
+    {
+        int checks = 0;
+        void Check(bool value, string message) { checks++; if (!value) throw new Exception(message); }
+        var plugin = Plugin.Instance = new Plugin();
+        var bot = new BotComponent();
+        var cover = bot.Cover;
+        cover.Bot = bot;
+        var close = new CoverPoint(3);
+        var far = new CoverPoint(7);
+        cover.CoverPoints.AddRange(new[] { far, close });
+        var state = plugin.states[bot] = new BotState();
+        var progress = new PlanProgress();
+
+        // Before contact the current native route has priority.
+        cover.CoverPoint_MovingTo = close;
+        Check(VisibleAdapter.SelectCover(bot) == close, "moving point without a target");
+        cover.CoverInUse = far;
+        Check(VisibleAdapter.SelectCover(bot) == far, "occupied point before moving point");
+        bot.GoalEnemy = new Enemy { IsVisible=true, EnemyPosition=new(10,1,2) };
+        Check(VisibleAdapter.SelectCover(bot,progress) == close, "nearest point screening this enemy");
+        Check(Physics.LastEye == new Vector3(10,2.5f,2), "visible enemy position is the observation origin");
+        Physics.Exposed.Add(3);
+        Check(VisibleAdapter.SelectCover(bot) == far, "exposed candidate skipped");
+        Physics.Exposed.Clear();
+        close.Usable=false;
+        Check(VisibleAdapter.SelectCover(bot) == far,"cover filter refusal does not hide the next usable point");
+        bot.GoalEnemy.IsVisible=false;
+        bot.GoalEnemy.KnownPlaces.LastKnownPosition=new(17,0,0);
+        VisibleAdapter.SelectCover(bot);
+        Check(Physics.LastEye==new Vector3(17,1.5f,0),"hidden target uses last known position");
+        bot.GoalEnemy.KnownPlaces.LastKnownPosition=null;
+        VisibleAdapter.SelectCover(bot);
+        Check(Physics.LastEye==new Vector3(0,1.5f,0),"missing known position uses bot position");
+        cover.CoverPoints.Clear();
+        for(int i=0;i<25;i++) cover.CoverPoints.Add(new CoverPoint(2){Usable=false});
+        cover.CoverPoints.Add(far);
+        Check(VisibleAdapter.SelectCover(bot)==far,"no legacy 24-candidate cap");
+        cover.CoverPoints.Clear();
+        cover.CoverPoints.Add(new CoverPoint(99));
+        Check(VisibleAdapter.SelectCover(bot)==null,"source distance bound");
+
+        foreach(var plan in new[]{("A01","COMET:FallBack"),("A02","COMET:Cover")})
+        {
+            state.Feature=plan.Item1;
+            state.ActiveLabel=plan.Item2;
+            state.SelectedCover=close;
+            CoverPoint result=far;
+            Check(plugin.Find(cover,ref result) && result==far,"native finder owns the route");
+            plugin.Observe(cover,far);
+            Check(state.SelectedCover==far && plugin.Events.Last()=="native-cover-selected","observe native selection");
+            int logged=plugin.Events.Count;
+            plugin.Observe(cover,far);
+            Check(plugin.Events.Count==logged,"same native point does not repeat diagnostic");
+            plugin.Observe(cover,null);
+            Check(state.SelectedCover==null && plugin.Events.Last()=="native-cover-search-pending","empty cache allows native search to continue");
+        }
+        var relocating=plugin.Relocation=close;
+        CoverPoint chosen=null;
+        Check(!plugin.Find(cover,ref chosen) && chosen==relocating,"explicit relocation still takes ownership");
+        ContactSafety.Allowed=false; chosen=far;
+        Check(plugin.Find(cover,ref chosen) && chosen==far,"own squad cannot trigger custom movement");
+        state.Feature="other";
+        plugin.Observe(cover,close);
+        Check(state.SelectedCover==null,"unrelated plan is not attributed a native cover decision");
+        Console.WriteLine($"{checks} production cover selection and handoff checks passed.");
+    }
 }
-static class Time{public static float time;}
-enum ESelfActionType{None,Reload}enum ESquadDecision{None,Help}enum ECombatDecision{SeekCover,Retreat,Shoot}enum ESprintUrgency{High}
-class BotComponent{public string ProfileId="pmc";public bool BotActive=true,Pmc=true;public Decision Decision=new();public SAINCoverClass Cover=new();public Mover Mover=new();}
-class Decision{public ESelfActionType CurrentSelfDecision;public ESquadDecision CurrentSquadDecision;public ECombatDecision CurrentCombatDecision;}
-class SAINCoverClass{public BotComponent Bot;public CoverPoint CoverInUse,CoverPoint_MovingTo;public List<CoverPoint> CoverPoints=new();public void StopSeekingCover(){CoverInUse=CoverPoint_MovingTo=null;}}
-class Mover{public bool Accept=true;public int Calls;public bool GoToCoverPoint(CoverPoint p,bool slow,ESprintUrgency urgency){Calls++;return Accept;}}
-enum NavMeshPathStatus{PathComplete,PathPartial}
-class MeshPath{public NavMeshPathStatus status;}
-class CoverData{public bool IsBad;}
-class CoverPoint{public string Key;public bool Valid=true,Geometry=true;public PathData PathData=new();public MeshPath PathToPoint=new();public CoverData CoverData=new();public CoverPoint(string key,float length){Key=key;PathData.PathLength=length;}}
-class PathData{public float PathLength,TimeSinceLastUpdated;}
-enum Tactic{FallBack}
-class Snapshot{public double Now=10;public Dictionary<Tactic,string> Unavailable=new();}
-class PlanProgress{public List<string> Failures=new();public object Current=new();public bool Blocked(string key,double now)=>Failures.Contains(key);public void Fail(string key,float now,string reason)=>Failures.Add(key);}
-class Settings{public bool Enabled=true;}class Config{public Settings Progress=new();}class Probe{public CoverPoint Cover;public float At;}
-class Engine{public int Refusals;public void NotifyNativeRefusal()=>Refusals++;}
-class BotState{public string Feature,ActiveLabel;public bool ProgressUnavailable;public CoverPoint SelectedCover;public PlanProgress Progress=new();public object ProgressAtSelection;public Probe Probe;public Engine VisibleEngine=new();}
-static class ContactSafety{public static bool Allowed=true;public static bool AllowsGoal(BotComponent b)=>Allowed;}
-static partial class NativeAdapter{public static bool IsSupportedAi(BotComponent b)=>b.Pmc;}
-static partial class ProgressAdapter{public static string CoverKey(CoverPoint p)=>p?.Key??"";}
-static partial class VisibleAdapter{public static bool ValidCover(BotComponent b,CoverPoint p)=>p?.Valid==true;}
-class Log{public void LogWarning(string text)=>throw new Exception(text);}
+
+readonly record struct Vector3(float x,float y,float z)
+{
+    public static Vector3 up => new(0,1,0);
+    public static Vector3 operator +(Vector3 a,Vector3 b)=>new(a.x+b.x,a.y+b.y,a.z+b.z);
+    public static Vector3 operator *(Vector3 a,float scale)=>new(a.x*scale,a.y*scale,a.z*scale);
+    public static float Distance(Vector3 a,Vector3 b)=>MathF.Sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y)+(a.z-b.z)*(a.z-b.z));
+}
+static class Physics
+{
+    internal static HashSet<float> Exposed=new();
+    internal static Vector3 LastEye;
+    public static bool Linecast(Vector3 from,Vector3 to,int mask){LastEye=from;return !Exposed.Contains(to.x);}
+}
+static class LayersMaskController { public const int HighPolyWithTerrainMask=1; }
+class Enemy { public bool IsVisible; public Vector3 EnemyPosition; public Places KnownPlaces=new(); }
+class Places { public Vector3? LastKnownPosition; }
+class BotComponent { public Vector3 Position; public Enemy GoalEnemy; public SAINCoverClass Cover=new(); }
+class SAINCoverClass { public BotComponent Bot; public CoverPoint CoverInUse,CoverPoint_MovingTo; public List<CoverPoint> CoverPoints=new(); }
+class CoverPoint(float x) { public Vector3 Position=new(x,0,0); public bool Usable=true; }
+class PlanProgress {}
+class BotState { public string Feature,ActiveLabel; public CoverPoint SelectedCover; }
+static class ContactSafety { public static bool Allowed=true; public static bool AllowsGoal(BotComponent bot)=>Allowed; }
 partial class Plugin
 {
- public static CoverPoint RequestCoverFallback(BotComponent b,PlanProgress progress)=>null;
- public static Plugin Instance;public Config config=new();public Dictionary<BotComponent,BotState> states=new();public bool Authority=true;public int Yields;public List<string> Events=new();Log Logger=new();
- bool Ghost(string id)=>false;bool FindRelocationCover(SAINCoverClass c,BotState s,ref CoverPoint point)=>false;
- internal static bool RetainedCover(BotComponent b,CoverPoint c)=>ReferenceEquals(b.Cover.CoverInUse,c);
- internal static int GeometryCalls;
- internal static bool SelectionCoverUsable(BotComponent b,CoverPoint c,out string reason){GeometryCalls++;reason=c.Geometry?"cover-selected-rechecked":"cover-selected-invalid-pointVisibleToTarget";return c.Geometry;}
- void Emit(BotState s,string stage,string reason)=>Events.Add(reason);
- void YieldToSain(BotState s,string reason,string stage="ended"){Yields++;s.ActiveLabel="";}
- public bool Find(SAINCoverClass c,ref CoverPoint point)=>FindCover(c,ref point);
+    public static Plugin Instance;
+    public Dictionary<BotComponent,BotState> states=new();
+    public List<string> Events=new();
+    public CoverPoint Relocation;
+    public static bool SeasonalCoverUsable(BotComponent bot,CoverPoint point)=>point.Usable;
+    bool FindRelocationCover(SAINCoverClass cover,BotState state,ref CoverPoint result)
+    { if (Relocation==null) return false; result=Relocation; return true; }
+    void Emit(BotState state,string stage,string reason)=>Events.Add(reason);
+    public bool Find(SAINCoverClass cover,ref CoverPoint result)=>FindCover(cover,ref result);
+    public void Observe(SAINCoverClass cover,CoverPoint result)=>ObserveNativeCover(cover,result);
 }

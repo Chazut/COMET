@@ -43,10 +43,10 @@ namespace Comet.Client
             }
             foreach(var status in new[]{NavMeshPathStatus.PathPartial,NavMeshPathStatus.PathInvalid}) {
                 path.PathToEnemy!.status=status;
-                Check(Probe.Capabilities(bot,enemy,config).Unavailable.ContainsKey(Tactic.Push)&&!Probe.Quiet(bot,enemy).Complete,"native incomplete path disables push");
+                Check(Probe.Capabilities(bot,enemy,config).Unavailable.Count==0&&!Probe.Quiet(bot,enemy).Complete,"partial or invalid path stays eligible for lazy native decisions and is reported incomplete");
             }
             path.PathToEnemy=null;
-            Check(Probe.Capabilities(bot,enemy,config).Unavailable.ContainsKey(Tactic.Push),"missing native path disables push");
+            Check(Probe.Capabilities(bot,enemy,config).Unavailable.Count==0 && !Probe.Quiet(bot,enemy).Complete,"missing native path is deferred and reported incomplete");
             path.PathToEnemy=new(){status=NavMeshPathStatus.PathComplete};
             Check(EnemyPathCorners.Read(null).IsEmpty,"null path is safe");
             path.PathCorners=new[]{start,corner,end};path.PathCornerCount=3;
@@ -55,7 +55,7 @@ namespace Comet.Client
             Check(Probe.Capabilities(bot,enemy,config).Unavailable.Count==0,"no COMET endpoint/start distance veto over native path");
             bot.Position=start;path.PathLength=(float)config.PushMaxDistance+1;
             var distant=Probe.Capabilities(bot,enemy,config);
-            Check(distant.Unavailable[Tactic.Push]=="push-path-too-long"&&!distant.Unavailable.ContainsKey(Tactic.Search),"source push distance limit does not veto search");
+            Check(distant.Unavailable.Count==0,"push range is evaluated during execution, not by the capabilities snapshot");
             path.PathCorners=new[]{start,corner,end};path.PathCornerCount=3;
             // A borrowed slice must not allocate in the per-bot hot path.
             for(int i=0;i<10000;i++)_ = EnemyPathCorners.Read(path).Length;
@@ -65,7 +65,9 @@ namespace Comet.Client
             Console.WriteLine($"Enemy path regression: {checks} checks passed using production A01/A02/A10/P02 calculations; engine objects doubled, no raid simulation.");
         }
     }
-    internal enum Tactic { Push,Search }
+    internal enum Tactic { Push,Search,Grenade }
+    internal sealed class State { internal object SelectedCover; }
+    internal static class VisibleAdapter { internal static object SelectCover(Bot bot)=>new(); }
     internal sealed class Situation { internal Dictionary<Tactic,string> Unavailable=new(); }
     internal sealed class Config { internal double PushMaxDistance=40; }
     internal sealed class KnownThreat { }
