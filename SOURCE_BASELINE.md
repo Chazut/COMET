@@ -12,6 +12,20 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### Grenade suppression
+
+This COMET squad choice extends the baseline's individual hidden-contact grenade
+decision. A recent SAIN shot-at or hit recorded by a squad member identifies the
+attacking human, including a remote Fika player. A bot out of sight can request
+the existing grenade action when a nearby squadmate has the same contact. The
+holder uses Freeze while the player is hidden and StandAndShoot on visual
+contact. Both roles use the host's decisions and ordinary SAIN actions.
+
+The existing grenade settings, equipment checks and native throw approval apply.
+The pair lasts for one native throw. A rejected throw leaves the ordinary
+decision ranking available. S10 decision events identify the thrower, holder and
+contact. The squad maneuver settings include the Grenade suppression switch.
+
 ### Recognizing hostile groups (2026-11-18)
 
 Raid Review recorded Rook killing ToastyTater 48 seconds into the Customs raid

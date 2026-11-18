@@ -1348,6 +1348,15 @@
       "Section": "SquadManeuver",
       "Simple": false
     },
+    "SquadManeuver.GrenadeSuppression": {
+      "Label": "Grenade suppression",
+      "Help": "When a player fires on the squad, a bot behind cover can use a grenade while a nearby teammate holds an angle on the same contact.",
+      "Min": null,
+      "Max": null,
+      "Scale": 1,
+      "Section": "SquadManeuver",
+      "Simple": false
+    },
     "SquadManeuver.Chance": {
       "Label": "Chance to start a squad maneuver",
       "Help": "Chance to propose a coordinated maneuver when the enemy is hidden and squad support is available. Higher values make eligible proposals more frequent; they do not guarantee a flank.",

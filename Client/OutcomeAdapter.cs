@@ -39,8 +39,10 @@ public sealed partial class Plugin
     {
         var type=b.CurrentAction?.GetType();
         if(type==null||type.Assembly!=typeof(BotComponent).Assembly)return false;
+        if (action == "Grenade suppression - hold angle")
+            action = b.Decision.CurrentCombatDecision == ECombatDecision.StandAndShoot ? "Shoot" : "Hold";
         string name=action switch {"Hold"=>"FreezeAction","Shoot"=>"StandAndShootAction","Push"=>"RushEnemyAction",
-            "Search"=>"SearchAction","Flank"=>"ShiftCoverAction","Cover" or "FallBack"=>"SeekCoverAction","Grenade"=>"ThrowGrenadeAction",_=>""};
+            "Search"=>"SearchAction","Flank"=>"ShiftCoverAction","Cover" or "FallBack"=>"SeekCoverAction","Grenade" or "Grenade suppression - throw"=>"ThrowGrenadeAction",_=>""};
         return name.Length>0&&type.Name==name;
     }
     private OutcomeFrame CaptureOutcome(BotComponent b,BotState s)

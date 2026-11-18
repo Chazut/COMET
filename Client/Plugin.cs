@@ -449,6 +449,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             if(!VisibleAdapter.WeaponReady(bot)&&!JumpOwnOpening(bot,state)&&!RunOwnOpening(bot,state)&&!EntranceOwnOpening(bot,state))
             {plugin.YieldToSain(state,"handoff-native-priority","priority");return true;}
             if(MedicalPostureGuard(bot))return true;
+            if(plugin.HoldForSquadGrenade(bot,state,enemy,ref result,ref __result))return false;
             if(plugin.ChooseNativeStorm(bot,state,ref result,ref __result))return false;
             if(plugin.ContinueCrossfireDecision(bot,state,ref result,ref __result))return false;
             if(state.Handoff.Blocked(Time.time,HandoffContact(situation)))return true;
@@ -541,6 +542,8 @@ public sealed partial class Plugin : BaseUnityPlugin
             if (gate != null) { plugin.YieldToSain(state, gate); return true; }
             if(state.Engine.NeedsEvidence(situation))ZzapUtilityCapture.Fill(bot,enemy,situation);
             NativeAdapter.Capabilities(bot, enemy, situation, state, plugin.config);
+            if(!situation.Unavailable.ContainsKey(Tactic.Grenade)
+                && plugin.StartSquadGrenade(bot,state,enemy,situation,ref result,ref __result))return false;
             ProgressAdapter.Candidates(bot,state,situation);
             state.Intent.Apply(situation);
             situation.SilentSearch = plugin.ReadSilentSearch(bot,enemy,state,situation);
@@ -709,6 +712,8 @@ public sealed partial class Plugin : BaseUnityPlugin
             cometVersion = CometVersion.Release, config=decisionConfiguration.Take(config,session),
             profileId = state.ProfileId, name = state.Name, botInstance = state.Id, botKind = state.BotKind,
             decision = state.Decision, candidates = state.Candidates, mixing = state.Mixing, tacticObservationVersion = 1,
+            squadGrenade = state.Feature == "S10" && state.SquadGrenade is {} pair
+                ? new { pair.Thrower, pair.Holder, pair.Contact, pair.StartFrame } : null,
             flank = state.Decision=="Flank" ? new { accepted=state.Flank.MoveAccepted, reason=state.Flank.Reason,
                 destination=state.Flank.Point==null?null:new {x=state.Flank.Point.Position.x,y=state.Flank.Point.Position.y,z=state.Flank.Point.Position.z} } : null,
             doorEmergency = state.Feature=="D13" ? state.Emergency.Policy.Trace : null,
@@ -821,6 +826,7 @@ public sealed partial class Plugin : BaseUnityPlugin
 
 internal sealed class BotState
 {
+    internal SquadGrenadePlan? SquadGrenade;
     internal readonly EscortSighting EscortSighting = new();
         public float CoverRunAnchorAt=-1f, CoverRunBreakCountedAt;
         public Vector3 CoverRunAnchor;

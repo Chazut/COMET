@@ -206,7 +206,7 @@ public static class Cases
 
 // Engine data doubles only. Production adapter methods and core policies are compiled unmodified by Program.cs.
 static class Time{public static float time;public static int frameCount;}
-enum ECombatDecision{None,Freeze,SeekCover,Retreat,AvoidGrenade,DogFight,MeleeAttack,FightZombies}
+enum ECombatDecision{None,Freeze,SeekCover,Retreat,AvoidGrenade,DogFight,MeleeAttack,FightZombies,StandAndShoot}
 enum ESquadDecision{None,Surround,Retreat,Suppress,PushSuppressedEnemy,BoundingRetreat,Regroup,SpreadOut,HoldPositions,Help,Search,GroupSearch,FutureUnknown}
 enum ESelfActionType{None,Reload,FirstAid,Surgery,Stims}
 enum Tactic{Hold,FallBack,Shoot,Push,Search,Flank,Cover,Grenade}

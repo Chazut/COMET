@@ -21,6 +21,13 @@ source += CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Client/
 var choose=Method("Plugin","Choose");
 if(!choose.ToString().Contains("NativeChoiceHasPriority(bot,state)"))
  throw new Exception("Chooser bypassed arbitration or execution recovery gate.");
+var chooserCalls = choose.DescendantNodes().OfType<InvocationExpressionSyntax>()
+    .Select(call => call.Expression.ToString()).ToList();
+var grenadeRole = chooserCalls.IndexOf("plugin.StartSquadGrenade");
+var angleRole = chooserCalls.IndexOf("plugin.HoldForSquadGrenade");
+if (grenadeRole <= chooserCalls.IndexOf("NativeAdapter.Capabilities") || grenadeRole >= chooserCalls.IndexOf("state.Engine.Evaluate")
+    || angleRole <= chooserCalls.IndexOf("NativeChoiceHasPriority") || angleRole >= chooserCalls.IndexOf("plugin.ChooseNativeStorm"))
+    throw new Exception("Squad grenade roles must run from the combat chooser with native priorities and grenade capabilities.");
 var trees=new[]{CSharpSyntaxTree.ParseText(source),
  CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Shared/DecisionExecution.cs"))),
  CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,"Shared/IntegrationContract.cs"))),

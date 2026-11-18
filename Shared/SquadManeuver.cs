@@ -6,6 +6,7 @@ namespace Comet.Core;
 public sealed class SquadManeuverConfig
 {
     public bool Enabled {get;set;}=true;
+    public bool GrenadeSuppression { get; set; } = true;
     public double Chance {get;set;}=60;
     public double SquadDistance {get;set;}=35;
     public double MinDistance {get;set;}=15;
