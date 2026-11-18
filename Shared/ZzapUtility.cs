@@ -34,6 +34,10 @@ public static class ZzapUtility
         if(!s.InCover&&s.OpenGround)hold-=.3;
         if(!s.Coming&&!s.HoldsAngle)fallBack-=Clamp((age-15)*.03,0,.45);
         hold-=.35*Unit((s.KnownDistance-s.FreezeDistance)/Math.Max(1,s.FreezeDistance))*(1-.6*longGun);
+        double caution = s.EnemyRole?.Caution(aggression) ?? 0;
+        push -= caution * (s.OpenGround ? .80 : .55);
+        if (s.InCover) hold += .30 * caution;
+        else fallBack += .28 * caution;
         if(holdBanned)hold=-1;
         return new(){[Tactic.Push]=100*push,[Tactic.Grenade]=100*nade,[Tactic.Hold]=100*hold,
             [Tactic.Flank]=100*flank,[Tactic.Search]=100*search,[Tactic.FallBack]=100*fallBack};
@@ -58,6 +62,10 @@ public static class ZzapUtility
             +.15*cqb-.25*longGun-(tooClose?.3:0);
         push-=.4*fear;shoot-=.1*fear;coverScore+=.4*fear+(fear>.75?.3:0);
         if(dist<12&&cover>3&&(s.Looking||v.RecentHit))coverScore-=.6+.3*Unit((12-dist)/6);
+        double caution = s.EnemyRole?.Caution(aggression) ?? 0;
+        push -= caution * (.55 + .25 * Unit(exposure));
+        if (s.InCover) shoot += .25 * caution;
+        else if (v.CoverReachable) coverScore += .28 * caution;
         return new(){[VisibleTactic.Shoot]=100*shoot,[VisibleTactic.Cover]=100*coverScore,[VisibleTactic.Push]=100*push};
     }
 }

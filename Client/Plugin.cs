@@ -427,6 +427,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             var situation = NativeAdapter.Capture(bot, enemy, plugin.Authority, plugin.Ghost(bot.ProfileId));
             if (!plugin.config.Enabled || !situation.IsAuthority || !situation.IsActive || situation.Ghost)
             { plugin.Release(state, "disabled-inactive-ghost-or-non-authority"); state.Handoff.Clear(); return true; }
+            EnemyRoleCapture.Observe(enemy, situation, state);
             plugin.SampleOutcome(bot,state);
             state.Situation=situation;
             if(plugin.ObservePlanService(bot,state,false))return true;
@@ -695,6 +696,9 @@ public sealed partial class Plugin : BaseUnityPlugin
     private readonly DecisionConfiguration decisionConfiguration=new();
     private void Emit(BotState state, string stage, string reason, string? featureOverride = null)
     {
+        var role = (featureOverride ?? state.Feature) switch {
+            "A01" => state.Engine.RankedEnemy, "A02" => state.VisibleEngine.RankedEnemy, _ => null
+        };
         string json = Diagnostics.Serialize(new {
             schema = 1, session, sequence = ++sequence, feature = featureOverride ?? state.Feature, stage, reason,
             handoff = featureOverride == "A13" ? state.ContinuityTrace ?? state.Handoff.Current : null,
@@ -714,6 +718,10 @@ public sealed partial class Plugin : BaseUnityPlugin
             encounter = state.Feature == "A01" ? state.Situation?.Encounter : null,
             outcome = state.Feature is "A01" or "A02" ? state.Situation?.Outcome : null,
             opponent = state.Feature == "A03" ? null : state.OpponentAtSelection,
+            enemyRole = role == null ? null : new { role = role.Target.Role.ToString(), faction = role.Target.Faction.ToString(),
+                membership = role.Target.RegisteredFaction, groupCue = role.GroupCue.Role.ToString(), groupFaction = role.GroupCue.Faction.ToString(),
+                groupMembership = role.GroupCue.RegisteredFaction,
+                role.RaidProgress, role.ExpectedSupport, role.OtherContacts, role.NearbyAllies },
             opportunity = state.Feature == "A03" && state.Decision != "ContinuePush" ? null : state.OpportunityAtSelection,
             coverResponse = state.Feature == "A02" ? state.CoverResponseAtSelection : null,
             progress = config?.Progress.Enabled == true && !state.ProgressUnavailable ? state.ProgressAtSelection ?? state.Progress.Current : null,
@@ -813,6 +821,7 @@ public sealed partial class Plugin : BaseUnityPlugin
 
 internal sealed class BotState
 {
+    internal readonly EscortSighting EscortSighting = new();
         public float CoverRunAnchorAt=-1f, CoverRunBreakCountedAt;
         public Vector3 CoverRunAnchor;
 

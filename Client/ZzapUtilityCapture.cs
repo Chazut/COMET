@@ -33,18 +33,7 @@ internal static class ZzapUtilityCapture
             && Vector3.Distance(h.Position, bot.Position) < s.KnownDistance + 1;
         var med = bot.BotOwner.Medecine;
         s.CanHeal = (med?.FirstAid?.Damaged == true && med.FirstAid.HaveSmth2Use) || med?.SurgicalKit?.HaveWork == true;
-        int mates = 0, visible = 0, others = 0;
-        if (bot.Squad?.Members != null) foreach (var m in bot.Squad.Members.Values)
-        {
-            if (m == null || ReferenceEquals(m, bot) || m.IsDead || m.GoalEnemy?.EnemyProfileId != enemy.EnemyProfileId) continue;
-            if ((m.Position - bot.Position).sqrMagnitude <= 900) mates++;
-            if (m.GoalEnemy.IsVisible) visible++;
-        }
-        if (bot.EnemyController?.KnownEnemies != null) foreach (var e in bot.EnemyController.KnownEnemies)
-            if (e != null && !ReferenceEquals(e, enemy) && e.TimeSinceLastKnownUpdated < 20
-                && (e.EnemyPosition - enemy.EnemyPosition).sqrMagnitude < 400) others++;
-        s.Numbers = Mathf.Clamp(mates - others, -2, 2) / 2d;
-        s.VisibleMates = Mathf.Clamp(visible, 0, 2) / 2d;
+        FillNumbers(bot, enemy, s);
         s.OpenGround = false;
         if (!s.Visible && !s.InCover)
         {
@@ -59,5 +48,29 @@ internal static class ZzapUtilityCapture
                 new Vector3((float)s.KnownX, (float)s.KnownY + 1.4f, (float)s.KnownZ),
                 bot.Position + Vector3.up, LayersMaskController.HighPolyWithTerrainMask);
         }
+    }
+
+    internal static void FillNumbers(BotComponent bot, Enemy enemy, Situation s)
+    {
+        int mates = 0, visible = 0, others = 0;
+        if (bot.Squad?.Members != null) foreach (var m in bot.Squad.Members.Values)
+        {
+            if (m == null || ReferenceEquals(m, bot) || m.IsDead || m.GoalEnemy?.EnemyProfileId != enemy.EnemyProfileId) continue;
+            if ((m.Position - bot.Position).sqrMagnitude <= 900) mates++;
+            if (m.GoalEnemy.IsVisible) visible++;
+        }
+        bool expectsGroup = s.RecognizedEnemy.ExpectsGroup || s.LocalGroupCue.ExpectsGroup;
+        int nearbyContacts = 0;
+        var contact = new Vector3((float)s.KnownX, (float)s.KnownY, (float)s.KnownZ);
+        if (bot.EnemyController?.KnownEnemies != null) foreach (var e in bot.EnemyController.KnownEnemies)
+        {
+            if (e == null || ReferenceEquals(e, enemy) || e.TimeSinceLastKnownUpdated >= 20) continue;
+            if ((e.EnemyPosition - enemy.EnemyPosition).sqrMagnitude < 400) others++;
+            if (expectsGroup && e.LastKnownPosition is Vector3 known && (known - contact).sqrMagnitude <= 35 * 35) nearbyContacts++;
+        }
+        if (expectsGroup || s.RecognizedEnemy.Role == ContactRole.Scav)
+            s.EnemyRole = new EnemyRoleAssessment(s.RecognizedEnemy, s.LocalGroupCue, EnemyRoleCapture.RaidProgress(), nearbyContacts, mates);
+        s.Numbers = Mathf.Clamp(mates - others, -2, 2) / 2d;
+        s.VisibleMates = Mathf.Clamp(visible, 0, 2) / 2d;
     }
 }

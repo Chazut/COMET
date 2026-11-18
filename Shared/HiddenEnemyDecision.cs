@@ -23,6 +23,8 @@ public sealed class Situation
     public FearTrace? Fear;
     public LoadoutTrace? Loadout;
     public OpponentTrace? Opponent;
+    public EnemyIdentity RecognizedEnemy, LocalGroupCue;
+    public EnemyRoleAssessment? EnemyRole;
     public OpportunityTrace? Opportunity;
     public PlanProgress? Progress;
     public Dictionary<Tactic, string> Unavailable = new Dictionary<Tactic, string>();
@@ -80,6 +82,7 @@ public sealed class HiddenEnemyDecision
     private List<Candidate> ranked = new();
     private List<Candidate> preference = new();
     public Tactic? Current => current;
+    public EnemyRoleAssessment? RankedEnemy { get; private set; }
     public HiddenEnemyDecision(CometConfig config, string stream = "test", TacticalMistakes? mistakes = null)
     { config.Validate(); this.config = config; random = new Random(StableSeed.Of(stream + "|hidden-time"));
       mixer = new DecisionMixer(config.DecisionVariety, stream, false, mistakes ?? new TacticalMistakes(config.TacticalMistakes, stream)); }
@@ -110,6 +113,7 @@ public sealed class HiddenEnemyDecision
         if (banKnownAt < 0 && heldFor >= 40) banKnownAt = knownAt;
         double aggression = config.Aggression.TryGetValue(s.Personality, out var a) ? a : .5;
         var scores = ZzapUtility.Hidden(s, aggression, heldFor, banKnownAt >= 0);
+        RankedEnemy = s.EnemyRole;
         var candidates = new List<Candidate>();
         foreach (Tactic tactic in Enum.GetValues(typeof(Tactic)))
         {
@@ -182,7 +186,7 @@ public sealed class HiddenEnemyDecision
         return new Choice { Decision=tactic, Changed=changed, Candidates=ranked, Reason="utilityKeep",
             Mixing=mixer.Retain("utilityKeep",tactic.ToString()) };
     }
-    public Choice Release(string reason) { bool changed=current.HasValue; current=null; until=0; ranked.Clear(); preference.Clear(); return new Choice {Changed=changed,Reason=reason}; }
+    public Choice Release(string reason) { bool changed=current.HasValue; current=null; until=0; ranked.Clear(); preference.Clear(); RankedEnemy=null; return new Choice {Changed=changed,Reason=reason}; }
     private static bool Finite(double x) => !double.IsNaN(x) && !double.IsInfinity(x);
 }
 

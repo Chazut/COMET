@@ -23,7 +23,7 @@ public sealed partial class Plugin
         internal float Until,Score;
         internal string Id="";
         internal string[] Evidence=Array.Empty<string>();
-        internal readonly Dictionary<string,(double roll,bool joined)> Members=new();
+        internal readonly Dictionary<string,(double roll,double chance,bool joined,bool escortDecline)> Members=new();
     }
     private string StormBlock(BotComponent b,BotState s)
     {
@@ -52,8 +52,14 @@ public sealed partial class Plugin
         }
         if(plan.Score<c.Weakness)return DeclineSquad(s,"S06","storm-weakness-below-threshold");
         if(!plan.Members.TryGetValue(b.ProfileId,out var member))
-        {double roll=jumpRandom.NextDouble();member=(roll,roll*100<c.Chance(b.Info.Personality.ToString()));plan.Members[b.ProfileId]=member;}
-        if(!member.joined)return DeclineSquad(s,"S06","storm-personality-choice");
+        {
+            double baseChance=c.Chance(b.Info.Personality.ToString());
+            double chance=AdjustStormChance(b,e,s,baseChance);
+            double roll=jumpRandom.NextDouble();
+            member=(roll,chance,roll*100<chance,roll*100>=chance && roll*100<baseChance);
+            plan.Members[b.ProfileId]=member;
+        }
+        if(!member.joined)return DeclineSquad(s,"S06",member.escortDecline?"storm-expected-support":"storm-personality-choice");
         // zzap chooses SAIN RushEnemy directly: no rendezvous, separate approach, ETA or reserved destination.
         if(s.Crossfire.Policy.Active)EndCrossfire(b,s,"storm-native-rush");
         if(s.Feature!="S06"||s.Decision!="Storm")Release(s,"storm-native-rush",false,true);
@@ -65,7 +71,7 @@ public sealed partial class Plugin
             bool applied=b.Decision.CurrentCombatDecision==ECombatDecision.RushEnemy;
             var trace=new CrossfireTrace{State="moving",Reason="storm-native-rush",Execution="SAIN RushEnemy",Applied=applied,ValidFor=applied?1:0,
                 Contact=e.EnemyProfileId,Storm=new SquadStormTrace{Plan=plan.Id,State="active",Status="moving",Reason="storm-weak-enemy",Score=plan.Score,
-                    Threshold=c.Weakness,Roll=member.roll*100,Chance=c.Chance(b.Info.Personality.ToString()),Confirmed=applied,
+                    Threshold=c.Weakness,Roll=member.roll*100,Chance=member.chance,Confirmed=applied,
                     Remaining=plan.Until-Time.time,Evidence=plan.Evidence,Members=plan.Members.Select(m=>m.Key+": "+(m.Value.joined?"rush":"stay back")).ToArray()}};
             string json=Diagnostics.Serialize(new{schema=1,session,sequence=++sequence,feature="S06",stage=applied?"applied":"selected",decision="Crossfire",reason="storm-native-rush",
                 realtime=Time.realtimeSinceStartup,utc=DateTime.UtcNow.ToString("O"),profileId=s.ProfileId,name=s.Name,botInstance=s.Id,configRevision=config.Revision,crossfire=trace});

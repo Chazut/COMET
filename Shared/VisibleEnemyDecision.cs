@@ -45,6 +45,7 @@ public sealed class VisibleEnemyDecision
     private List<Candidate> candidates = new();
     private List<Candidate> preference = new();
     public VisibleTactic? Current => current;
+    public EnemyRoleAssessment? RankedEnemy { get; private set; }
     public MixTrace? Mixing => current.HasValue ? mixer.Last : null;
     public VisibleEnemyDecision(CometConfig config, string stream = "test", TacticalMistakes? mistakes = null)
     { config.Validate(); this.config=config; random=new Random(StableSeed.Of(stream+"|visible-time"));
@@ -78,6 +79,7 @@ public sealed class VisibleEnemyDecision
         if(same&&s.Now<until&&!v.RecentHit)return SelectAvailable(v,"zzap-ranked-memory");
         double aggression=config.Aggression.TryGetValue(s.Personality,out var a)?a:.5;
         var scores=ZzapUtility.Visible(v,aggression);
+        RankedEnemy=s.EnemyRole;
         candidates=new List<Candidate>();
         void Add(VisibleTactic t,double weight,string? reason=null) => candidates.Add(new Candidate {
             Decision=t.ToString(),Score=Math.Round(scores[t]*weight,2),Eligible=weight>0&&reason==null,
@@ -108,7 +110,7 @@ public sealed class VisibleEnemyDecision
     }
     public bool TryContinuePending(VisibleSituation v) => false;
     public void ProbeRefreshed() { }
-    public VisibleChoice Release(string reason) {bool changed=current.HasValue;current=null;target="";until=0;candidates.Clear();preference.Clear();return new VisibleChoice {Changed=changed,Reason=reason};}
+    public VisibleChoice Release(string reason) {bool changed=current.HasValue;current=null;target="";until=0;candidates.Clear();preference.Clear();RankedEnemy=null;return new VisibleChoice {Changed=changed,Reason=reason};}
     private static bool Finite(double x)=>!double.IsNaN(x)&&!double.IsInfinity(x);
 }
 

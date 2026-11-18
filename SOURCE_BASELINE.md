@@ -12,6 +12,27 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### Recognizing hostile groups (2026-11-18)
+
+Raid Review recorded Rook killing ToastyTater 48 seconds into the Customs raid
+starting at 19:14. The kill record does not establish which decision led to it.
+The pinned visible utility rewards pushing a vulnerable target and counts allies
+on that target. Its hidden utility also counts known enemies. The squad storm
+uses target weakness and rolls each member's personality chance. None estimates
+escorts from the identity of a single contact. The requested COMET change applies
+to PMC scoring for real combat after personal or shared visual identification.
+
+A recognized boss, guard or faction soldier implies support throughout the first
+15% of raid time. That expectation falls to 15% by the 85% mark. Nearby known
+opponents can sustain caution late in the raid. SAIN personality aggression and
+nearby engaged squadmates scale the score adjustment. A recently seen group
+leaves a local cue for 30 seconds within 35 m even if the original target dies.
+SAIN's existing action capabilities and contact selection still apply. A01/A02
+diagnostics record the role, faction, group cue, raid progress, escort expectation
+and observed counts alongside the candidates used for that decision. Squad storm
+uses the same assessment when a member first rolls to join. The effective chance
+is recorded, and a refusal attributable to expected support has a distinct reason.
+
 ### Selected fixes from R_F's zzap Remix7.6 (2026-11-18)
 
 - `93f81272` fixes GroupSearch. Followers can join their leader's search for a shared enemy. The leader continues its own decision.

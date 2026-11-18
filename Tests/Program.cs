@@ -20,6 +20,7 @@ if(args.Length==2 && args[0]=="--suite")
 }
 
 int checks = 0;
+checks += EnemyRoleAssessmentTests.Run();
 checks += HiddenExecutionTests.Run();
 checks += MagazineRecoveryTests.Run();
 checks += HotPathAllocationTests.Run();

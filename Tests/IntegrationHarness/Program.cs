@@ -92,6 +92,24 @@ static class Audit
         moving.SetValue(cover,invalid);forget.Invoke(null,new[]{cover,invalid});
         if(moving.GetValue(cover)!=null)throw new Exception("Seasonal release retained invalid native movement target");
         Console.WriteLine("Seasonal cover: five callbacks registered; shipped release method verified against real SAIN state/accessors (no Unity callbacks).");
+        var roleAdapter = client.GetType("Comet.Client.EnemyRoleCapture", true)!;
+        var flags = BindingFlags.Static | BindingFlags.NonPublic;
+        var sightCalls = Calls(roleAdapter.GetMethod("Observe", flags)!).Select(m => m.Name).ToArray();
+        if (!sightCalls.Contains("get_LastSquadSeenPlace") || !sightCalls.Contains("get_LastSeenPlace")
+            || !sightCalls.Contains("get_IsVisible") || !sightCalls.Contains("get_IsAI"))
+            throw new Exception("Personal or squad visual role evidence is missing from the shipped client.");
+        var raidClock = Calls(roleAdapter.GetMethod("RaidProgress", flags)!).Select(m => m.Name).ToArray();
+        if (!raidClock.Contains("get_PastTime") || !raidClock.Contains("get_SessionTime"))
+            throw new Exception("Role recognition no longer uses the game raid clock.");
+        var moreBots = "C:/Games/SPT-4.1/BepInEx/plugins/MoreBotsPlugin/MoreBotsPlugin.dll";
+        if (client.GetReferencedAssemblies().Any(a => a.Name == "MoreBotsPlugin")) throw new Exception("MoreBots became a hard dependency");
+        if (File.Exists(moreBots))
+        {
+            var manager = AssemblyLoadContext.Default.LoadFromAssemblyPath(moreBots).GetType("MoreBotsAPI.Components.FactionManager", true)!;
+            if (manager.GetField("WildSpawnTypeFactionDict")?.FieldType != typeof(Dictionary<EFT.WildSpawnType,List<string>>))
+                throw new Exception("Installed MoreBots faction registry is incompatible.");
+            Console.WriteLine("Enemy roles: shipped SAIN visual evidence, EFT raid clock and installed MoreBots faction registry verified.");
+        }
         var warmup = client.GetType("Comet.Client.DiagnosticWarmup", true)!;
         var prepare = warmup.GetMethod("Prepare", BindingFlags.Static | BindingFlags.NonPublic)!;
         var resolver = (Newtonsoft.Json.Serialization.IContractResolver)Activator.CreateInstance(client.GetType("Comet.Client.SnapshotDiagnosticResolver",true)!,true)!;
