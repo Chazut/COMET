@@ -29,14 +29,14 @@ internal static class PerformanceCapture
         var s=active;if(s==null)return;
         try{s.Tick();}catch(Exception ex){s.Fail(ex);}
     }
-    internal static PerformanceBackground? Start(PerformanceConfig config,string directory,string session,long revision,string map,bool authority,Action<string> warning)
+    internal static PerformanceBackground? Start(PerformanceConfig config,string directory,string session,long revision,string map,bool authority,AiLightingFrameCounts lighting,Action<string> warning)
     {
         Stop(null);
         if(!config.Enabled)return null;
         try
         {
             string path=Path.Combine(directory,"performance-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss")+"-"+session+".jsonl");
-            var s=new Session(config,path,session,revision,map,authority,warning);s.Tick();active=s;return s.Writer.Background;
+            var s=new Session(config,path,session,revision,map,authority,lighting,warning);s.Tick();active=s;return s.Writer.Background;
         }
         catch(Exception ex){try{warning("COMET performance capture unavailable: "+ex.Message);}catch{}return null;}
     }
@@ -55,13 +55,14 @@ internal static class PerformanceCapture
         internal bool Closing;
         internal Task? DiagnosticsDone;
         private readonly bool allocations;
+        private readonly AiLightingFrameCounts lighting;
         private readonly Action<string> warning;
         private bool failed,finished;
         private int sampledFrame=-1;
         private bool sampledRenderTime;
-        internal Session(PerformanceConfig c,string path,string session,long revision,string map,bool authority,Action<string> warning)
+        internal Session(PerformanceConfig c,string path,string session,long revision,string map,bool authority,AiLightingFrameCounts lighting,Action<string> warning)
         {
-            this.warning=warning;allocations=c.MeasureAllocations&&PerformanceAllocation.Read!=null;
+            this.lighting=lighting;this.warning=warning;allocations=c.MeasureAllocations&&PerformanceAllocation.Read!=null;
             Recorder=new PerformanceRecorder(PerformanceCatalog.Modules,Stopwatch.Frequency,allocations,c.SlowFrameMs,c.ReportIntervalSeconds);
             Writer=new PerformanceWriter(path,new{schema=1,stage="performance-start",session,configRevision=revision,map,authority,
                 version=typeof(Plugin).Assembly.GetName().Version?.ToString(),utc=DateTime.UtcNow.ToString("O"),realtime=Time.realtimeSinceStartupAsDouble,
@@ -84,7 +85,13 @@ internal static class PerformanceCapture
             // In FixedUpdate Unity returns the physics step, not the rendered frame duration.
             var duration=physics?double.NaN:Time.unscaledDeltaTime*1000.0;
             var report=Recorder.Advance(frame,Time.realtimeSinceStartupAsDouble,duration,GC.CollectionCount(0),GC.CollectionCount(1),GC.CollectionCount(2),physics);
-            if(report!=null){report.Serialization=Diagnostics.SerializerMetrics();Writer.Enqueue(report);}
+            if(report!=null){AddSummaryMetrics(report);Writer.Enqueue(report);}
+        }
+        private void AddSummaryMetrics(PerformanceReport report)
+        {
+            report.Serialization = Diagnostics.SerializerMetrics();
+            report.AiLightingMaxSamplesPerFrame = lighting.MaxSamplesPerFrame;
+            report.AiLightingFramesOverBudget = lighting.FramesOverBudget;
         }
         internal void Leave(long token)
         {
@@ -95,7 +102,7 @@ internal static class PerformanceCapture
         internal void Finish()
         {
             if(finished)return;
-            try{var report=Recorder.Finish(GC.CollectionCount(0),GC.CollectionCount(1),GC.CollectionCount(2));report.Serialization=Diagnostics.SerializerMetrics();Writer.Finish(report,DiagnosticsDone);finished=true;}
+            try{var report=Recorder.Finish(GC.CollectionCount(0),GC.CollectionCount(1),GC.CollectionCount(2));AddSummaryMetrics(report);Writer.Finish(report,DiagnosticsDone);finished=true;}
             catch(Exception ex){Fail(ex);}
         }
         internal void Fail(Exception ex)

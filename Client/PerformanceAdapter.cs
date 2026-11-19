@@ -11,7 +11,7 @@ public sealed partial class Plugin
     {
         if(!c.Enabled)return;
         var log=Logger;
-        var sink=PerformanceCapture.Start(c.Performance,Path.Combine(BepInEx.Paths.PluginPath,"..","COMET","performance"),session,c.Revision,world?.LocationId??"unknown",Authority,message=>log.LogWarning(message));
+        var sink=PerformanceCapture.Start(c.Performance,Path.Combine(BepInEx.Paths.PluginPath,"..","COMET","performance"),session,c.Revision,world?.LocationId??"unknown",Authority,exposure.AiLightingFrames,message=>log.LogWarning(message));
         if(sink==null)return;
         if(diagnostics!=null)
         {

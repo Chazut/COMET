@@ -109,6 +109,8 @@ public sealed partial class Plugin
                 aiSamples = exposure.AiSamples, aiCacheHits = exposure.AiCacheHits, aiDeferred = exposure.AiDeferred,
                 aiPending = exposure.PendingAi, aiSampleTotalMs = exposure.AiSampleTicks * tickMs,
                 aiSampleMaxMs = exposure.MaxAiSampleTicks * tickMs,
+                aiLightingMaxSamplesPerFrame = exposure.AiLightingFrames.MaxSamplesPerFrame,
+                aiLightingFramesOverBudget = exposure.AiLightingFrames.FramesOverBudget,
                 shadow = exposureOutcomes[(int)ExposureReason.Shadow], bright = exposureOutcomes[(int)ExposureReason.Bright],
                 recentSight = exposureOutcomes[(int)ExposureReason.Contact], recentHit = exposureOutcomes[(int)ExposureReason.Hit],
                 close = exposureOutcomes[(int)ExposureReason.Close], nvg = exposureOutcomes[(int)ExposureReason.NightVision],
@@ -126,7 +128,7 @@ public sealed partial class Plugin
         try { RecordExposureSummary(); }
         finally
         {
-            exposure.Reset();
+            exposure.EndRaid();
             Array.Clear(exposureOutcomes, 0, exposureOutcomes.Length);
             exposureRemoteChecks = exposureAiChecks = exposureAiShadow = 0;
             nextExposureDetail = nextExposureSummary = retryExposureAt = 0;

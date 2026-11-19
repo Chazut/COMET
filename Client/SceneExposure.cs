@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Comet.Core;
 using EFT;
 using UnityEngine;
 
@@ -52,6 +53,7 @@ internal sealed class SceneExposure
     private bool ready;
     internal int Samples;
     internal int AiSamples, AiCacheHits, AiDeferred;
+    internal AiLightingFrameCounts AiLightingFrames { get; private set; } = new();
     internal long AiSampleTicks, MaxAiSampleTicks;
     internal int PendingAi => pendingAi.Count;
     internal int FixtureCount => fixtures.Count;
@@ -99,7 +101,7 @@ internal sealed class SceneExposure
             if (ai) AiCacheHits++;
             return reading.Level;
         }
-        if (!ai) return Sample(reading, eye, now);
+        if (!ai) return Sample(reading, eye, now, ai: false);
 
         // One queue entry per target, even if several observers ask in the same frame.
         if (!reading.Queued)
@@ -122,9 +124,8 @@ internal sealed class SceneExposure
             reading.Queued = false;
             if (now - reading.RequestedAt > CacheSeconds) continue;
             lastAiFrame = Time.frameCount;
-            AiSamples++;
             long start = Stopwatch.GetTimestamp();
-            try { Sample(reading, reading.RequestedEye, now); }
+            try { Sample(reading, reading.RequestedEye, now, ai: true); }
             finally
             {
                 long ticks = Stopwatch.GetTimestamp() - start;
@@ -135,9 +136,14 @@ internal sealed class SceneExposure
         }
     }
 
-    private float Sample(Reading reading, Vector3 eye, float now)
+    private float Sample(Reading reading, Vector3 eye, float now, bool ai)
     {
         Samples++;
+        if (ai)
+        {
+            AiSamples++;
+            AiLightingFrames.Record(Time.frameCount);
+        }
         reading.Level = Measure(eye);
         reading.Next = now + CacheSeconds;
         reading.Position = eye;
@@ -219,5 +225,12 @@ internal sealed class SceneExposure
         ready = false;
         lastRequest = nextScan = 0;
         ResetCounters();
+    }
+
+    internal void EndRaid()
+    {
+        Reset();
+        // The outgoing performance capture may still be closing its last scope.
+        AiLightingFrames = new();
     }
 }

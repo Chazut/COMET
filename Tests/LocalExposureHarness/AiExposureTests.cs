@@ -82,6 +82,8 @@ internal static class AiExposureTests
         int Count(string key) => summary.GetProperty(key).GetInt32();
         check(Count("aiSamples") == 6 && Count("samples") == 7 && Count("aiPending") == 1,
             "summary separates human and AI samples and pending work");
+        check(Count("aiLightingMaxSamplesPerFrame") == 1 && Count("aiLightingFramesOverBudget") == 0,
+            "only actual AI lighting measurements count towards the frame budget in solo and on the Fika host");
         check(Count("aiDeferred") > 0 && Count("aiCacheHits") > 0 && Count("aiShadow") > 0 &&
             Count("aiChecks") + Count("humanChecks") == Count("checks") && Count("humanChecks") == 1 &&
             Count("remoteChecks") == (fika ? 1 : 0), "remote human and AI counters stay distinct");
@@ -125,5 +127,20 @@ internal static class AiExposureTests
         sampler.ResetCounters();
         sampler.MeasurePendingAi(Time.time);
         check(sampler.AiSamples == 0 && sampler.PendingAi == pending, "summary rollover preserves the frame budget and queue");
+        var raid = sampler.AiLightingFrames;
+        check(raid.MaxSamplesPerFrame == 1 && raid.FramesOverBudget == 0,
+            "raid totals survive diagnostic rollover under sustained demand");
+        // Exercise the actual sampling path if a sampler recovery allows another read in the same frame.
+        for (int repeat = 0; repeat < 2; repeat++)
+        {
+            sampler.Reset();
+            sampler.RefreshFixtures(Time.time);
+            sampler.Read(targets[0], Vector3.up, Time.time, true);
+        }
+        check(raid.MaxSamplesPerFrame == 3 && raid.FramesOverBudget == 1,
+            "three real measurements count one violating frame even across sampler resets");
+        sampler.EndRaid();
+        check(raid.MaxSamplesPerFrame == 3 && sampler.AiLightingFrames.MaxSamplesPerFrame == 0 &&
+            sampler.AiLightingFrames.FramesOverBudget == 0, "ending the raid retains final totals for the writer and starts fresh for the next raid");
     }
 }
