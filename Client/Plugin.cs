@@ -471,7 +471,11 @@ public sealed partial class Plugin : BaseUnityPlugin
                         + loadError?.Message
                 );
             if (loaded?.Enabled == true)
+            {
+                if (loaded.SecondaryEntrance.Enabled && loaded.SecondaryEntrance.Siege && Authority)
+                    RefreshSiegeRooms();
                 ConfigureExistingRemixBots();
+            }
         }
         UpdateLocalDoors();
         UpdateExposureDiagnostics();

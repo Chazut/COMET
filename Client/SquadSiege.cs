@@ -30,7 +30,7 @@ internal sealed class SiegeSquad
         internal float UsedAt = float.NegativeInfinity,
             NextProbe;
         internal Vector3 Point;
-        internal int Scenes = -1;
+        internal int RoomRevision = -1;
         internal SpatialAudioRoom? Room;
     }
 
@@ -45,8 +45,7 @@ internal sealed class SiegeSquad
 public sealed partial class Plugin
 {
     private ConditionalWeakTable<object, SiegeSquad> siegeSquads = new();
-    private SpatialAudioRoom[]? siegeRooms;
-    private int siegeScenes = -1;
+    private readonly SiegeRoomCatalog siegeRooms = new();
     private readonly Dictionary<SpatialAudioRoom, SiegeBuilding?> siegeBuildings = new();
 
     partial void ClearSieges()
@@ -54,33 +53,15 @@ public sealed partial class Plugin
         foreach (var state in states.Values)
             if (state.Siege != null)
                 EndSiege(state.Siege, "siege-raid-ended");
-        siegeRooms = null;
-        siegeScenes = -1;
+        siegeRooms.Clear();
         siegeBuildings.Clear();
         siegeSquads = new();
     }
 
-    private SpatialAudioRoom? SiegeRoomAt(Vector3 feet)
+    private void RefreshSiegeRooms()
     {
-        int scenes = UnityEngine.SceneManagement.SceneManager.sceneCount;
-        if (siegeRooms == null || scenes != siegeScenes)
-        {
-            siegeRooms = UnityEngine.Object.FindObjectsOfType<SpatialAudioRoom>();
+        if (siegeRooms.Refresh())
             siegeBuildings.Clear();
-            siegeScenes = scenes;
-        }
-        var point = feet + Vector3.up;
-        SpatialAudioRoom? best = null;
-        foreach (var room in siegeRooms)
-            if (
-                room != null
-                && room.IsValid
-                && !room.IsOutdoor
-                && SiegeBuilding.Contains(room, point)
-                && (best == null || room.RoomSize < best.RoomSize)
-            )
-                best = room;
-        return best;
     }
 
     private SiegeBuilding? SiegeMap(SpatialAudioRoom room, out string reason)
@@ -215,11 +196,18 @@ public sealed partial class Plugin
                 || at <= observation.UsedAt + .001f
             )
                 return false;
-            int scenes = UnityEngine.SceneManagement.SceneManager.sceneCount;
-            if (observation.Scenes != scenes || observation.Point != position)
+            RefreshSiegeRooms();
+            if (
+                observation.RoomRevision != siegeRooms.Revision
+                || observation.Point != position
+                || (observation.Room is null
+                    ? !siegeRooms.HasValidatedRooms
+                    : observation.Room == null || !observation.Room.IsValid
+                        || !observation.Room.gameObject.activeInHierarchy)
+            )
             {
-                observation.Room = SiegeRoomAt(position);
-                observation.Scenes = scenes;
+                observation.Room = siegeRooms.RoomAt(position + Vector3.up);
+                observation.RoomRevision = siegeRooms.Revision;
                 observation.Point = position;
             }
             var room = observation.Room;

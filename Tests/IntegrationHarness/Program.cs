@@ -57,6 +57,7 @@ static class Audit
         // Metadata preparation runs against the actual built client, without JITing Unity
         // callbacks on the .NET test host or executing any game action.
         var client = typeof(Comet.Client.Plugin).Assembly;
+        VerifySiegeRoomLookup(client);
         var exposureHook = typeof(Comet.Client.Plugin).GetMethod(
             "ApplyLocalExposure",
             BindingFlags.Static | BindingFlags.NonPublic
@@ -296,6 +297,27 @@ static class Audit
         Console.WriteLine(
             $"Actual client diagnostic readers: {Readers("ReadersPrepared")} compiled, {Readers("ReadersFallback")} fallback; no payload getter executed."
         );
+    }
+
+    private static void VerifySiegeRoomLookup(Assembly client)
+    {
+        const BindingFlags fields = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        var field = typeof(Audio.SpatialSystem.SpatialAudioSystem).GetField("_audioRoomStorage", fields);
+        if (field?.FieldType != typeof(Audio.SpatialSystem.AudioRoomStorage)
+            || field.FieldType.GetField("_validSpatialAudioRooms", fields)?.FieldType != typeof(List<SpatialAudioRoom>))
+            throw new Exception("The native validated-room registry changed.");
+
+        foreach (var (type, method) in new[]
+        {
+            ("SiegeRoomCatalog", "Refresh"), ("SiegeRoomCatalog", "RoomAt"), ("SiegeBuilding", "Read"),
+        })
+        {
+            var target = client.GetType("Comet.Client." + type, true)!
+                .GetMethod(method, fields | BindingFlags.Static)!;
+            if (!Calls(target).Any(m => m.DeclaringType?.Name == "PerformanceCapture" && m.Name == "Enter"))
+                throw new Exception("Missing siege performance scope for " + target);
+        }
+        Console.WriteLine("S11 real-DLL audit passed for the EFT room registry and all three performance scopes.");
     }
 
     // Read the shipped IL directly. Harmony's copier tries to prepare Unity methods

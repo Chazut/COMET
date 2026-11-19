@@ -65,6 +65,8 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
             || File == "OpponentAdapter" && name == "ReadOpponent"
             || File == "EnvironmentContextAdapter" && name == "RefreshEnvironment"
             || File == "SightIntegration" && name == "RefreshSight"
+            || File == "SiegeRoomCatalog" && name is "Refresh" or "RoomAt"
+            || File == "SiegeBuilding" && name == "Read"
             || File == "Diagnostics" && name == "Serialize";
         if (
             !body.Contains("Plugin.EnterFault(")

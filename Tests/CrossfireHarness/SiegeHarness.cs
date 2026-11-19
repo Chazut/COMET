@@ -89,6 +89,8 @@ internal static class SiegeHarness
                 "contact-visible",
                 "raid-end",
                 "two-rooms",
+                "late-registry",
+                "replaced-building",
                 "static-exit",
             }
         )
@@ -104,7 +106,12 @@ internal static class SiegeHarness
                 IsOutdoor = true,
                 Colliders = [new BoxCollider { size = new(100, 15, 100) }],
             };
-            UnityEngine.Object.Rooms = [inside, outside];
+            var group = new SpatialAudioCrossSceneGroup { AudioRooms = [inside, outside] };
+            SpatialAudioCrossSceneGroup.AllCrossGroups.Clear();
+            SpatialAudioCrossSceneGroup.AllCrossGroups.Add(group);
+            var storage = new AudioRoomStorage { _validSpatialAudioRooms = [inside, outside] };
+            SpatialAudioSystem.Instance = new();
+            SpatialAudioSystem.Instance.Publish(storage);
             var inner = inside;
             if (mode == "two-rooms")
             {
@@ -120,7 +127,8 @@ internal static class SiegeHarness
                     ],
                 };
                 Connect(inside, inner, "hall", 2);
-                UnityEngine.Object.Rooms = [inside, inner, outside];
+                group.AudioRooms.Add(inner);
+                storage._validSpatialAudioRooms.Add(inner);
             }
             Connect(inside, outside, "front", -3);
             var second = Connect(inner, outside, mode == "duplicate-door" ? "front" : "back", 3);
@@ -189,6 +197,22 @@ internal static class SiegeHarness
                 );
             }
 
+            if (mode == "late-registry")
+            {
+                SpatialAudioSystem.Instance.Publish(null);
+                SpatialAudioCrossSceneGroup.AllCrossGroups.Clear();
+                Check(!p.TestSiege(a), "early lookup with no rooms can retry the same contact");
+                SpatialAudioSystem.Instance.Publish(storage);
+                Time.time += (float)p.config!.Crossfire.Interval + .01f;
+            }
+            if (mode == "replaced-building")
+            {
+                second.DoorID = "front";
+                Check(!p.TestSiege(a), "single exit is cached for the original layout");
+                second.DoorID = "back";
+                group.AudioRooms = [.. group.AudioRooms];
+                Time.time += (float)p.config!.Crossfire.Interval + .01f;
+            }
             bool expected =
                 mode
                 is not (
@@ -294,8 +318,65 @@ internal static class SiegeHarness
             }
         }
         Physics.Cast = null;
-        UnityEngine.Object.Rooms = [];
+        TestRoomSources(Check);
+        SpatialAudioCrossSceneGroup.AllCrossGroups.Clear();
+        SpatialAudioSystem.Instance = null;
         Console.WriteLine($"S11 siege: {checks} adapter checks passed.");
+    }
+
+    private static void TestRoomSources(Action<bool, string> check)
+    {
+        SpatialAudioSystem.Instance = null;
+        var groups = SpatialAudioCrossSceneGroup.AllCrossGroups;
+        groups.Clear();
+        var catalog = new SiegeRoomCatalog();
+        var point = Vector3.up;
+        check(catalog.Refresh() && catalog.RoomAt(point) == null, "no registry yet");
+        check(!catalog.Refresh() && !catalog.HasValidatedRooms, "early miss can be retried");
+
+        SpatialAudioRoom Room(float size) => new()
+        {
+            RoomSize = size,
+            Colliders = [new BoxCollider { size = new(8, 6, 8) }],
+        };
+        var large = Room(15);
+        var first = Room(2);
+        var second = Room(2);
+        var inactive = Room(1);
+        inactive.gameObject.activeInHierarchy = false;
+        var outdoor = Room(1);
+        outdoor.IsOutdoor = true;
+        var invalid = Room(1);
+        invalid.IsValid = false;
+        var group = new SpatialAudioCrossSceneGroup { AudioRooms = [large, inactive, outdoor, invalid] };
+        groups.Add(group);
+        check(catalog.Refresh() && catalog.RoomAt(point) == large, "headless group lists, active indoor volumes only");
+        group.AudioRooms.Add(second);
+        check(catalog.Refresh() && catalog.RoomAt(point) == second, "streamed room changes the selection");
+        var storage = new AudioRoomStorage { _validSpatialAudioRooms = [second, large, first] };
+        SpatialAudioSystem.Instance = new();
+        SpatialAudioSystem.Instance.Publish(storage);
+        check(catalog.Refresh() && catalog.HasValidatedRooms, "published native storage invalidates old misses");
+        int checksBefore = second.Bounds.Checks;
+        check(catalog.RoomAt(point) == first, "smallest overlapping volume, instance ID breaks equal sizes");
+        check(second.Bounds.Checks == checksBefore + 1, "overlapping registries check each room only once");
+        check(!catalog.Refresh() && catalog.RoomAt(new(100, 0, 0)) == null, "stable registry, outdoor contact");
+
+        groups.Clear(); // EFT clears the shared list when even one additive group is destroyed.
+        check(catalog.Refresh() && catalog.RoomAt(point) == first, "remaining native rooms survive group unload");
+        var extra = Room(1);
+        groups.Add(new() { AudioRooms = [extra] });
+        check(catalog.Refresh() && catalog.RoomAt(point) == extra, "new additive group augments native storage");
+        groups[0] = new() { AudioRooms = [large] };
+        check(catalog.Refresh() && catalog.RoomAt(point) == first, "same-count group replacement drops old volume");
+        SpatialAudioSystem.Instance.Publish(new() { _validSpatialAudioRooms = [large, second, inactive] });
+        check(catalog.Refresh() && catalog.RoomAt(point) == second, "same-count native list replacement");
+        UnityEngine.SceneManagement.SceneManager.sceneCount++;
+        check(catalog.Refresh(), "scene change invalidates building maps even with the same lists");
+        catalog.Clear();
+        groups.Clear();
+        SpatialAudioSystem.Instance = null;
+        check(catalog.Refresh() && catalog.RoomAt(point) == null, "raid cleanup drops every room reference");
     }
 
     private static SpatialAudioPortal Connect(

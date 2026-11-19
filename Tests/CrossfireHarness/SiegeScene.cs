@@ -5,8 +5,9 @@ using SAIN.Components;
 using SAIN.Preset.Shared.Enums;
 using UnityEngine;
 
-public class SpatialAudioRoom
+public class SpatialAudioRoom : UnityEngine.Object
 {
+    public readonly GameObject gameObject = new();
     public class RoomConnection
     {
         public SpatialAudioRoom connectedRoom = null!;
@@ -23,6 +24,24 @@ public class SpatialAudioRoom
 
 namespace Audio.SpatialSystem
 {
+    public class SpatialAudioSystem
+    {
+        public static SpatialAudioSystem? Instance;
+        private AudioRoomStorage? _audioRoomStorage;
+        internal void Publish(AudioRoomStorage? storage) => _audioRoomStorage = storage;
+    }
+
+    public class AudioRoomStorage
+    {
+        public List<SpatialAudioRoom> _validSpatialAudioRooms = [];
+    }
+
+    public class SpatialAudioCrossSceneGroup
+    {
+        public static readonly List<SpatialAudioCrossSceneGroup> AllCrossGroups = [];
+        public List<SpatialAudioRoom> AudioRooms = [];
+    }
+
     public class BaseSpatialAudioPortal
     {
         public enum PortalType
@@ -49,14 +68,27 @@ namespace UnityEngine
 {
     public class Object
     {
-        public static SpatialAudioRoom[] Rooms = [];
+        private static int nextId;
+        private readonly int instanceId = ++nextId;
+        public int GetInstanceID() => instanceId;
 
-        public static T[] FindObjectsOfType<T>() => Rooms.OfType<T>().ToArray();
+        public static T[] FindObjectsOfType<T>() =>
+            throw new InvalidOperationException("S11 performed a global Unity object search");
+    }
+
+    public class GameObject
+    {
+        public bool activeInHierarchy = true;
     }
 
     public class Bounds
     {
-        public bool Contains(Vector3 _) => true;
+        public int Checks;
+        public bool Contains(Vector3 _)
+        {
+            Checks++;
+            return true;
+        }
     }
 
     public class BoxCollider
