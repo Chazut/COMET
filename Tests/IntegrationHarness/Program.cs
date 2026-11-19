@@ -31,6 +31,12 @@ static class Audit
         // Metadata preparation runs against the actual built client, without JITing Unity
         // callbacks on the .NET test host or executing any game action.
         var client = typeof(Comet.Client.Plugin).Assembly;
+        var exposureHook = typeof(Comet.Client.Plugin).GetMethod("ApplyLocalExposure", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var exposureCalls = Calls(exposureHook).ToArray();
+        if (!probe.Hooks.Any(h => h.Callback == exposureHook.Name && h.Target.Contains("EnemyGainSightClass.CalcModifier"))
+            || !exposureCalls.Any(m => m.Name == "EnterFault")
+            || exposureCalls.TakeWhile(m => m.Name != "EnterFault").Any(m => m.Name == "get_IsAI"))
+            throw new Exception("The shipped sight hook must admit AI targets through the generated preflight.");
         var routes = probe.Hooks.Where(h => h.Callback=="RemixPathInstructions").ToArray();
         if (routes.Length!=8 || !routes.Any(h=>h.Target.Contains("PlayerDataExtensions.Update("))
             || probe.Hooks.Count(h=>h.Callback=="RemixHearingTeardown")!=2

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using EFT;
 using UnityEngine;
@@ -9,10 +10,16 @@ namespace Comet.Client;
 // Samples the raid scene on the AI authority. No screen, local camera or network packets are needed.
 internal sealed class SceneExposure
 {
+    private const float CacheSeconds = 0.35f;
+    private const float MoveThresholdSquared = 1.5f * 1.5f;
+
     private sealed class Reading
     {
         internal float Next, Level = -1f;
         internal Vector3 Position;
+        internal bool Queued;
+        internal float RequestedAt;
+        internal Vector3 RequestedEye;
     }
 
     private readonly struct Fixture
@@ -35,6 +42,8 @@ internal sealed class SceneExposure
         Vector3.back, Vector3.left, Vector3.right };
     private readonly Color[] probeColors = new Color[probeDirections.Length];
     private ConditionalWeakTable<Player, Reading> targets = new();
+    private readonly Queue<Reading> pendingAi = new();
+    private int lastAiFrame = -1;
     private List<Fixture> fixtures = new(), building = new();
     private Light[]? discovered;
     private float nextScan;
@@ -42,6 +51,9 @@ internal sealed class SceneExposure
     private int cursor;
     private bool ready;
     internal int Samples;
+    internal int AiSamples, AiCacheHits, AiDeferred;
+    internal long AiSampleTicks, MaxAiSampleTicks;
+    internal int PendingAi => pendingAi.Count;
     internal int FixtureCount => fixtures.Count;
 
     internal void RefreshFixtures(float now)
@@ -70,15 +82,64 @@ internal sealed class SceneExposure
         ready = true;
     }
 
-    internal float Read(Player target, Vector3 eye, float now)
+    internal float Read(Player target, Vector3 eye, float now, bool ai)
     {
         lastRequest = now;
         if (!ready || !(eye.sqrMagnitude > 0f) || float.IsInfinity(eye.sqrMagnitude)) return -1f;
         var reading = targets.GetOrCreateValue(target);
-        if (now < reading.Next && (eye - reading.Position).sqrMagnitude < 2.25f) return reading.Level;
+        bool near = (eye - reading.Position).sqrMagnitude < MoveThresholdSquared;
+        bool fresh = now < reading.Next && near;
+        if (ai && (!fresh || reading.Queued))
+        {
+            reading.RequestedAt = now;
+            reading.RequestedEye = eye;
+        }
+        if (fresh)
+        {
+            if (ai) AiCacheHits++;
+            return reading.Level;
+        }
+        if (!ai) return Sample(reading, eye, now);
+
+        // One queue entry per target, even if several observers ask in the same frame.
+        if (!reading.Queued)
+        {
+            reading.Queued = true;
+            pendingAi.Enqueue(reading);
+        }
+        MeasurePendingAi(now);
+        if (!reading.Queued) return reading.Level;
+        AiDeferred++;
+        return near && now < reading.Next + CacheSeconds ? reading.Level : -1f;
+    }
+
+    internal void MeasurePendingAi(float now)
+    {
+        if (pendingAi.Count == 0 || lastAiFrame == Time.frameCount) return;
+        while (pendingAi.Count > 0)
+        {
+            var reading = pendingAi.Dequeue();
+            reading.Queued = false;
+            if (now - reading.RequestedAt > CacheSeconds) continue;
+            lastAiFrame = Time.frameCount;
+            AiSamples++;
+            long start = Stopwatch.GetTimestamp();
+            try { Sample(reading, reading.RequestedEye, now); }
+            finally
+            {
+                long ticks = Stopwatch.GetTimestamp() - start;
+                AiSampleTicks += ticks;
+                MaxAiSampleTicks = Math.Max(MaxAiSampleTicks, ticks);
+            }
+            return;
+        }
+    }
+
+    private float Sample(Reading reading, Vector3 eye, float now)
+    {
         Samples++;
         reading.Level = Measure(eye);
-        reading.Next = now + 0.35f;
+        reading.Next = now + CacheSeconds;
         reading.Position = eye;
         return reading.Level;
     }
@@ -141,14 +202,22 @@ internal sealed class SceneExposure
         return float.IsNaN(level) || float.IsInfinity(level) ? -1f : level;
     }
 
+    internal void ResetCounters()
+    {
+        Samples = AiSamples = AiCacheHits = AiDeferred = 0;
+        AiSampleTicks = MaxAiSampleTicks = 0;
+    }
+
     internal void Reset()
     {
         targets = new();
+        pendingAi.Clear();
+        lastAiFrame = -1;
         fixtures.Clear();
         building.Clear();
         discovered = null;
         ready = false;
         lastRequest = nextScan = 0;
-        Samples = 0;
+        ResetCounters();
     }
 }

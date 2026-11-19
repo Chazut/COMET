@@ -17,7 +17,7 @@ Bots that flank you, approach quietly, work together and change tactics during a
 
 - **Combat decisions:** hold an angle, push, search or retreat as the fight changes.
 - **Movement:** peek corners, move between cover and approach quietly.
-- **Spotting players in shadow.** Bots take a little longer to spot you in a dark corner. If the same bot saw you in the last 10 seconds, it recognizes you at its usual speed when you peek again.
+- **Spotting in shadow.** A dark corner can give you or another bot a little more time before a PMC spots you. If that PMC saw you in the last 10 seconds, it recognizes you at its usual speed when you peek again.
 - **Squad tactics:** support teammates, find different angles and coordinate pushes.
 - **Doors:** watch entrances, feint, ambush and clear rooms.
 - **Weapons and gear:** manage reloads, weapon swaps, flashlights and tactical devices.

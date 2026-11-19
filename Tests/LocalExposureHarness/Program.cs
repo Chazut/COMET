@@ -10,7 +10,11 @@ void Check(bool pass, string why)
     checks++;
 }
 void Near(float actual, float expected, string why) => Check(Math.Abs(actual - expected) < 0.0001f, why);
-void Advance(float seconds) => Time.realtimeSinceStartup = Time.time += seconds;
+void Advance(float seconds)
+{
+    Time.realtimeSinceStartup = Time.time += seconds;
+    Time.frameCount++;
+}
 
 Time.time = Time.realtimeSinceStartup = 100f;
 var p = Plugin.Instance = new Plugin();
@@ -67,7 +71,7 @@ local.RealDistance = 18;
 Near(Plugin.Sight(local, 1), 1.14f, "shadow ramps with distance");
 local.RealDistance = 50;
 local.IsAI = true;
-Near(Plugin.Sight(local, 1), 1, "bot-to-bot unchanged");
+Near(Plugin.Sight(local, 1), 1.28f, "same SAIN shadow response for an AI target");
 local.IsAI = false;
 local.Bot.Supported = false;
 Near(Plugin.Sight(local, 1), 1, "unsupported observer unchanged");
@@ -93,7 +97,7 @@ float Scene(params Light[] lights)
     UnityEngine.Object.Scene = lights;
     var sampler = new SceneExposure();
     sampler.RefreshFixtures(Time.time);
-    return sampler.Read(local.EnemyPlayer, Vector3.up, Time.time);
+    return sampler.Read(local.EnemyPlayer, Vector3.up, Time.time, false);
 }
 TOD_Sky.Instance = null;
 Check(Scene() < 0, "missing signals defer to native");
@@ -141,4 +145,7 @@ p.diagnostics.Fail = true;
 Near(Plugin.Sight(local, 2), 2.56f, "diagnostic failure preserves gameplay");
 p.End();
 Check(p.SinkErrors == 2, "detail and summary sink errors isolated");
+AiExposureTests.Run(false, Check);
+AiExposureTests.Run(true, Check);
+AiExposureTests.RunCrowdedScene(Check);
 Console.WriteLine($"Local exposure: {checks} checks passed.");

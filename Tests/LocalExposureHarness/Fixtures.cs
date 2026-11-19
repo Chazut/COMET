@@ -31,7 +31,7 @@ namespace UnityEngine
         public T? GetComponentInParent<T>() where T : class => Parent as T;
         public T? GetComponent<T>() where T : class => Owner as T;
     }
-    public static class Time { public static float time, realtimeSinceStartup; }
+    public static class Time { public static float time, realtimeSinceStartup; public static int frameCount; }
     public static class Physics
     {
         public static bool Roof, Wall;

@@ -519,15 +519,21 @@ RR historical event replay, rewind and repeated drop/pickup, and compact project
 
 ### Local light and visual contact
 
-On the AI authority, supported bots use local light at a human target's eye position
+On the AI authority, supported bots use local light at a human or AI target's eye position
 to scale SAIN's acquisition modifier by up to 1.35. The effect starts beyond
-6 metres and reaches full strength at 30 metres. Each player's scene sample
+6 metres and reaches full strength at 30 metres. Each target's scene sample
 is reused across observers for up to 0.35 seconds, with an early refresh after
 1.5 metres of movement. This includes remote players on a Fika host.
+Human samples are immediate. AI requests share a FIFO queue and at most one new
+scene measurement per Unity frame. During contention a stationary target can reuse
+its reading for another 0.35 seconds. A moved target or an older reading uses the
+native preset until refreshed. Unrequested stale entries expire from the queue.
 
 Contact history comes from SAIN and EFT for each observer and target. A confirmed
 sighting in the last 10 seconds or an exchanged hit in the last 8 seconds removes
 the extra delay. Active NVGs, a target's white light, bright conditions and an
 unavailable measurement also preserve the native value. The adjustment never sets
 visibility or changes a preset. Local-exposure diagnostics record outcomes and
-remote observations, with detailed samples when quiet logging is off.
+remote human observations. Each summary includes AI checks, shadow outcomes,
+samples, cache hits, deferred checks, queue depth and total and peak AI measurement
+time in milliseconds. Detailed samples identify AI targets when quiet logging is off.
