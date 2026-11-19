@@ -1,35 +1,116 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup><Compile Remove="HiddenExecutionHarness/**/*.cs" /><None Include="fixtures/back4streetz-hidden.json" Link="back4streetz-hidden.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
-  <ItemGroup><Compile Remove="SeasonalCoverHarness/**/*.cs;RemixHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="OwnerWarmupHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="StorageHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="NativeFixHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="MagazineRecoveryHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="EmbeddedFikaHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="LightDetectionHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Include="../Server/Web/SecretBrand.cs" Link="Web/SecretBrand.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="WoodsExecutionHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="TacticalClearanceHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="CoverFallbackHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="BotScopeHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="RuntimeRegressionHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="DiagnosticGateHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="Raid392Harness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="FlankHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="CoverSelectionHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="ContactSafetyHarness/**/*.cs" /><Compile Remove="Support/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="ArbitrationHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="PathHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="Raid387Harness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="PerformanceHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Include="../Client/PerformanceWriter.cs" Link="PerformanceWriter.cs" /></ItemGroup>
-  <ItemGroup><Compile Include="../Client/DiagnosticEventReader.cs" Link="DiagnosticEventReader.cs" /></ItemGroup>
-  <ItemGroup><Compile Include="../Client/DiagnosticWarmup.cs" Link="DiagnosticWarmup.cs" /></ItemGroup>
-  <ItemGroup><None Include="fixtures/u01-original-defaults.json" Link="u01-original-defaults.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
-  <ItemGroup><Compile Remove="WeaponReturnHarness/**/*.cs" /></ItemGroup>
-  <ItemGroup><Compile Remove="WeaponRangeHarness/**/*.cs" /></ItemGroup>
-  <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
-  <ItemGroup><Compile Remove="JournalHarness/**/*.cs" /><Compile Remove="ControlHarness/**/*.cs" /><Compile Remove="IntegrationHarness/**/*.cs" /><Compile Remove="ObserverHarness/**/*.cs" /><Compile Remove="RaidCleanupHarness/**/*.cs" /><Compile Remove="ValidityHarness/**/*.cs" /><Compile Remove="FaultHarness/**/*.cs" /><Compile Remove="LifecycleHarness/**/*.cs" /><Compile Remove="CoverScanHarness/**/*.cs" />
+  <ItemGroup>
+    <Compile Remove="HiddenExecutionHarness/**/*.cs" />
+    <None
+      Include="fixtures/back4streetz-hidden.json"
+      Link="back4streetz-hidden.json"
+      CopyToOutputDirectory="PreserveNewest"
+    />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="SeasonalCoverHarness/**/*.cs;RemixHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="OwnerWarmupHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="StorageHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="NativeFixHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="MagazineRecoveryHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="EmbeddedFikaHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="LightDetectionHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Server/Web/SecretBrand.cs" Link="Web/SecretBrand.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="WoodsExecutionHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="TacticalClearanceHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="CoverFallbackHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="BotScopeHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="RuntimeRegressionHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="DiagnosticGateHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Raid392Harness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="FlankHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="CoverSelectionHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="ContactSafetyHarness/**/*.cs" />
+    <Compile Remove="Support/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="ArbitrationHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="PathHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Raid387Harness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="PerformanceHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Client/PerformanceWriter.cs" Link="PerformanceWriter.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Client/DiagnosticEventReader.cs" Link="DiagnosticEventReader.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Client/DiagnosticWarmup.cs" Link="DiagnosticWarmup.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None
+      Include="fixtures/u01-original-defaults.json"
+      Link="u01-original-defaults.json"
+      CopyToOutputDirectory="PreserveNewest"
+    />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="WeaponReturnHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="WeaponRangeHarness/**/*.cs" />
+  </ItemGroup>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="JournalHarness/**/*.cs" />
+    <Compile Remove="ControlHarness/**/*.cs" />
+    <Compile Remove="IntegrationHarness/**/*.cs" />
+    <Compile Remove="ObserverHarness/**/*.cs" />
+    <Compile Remove="RaidCleanupHarness/**/*.cs" />
+    <Compile Remove="ValidityHarness/**/*.cs" />
+    <Compile Remove="FaultHarness/**/*.cs" />
+    <Compile Remove="LifecycleHarness/**/*.cs" />
+    <Compile Remove="CoverScanHarness/**/*.cs" />
     <Compile Remove="MovementRecoveryHarness/**/*.cs" />
     <Compile Remove="LocalExposureHarness/**/*.cs" />
     <Compile Remove="CornerPlanningHarness/**/*.cs" />
@@ -59,14 +140,38 @@
     <Compile Remove="HandsHarness/**/*.cs" />
     <Compile Remove="GrenadeHarness/**/*.cs" />
     <Compile Remove="GrenadeTrajectoryHarness/**/*.cs" />
-    <Compile Remove="GrenadeChoiceHarness/**/*.cs" /><Compile Remove="OwnGrenadeHarness/**/*.cs" /><Compile Remove="GrenadeReactionHarness/**/*.cs" /><Compile Remove="GrenadeDispersionHarness/**/*.cs" />
+    <Compile Remove="GrenadeChoiceHarness/**/*.cs" />
+    <Compile Remove="OwnGrenadeHarness/**/*.cs" />
+    <Compile Remove="GrenadeReactionHarness/**/*.cs" />
+    <Compile Remove="GrenadeDispersionHarness/**/*.cs" />
     <Compile Remove="GrenadeFilterHarness/**/*.cs" />
     <Compile Include="../Shared/*.cs" Link="Core/%(Filename)%(Extension)" />
     <Compile Include="../Server/IntegrationReports.cs" Link="IntegrationReports.cs" />
-    <Compile Include="../Server/ConfigStore.cs" Link="ConfigStore.cs" /><Compile Include="../Server/SourceBaselineMigration.cs" Link="SourceBaselineMigration.cs" />
+    <Compile Include="../Server/ConfigStore.cs" Link="ConfigStore.cs" />
+    <Compile Include="../Server/SourceBaselineMigration.cs" Link="SourceBaselineMigration.cs" />
     <Compile Include="../Server/PresetLibrary.cs" Link="PresetLibrary.cs" />
-    <Compile Include="../Client/Diagnostics.cs" Link="Diagnostics.cs" /><Compile Include="../Client/TacticCounters.cs" Link="TacticCounters.cs" /><Compile Include="../Client/CombatReport.cs" Link="CombatReport.cs" />
+    <Compile Include="../Client/Diagnostics.cs" Link="Diagnostics.cs" />
+    <Compile Include="../Client/TacticCounters.cs" Link="TacticCounters.cs" />
+    <Compile Include="../Client/CombatReport.cs" Link="CombatReport.cs" />
     <Reference Include="SPTarkov.DI" HintPath="C:/Games/SPT-4.1/SPT_Runtime/SPTarkov.DI.dll" />
-    <Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" />
+    <Reference
+      Include="Newtonsoft.Json"
+      HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll"
+    />
   </ItemGroup>
-<ItemGroup><Compile Remove="DoorMotionHarness/**/*.cs" /></ItemGroup><ItemGroup><Compile Remove="DoorFikaHarness/**/*.cs" /></ItemGroup><ItemGroup><EmbeddedResource Include="../Server/Editing/EditorCatalog.json" LogicalName="Comet.EditorCatalog.json" /></ItemGroup><ItemGroup><Compile Include="../Server/Editing/*.cs" Link="Editing/%(Filename)%(Extension)" /></ItemGroup></Project>
+  <ItemGroup>
+    <Compile Remove="DoorMotionHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="DoorFikaHarness/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource
+      Include="../Server/Editing/EditorCatalog.json"
+      LogicalName="Comet.EditorCatalog.json"
+    />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Server/Editing/*.cs" Link="Editing/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

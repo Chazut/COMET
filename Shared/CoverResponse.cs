@@ -7,9 +7,17 @@ namespace Comet.Core;
 // Geometry and own mobility only. No live enemy transform or enemy weapon/health lookup.
 public sealed class CoverTravel
 {
-    public bool Complete, DoorBusy, CanSprint;
-    public double PathLength, VerticalTravel, StartError, WalkSpeed, SprintSpeed, Stamina;
+    public bool Complete,
+        DoorBusy,
+        CanSprint;
+    public double PathLength,
+        VerticalTravel,
+        StartError,
+        WalkSpeed,
+        SprintSpeed,
+        Stamina;
     public int Corners;
+
     // Start, 1/3, 2/3, destination. Union of dated known threats; not a hit probability.
     public double[] Exposure = Array.Empty<double>();
 }
@@ -36,9 +44,9 @@ public sealed class CoverResponseTrace
 
 public static class CoverResponseModel
 {
- public static void Adjust(List<Candidate> choices,VisibleSituation v,CometConfig config)
- {
-  // Kept as a passive wire contract. ZzapUtility.Visible contains the source cover/run cost.
-  v.CoverResponse=new(){State="source-utility",Reason="zzap-cover-run-cost"};
- }
+    public static void Adjust(List<Candidate> choices, VisibleSituation v, CometConfig config)
+    {
+        // Kept as a passive wire contract. ZzapUtility.Visible contains the source cover/run cost.
+        v.CoverResponse = new() { State = "source-utility", Reason = "zzap-cover-run-cost" };
+    }
 }

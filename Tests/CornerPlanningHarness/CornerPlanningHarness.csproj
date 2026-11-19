@@ -1,5 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
- <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
- <ItemGroup><Compile Include="../../Shared/*.cs" Link="Core/%(Filename)%(Extension)" /></ItemGroup>
- <Target Name="ExtractProduction" BeforeTargets="BeforeCompile"><Exec Command="python &quot;$(MSBuildProjectDirectory)/prepare.py&quot;" /></Target>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Shared/*.cs" Link="Core/%(Filename)%(Extension)" />
+  </ItemGroup>
+  <Target Name="ExtractProduction" BeforeTargets="BeforeCompile">
+    <Exec Command="python &quot;$(MSBuildProjectDirectory)/prepare.py&quot;" />
+  </Target>
 </Project>

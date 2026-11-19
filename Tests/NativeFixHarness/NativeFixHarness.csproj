@@ -1,7 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType>
-    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><Optimize>false</Optimize>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Optimize>false</Optimize>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Client/LiquidwarpFixesAdapter.cs" Link="LiquidwarpFixesAdapter.cs" />

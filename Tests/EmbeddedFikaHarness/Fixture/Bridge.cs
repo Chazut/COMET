@@ -11,19 +11,22 @@ public sealed class Bridge : IDisposable
     {
         counters = (Dictionary<string, int>)logger;
         Increment("initialize");
-        if (counters.ContainsKey("failInit")) throw new InvalidOperationException("initialization failed");
+        if (counters.ContainsKey("failInit"))
+            throw new InvalidOperationException("initialization failed");
     }
 
     public void Update()
     {
         Increment("update");
-        if (counters.ContainsKey("failUpdate")) throw new InvalidOperationException("update failed");
+        if (counters.ContainsKey("failUpdate"))
+            throw new InvalidOperationException("update failed");
     }
 
     public void Dispose()
     {
         Increment("dispose");
-        if (counters.ContainsKey("failDispose")) throw new InvalidOperationException("cleanup failed");
+        if (counters.ContainsKey("failDispose"))
+            throw new InvalidOperationException("cleanup failed");
     }
 
     private void Increment(string key)

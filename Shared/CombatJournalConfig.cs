@@ -7,6 +7,7 @@ public sealed class ControlJournalConfig
     public double RapidReturn { get; set; } = 5;
     public int CycleThreshold { get; set; } = 3;
     public double Window { get; set; } = 20;
+
     public void Validate()
     {
         CometConfig.Range(LongWait, 5, 120, nameof(LongWait));
@@ -20,6 +21,7 @@ public sealed class CombatJournalConfig
 {
     public bool Enabled { get; set; } = true;
     public double SampleInterval { get; set; } = .25;
+
     public void Validate() => CometConfig.Range(SampleInterval, .1, 2, nameof(SampleInterval));
 }
 
@@ -29,6 +31,7 @@ public sealed class WeaponJournalConfig
     public double Window { get; set; } = 20;
     public int ChangeThreshold { get; set; } = 3;
     public double ConfirmationTimeout { get; set; } = 5;
+
     public void Validate()
     {
         CometConfig.Range(Window, 5, 60, nameof(Window));

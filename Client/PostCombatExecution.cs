@@ -9,90 +9,192 @@ using SAIN.Components;
 using SAIN.SAINComponent.Classes.Mover;
 using UnityEngine;
 using UnityEngine.AI;
+
 namespace Comet.Client;
+
 public sealed partial class Plugin
 {
-    private void InspectPostMedical(BotComponent b,BotState s)
+    private void InspectPostMedical(BotComponent b, BotState s)
     {
-        var med=b.BotOwner.Medecine;var r=s.PostCombat;
-        r.MedicalUseful=med?.FirstAid?.ShallStartUse()==true||med?.SurgicalKit?.ShallStartUse()==true;
-        r.MedicalUrgent=false;
+        var med = b.BotOwner.Medecine;
+        var r = s.PostCombat;
+        r.MedicalUseful =
+            med?.FirstAid?.ShallStartUse() == true || med?.SurgicalKit?.ShallStartUse() == true;
+        r.MedicalUrgent = false;
     }
-    private void ExecutePostCombat(BotComponent b,BotState s)
+
+    private void ExecutePostCombat(BotComponent b, BotState s)
     {
-        var r=s.PostCombat;var t=r.Policy.Trace!;var c=config!.PostCombat;
-        if(r.Path!=null&&t.State!=r.RouteStage)PostStopRoute(b,r);
-        if(r.RouteStage.Length>0 && t.State==r.RouteStage)
+        var r = s.PostCombat;
+        var t = r.Policy.Trace!;
+        var c = config!.PostCombat;
+        if (r.Path != null && t.State != r.RouteStage)
+            PostStopRoute(b, r);
+        if (r.RouteStage.Length > 0 && t.State == r.RouteStage)
         {
-            if(Vector3.Distance(b.Position,r.Goal)<(r.RouteStage=="check"?3f:1f))
-            {if(r.RouteStage=="cover"){r.Protected=true;r.ProtectedAt=b.Position;}r.Policy.Complete(r.RouteStage,"destination reached");PostStopRoute(b,r);return;}
-            if(Time.time>=r.NextMoveOrder)
-            {r.NextMoveOrder=Time.time+1; if(!b.Mover.WalkToPoint(r.Goal)){r.Policy.Complete(r.RouteStage,"native movement declined");PostStopRoute(b,r);}}
-            return;
-        }
-        if(t.State=="cover")
-        {
-            if(!SourceOpenGround.IsOpen(b.Position,r.Threat)){r.Policy.Complete("cover","already sheltered");return;}
-            var point=SourceOpenGround.FindCover(b,r.Threat,out var why,out var far);
-            if(point.HasValue){b.Mover.SetTargetPose(far?1:.8f);b.Mover.SetTargetMoveSpeed(far?1:.85f);PostMove(b,s,point.Value,"cover",0);}
-            else {r.ProneInOpen=true;b.Mover.Prone.SetProne(true);r.Policy.Complete("cover",why??"no cover; prone in the open");}
-            return;
-        }
-        if(t.State=="medical")
-        {
-            var med=b.BotOwner.Medecine;
-            if(b.BotOwner.WeaponManager.Reload.Reloading)return;
-            if(med.Using){b.Mover.Stop();b.Mover.SetTargetPose(.6f);b.Mover.Prone.SetProne(r.ProneInOpen);return;}
-            if(Time.time<r.MedicalNext)return;
-            r.MedicalNext=Time.time+1;
-            bool started=med.FirstAid?.ShallStartUse()==true?b.SelfActions.DoFirstAid():med.SurgicalKit?.ShallStartUse()==true&&b.SelfActions.DoSurgery();
-            if(started){b.Mover.Stop();b.Mover.SetTargetPose(.6f);b.Mover.Prone.SetProne(r.ProneInOpen);}
-            t.Execution=started?"native treatment started":"native treatment unavailable";
-            return;
-        }
-        if(t.State=="reload")
-        {
-            if(b.BotOwner.WeaponManager.Reload.Reloading)return;
-            r.Policy.Complete("reload","native reload attempted once");
-            var reload=b.BotOwner.WeaponManager.Reload;
-            if(reload.CanReload(true,out var magazine,out var rounds))
+            if (Vector3.Distance(b.Position, r.Goal) < (r.RouteStage == "check" ? 3f : 1f))
             {
-                b.BotOwner.ShootData.EndShoot();reload.Reloading=true;
-                if(magazine!=null)reload.ReloadMagazine(magazine);
-                else if(rounds!=null&&rounds.Count>0)reload.ReloadAmmo(rounds);
+                if (r.RouteStage == "cover")
+                {
+                    r.Protected = true;
+                    r.ProtectedAt = b.Position;
+                }
+                r.Policy.Complete(r.RouteStage, "destination reached");
+                PostStopRoute(b, r);
+                return;
+            }
+            if (Time.time >= r.NextMoveOrder)
+            {
+                r.NextMoveOrder = Time.time + 1;
+                if (!b.Mover.WalkToPoint(r.Goal))
+                {
+                    r.Policy.Complete(r.RouteStage, "native movement declined");
+                    PostStopRoute(b, r);
+                }
             }
             return;
         }
-        if(t.State is "regroup" or "check")
+        if (t.State == "cover")
         {
-            if(!doorBudget.TryBegin(Time.frameCount,b))return;doorClock.Restart();
+            if (!SourceOpenGround.IsOpen(b.Position, r.Threat))
+            {
+                r.Policy.Complete("cover", "already sheltered");
+                return;
+            }
+            var point = SourceOpenGround.FindCover(b, r.Threat, out var why, out var far);
+            if (point.HasValue)
+            {
+                b.Mover.SetTargetPose(far ? 1 : .8f);
+                b.Mover.SetTargetMoveSpeed(far ? 1 : .85f);
+                PostMove(b, s, point.Value, "cover", 0);
+            }
+            else
+            {
+                r.ProneInOpen = true;
+                b.Mover.Prone.SetProne(true);
+                r.Policy.Complete("cover", why ?? "no cover; prone in the open");
+            }
+            return;
+        }
+        if (t.State == "medical")
+        {
+            var med = b.BotOwner.Medecine;
+            if (b.BotOwner.WeaponManager.Reload.Reloading)
+                return;
+            if (med.Using)
+            {
+                b.Mover.Stop();
+                b.Mover.SetTargetPose(.6f);
+                b.Mover.Prone.SetProne(r.ProneInOpen);
+                return;
+            }
+            if (Time.time < r.MedicalNext)
+                return;
+            r.MedicalNext = Time.time + 1;
+            bool started =
+                med.FirstAid?.ShallStartUse() == true
+                    ? b.SelfActions.DoFirstAid()
+                    : med.SurgicalKit?.ShallStartUse() == true && b.SelfActions.DoSurgery();
+            if (started)
+            {
+                b.Mover.Stop();
+                b.Mover.SetTargetPose(.6f);
+                b.Mover.Prone.SetProne(r.ProneInOpen);
+            }
+            t.Execution = started ? "native treatment started" : "native treatment unavailable";
+            return;
+        }
+        if (t.State == "reload")
+        {
+            if (b.BotOwner.WeaponManager.Reload.Reloading)
+                return;
+            r.Policy.Complete("reload", "native reload attempted once");
+            var reload = b.BotOwner.WeaponManager.Reload;
+            if (reload.CanReload(true, out var magazine, out var rounds))
+            {
+                b.BotOwner.ShootData.EndShoot();
+                reload.Reloading = true;
+                if (magazine != null)
+                    reload.ReloadMagazine(magazine);
+                else if (rounds != null && rounds.Count > 0)
+                    reload.ReloadAmmo(rounds);
+            }
+            return;
+        }
+        if (t.State is "regroup" or "check")
+        {
+            if (!doorBudget.TryBegin(Time.frameCount, b))
+                return;
+            doorClock.Restart();
             try
             {
-                var leader=b.Squad.LeaderComponent;var target=t.State=="check"?r.Threat:leader!=null&&!leader.IsDead?(Vector3?)leader.Position:null;
-                if(!target.HasValue||!PostMove(b,s,target.Value,t.State,t.State=="check"?c.AdvanceMax*1.8:80))r.Policy.Complete(t.State,"destination unavailable; no repeat");
+                var leader = b.Squad.LeaderComponent;
+                var target =
+                    t.State == "check" ? r.Threat
+                    : leader != null && !leader.IsDead ? (Vector3?)leader.Position
+                    : null;
+                if (
+                    !target.HasValue
+                    || !PostMove(
+                        b,
+                        s,
+                        target.Value,
+                        t.State,
+                        t.State == "check" ? c.AdvanceMax * 1.8 : 80
+                    )
+                )
+                    r.Policy.Complete(t.State, "destination unavailable; no repeat");
             }
-            finally{doorClock.Stop();doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);}
+            finally
+            {
+                doorClock.Stop();
+                doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);
+            }
             return;
         }
-        t.Execution=t.State=="watch"?"watching remembered threat":"waiting for native hands";
-        if(r.Threat.HasValue)b.Steering.LookToPoint(r.Threat.Value+Vector3.up);
+        t.Execution =
+            t.State == "watch" ? "watching remembered threat" : "waiting for native hands";
+        if (r.Threat.HasValue)
+            b.Steering.LookToPoint(r.Threat.Value + Vector3.up);
     }
-    private bool PostMove(BotComponent b,BotState s,Vector3 target,string stage,double maxLength)
+
+    private bool PostMove(
+        BotComponent b,
+        BotState s,
+        Vector3 target,
+        string stage,
+        double maxLength
+    )
     {
-        var r=s.PostCombat;
+        var r = s.PostCombat;
         b.Mover.Prone.SetProne(false);
-        if(stage is "regroup" or "check"){b.Mover.SetTargetPose(1);b.Mover.SetTargetMoveSpeed(stage=="check"?.55f:.8f);}
-        if(!b.Mover.WalkToPoint(target))return false;
-        r.Path=b.Mover.ActivePath;r.RouteStage=stage;r.Goal=target;r.NextMoveOrder=Time.time+1;
-        r.Policy.Trace!.Execution="native movement requested";
+        if (stage is "regroup" or "check")
+        {
+            b.Mover.SetTargetPose(1);
+            b.Mover.SetTargetMoveSpeed(stage == "check" ? .55f : .8f);
+        }
+        if (!b.Mover.WalkToPoint(target))
+            return false;
+        r.Path = b.Mover.ActivePath;
+        r.RouteStage = stage;
+        r.Goal = target;
+        r.NextMoveOrder = Time.time + 1;
+        r.Policy.Trace!.Execution = "native movement requested";
         return true;
     }
-    private static void PostStopRoute(BotComponent b,PostCombatRuntime r)
+
+    private static void PostStopRoute(BotComponent b, PostCombatRuntime r)
     {
         // Never cancel a route installed by another layer, or an actual airborne movement.
-        if(r.Path is BotPathDataManual path&&ReferenceEquals(b?.Mover.ActivePath,path)&&b.Player.MovementContext.IsGrounded)
-            combatStopPath.Invoke(path,new object[]{false,"COMET post-combat route released"});
-        if(r.ProneInOpen&&b!=null)b.Mover.Prone.SetProne(false);
-        r.Path=null;r.RouteStage="";
+        if (
+            r.Path is BotPathDataManual path
+            && ReferenceEquals(b?.Mover.ActivePath, path)
+            && b.Player.MovementContext.IsGrounded
+        )
+            combatStopPath.Invoke(path, new object[] { false, "COMET post-combat route released" });
+        if (r.ProneInOpen && b != null)
+            b.Mover.Prone.SetProne(false);
+        r.Path = null;
+        r.RouteStage = "";
     }
 }

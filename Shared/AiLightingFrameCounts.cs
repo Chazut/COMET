@@ -18,6 +18,7 @@ internal sealed class AiLightingFrameCounts
         }
         samplesThisFrame++;
         MaxSamplesPerFrame = Math.Max(MaxSamplesPerFrame, samplesThisFrame);
-        if (samplesThisFrame == 2) FramesOverBudget++;
+        if (samplesThisFrame == 2)
+            FramesOverBudget++;
     }
 }

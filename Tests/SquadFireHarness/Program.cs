@@ -1,11 +1,42 @@
-using Comet.Client;using SAIN.Components;using SAIN.Preset.Shared.Enums;using UnityEngine;
-int n=0;void C(bool v,string m){n++;if(!v)throw new Exception(m);}var p=new Plugin();var b=new BotComponent();var mate=new BotComponent{ProfileId="mate",Position=new(0,0,5)};b.Squad.Members[b.ProfileId]=b;b.Squad.Members[mate.ProfileId]=mate;
-FriendlyFireStatus Test()=>Plugin.Check(b,new(0,1,0),20,new(0,0,1));
-C(Test()==FriendlyFireStatus.FriendlyBlock,"source predicted body blocks");mate.Position=new(3,0,5);C(Test()==FriendlyFireStatus.Clear,"clears without debounce");
-mate.Position=new(1,0,5);mate.Player.Velocity=new(-3,0,0);C(Test()==FriendlyFireStatus.FriendlyBlock,"0.3s prediction");
-mate.Player.Velocity=new(-10,0,0);C(Test()==FriendlyFireStatus.Clear,"no swept veto if endpoint passed lane");
-mate.Player.Velocity=new();mate.Position=new(0,0,.29f);C(Test()==FriendlyFireStatus.Clear,"near muzzle cutoff");
-mate.Position=new(0,0,5);mate.IsDead=true;C(Test()==FriendlyFireStatus.Clear,"dead squadmate excluded");mate.IsDead=false;
-b.BotOwner.ShootData.Shooting=true;p.Update(b);C(!b.BotOwner.ShootData.Shooting,"source mid-burst recheck");
-p.Authority=false;C(Test()==FriendlyFireStatus.Clear,"remote client cannot override");p.Authority=true;
-p.End(b);C(!p.states[b].SquadFire.Policy.Blocking,"cleanup");Console.WriteLine($"S08 source adapter: {n} checks passed");
+using Comet.Client;
+using SAIN.Components;
+using SAIN.Preset.Shared.Enums;
+using UnityEngine;
+
+int n = 0;
+void C(bool v, string m)
+{
+    n++;
+    if (!v)
+        throw new Exception(m);
+}
+var p = new Plugin();
+var b = new BotComponent();
+var mate = new BotComponent { ProfileId = "mate", Position = new(0, 0, 5) };
+b.Squad.Members[b.ProfileId] = b;
+b.Squad.Members[mate.ProfileId] = mate;
+FriendlyFireStatus Test() => Plugin.Check(b, new(0, 1, 0), 20, new(0, 0, 1));
+C(Test() == FriendlyFireStatus.FriendlyBlock, "source predicted body blocks");
+mate.Position = new(3, 0, 5);
+C(Test() == FriendlyFireStatus.Clear, "clears without debounce");
+mate.Position = new(1, 0, 5);
+mate.Player.Velocity = new(-3, 0, 0);
+C(Test() == FriendlyFireStatus.FriendlyBlock, "0.3s prediction");
+mate.Player.Velocity = new(-10, 0, 0);
+C(Test() == FriendlyFireStatus.Clear, "no swept veto if endpoint passed lane");
+mate.Player.Velocity = new();
+mate.Position = new(0, 0, .29f);
+C(Test() == FriendlyFireStatus.Clear, "near muzzle cutoff");
+mate.Position = new(0, 0, 5);
+mate.IsDead = true;
+C(Test() == FriendlyFireStatus.Clear, "dead squadmate excluded");
+mate.IsDead = false;
+b.BotOwner.ShootData.Shooting = true;
+p.Update(b);
+C(!b.BotOwner.ShootData.Shooting, "source mid-burst recheck");
+p.Authority = false;
+C(Test() == FriendlyFireStatus.Clear, "remote client cannot override");
+p.Authority = true;
+p.End(b);
+C(!p.states[b].SquadFire.Policy.Blocking, "cleanup");
+Console.WriteLine($"S08 source adapter: {n} checks passed");

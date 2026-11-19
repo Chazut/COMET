@@ -5,27 +5,86 @@ using Comet.Core;
 // Behavioral contract: zzap fbb86b83 (see SOURCE_BASELINE.md).
 internal static class DoorApproachTests
 {
- public static int Run()
- {
-  int n=0; void Check(bool ok,string why){n++;if(!ok)throw new Exception("DoorApproach: "+why);}
+    public static int Run()
+    {
+        int n = 0;
+        void Check(bool ok, string why)
+        {
+            n++;
+            if (!ok)
+                throw new Exception("DoorApproach: " + why);
+        }
 
-  var c=new DoorApproachConfig();c.Validate();
-  var g=new DoorGeometry{Id="door",State="Open",Center=new(0,0,0),Normal=new(0,0,1),Axis=new(1,0,0),HalfWidth=.5};
-  var b=new DoorPoint(0,0,3);var enemy=new DoorPoint(20,0,-1);
-  Check(DoorPolicy.Geometry(g,b,enemy,Array.Empty<DoorPoint>(),c)=="door-contact-too-far","source twelve metre contact radius");
-  enemy=new(7,0,-1);Check(DoorPolicy.Geometry(g,b,enemy,Array.Empty<DoorPoint>(),c)=="","no added finite opening/path crossing gate");
-  Check(DoorPolicy.Geometry(g,new(0,2,3),enemy,Array.Empty<DoorPoint>(),c)=="door-wrong-floor","source floor test remains");
-  Check(DoorPolicy.Geometry(g,b,new(0,0,1),Array.Empty<DoorPoint>(),c)=="door-not-between-contact","source opposite-side test remains");
-  Check(Enumerable.Range(0,16).Select(v=>DoorPolicy.Stack(g,b,1,v)).Distinct().Count()==16,"all source depth/gap combinations");
-  var point=new DoorPoint(.5,.65,.5);var path=new[]{b,point};
-  Check(DoorPolicy.Placement(g,b,point,point,path,true)=="","no added floor/width margin beyond source sample");
-  Check(DoorPolicy.Placement(g,b,point,point,path,false)!="","real incomplete path rejected");
-  var p=new DoorApproach();p.Begin("e","heard",enemy,3,10);
-  var candidate=new DoorCandidate{Eligible=true,Door="door",X=point.X,Y=point.Y,Z=point.Z};p.Request(candidate,b,10);p.Accept(true,10);
-  Check(p.Observe("e",new(4,0,-1),b,3,11,12,true,false),"updated known position does not cancel route");
-  Check(!p.Observe("e",enemy,point,3,12,12,true,true)&&p.Trace!.Arrived,"arrival recorded");
-  p.Clear();Check(p.Trace==null,"raid lifecycle reset");
+        var c = new DoorApproachConfig();
+        c.Validate();
+        var g = new DoorGeometry
+        {
+            Id = "door",
+            State = "Open",
+            Center = new(0, 0, 0),
+            Normal = new(0, 0, 1),
+            Axis = new(1, 0, 0),
+            HalfWidth = .5,
+        };
+        var b = new DoorPoint(0, 0, 3);
+        var enemy = new DoorPoint(20, 0, -1);
+        Check(
+            DoorPolicy.Geometry(g, b, enemy, Array.Empty<DoorPoint>(), c) == "door-contact-too-far",
+            "source twelve metre contact radius"
+        );
+        enemy = new(7, 0, -1);
+        Check(
+            DoorPolicy.Geometry(g, b, enemy, Array.Empty<DoorPoint>(), c) == "",
+            "no added finite opening/path crossing gate"
+        );
+        Check(
+            DoorPolicy.Geometry(g, new(0, 2, 3), enemy, Array.Empty<DoorPoint>(), c)
+                == "door-wrong-floor",
+            "source floor test remains"
+        );
+        Check(
+            DoorPolicy.Geometry(g, b, new(0, 0, 1), Array.Empty<DoorPoint>(), c)
+                == "door-not-between-contact",
+            "source opposite-side test remains"
+        );
+        Check(
+            Enumerable.Range(0, 16).Select(v => DoorPolicy.Stack(g, b, 1, v)).Distinct().Count()
+                == 16,
+            "all source depth/gap combinations"
+        );
+        var point = new DoorPoint(.5, .65, .5);
+        var path = new[] { b, point };
+        Check(
+            DoorPolicy.Placement(g, b, point, point, path, true) == "",
+            "no added floor/width margin beyond source sample"
+        );
+        Check(
+            DoorPolicy.Placement(g, b, point, point, path, false) != "",
+            "real incomplete path rejected"
+        );
+        var p = new DoorApproach();
+        p.Begin("e", "heard", enemy, 3, 10);
+        var candidate = new DoorCandidate
+        {
+            Eligible = true,
+            Door = "door",
+            X = point.X,
+            Y = point.Y,
+            Z = point.Z,
+        };
+        p.Request(candidate, b, 10);
+        p.Accept(true, 10);
+        Check(
+            p.Observe("e", new(4, 0, -1), b, 3, 11, 12, true, false),
+            "updated known position does not cancel route"
+        );
+        Check(
+            !p.Observe("e", enemy, point, 3, 12, 12, true, true) && p.Trace!.Arrived,
+            "arrival recorded"
+        );
+        p.Clear();
+        Check(p.Trace == null, "raid lifecycle reset");
 
-  return n;
- }
+        return n;
+    }
 }

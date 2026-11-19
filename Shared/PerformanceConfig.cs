@@ -6,6 +6,7 @@ public sealed class PerformanceConfig
     public bool MeasureAllocations { get; set; } = true;
     public double SlowFrameMs { get; set; } = 50;
     public double ReportIntervalSeconds { get; set; } = 10;
+
     public void Validate()
     {
         CometConfig.Range(SlowFrameMs, 16, 1000, nameof(SlowFrameMs));

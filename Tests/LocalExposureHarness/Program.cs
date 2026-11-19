@@ -6,10 +6,12 @@ using UnityEngine;
 int checks = 0;
 void Check(bool pass, string why)
 {
-    if (!pass) throw new Exception(why);
+    if (!pass)
+        throw new Exception(why);
     checks++;
 }
-void Near(float actual, float expected, string why) => Check(Math.Abs(actual - expected) < 0.0001f, why);
+void Near(float actual, float expected, string why) =>
+    Check(Math.Abs(actual - expected) < 0.0001f, why);
 void Advance(float seconds)
 {
     Time.realtimeSinceStartup = Time.time += seconds;
@@ -85,10 +87,15 @@ p.Authority = true;
 Physics.Roof = false;
 Near(Plugin.Sight(guest, 1), 1, "daylight reaches the guest");
 p.End();
-var summary = p.diagnostics.Lines.Select(s => JsonDocument.Parse(s).RootElement)
+var summary = p
+    .diagnostics.Lines.Select(s => JsonDocument.Parse(s).RootElement)
     .Last(d => d.GetProperty("stage").GetString() == "summary");
-Check(summary.GetProperty("remoteChecks").GetInt32() > 0 && summary.GetProperty("recentSight").GetInt32() > 0 &&
-    summary.GetProperty("shadow").GetInt32() > 0, "raid-end summary includes remote contacts and outcomes");
+Check(
+    summary.GetProperty("remoteChecks").GetInt32() > 0
+        && summary.GetProperty("recentSight").GetInt32() > 0
+        && summary.GetProperty("shadow").GetInt32() > 0,
+    "raid-end summary includes remote contacts and outcomes"
+);
 Near(Plugin.Sight(guest, 1), 1, "raid cleanup drops previous samples");
 
 // Exercise scene inputs without Unity rendering or an active player camera.
@@ -129,13 +136,19 @@ fixture.Owner = null;
 fixture.enabled = true;
 Physics.Wall = true;
 Physics.Lines = 0;
-Check(Scene(Enumerable.Repeat(fixture, 12).ToArray()) < 0 && Physics.Lines == 8,
-    "dense occluded lights defer to SAIN within the ray budget");
+Check(
+    Scene(Enumerable.Repeat(fixture, 12).ToArray()) < 0 && Physics.Lines == 8,
+    "dense occluded lights defer to SAIN within the ray budget"
+);
 Physics.Wall = false;
-Check(ExposureResponse.Check(2, 20, false, false, 0, -10, -10, false, false) == ExposureReason.Sample,
-    "unseen targets have no implicit memory at raid start");
-Check(ExposureResponse.Check(10, 20, false, true, 15, 15, 15, false, false) == ExposureReason.Sample,
-    "future timestamps do not grant memory");
+Check(
+    ExposureResponse.Check(2, 20, false, false, 0, -10, -10, false, false) == ExposureReason.Sample,
+    "unseen targets have no implicit memory at raid start"
+);
+Check(
+    ExposureResponse.Check(10, 20, false, true, 15, 15, 15, false, false) == ExposureReason.Sample,
+    "future timestamps do not grant memory"
+);
 TOD_Sky.Instance = new() { SunDirection = Vector3.up };
 Physics.Roof = true;
 UnityEngine.Object.Scene = [];

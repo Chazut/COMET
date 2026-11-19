@@ -1,11 +1,11 @@
-using SPTarkov.Server.Core.Models.Spt.Mod;
-using SPTarkov.Server.Web;
+using Comet.Core;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.DI;
 using SPTarkov.Server.Core.Models.Eft.Common;
-using SPTarkov.Server.Core.Utils;
-using Comet.Core;
+using SPTarkov.Server.Core.Models.Spt.Mod;
 using SPTarkov.Server.Core.Models.Utils;
+using SPTarkov.Server.Core.Utils;
+using SPTarkov.Server.Web;
 
 namespace Comet.Server;
 
@@ -28,10 +28,24 @@ public record Metadata : IModMetadata, IModBlazorMetadata
 }
 
 [Injectable]
-public sealed class ConfigRouter(JsonUtil json, ConfigStore store) : StaticRouter(json, [
-    new RouteAction<EmptyRequestData>("/comet/config", (url, request, session, output, ct) => new ValueTask<string>(store.ForGame())),
-    new RouteAction<IntegrationReportRequest>("/comet/integration", (url, request, session, output, ct) =>
-        new ValueTask<string>(store.Integration.Receive(session.ToString(), request, DateTime.UtcNow)?"{\"ok\":true}":"{\"ok\":false}"))
-]) { }
+public sealed class ConfigRouter(JsonUtil json, ConfigStore store)
+    : StaticRouter(
+        json,
+        [
+            new RouteAction<EmptyRequestData>(
+                "/comet/config",
+                (url, request, session, output, ct) => new ValueTask<string>(store.ForGame())
+            ),
+            new RouteAction<IntegrationReportRequest>(
+                "/comet/integration",
+                (url, request, session, output, ct) =>
+                    new ValueTask<string>(
+                        store.Integration.Receive(session.ToString(), request, DateTime.UtcNow)
+                            ? "{\"ok\":true}"
+                            : "{\"ok\":false}"
+                    )
+            ),
+        ]
+    ) { }
 
 public sealed class IntegrationReportRequest : IntegrationReport, IRequestData { }

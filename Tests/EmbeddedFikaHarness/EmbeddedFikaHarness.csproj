@@ -10,6 +10,9 @@
     <Compile Include="../../Client/EmbeddedFika.cs" Link="EmbeddedFika.cs" />
     <PackageReference Include="Mono.Cecil" Version="0.11.6" />
     <ProjectReference Include="Fixture/Fixture.csproj" ReferenceOutputAssembly="false" />
-    <EmbeddedResource Include="Fixture/bin/$(Configuration)/netstandard2.1/COMET.OptionalTransportFixture.dll" LogicalName="transport.fixture" />
+    <EmbeddedResource
+      Include="Fixture/bin/$(Configuration)/netstandard2.1/COMET.OptionalTransportFixture.dll"
+      LogicalName="transport.fixture"
+    />
   </ItemGroup>
 </Project>

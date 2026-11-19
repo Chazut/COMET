@@ -16,86 +16,212 @@
         <span class="nav-label">YOUR @BrandName</span>
         <nav aria-label="Main navigation">
             @foreach (var item in pages) {
-                <button class="nav-item @(page == item.Key ? "active" : "")" aria-current="@(page == item.Key ? "page" : null)" @onclick="() => Navigate(item.Key)"><UiIcon Name="@item.Icon" />@item.Title</button>
+                <button
+                    class="nav-item @(page == item.Key ? "active" : "")"
+                    aria-current="@(page == item.Key ? "page" : null)"
+                    @onclick="() => Navigate(item.Key)"><UiIcon Name="@item.Icon" />@item.Title</button>
             }
         </nav>
         @if (page == "settings") {
             <span class="nav-label">COMBAT SETTINGS</span>
             <nav class="topic-nav" aria-label="Setting categories">
                 @foreach (var topic in EditorNavigation.Topics.Where(t => t.Key != "Diagnostics")) {
-                    <button class="nav-topic @(category == topic.Key && !Filtering ? "active" : "")" aria-current="@(category == topic.Key && !Filtering ? "true" : null)" @onclick="() => SelectCategory(topic.Key)">@topic.Title</button>
+                    <button
+                        class="nav-topic @(category == topic.Key && !Filtering ? "active" : "")"
+                        aria-current="@(category == topic.Key && !Filtering ? "true" : null)"
+                        @onclick="() => SelectCategory(topic.Key)">@topic.Title</button>
                 }
             </nav>
         }
-        <div class="sidebar-note"><span class="status-dot"></span> @(brand.Slop ? "Secret menu unlocked" : "Development preview")<p>Built on SAIN.<br />@(brand.Slop ? "Blame Snoops." : "Made to work with your raid.")</p>
-            @if (brand.Slop) { <button class="text-button" @onclick="RestoreComet">Back to COMET <UiIcon Name="arrow" /></button> }
+        <div class="sidebar-note">
+            <span class="status-dot"></span> @(brand.Slop ? "Secret menu unlocked" : "Development preview")<p>Built on SAIN.<br />@(brand.Slop ? "Blame Snoops." : "Made to work with your raid.")</p>
+            @if (brand.Slop) {
+                <button class="text-button" @onclick="RestoreComet">Back to COMET <UiIcon Name="arrow" /></button>
+            }
         </div>
     </aside>
     <main class="comet-content">
-        <header class="topline"><span>CONFIGURATION <span class="top-divider">/</span> @PageTitle</span><span class="server-tag">SERVER SETTINGS <span class="status-dot"></span></span></header>
-        @if (editor == null) {
-            <div class="error-banner" role="alert">@message <button @onclick="ReadSaved">Try again</button></div>
-        } else {
-        <header class="page-heading"><div>@if (page != "home") { <span class="eyebrow">@PageEyebrow</span> }<h1 tabindex="-1" @ref="editorHeading">@PageHeading</h1><p>@PageDescription</p></div>
-            @if (page != "home") { <span class="profile-chip">@editor.PresetLabel@(editor.Customized ? " · customized" : "")</span> }
+        <header class="topline">
+            <span>CONFIGURATION <span class="top-divider">/</span> @PageTitle</span>
+            <span class="server-tag">SERVER SETTINGS <span class="status-dot"></span></span>
         </header>
-        @if (page == "home") {
-            <section class="comet-hero" aria-label="@("About " + BrandName)">
-                <div class="hero-copy">
-                    @if (brand.Slop) {
-                        <h2>Artisanal SLOP.<br />Served with a flank.</h2><p>Squad Logic &amp; Offensive Planning. The same combat decisions, movement and squad tactics. The community just got hold of the branding.</p>
-                    } else {
-                        <h2>A different mind.<br />A different fight.</h2><p>From a quiet approach to a coordinated push. COMET adds combat decisions, movement and squad tactics on top of SAIN.</p>
+        @if (editor == null) {
+            <div class="error-banner" role="alert">@message <button @onclick="ReadSaved">Try again</button>
+            </div>
+        } else {
+            <header class="page-heading">
+                <div>
+                    @if (page != "home") {
+                        <span class="eyebrow">@PageEyebrow</span>
                     }
-                    <div class="hero-actions"><button class="primary" @onclick='() => Navigate("settings")'>@(brand.Slop ? "Season your bots" : "Tune your experience") <UiIcon Name="arrow" /></button><button @onclick='() => Navigate("presets")'>@(brand.Slop ? "Choose a recipe" : "Explore presets")</button></div>
+                    <h1 tabindex="-1" @ref="editorHeading">@PageHeading</h1>
+                    <p>@PageDescription</p>
                 </div>
-                <div class="hero-art"><div class="orbit-ring ring-one" aria-hidden="true"></div><div class="orbit-ring ring-two" aria-hidden="true"></div><button class="hero-logo" @onclick="LogoClick" aria-label="@(BrandName + " logo")"><img src="@BrandLogo" alt="" /></button><span class="orbit-star star-one" aria-hidden="true"></span><span class="orbit-star star-two" aria-hidden="true"></span></div>
-            </section>
-            @if (brand.Slop) {
-                <section class="secret-menu" aria-label="SLOP secret menu">
-                    <div><h3>Same tactics. Questionable branding.</h3><p>Only the look changed. Your settings and unsaved edits are untouched.</p></div>
-                    <button class="text-button" @onclick="RestoreComet">Restore COMET <UiIcon Name="arrow" /></button>
-                    <details><summary>The blame department</summary><p>Name suggested by Snoops. Five-click idea from fums. R_F's work helped make the actual mod possible.</p><p>Five more clicks on either logo will switch back. This theme is remembered only in this browser.</p>
-                        <div class="slop-fortune"><button @onclick="NextFortune">Request quality assurance</button><span role="status">@Fortune</span></div>
+                @if (page != "home") {
+                    <span class="profile-chip">@editor.PresetLabel@(editor.Customized ? " · customized" : "")</span>
+                }
+            </header>
+            @if (page == "home") {
+                <section class="comet-hero" aria-label="@("About " + BrandName)">
+                    <div class="hero-copy">
+                        @if (brand.Slop) {
+                            <h2>Artisanal SLOP.<br />Served with a flank.</h2>
+                            <p>Squad Logic &amp; Offensive Planning. The same combat decisions, movement and squad tactics. The community just got hold of the branding.</p>
+                        } else {
+                            <h2>A different mind.<br />A different fight.</h2>
+                            <p>From a quiet approach to a coordinated push. COMET adds combat decisions, movement and squad tactics on top of SAIN.</p>
+                        }
+                        <div class="hero-actions">
+                            <button class="primary" @onclick='() => Navigate("settings")'>@(brand.Slop ? "Season your bots" : "Tune your experience") <UiIcon Name="arrow" /></button>
+                            <button @onclick='() => Navigate("presets")'>@(brand.Slop ? "Choose a recipe" : "Explore presets")</button>
+                        </div>
+                    </div>
+                    <div class="hero-art">
+                        <div class="orbit-ring ring-one" aria-hidden="true">
+                        </div>
+                        <div class="orbit-ring ring-two" aria-hidden="true">
+                        </div>
+                        <button
+                            class="hero-logo"
+                            @onclick="LogoClick" aria-label="@(BrandName + " logo")"><img src="@BrandLogo" alt="" /></button>
+                        <span class="orbit-star star-one" aria-hidden="true"></span>
+                        <span class="orbit-star star-two" aria-hidden="true"></span>
+                    </div>
+                </section>
+                @if (brand.Slop) {
+                    <section class="secret-menu" aria-label="SLOP secret menu">
+                        <div>
+                            <h3>Same tactics. Questionable branding.</h3>
+                            <p>Only the look changed. Your settings and unsaved edits are untouched.</p>
+                        </div>
+                        <button class="text-button" @onclick="RestoreComet">Restore COMET <UiIcon Name="arrow" /></button>
+                        <details>
+                            <summary>The blame department</summary>
+                            <p>Name suggested by Snoops. Five-click idea from fums. R_F's work helped make the actual mod possible.</p>
+                            <p>Five more clicks on either logo will switch back. This theme is remembered only in this browser.</p>
+                            <div class="slop-fortune">
+                                <button @onclick="NextFortune">Request quality assurance</button>
+                                <span role="status">@Fortune</span>
+                            </div>
+                        </details>
+                    </section>
+                }
+                <section class="setup-strip" aria-label="Current draft">
+                    <div>
+                        <span>@BrandName in this setup</span>
+                        <strong
+                            class="@(editor.IsOn(editor.Catalog.Fields["Enabled"]) ? "text-teal" : "")">@(editor.IsOn(editor.Catalog.Fields["Enabled"]) ? "Enabled" : "Disabled")</strong>
+                    </div>
+                    <div>
+                        <span>Base level</span>
+                        <strong>@editor.Profile @(editor.Customized ? "· customized" : "")</strong>
+                    </div>
+                    <div>
+                        <span>Saved configuration</span>
+                        <strong>Revision @editor.Revision</strong>
+                    </div>
+                    <button class="text-button" @onclick='() => Navigate("diagnostics")'>Check startup reports <UiIcon Name="arrow" /></button>
+                </section>
+                <div class="section-heading feature-intro">
+                    <div>
+                        <h2>@(brand.Slop ? "Today's menu" : "Explore the features")</h2>
+                        <p>@(brand.Slop ? "Locally sourced bad news for your survival rate." : "See what COMET can do, then make it your own.")</p>
+                    </div>
+                    <span class="subtle">Features follow your configuration.</span>
+                </div>
+                <section class="feature-grid" aria-label="@(BrandName + " features")">
+                    @foreach (var topic in EditorNavigation.Topics.Where(t => t.Key is not "Overview" and not "Diagnostics" and not "Recovery")) {
+                        <button class="feature-card" @onclick="() => SelectCategory(topic.Key)"><span class="feature-card-top"><span class="icon-tile"><UiIcon Name="@topic.Icon" /></span><UiIcon Name="arrow" /></span><strong>@FeatureTitle(topic)</strong><span>@topic.Description</span><small>@(brand.Slop ? topic.Title + " settings" : "Explore settings")</small></button>
+                    }
+                </section>
+                <div class="home-notes">
+                    <div>
+                        <h3>Your SAIN preset stays yours.</h3>
+                        <p>COMET requires the original supported SAIN version. It does not rewrite your SAIN preset. Human players, ordinary scavs and bosses stay outside COMET's scope.</p>
+                    </div>
+                    <div>
+                        <h3>Make changes between raids.</h3>
+                        <p>Review your draft and save when ready. A running raid keeps the settings it started with.</p>
+                        <button class="text-button" @onclick='() => Navigate("diagnostics")'>Logs &amp; compatibility <UiIcon Name="arrow" /></button>
+                    </div>
+                </div>
+            }
+            @if (page == "presets") {
+                <section class="profile-panel" aria-label="COMET difficulty">
+                    <div class="profile-cards">
+                        @foreach (string profile in new[] { "Easy", "Normal", "Hard" }) {
+                            <button
+                                class="profile-card @(editor.Profile == profile ? "chosen" : "")"
+                                @onclick="() => PreviewProfile(profile)"><span class="profile-card-top"><span class="level-bars" aria-hidden="true">
+                                        @for (int i=0; i<3; i++) {
+                                            <i
+                                                class="@(i < (profile == "Easy" ? 1 : profile == "Normal" ? 2 : 3) ? "filled" : "")"></i>
+                                        }</span><small>@(profile == "Hard" ? "DEFAULT / MAXIMUM" : "MORE BREATHING ROOM")</small></span><strong>@profile</strong><span>@ProfileText(profile)</span><span class="profile-action">Review this level <UiIcon Name="arrow" /></span></button>
+                        }
+                    </div>
+                    <details class="quiet-details profile-explanation">
+                        <summary>What changes between levels?</summary>
+                        <p>Easy uses 50% and Normal 75% of selected tactical chances, with 50% and 25% longer between attempts. Hard keeps the original values. Features that are off stay off. Aim, hearing, vision and medical settings stay the same.</p>
+                        <p>Loading a level replaces all COMET values in your draft, after review. Your SAIN preset stays unchanged.</p>
                     </details>
                 </section>
             }
-            <section class="setup-strip" aria-label="Current draft">
-                <div><span>@BrandName in this setup</span><strong class="@(editor.IsOn(editor.Catalog.Fields["Enabled"]) ? "text-teal" : "")">@(editor.IsOn(editor.Catalog.Fields["Enabled"]) ? "Enabled" : "Disabled")</strong></div>
-                <div><span>Base level</span><strong>@editor.Profile @(editor.Customized ? "· customized" : "")</strong></div>
-                <div><span>Saved configuration</span><strong>Revision @editor.Revision</strong></div>
-                <button class="text-button" @onclick='() => Navigate("diagnostics")'>Check startup reports <UiIcon Name="arrow" /></button>
-            </section>
-            <div class="section-heading feature-intro"><div><h2>@(brand.Slop ? "Today's menu" : "Explore the features")</h2><p>@(brand.Slop ? "Locally sourced bad news for your survival rate." : "See what COMET can do, then make it your own.")</p></div><span class="subtle">Features follow your configuration.</span></div>
-            <section class="feature-grid" aria-label="@(BrandName + " features")">
-                @foreach (var topic in EditorNavigation.Topics.Where(t => t.Key is not "Overview" and not "Diagnostics" and not "Recovery")) {
-                    <button class="feature-card" @onclick="() => SelectCategory(topic.Key)"><span class="feature-card-top"><span class="icon-tile"><UiIcon Name="@topic.Icon" /></span><UiIcon Name="arrow" /></span><strong>@FeatureTitle(topic)</strong><span>@topic.Description</span><small>@(brand.Slop ? topic.Title + " settings" : "Explore settings")</small></button>
-                }
-            </section>
-            <div class="home-notes"><div><h3>Your SAIN preset stays yours.</h3><p>COMET requires the original supported SAIN version. It does not rewrite your SAIN preset. Human players, ordinary scavs and bosses stay outside COMET's scope.</p></div><div><h3>Make changes between raids.</h3><p>Review your draft and save when ready. A running raid keeps the settings it started with.</p><button class="text-button" @onclick='() => Navigate("diagnostics")'>Logs &amp; compatibility <UiIcon Name="arrow" /></button></div></div>
-        }
-        @if (page == "presets") {
-            <section class="profile-panel" aria-label="COMET difficulty">
-                <div class="profile-cards">@foreach (string profile in new[] { "Easy", "Normal", "Hard" }) {
-                    <button class="profile-card @(editor.Profile == profile ? "chosen" : "")" @onclick="() => PreviewProfile(profile)"><span class="profile-card-top"><span class="level-bars" aria-hidden="true">@for (int i=0; i<3; i++) { <i class="@(i < (profile == "Easy" ? 1 : profile == "Normal" ? 2 : 3) ? "filled" : "")"></i> }</span><small>@(profile == "Hard" ? "DEFAULT / MAXIMUM" : "MORE BREATHING ROOM")</small></span><strong>@profile</strong><span>@ProfileText(profile)</span><span class="profile-action">Review this level <UiIcon Name="arrow" /></span></button>
-                }</div>
-                <details class="quiet-details profile-explanation"><summary>What changes between levels?</summary><p>Easy uses 50% and Normal 75% of selected tactical chances, with 50% and 25% longer between attempts. Hard keeps the original values. Features that are off stay off. Aim, hearing, vision and medical settings stay the same.</p><p>Loading a level replaces all COMET values in your draft, after review. Your SAIN preset stays unchanged.</p></details>
-            </section>
-        }
         @* Keep the library mounted so navigating away does not lose an import or a pending library operation. *@
-        <div hidden="@(page != "presets")"><PresetLibraryPanel Editor="editor" Preview="OpenPreview" Changed="DraftChanged" /></div>
-        @if (page is "settings" or "diagnostics") {
+            <div hidden="@(page != "presets")">
+                <PresetLibraryPanel Editor="editor" Preview="OpenPreview" Changed="DraftChanged" />
+            </div>
+            @if (page is "settings" or "diagnostics") {
             var fields = EditorNavigation.Select(editor, page == "diagnostics" ? "Diagnostics" : category, search, modifiedOnly);
             var groups = fields.GroupBy(f => f.Section).ToList();
-            <section class="editor-panel" aria-label="Settings editor">
-                <div class="editor-toolbar"><label class="search-box"><UiIcon Name="search" /><span class="sr-only">Search all settings</span><input type="search" placeholder="Find any setting or feature..." @bind="search" @bind:event="oninput" /></label>
-                    <div class="segmented" role="group" aria-label="Setting detail"><button class="@(!advanced ? "active" : "")" aria-pressed="@(!advanced ? "true" : "false")" @onclick="() => SetMode(false)">Essentials</button><button class="@(advanced ? "active" : "")" aria-pressed="@(advanced ? "true" : "false")" @onclick="() => SetMode(true)">All settings</button></div>
-                </div>
-                <div class="filter-bar"><label class="check-label"><input type="checkbox" @bind="modifiedOnly" /> Differences only</label><label class="compare-label">Compare with <select aria-label="Compare with" value="@editor.Comparison" @onchange="ChangeComparison"><option>Saved</option><option>Easy</option><option>Normal</option><option>Hard</option></select></label><span class="subtle">Comparison does not change your draft.</span></div>
-                @if (Filtering) { <div class="results-note"><span>@fields.Count settings in @groups.Count features · Across all categories, including advanced options</span><button class="text-button" @onclick="ClearFilters">Clear filters</button></div> }
-                @if (editor.InvalidCount > 0 || editor.ValidationError.Length > 0) { <div class="error-banner" role="alert"><strong>Check your draft before saving.</strong><p>@editor.ValidationError</p>@if (editor.InvalidCount > 0) { <button @onclick="ShowErrors">Show @editor.InvalidCount invalid fields</button> }</div> }
-                @if (groups.Count == 0) { <div class="empty"><UiIcon Name="search" /><h3>No matching settings</h3><p>Try a shorter search or turn off Differences only.</p><button @onclick="ClearFilters">Clear filters</button></div> }
-                @foreach (var group in groups) {
+                <section class="editor-panel" aria-label="Settings editor">
+                    <div class="editor-toolbar">
+                        <label class="search-box"><UiIcon Name="search" /><span class="sr-only">Search all settings</span><input
+                                type="search"
+                                placeholder="Find any setting or feature..."
+                                @bind="search" @bind:event="oninput" /></label>
+                        <div class="segmented" role="group" aria-label="Setting detail">
+                            <button
+                                class="@(!advanced ? "active" : "")"
+                                aria-pressed="@(!advanced ? "true" : "false")"
+                                @onclick="() => SetMode(false)">Essentials</button>
+                            <button
+                                class="@(advanced ? "active" : "")"
+                                aria-pressed="@(advanced ? "true" : "false")"
+                                @onclick="() => SetMode(true)">All settings</button>
+                        </div>
+                    </div>
+                    <div class="filter-bar">
+                        <label class="check-label"><input type="checkbox" @bind="modifiedOnly" /> Differences only</label>
+                        <label class="compare-label">Compare with <select
+                                aria-label="Compare with"
+                                value="@editor.Comparison"
+                                @onchange="ChangeComparison"><option>Saved</option><option>Easy</option><option>Normal</option><option>Hard</option></select></label>
+                        <span class="subtle">Comparison does not change your draft.</span>
+                    </div>
+                    @if (Filtering) {
+                        <div class="results-note">
+                            <span>@fields.Count settings in @groups.Count features · Across all categories, including advanced options</span>
+                            <button class="text-button" @onclick="ClearFilters">Clear filters</button>
+                        </div>
+                    }
+                    @if (editor.InvalidCount > 0 || editor.ValidationError.Length > 0) {
+                        <div class="error-banner" role="alert">
+                            <strong>Check your draft before saving.</strong>
+                            <p>@editor.ValidationError</p>
+                            @if (editor.InvalidCount > 0) {
+                                <button @onclick="ShowErrors">Show @editor.InvalidCount invalid fields</button>
+                            }
+                        </div>
+                    }
+                    @if (groups.Count == 0) {
+                        <div class="empty">
+                            <UiIcon Name="search" />
+                            <h3>No matching settings</h3>
+                            <p>Try a shorter search or turn off Differences only.</p>
+                            <button @onclick="ClearFilters">Clear filters</button>
+                        </div>
+                    }
+                    @foreach (var group in groups) {
                     var section = editor.Catalog.Sections[group.Key];
                     bool expanded = IsExpanded(group.Key, groups.Count);
                     var essentials = EditorNavigation.Primary(group).ToList();
@@ -103,136 +229,485 @@
                     var displayed = full ? group.ToList() : essentials;
                     int pending = group.Count(editor.Pending);
                     var enabled = group.FirstOrDefault(f => f.Boolean && (f.Path.EndsWith(".Enabled") || f.Path == "Enabled"));
-                    <section class="feature" @key="group.Key">
-                        <button class="feature-heading" aria-expanded="@(expanded ? "true" : "false")" aria-controls="@("section-" + group.Key)" @onclick="() => ToggleSection(group.Key, groups.Count)"><span class="feature-heading-copy"><strong>@EditorNavigation.Title(section.Title)</strong><span>@section.Summary</span></span><span class="feature-meta">@if (pending > 0) { <span class="pending-dot">Edited</span> }@if (enabled != null) { <span class="state-pill @(editor.IsOn(enabled) ? "on" : "")">@(editor.IsOn(enabled) ? "On" : "Off")</span> }<span class="expand-sign" aria-hidden="true">@(expanded ? "−" : "+")</span></span></button>
-                        @if (expanded) {
-                            <div id="@("section-" + group.Key)" class="feature-body">
-                                @if (section.Description != section.Summary) { <details class="quiet-details feature-help"><summary>How it works</summary><p>@section.Description</p></details> }
-                                @foreach (var field in displayed) { <SettingField @key="field.Path" Editor="editor" Field="field" Changed="DraftChanged" /> }
-                                @if (!full && group.Count() > essentials.Count) { <button class="show-details" @onclick="() => detailed.Add(group.Key)">@(essentials.Count == 0 ? "Configure this feature" : "Timing, chances & more") <span>@(group.Count() - essentials.Count) more settings</span><UiIcon Name="arrow" /></button> }
-                                <div class="section-bottom">@if (!advanced && !Filtering && detailed.Contains(group.Key)) { <button class="text-button" @onclick="() => detailed.Remove(group.Key)">Show less</button> }@if (group.Any(f => editor.Changed(f) || editor.Error(f).Length > 0)) { <button class="text-button" @onclick="() => PreviewSection(group.Key)">Restore entire feature from @editor.Comparison</button> }</div>
-                            </div>
+                        <section class="feature" @key="group.Key">
+                            <button
+                                class="feature-heading"
+                                aria-expanded="@(expanded ? "true" : "false")"
+                                aria-controls="@("section-" + group.Key)"
+                                @onclick="() => ToggleSection(group.Key, groups.Count)"><span class="feature-heading-copy"><strong>@EditorNavigation.Title(section.Title)</strong><span>@section.Summary</span></span><span class="feature-meta">
+                                    @if (pending > 0) {
+                                        <span class="pending-dot">Edited</span>
+                                    }
+                                    @if (enabled != null) {
+                                        <span
+                                            class="state-pill @(editor.IsOn(enabled) ? "on" : "")">@(editor.IsOn(enabled) ? "On" : "Off")</span>
+                                    }<span class="expand-sign" aria-hidden="true">@(expanded ? "−" : "+")</span></span></button>
+                            @if (expanded) {
+                                <div id="@("section-" + group.Key)" class="feature-body">
+                                    @if (section.Description != section.Summary) {
+                                        <details class="quiet-details feature-help">
+                                            <summary>How it works</summary>
+                                            <p>@section.Description</p>
+                                        </details>
+                                    }
+                                    @foreach (var field in displayed) {
+                                        <SettingField
+                                            @key="field.Path" Editor="editor" Field="field" Changed="DraftChanged" />
+                                    }
+                                    @if (!full && group.Count() > essentials.Count) {
+                                        <button
+                                            class="show-details"
+                                            @onclick="() => detailed.Add(group.Key)">@(essentials.Count == 0 ? "Configure this feature" : "Timing, chances & more") <span>@(group.Count() - essentials.Count) more settings</span><UiIcon Name="arrow" /></button>
+                                    }
+                                    <div class="section-bottom">
+                                        @if (!advanced && !Filtering && detailed.Contains(group.Key)) {
+                                            <button
+                                                class="text-button"
+                                                @onclick="() => detailed.Remove(group.Key)">Show less</button>
+                                        }
+                                        @if (group.Any(f => editor.Changed(f) || editor.Error(f).Length > 0)) {
+                                            <button
+                                                class="text-button"
+                                                @onclick="() => PreviewSection(group.Key)">Restore entire feature from @editor.Comparison</button>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </section>
+                    }
+                    <details class="quiet-details reading-guide">
+                        <summary>Chances, weights and units explained</summary>
+                        <p>Chances apply when a tactic is eligible, not to a percentage of all bots. Weights favor an option without guaranteeing it. A multiplier of 1 keeps the original amount; 0.5 halves it.</p>
+                        <p>Restore uses the comparison selected above. Profile defaults are the supplied values for your base level, before personal edits.</p>
+                    </details>
+                </section>
+                @if (page == "diagnostics") {
+                    <IntegrationStatusPanel Reports="Store.Integration" />
+                    <details class="quiet-details protections">
+                        <summary>Always-on protections &amp; integrations</summary>
+                        @foreach (var note in editor.Catalog.Notes) {
+                            <h3>@EditorNavigation.Title(note.Title)</h3>
+                            <p>@note.Description</p>
                         }
-                    </section>
+                    </details>
                 }
-                <details class="quiet-details reading-guide"><summary>Chances, weights and units explained</summary><p>Chances apply when a tactic is eligible, not to a percentage of all bots. Weights favor an option without guaranteeing it. A multiplier of 1 keeps the original amount; 0.5 halves it.</p><p>Restore uses the comparison selected above. Profile defaults are the supplied values for your base level, before personal edits.</p></details>
-            </section>
-            @if (page == "diagnostics") {
-                <IntegrationStatusPanel Reports="Store.Integration" />
-                <details class="quiet-details protections"><summary>Always-on protections &amp; integrations</summary>@foreach (var note in editor.Catalog.Notes) { <h3>@EditorNavigation.Title(note.Title)</h3><p>@note.Description</p> }</details>
             }
-        }
         }
     </main>
     @if (editor != null) {
-        <footer class="save-bar"><div><strong><span class="status-dot @(editor.HasPending ? "unsaved" : "")"></span>@(editor.HasPending ? $"{editor.PendingCount} unsaved change(s)" : "All changes saved")</strong><span>Applies next raid · Your current raid stays unchanged</span></div><div class="save-actions"><button disabled="@(!editor.HasPending)" @onclick="PreviewDiscard">Discard</button><button class="primary" disabled="@(!editor.CanSave)" @onclick="ReviewSave">Review &amp; save <UiIcon Name="arrow" /></button></div>@if (message.Length > 0) { <p class="save-message" role="status">@message</p> }@if (editor.InvalidCount > 0 || editor.ValidationError.Length > 0) { <button class="text-button error-text" @onclick="ShowErrors">Fix errors before saving</button> }</footer>
+        <footer class="save-bar">
+            <div>
+                <strong><span class="status-dot @(editor.HasPending ? "unsaved" : "")"></span>@(editor.HasPending ? $"{editor.PendingCount} unsaved change(s)" : "All changes saved")</strong>
+                <span>Applies next raid · Your current raid stays unchanged</span>
+            </div>
+            <div class="save-actions">
+                <button disabled="@(!editor.HasPending)" @onclick="PreviewDiscard">Discard</button>
+                <button class="primary" disabled="@(!editor.CanSave)" @onclick="ReviewSave">Review &amp; save <UiIcon Name="arrow" /></button>
+            </div>
+            @if (message.Length > 0) {
+                <p class="save-message" role="status">@message</p>
+            }
+            @if (editor.InvalidCount > 0 || editor.ValidationError.Length > 0) {
+                <button class="text-button error-text" @onclick="ShowErrors">Fix errors before saving</button>
+            }
+        </footer>
     }
 </div>
 @if ((preview != null || reviewingSave) && editor != null) {
     var changes = reviewingSave ? editor.PendingChanges() : preview!.Changes;
-    <div class="comet dialog-backdrop @ThemeClass" @onkeydown="DialogKey"><section class="preview-dialog" role="dialog" aria-modal="true" aria-labelledby="preview-title" tabindex="-1" @ref="dialog"><span tabindex="0" @onfocus="FocusLast"></span>
-        <div class="section-heading"><div><span class="eyebrow">@(reviewingSave ? "READY FOR YOUR NEXT RAID" : "REVIEW YOUR DRAFT")</span><h2 id="preview-title">@(reviewingSave ? "Review your changes" : preview!.Title)</h2></div><button class="close-button" aria-label="Close review" @ref="firstDialogButton" @onclick="ClosePreview">×</button></div>
-        <p>@changes.Count value(s) will change. @(reviewingSave ? "Save to use this setup in the next raid." : "This updates your draft only. Save separately when ready.")</p>
-        <div class="preview-list">@foreach (var group in changes.GroupBy(c => editor.Catalog.Fields.TryGetValue(c.Path, out var f) ? EditorNavigation.Title(editor.Catalog.Sections[f.Section].Title) : "Preset")) {
-            <details class="review-group" open="@(changes.Count <= 12)"><summary>@group.Key <span>@group.Count()</span></summary><table><thead><tr><th>Setting</th><th>@(reviewingSave ? "Saved" : "In draft")</th><th>After</th></tr></thead><tbody>@foreach (var change in group) { <tr><td>@change.Label</td><td>@change.Before</td><td>@change.After</td></tr> }</tbody></table></details>
-        }@if (changes.Count == 0) { <p>No values need to change.</p> }</div>
-        <div class="dialog-actions"><button @onclick="ClosePreview">Keep editing</button><button class="primary" @ref="lastDialogButton" @onclick="ConfirmReview">@(reviewingSave ? "Save for next raid" : "Apply to draft")</button></div><span tabindex="0" @onfocus="FocusFirst"></span>
-    </section></div>
+    <div class="comet dialog-backdrop @ThemeClass" @onkeydown="DialogKey">
+        <section
+            class="preview-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="preview-title"
+            tabindex="-1"
+            @ref="dialog">
+            <span tabindex="0" @onfocus="FocusLast"></span>
+            <div class="section-heading">
+                <div>
+                    <span class="eyebrow">@(reviewingSave ? "READY FOR YOUR NEXT RAID" : "REVIEW YOUR DRAFT")</span>
+                    <h2 id="preview-title">@(reviewingSave ? "Review your changes" : preview!.Title)</h2>
+                </div>
+                <button
+                    class="close-button"
+                    aria-label="Close review"
+                    @ref="firstDialogButton" @onclick="ClosePreview">×</button>
+            </div>
+            <p>@changes.Count value(s) will change. @(reviewingSave ? "Save to use this setup in the next raid." : "This updates your draft only. Save separately when ready.")</p>
+            <div class="preview-list">
+                @foreach (var group in changes.GroupBy(c => editor.Catalog.Fields.TryGetValue(c.Path, out var f) ? EditorNavigation.Title(editor.Catalog.Sections[f.Section].Title) : "Preset")) {
+                    <details class="review-group" open="@(changes.Count <= 12)">
+                        <summary>@group.Key <span>@group.Count()</span></summary>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Setting</th>
+                                    <th>@(reviewingSave ? "Saved" : "In draft")</th>
+                                    <th>After</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var change in group) {
+                                    <tr>
+                                        <td>@change.Label</td>
+                                        <td>@change.Before</td>
+                                        <td>@change.After</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </details>
+                }
+                @if (changes.Count == 0) {
+                    <p>No values need to change.</p>
+                }
+            </div>
+            <div class="dialog-actions">
+                <button @onclick="ClosePreview">Keep editing</button>
+                <button class="primary" @ref="lastDialogButton" @onclick="ConfirmReview">@(reviewingSave ? "Save for next raid" : "Apply to draft")</button>
+            </div>
+            <span tabindex="0" @onfocus="FocusFirst"></span>
+        </section>
+    </div>
 }
 
 @code {
     readonly SecretBrand brand = new();
+
     string brandMessage = "";
+
     int fortune = -1;
+
     string BrandName => brand.Slop ? "SLOP" : "COMET";
+
     string BrandLogo => brand.Slop ? UiAssets.SlopLogo : UiAssets.Logo;
+
     string ThemeClass => brand.Slop ? "slop" : "";
-    static readonly string[] fortunes = {
+
+    static readonly string[] fortunes =
+    {
         "QA report: the bots are having a great time. You were not consulted.",
         "May contain traces of actual tactics.",
         "Serving suggestion: bring spare kits.",
         "No artificial aim added. That's still your SAIN preset.",
         "Your complaint has been forwarded to the flanking department.",
-        "Blame Snoops. This concludes the investigation."
+        "Blame Snoops. This concludes the investigation.",
     };
-    string Fortune => fortune < 0 ? "Our quality department is currently on a scav run." : fortunes[fortune];
+
+    string Fortune =>
+        fortune < 0 ? "Our quality department is currently on a scav run." : fortunes[fortune];
+
     void NextFortune() => fortune = (fortune + 1) % fortunes.Length;
-    string FeatureTitle(EditorTopic topic) => !brand.Slop ? topic.Title : topic.Key switch {
-        "Decisions" => "Organic overthinking", "Perception" => "Something smells like a PMC",
-        "Movement" => "Freshly served flanks", "Doors" => "Door-to-door delivery",
-        "Weapons & lights" => "Lights, camera, recoil", "Grenades" => "Extra spicy deliveries",
-        "Squad" => "Group projects, but competent", "Medical" => "Customer retention", _ => topic.Title
-    };
+
+    string FeatureTitle(EditorTopic topic) =>
+        !brand.Slop
+            ? topic.Title
+            : topic.Key switch
+            {
+                "Decisions" => "Organic overthinking",
+                "Perception" => "Something smells like a PMC",
+
+                "Movement" => "Freshly served flanks",
+                "Doors" => "Door-to-door delivery",
+
+                "Weapons & lights" => "Lights, camera, recoil",
+                "Grenades" => "Extra spicy deliveries",
+
+                "Squad" => "Group projects, but competent",
+                "Medical" => "Customer retention",
+                _ => topic.Title,
+            };
+
     async Task BrandClick()
     {
         // Home navigation remains useful, but don't steal focus from the logo between clicks.
+
         page = "home";
+
         focusEditor = false;
+
         await LogoClick();
     }
+
     async Task LogoClick()
     {
-        if (brand.Click(Environment.TickCount64)) await SaveBrand();
+        if (brand.Click(Environment.TickCount64))
+            await SaveBrand();
     }
-    async Task RestoreComet() { brand.Set(false); await SaveBrand(); }
+
+    async Task RestoreComet()
+    {
+        brand.Set(false);
+        await SaveBrand();
+    }
+
     async Task SaveBrand()
     {
-        brandMessage = brand.Slop ? "Secret menu unlocked. SLOP theme enabled. Your settings are unchanged." : "COMET theme restored. Your settings are unchanged.";
-        try { await JS.InvokeVoidAsync("localStorage.setItem", SecretBrand.StorageKey, brand.Slop ? "1" : "0"); }
-        catch (JSException) { brandMessage += " The browser could not remember this theme."; }
-        catch (InvalidOperationException) { /* A disconnected page can still render the selected theme. */ }
+        brandMessage = brand.Slop
+            ? "Secret menu unlocked. SLOP theme enabled. Your settings are unchanged."
+            : "COMET theme restored. Your settings are unchanged.";
+
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "localStorage.setItem",
+                SecretBrand.StorageKey,
+                brand.Slop ? "1" : "0"
+            );
+        }
+        catch (JSException)
+        {
+            brandMessage += " The browser could not remember this theme.";
+        }
+        catch (InvalidOperationException)
+        { /* A disconnected page can still render the selected theme. */
+        }
     }
+
     ConfigEditor? editor;
-    string page = "home", category = "Overview", search = "", message = "";
-    bool advanced, modifiedOnly, reviewingSave, focusDialog, focusEditor;
-    readonly HashSet<string> open = new(), closed = new(), detailed = new();
+
+    string page = "home",
+        category = "Overview",
+        search = "",
+        message = "";
+
+    bool advanced,
+        modifiedOnly,
+        reviewingSave,
+        focusDialog,
+        focusEditor;
+
+    readonly HashSet<string> open = new(),
+        closed = new(),
+        detailed = new();
+
     EditorPreview? preview;
-    ElementReference dialog, editorHeading, firstDialogButton, lastDialogButton;
-    static readonly (string Key, string Title, string Icon)[] pages = { ("home", "Overview", "home"), ("settings", "Combat settings", "settings"), ("presets", "Presets", "presets"), ("diagnostics", "Diagnostics", "chart") };
+
+    ElementReference dialog,
+        editorHeading,
+        firstDialogButton,
+        lastDialogButton;
+
+    static readonly (string Key, string Title, string Icon)[] pages =
+    {
+        ("home", "Overview", "home"),
+        ("settings", "Combat settings", "settings"),
+        ("presets", "Presets", "presets"),
+        ("diagnostics", "Diagnostics", "chart"),
+    };
+
     bool Filtering => !string.IsNullOrWhiteSpace(search) || modifiedOnly;
+
     string PageTitle => pages.First(p => p.Key == page).Title;
-    string PageEyebrow => page == "settings" ? "COMBAT SETTINGS" : page == "presets" ? "PRESETS" : "DIAGNOSTICS";
-    string PageHeading => page switch { "home" => brand.Slop ? "Fine. It's SLOP now." : "Your next encounter starts here.", "presets" => brand.Slop ? "The recipe book" : "A starting point. Your own style.", "diagnostics" => brand.Slop ? "The health inspection" : "See what is happening.", _ => Filtering ? "Find your settings" : EditorNavigation.Topic(category).Title };
-    string PageDescription => page switch { "home" => brand.Slop ? "Five clicks. A perfectly good space theme, gone." : "Explore the features and choose your settings.", "presets" => "Choose a built-in level or keep your own setups in a personal library.", "diagnostics" => "Keep useful records for testing, or quieten local logs without losing Raid Review data.", _ => Filtering ? "Search and compare across every feature." : EditorNavigation.Topic(category).Description };
+
+    string PageEyebrow =>
+        page == "settings" ? "COMBAT SETTINGS"
+        : page == "presets" ? "PRESETS"
+        : "DIAGNOSTICS";
+
+    string PageHeading =>
+        page switch
+        {
+            "home" => brand.Slop ? "Fine. It's SLOP now." : "Your next encounter starts here.",
+            "presets" => brand.Slop ? "The recipe book" : "A starting point. Your own style.",
+            "diagnostics" => brand.Slop ? "The health inspection" : "See what is happening.",
+            _ => Filtering ? "Find your settings" : EditorNavigation.Topic(category).Title,
+        };
+
+    string PageDescription =>
+        page switch
+        {
+            "home" => brand.Slop
+                ? "Five clicks. A perfectly good space theme, gone."
+                : "Explore the features and choose your settings.",
+            "presets" => "Choose a built-in level or keep your own setups in a personal library.",
+            "diagnostics" =>
+                "Keep useful records for testing, or quieten local logs without losing Raid Review data.",
+            _ => Filtering
+                ? "Search and compare across every feature."
+                : EditorNavigation.Topic(category).Description,
+        };
+
     protected override void OnInitialized() => ReadSaved();
-    void ReadSaved() { try { editor = new(Store.Read()); message = ""; } catch (Exception ex) { message = ex.Message; } }
-    void Navigate(string value) { page = value; ClearFilters(); focusEditor = true; }
-    void SelectCategory(string key) { page = "settings"; category = key; ClearFilters(); focusEditor = true; }
-    void ClearFilters() { search = ""; modifiedOnly = false; }
-    void SetMode(bool value) { advanced = value; }
-    bool IsExpanded(string key, int count) => open.Contains(key) || !closed.Contains(key) && count == 1;
-    void ToggleSection(string key, int count) { if (IsExpanded(key, count)) { open.Remove(key); closed.Add(key); } else { closed.Remove(key); open.Add(key); } }
-    void ChangeComparison(ChangeEventArgs e) { editor!.Compare(e.Value?.ToString() ?? "Saved"); message = ""; }
+
+    void ReadSaved()
+    {
+        try
+        {
+            editor = new(Store.Read());
+            message = "";
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    void Navigate(string value)
+    {
+        page = value;
+        ClearFilters();
+        focusEditor = true;
+    }
+
+    void SelectCategory(string key)
+    {
+        page = "settings";
+        category = key;
+        ClearFilters();
+        focusEditor = true;
+    }
+
+    void ClearFilters()
+    {
+        search = "";
+        modifiedOnly = false;
+    }
+
+    void SetMode(bool value)
+    {
+        advanced = value;
+    }
+
+    bool IsExpanded(string key, int count) =>
+        open.Contains(key) || !closed.Contains(key) && count == 1;
+
+    void ToggleSection(string key, int count)
+    {
+        if (IsExpanded(key, count))
+        {
+            open.Remove(key);
+            closed.Add(key);
+        }
+        else
+        {
+            closed.Remove(key);
+            open.Add(key);
+        }
+    }
+
+    void ChangeComparison(ChangeEventArgs e)
+    {
+        editor!.Compare(e.Value?.ToString() ?? "Saved");
+        message = "";
+    }
+
     void DraftChanged() => message = "";
-    void ShowErrors() { page = "settings"; search = ""; modifiedOnly = true; advanced = true; foreach (var f in editor!.Catalog.Fields.Values.Where(f => editor.Error(f).Length > 0)) open.Add(f.Section); focusEditor = true; }
-    string ProfileText(string profile) => profile switch { "Easy" => "Fewer tactical attempts, with longer pauses between them.", "Normal" => "More tactical pressure, with a little breathing room.", _ => "Original COMET chances and timing. The highest supplied level." };
+
+    void ShowErrors()
+    {
+        page = "settings";
+        search = "";
+        modifiedOnly = true;
+        advanced = true;
+        foreach (var f in editor!.Catalog.Fields.Values.Where(f => editor.Error(f).Length > 0))
+            open.Add(f.Section);
+        focusEditor = true;
+    }
+
+    string ProfileText(string profile) =>
+        profile switch
+        {
+            "Easy" => "Fewer tactical attempts, with longer pauses between them.",
+            "Normal" => "More tactical pressure, with a little breathing room.",
+            _ => "Original COMET chances and timing. The highest supplied level.",
+        };
+
     void PreviewProfile(string name) => OpenPreview(editor!.PreviewProfile(name));
+
     void PreviewSection(string key) => OpenPreview(editor!.PreviewSection(key));
+
     void PreviewDiscard() => OpenPreview(editor!.PreviewDiscard());
-    void OpenPreview(EditorPreview value) { reviewingSave = false; preview = value; focusDialog = true; }
-    void ReviewSave() { if (!editor!.CanSave) return; preview = null; reviewingSave = true; focusDialog = true; }
-    void ClosePreview() { preview = null; reviewingSave = false; focusEditor = true; }
-    void DialogKey(KeyboardEventArgs e) { if (e.Key == "Escape") ClosePreview(); }
+
+    void OpenPreview(EditorPreview value)
+    {
+        reviewingSave = false;
+        preview = value;
+        focusDialog = true;
+    }
+
+    void ReviewSave()
+    {
+        if (!editor!.CanSave)
+            return;
+        preview = null;
+        reviewingSave = true;
+        focusDialog = true;
+    }
+
+    void ClosePreview()
+    {
+        preview = null;
+        reviewingSave = false;
+        focusEditor = true;
+    }
+
+    void DialogKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            ClosePreview();
+    }
+
     Task FocusFirst() => firstDialogButton.FocusAsync().AsTask();
+
     Task FocusLast() => lastDialogButton.FocusAsync().AsTask();
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // Browser storage is unavailable during server prerendering. Never read it in OnInitialized.
-        if (firstRender) {
-            try {
-                brand.Restore(await JS.InvokeAsync<string>("localStorage.getItem", SecretBrand.StorageKey));
-                if (brand.Slop) StateHasChanged();
+
+        if (firstRender)
+        {
+            try
+            {
+                brand.Restore(
+                    await JS.InvokeAsync<string>("localStorage.getItem", SecretBrand.StorageKey)
+                );
+
+                if (brand.Slop)
+                    StateHasChanged();
             }
-            catch (JSException) { /* Storage blocked: the hidden theme still works for this visit. */ }
+            catch (JSException)
+            { /* Storage blocked: the hidden theme still works for this visit. */
+            }
             catch (InvalidOperationException) { }
         }
-        if (focusDialog) { focusDialog = false; await dialog.FocusAsync(); }
-        if (focusEditor && editor != null) { focusEditor = false; await editorHeading.FocusAsync(); }
+
+        if (focusDialog)
+        {
+            focusDialog = false;
+            await dialog.FocusAsync();
+        }
+
+        if (focusEditor && editor != null)
+        {
+            focusEditor = false;
+            await editorHeading.FocusAsync();
+        }
     }
-    void ConfirmReview() {
-        if (reviewingSave) {
-            try { editor!.AcceptSaved(Store.Save(editor.Snapshot(), editor.Revision)); ClosePreview(); message = "Saved. Your next raid will use this setup."; }
-            catch (Exception e) { ClosePreview(); message = "Not saved: " + e.Message + " Your draft is still here."; }
-        } else { editor!.Apply(preview!); ClosePreview(); message = "Draft updated. Review & save when ready."; }
+
+    void ConfirmReview()
+    {
+        if (reviewingSave)
+        {
+            try
+            {
+                editor!.AcceptSaved(Store.Save(editor.Snapshot(), editor.Revision));
+                ClosePreview();
+                message = "Saved. Your next raid will use this setup.";
+            }
+            catch (Exception e)
+            {
+                ClosePreview();
+                message = "Not saved: " + e.Message + " Your draft is still here.";
+            }
+        }
+        else
+        {
+            editor!.Apply(preview!);
+            ClosePreview();
+            message = "Draft updated. Review & save when ready.";
+        }
     }
 }

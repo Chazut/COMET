@@ -85,74 +85,168 @@ public sealed class ThreatSelection
     private readonly CometConfig config;
     private string held = "";
     private double holdUntil;
-    public ThreatSelection(CometConfig config) { this.config = config; }
-    public void Reset() { held = ""; holdUntil = 0; }
+
+    public ThreatSelection(CometConfig config)
+    {
+        this.config = config;
+    }
+
+    public void Reset()
+    {
+        held = "";
+        holdUntil = 0;
+    }
+
     public static bool Finite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
-    private static double Ago(double? time, double now) => time.HasValue && time.Value > 0 ? now-time.Value : 999;
-    public static bool Scope(ThreatFrame f) => f.IsAi && f.IsSupportedBot && f.IsAuthority && f.Active && !f.Ghost;
+
+    private static double Ago(double? time, double now) =>
+        time.HasValue && time.Value > 0 ? now - time.Value : 999;
+
+    public static bool Scope(ThreatFrame f) =>
+        f.IsAi && f.IsSupportedBot && f.IsAuthority && f.Active && !f.Ghost;
 
     public ThreatScore Score(ThreatContact e, double now)
     {
-        var c=config.ThreatSelection;
-        var s=new ThreatScore {Target=e.Id,Source=e.Source,Visible=e.Visible,Eligible=e.Valid,
-            Distance=e.Distance,X=e.X,Y=e.Y,Z=e.Z,Age=e.ObservedAt.HasValue?now-e.ObservedAt.Value:null};
-        if(!e.Valid){s.Reason="threat-invalid-contact";return s;}
-        double hit=Ago(e.HitAt,now), shot=Ago(e.ShotAt,now);
-        s.Sight=e.Visible?50:0; s.Hit=hit<c.HitMemory?100:0; s.Fire=shot<c.ShotMemory?60:0;
-        s.Facing=e.Visible&&e.LookingAtMe?20:0;
-        s.Proximity=60*Math.Max(0,Math.Min(1,1-(e.Distance??60)/60));
-        s.Score=s.Sight+s.Hit+s.Fire+s.Facing+s.Proximity+(hit<10||shot<10?25:0)+(e.IsPmc?30:0);
-        s.HitAt=s.Hit>0?e.HitAt:null;
-        s.Reason=s.Hit>0?"threat-recent-attacker":s.Fire>0?"threat-incoming-fire":"threat-known-contact";
+        var c = config.ThreatSelection;
+        var s = new ThreatScore
+        {
+            Target = e.Id,
+            Source = e.Source,
+            Visible = e.Visible,
+            Eligible = e.Valid,
+            Distance = e.Distance,
+            X = e.X,
+            Y = e.Y,
+            Z = e.Z,
+            Age = e.ObservedAt.HasValue ? now - e.ObservedAt.Value : null,
+        };
+        if (!e.Valid)
+        {
+            s.Reason = "threat-invalid-contact";
+            return s;
+        }
+        double hit = Ago(e.HitAt, now),
+            shot = Ago(e.ShotAt, now);
+        s.Sight = e.Visible ? 50 : 0;
+        s.Hit = hit < c.HitMemory ? 100 : 0;
+        s.Fire = shot < c.ShotMemory ? 60 : 0;
+        s.Facing = e.Visible && e.LookingAtMe ? 20 : 0;
+        s.Proximity = 60 * Math.Max(0, Math.Min(1, 1 - (e.Distance ?? 60) / 60));
+        s.Score =
+            s.Sight
+            + s.Hit
+            + s.Fire
+            + s.Facing
+            + s.Proximity
+            + (hit < 10 || shot < 10 ? 25 : 0)
+            + (e.IsPmc ? 30 : 0);
+        s.HitAt = s.Hit > 0 ? e.HitAt : null;
+        s.Reason =
+            s.Hit > 0 ? "threat-recent-attacker"
+            : s.Fire > 0 ? "threat-incoming-fire"
+            : "threat-known-contact";
         return s;
     }
+
     private double Flank(ThreatContact e, ThreatContact? goal)
     {
-        if(goal==null||goal.Id==e.Id)return 0;
-        var c=config.ThreatSelection; double d=e.Distance??999,g=goal.Distance??999;
-        if(e.Visible)
-            return d<=c.CloseDistance&&(d<c.ImmediateDistance||d<g*.6)?120+(d<c.ImmediateDistance?50:0):0;
-        return e.Footsteps&&e.HeardAge<=c.FootstepMemory&&e.HeardDistance<=c.FootstepDistance&&e.HeardDistance<=g*.6
-            ?100+(d<c.ImmediateDistance?50:0):0;
+        if (goal == null || goal.Id == e.Id)
+            return 0;
+        var c = config.ThreatSelection;
+        double d = e.Distance ?? 999,
+            g = goal.Distance ?? 999;
+        if (e.Visible)
+            return d <= c.CloseDistance && (d < c.ImmediateDistance || d < g * .6)
+                ? 120 + (d < c.ImmediateDistance ? 50 : 0)
+                : 0;
+        return
+            e.Footsteps
+            && e.HeardAge <= c.FootstepMemory
+            && e.HeardDistance <= c.FootstepDistance
+            && e.HeardDistance <= g * .6
+            ? 100 + (d < c.ImmediateDistance ? 50 : 0)
+            : 0;
     }
+
     public ThreatTrace Evaluate(ThreatFrame f)
     {
-        var c=config.ThreatSelection;
-        var t=new ThreatTrace{At=f.Now,Previous=f.Current,Trigger=f.Trigger,Truncated=f.Truncated};
-        if(!config.Enabled||!c.Enabled||!Scope(f)||f.Contacts.Count<2){Reset();t.Reason="threat-yield-to-sain";return t;}
-        var goal=f.Contacts.Find(x=>x.Id==f.Current);
-        ThreatContact? best=null; double bestValue=double.NegativeInfinity;
-        foreach(var e in f.Contacts)
+        var c = config.ThreatSelection;
+        var t = new ThreatTrace
         {
-            var score=Score(e,f.Now); t.Candidates.Add(score);
-            if(!score.Eligible||e.Id==f.Current)continue;
-            double flank=Flank(e,goal),hit=Ago(e.HitAt,f.Now),shot=Ago(e.ShotAt,f.Now);
-            if(hit>c.HitMemory&&shot>c.ShotMemory&&flank==0){score.Reason="threat-not-engaging";continue;}
-            bool heardOnly=flank>0&&!e.Visible;
-            if(goal?.Visible==true&&!e.Visible&&hit>c.HitMemory&&!heardOnly){score.Reason="threat-keep-visible-duel";continue;}
-            score.Steps=flank;score.Score+=flank;
-            if(score.Score>bestValue){best=e;bestValue=score.Score;}
-        }
-        double goalValue=double.NegativeInfinity;
-        if(goal?.Valid==true)
+            At = f.Now,
+            Previous = f.Current,
+            Trigger = f.Trigger,
+            Truncated = f.Truncated,
+        };
+        if (!config.Enabled || !c.Enabled || !Scope(f) || f.Contacts.Count < 2)
         {
-            var score=t.Candidates.Find(x=>x.Target==goal.Id)!;
-            score.Steps=Flank(goal,best);
-            score.Score+=35+(goal.Visible&&goal.BadlyInjured?30:0)+score.Steps;
-            goalValue=score.Score;
+            Reset();
+            t.Reason = "threat-yield-to-sain";
+            return t;
         }
-        if(best!=null&&bestValue>goalValue)
+        var goal = f.Contacts.Find(x => x.Id == f.Current);
+        ThreatContact? best = null;
+        double bestValue = double.NegativeInfinity;
+        foreach (var e in f.Contacts)
         {
-            held=best.Id;holdUntil=f.Now+c.Commitment;t.Selected=held;t.Reason="threat-better-target";
+            var score = Score(e, f.Now);
+            t.Candidates.Add(score);
+            if (!score.Eligible || e.Id == f.Current)
+                continue;
+            double flank = Flank(e, goal),
+                hit = Ago(e.HitAt, f.Now),
+                shot = Ago(e.ShotAt, f.Now);
+            if (hit > c.HitMemory && shot > c.ShotMemory && flank == 0)
+            {
+                score.Reason = "threat-not-engaging";
+                continue;
+            }
+            bool heardOnly = flank > 0 && !e.Visible;
+            if (goal?.Visible == true && !e.Visible && hit > c.HitMemory && !heardOnly)
+            {
+                score.Reason = "threat-keep-visible-duel";
+                continue;
+            }
+            score.Steps = flank;
+            score.Score += flank;
+            if (score.Score > bestValue)
+            {
+                best = e;
+                bestValue = score.Score;
+            }
         }
-        else if(goal?.Valid==true&&held==goal.Id)
+        double goalValue = double.NegativeInfinity;
+        if (goal?.Valid == true)
         {
-            if(Ago(goal.HitAt,f.Now)<c.HitMemory||Ago(goal.ShotAt,f.Now)<c.ShotMemory)holdUntil=Math.Max(holdUntil,f.Now+1);
-            if(f.Now<holdUntil){t.Selected=held;t.Reason="threat-keep-held";}
-            else Reset();
+            var score = t.Candidates.Find(x => x.Target == goal.Id)!;
+            score.Steps = Flank(goal, best);
+            score.Score += 35 + (goal.Visible && goal.BadlyInjured ? 30 : 0) + score.Steps;
+            goalValue = score.Score;
         }
-        else Reset();
-        if(t.Selected.Length==0)t.Reason="threat-yield-to-sain";
-        t.HoldRemaining=Math.Max(0,holdUntil-f.Now);return t;
+        if (best != null && bestValue > goalValue)
+        {
+            held = best.Id;
+            holdUntil = f.Now + c.Commitment;
+            t.Selected = held;
+            t.Reason = "threat-better-target";
+        }
+        else if (goal?.Valid == true && held == goal.Id)
+        {
+            if (Ago(goal.HitAt, f.Now) < c.HitMemory || Ago(goal.ShotAt, f.Now) < c.ShotMemory)
+                holdUntil = Math.Max(holdUntil, f.Now + 1);
+            if (f.Now < holdUntil)
+            {
+                t.Selected = held;
+                t.Reason = "threat-keep-held";
+            }
+            else
+                Reset();
+        }
+        else
+            Reset();
+        if (t.Selected.Length == 0)
+            t.Reason = "threat-yield-to-sain";
+        t.HoldRemaining = Math.Max(0, holdUntil - f.Now);
+        return t;
     }
 }

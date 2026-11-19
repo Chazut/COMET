@@ -22,8 +22,13 @@ internal static class SquadMemberIdentity
         bool unchanged = entry.Members.Length == members.Count;
         if (unchanged)
             foreach (var id in entry.Members)
-                if (!members.ContainsKey(id)) { unchanged = false; break; }
-        if (unchanged) return entry.Identity;
+                if (!members.ContainsKey(id))
+                {
+                    unchanged = false;
+                    break;
+                }
+        if (unchanged)
+            return entry.Identity;
 
         var ids = new string[members.Count];
         members.Keys.CopyTo(ids, 0);

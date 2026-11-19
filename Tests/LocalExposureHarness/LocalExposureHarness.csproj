@@ -10,6 +10,10 @@
     <Compile Include="../../Shared/AiLightingFrameCounts.cs" />
     <Compile Include="../../Client/SceneExposure.cs" />
     <Compile Include="../../Client/LocalExposureAdapter.cs" />
-    <Reference Include="UnityEngine.CoreModule" Aliases="MathUnity" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/UnityEngine.CoreModule.dll" />
+    <Reference
+      Include="UnityEngine.CoreModule"
+      Aliases="MathUnity"
+      HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/UnityEngine.CoreModule.dll"
+    />
   </ItemGroup>
 </Project>

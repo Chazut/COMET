@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
+
 namespace Comet.Core;
+
 // Kept as JSON members only to read older installations. These knobs no longer
 // participate in the zzap baseline and must not suggest otherwise in the UI.
 public static class SourceBaselineSettings
 {
-    private static readonly HashSet<string> Retired = new(StringComparer.Ordinal) {
+    private static readonly HashSet<string> Retired = new(StringComparer.Ordinal)
+    {
         "GrenadeChoiceConfig.ArrivalMargin",
         "AngleWatchConfig.HearingAge",
         "AngleWatchConfig.MovingLimit",
@@ -148,16 +151,25 @@ public static class SourceBaselineSettings
         "VisibleCombatConfig.SwitchMargin",
         "WeaponRangeConfig.SinceShot",
         "WeaponRangeConfig.StableSeconds",
-        "WeaponReturnConfig.MinimumHold"
+        "WeaponReturnConfig.MinimumHold",
     };
-    public static bool IsRetired(Type type,string member)=>Retired.Contains(type.Name+"."+member);
+
+    public static bool IsRetired(Type type, string member) =>
+        Retired.Contains(type.Name + "." + member);
+
     public static bool IsRetiredPath(string path)
     {
-        Type type=typeof(CometConfig);
-        foreach(var part in path.Split('.')) {
-            if(type.IsGenericType&&type.GetGenericTypeDefinition()==typeof(Dictionary<,>))break;
-            if(IsRetired(type,part))return true;
-            var property=type.GetProperty(part);if(property==null)return false;type=property.PropertyType;
+        Type type = typeof(CometConfig);
+        foreach (var part in path.Split('.'))
+        {
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Dictionary<,>))
+                break;
+            if (IsRetired(type, part))
+                return true;
+            var property = type.GetProperty(part);
+            if (property == null)
+                return false;
+            type = property.PropertyType;
         }
         return false;
     }

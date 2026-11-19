@@ -6,28 +6,55 @@ using EFT.InventoryLogic;
 using SAIN.Components;
 using SAIN.Models.Enums;
 using SAIN.Preset.Shared.Enums;
-using SAIN.SAINComponent.Classes.WeaponFunction;
 using SAIN.SAINComponent.Classes.EnemyClasses;
+using SAIN.SAINComponent.Classes.WeaponFunction;
 using UnityEngine;
+
 namespace Comet.Client;
+
 internal static class ZzapEnemyWeakness
 {
-    private static readonly List<ArmorComponent> _armor=new();
-    internal static float Read(BotComponent b,Enemy e,out string[] why)
+    private static readonly List<ArmorComponent> _armor = new();
+
+    internal static float Read(BotComponent b, Enemy e, out string[] why)
     {
-        var parts=new List<string>();var p=e.EnemyPlayer;
-        if(p==null){why=System.Array.Empty<string>();return 0;}
-        float score=GearWeakness(e,p,parts);
-        switch(p.HealthStatus)
+        var parts = new List<string>();
+        var p = e.EnemyPlayer;
+        if (p == null)
         {
-            case ETagStatus.Injured:score+=.05f;parts.Add("hurt");break;
-            case ETagStatus.BadlyInjured:score+=.2f;parts.Add("badly hurt");break;
-            case ETagStatus.Dying:score+=.35f;parts.Add("dying");break;
+            why = System.Array.Empty<string>();
+            return 0;
         }
-        if(e.Status.VulnerableAction!=EEnemyAction.None){score+=.15f;parts.Add("busy ("+e.Status.VulnerableAction+")");}
-        if(Alone(b,e)){score+=.1f;parts.Add("alone");}
-        why=parts.ToArray();return Mathf.Clamp01(score);
+        float score = GearWeakness(e, p, parts);
+        switch (p.HealthStatus)
+        {
+            case ETagStatus.Injured:
+                score += .05f;
+                parts.Add("hurt");
+                break;
+            case ETagStatus.BadlyInjured:
+                score += .2f;
+                parts.Add("badly hurt");
+                break;
+            case ETagStatus.Dying:
+                score += .35f;
+                parts.Add("dying");
+                break;
+        }
+        if (e.Status.VulnerableAction != EEnemyAction.None)
+        {
+            score += .15f;
+            parts.Add("busy (" + e.Status.VulnerableAction + ")");
+        }
+        if (Alone(b, e))
+        {
+            score += .1f;
+            parts.Add("alone");
+        }
+        why = parts.ToArray();
+        return Mathf.Clamp01(score);
     }
+
     internal static float GearWeakness(Enemy enemy, Player p, List<string> parts)
     {
         float score = 0f;
@@ -96,7 +123,10 @@ internal static class ZzapEnemyWeakness
             {
                 continue;
             }
-            if ((other.EnemyPosition - pos).sqrMagnitude < 20f * 20f && other.TimeSinceLastKnownUpdated < 20f)
+            if (
+                (other.EnemyPosition - pos).sqrMagnitude < 20f * 20f
+                && other.TimeSinceLastKnownUpdated < 20f
+            )
             {
                 return false;
             }
@@ -124,5 +154,4 @@ internal static class ZzapEnemyWeakness
         _armor.Clear();
         return best;
     }
-
 }

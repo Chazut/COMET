@@ -44,7 +44,8 @@ internal static class SourceSoundWatch
 
     public static void Detach(BotHearingClass owner)
     {
-        if (_hearing == null || ReferenceEquals(_hearing, owner)) Detach();
+        if (_hearing == null || ReferenceEquals(_hearing, owner))
+            Detach();
     }
 
     public static void Detach()
@@ -58,11 +59,22 @@ internal static class SourceSoundWatch
         _lastShot.Clear();
     }
 
-    private static void OnSound(SAINSoundType type, Vector3 position, PlayerComponent source, float range, float volume)
+    private static void OnSound(
+        SAINSoundType type,
+        Vector3 position,
+        PlayerComponent source,
+        float range,
+        float volume
+    )
     {
         bool shot = type == SAINSoundType.Shot || type == SAINSoundType.SuppressedShot;
-        bool approach = type == SAINSoundType.FootStep || type == SAINSoundType.Sprint || type == SAINSoundType.Jump
-            || type == SAINSoundType.Land || type == SAINSoundType.Door || type == SAINSoundType.DoorBreach;
+        bool approach =
+            type == SAINSoundType.FootStep
+            || type == SAINSoundType.Sprint
+            || type == SAINSoundType.Jump
+            || type == SAINSoundType.Land
+            || type == SAINSoundType.Door
+            || type == SAINSoundType.DoorBreach;
         if ((!shot && !approach) || source == null)
         {
             return;
@@ -72,7 +84,16 @@ internal static class SourceSoundWatch
         {
             _sounds.RemoveAt(0);
         }
-        _sounds.Add(new Sound { Time = time, Position = position, ProfileId = source.ProfileId, Player = source.Player, Shot = shot });
+        _sounds.Add(
+            new Sound
+            {
+                Time = time,
+                Position = position,
+                ProfileId = source.ProfileId,
+                Player = source.Player,
+                Shot = shot,
+            }
+        );
     }
 
     /// <summary>
@@ -114,9 +135,12 @@ internal static class SourceSoundWatch
         float time = Time.time;
         Vector3 pos = bot.Position;
         var squad = bot.Squad?.Members;
-        float bestApproach = 25f, bestShot = 70f;
-        Vector3? approachAt = null, shotAt = null;
-        float approachAge = 0f, shotAge = 0f;
+        float bestApproach = 25f,
+            bestShot = 70f;
+        Vector3? approachAt = null,
+            shotAt = null;
+        float approachAge = 0f,
+            shotAge = 0f;
         for (int i = _sounds.Count - 1; i >= 0; i--)
         {
             Sound s = _sounds[i];
@@ -126,8 +150,12 @@ internal static class SourceSoundWatch
                 break;
             }
             // Not our own squad, and not the dead - the enemy just killed was shooting a moment ago.
-            if (s.ProfileId == bot.ProfileId || (squad != null && squad.ContainsKey(s.ProfileId))
-                || s.Player == null || s.Player.HealthController?.IsAlive != true)
+            if (
+                s.ProfileId == bot.ProfileId
+                || (squad != null && squad.ContainsKey(s.ProfileId))
+                || s.Player == null
+                || s.Player.HealthController?.IsAlive != true
+            )
             {
                 continue;
             }

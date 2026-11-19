@@ -1,14 +1,69 @@
-const {strict:assert}=require('node:assert');
-const {coverageSummary,lifecycleValue}=require('./evidence-view.js');
-assert.equal(coverageSummary({disabledRaids:4},4),'Disabled in recorded config');
-assert.equal(coverageSummary({disabledRaids:0},0),'No recorded opportunity');
-assert.equal(coverageSummary({events:10,observationFacts:{'Speed cap applied':9}}),'Effect / observation recorded');
-assert.equal(coverageSummary({events:10,observationFacts:{accepted:9}}),'Evaluated; execution unconfirmed');
-assert.equal(lifecycleValue({counting:'trace',coverage:'events-only'},'started'),null);
-assert.equal(lifecycleValue({counting:'trace',identifiedRaids:2,started:3},'started'),3);
-assert.equal(lifecycleValue({id:'A01',counting:'choice',identifiedRaids:2},'completed'),null);
-assert.equal(coverageSummary({id:'S01',effects:{'Position reached':1,'Angle held':1},completed:0}),'Angle reached and held');
-assert.equal(coverageSummary({id:'S03',effects:{'Position reached':1},completed:0}),'Position reached');
-assert.equal(coverageSummary({id:'S03',effects:{'Position reached':1,'Angle held':1,'Enemy engaged from new angle':1},completed:1}),'Enemy engaged from new angle');
-assert.equal(coverageSummary({id:'S03',events:20,started:1}),'Execution observed');
-console.log('Evidence view: 11 regressions passed');
+const { strict: assert } = require("node:assert");
+const { coverageSummary, lifecycleValue } = require("./evidence-view.js");
+assert.equal(
+  coverageSummary({ disabledRaids: 4 }, 4),
+  "Disabled in recorded config",
+);
+assert.equal(
+  coverageSummary({ disabledRaids: 0 }, 0),
+  "No recorded opportunity",
+);
+assert.equal(
+  coverageSummary({ events: 10, observationFacts: { "Speed cap applied": 9 } }),
+  "Effect / observation recorded",
+);
+assert.equal(
+  coverageSummary({ events: 10, observationFacts: { accepted: 9 } }),
+  "Evaluated; execution unconfirmed",
+);
+assert.equal(
+  lifecycleValue({ counting: "trace", coverage: "events-only" }, "started"),
+  null,
+);
+assert.equal(
+  lifecycleValue(
+    { counting: "trace", identifiedRaids: 2, started: 3 },
+    "started",
+  ),
+  3,
+);
+assert.equal(
+  lifecycleValue(
+    { id: "A01", counting: "choice", identifiedRaids: 2 },
+    "completed",
+  ),
+  null,
+);
+assert.equal(
+  coverageSummary({
+    id: "S01",
+    effects: { "Position reached": 1, "Angle held": 1 },
+    completed: 0,
+  }),
+  "Angle reached and held",
+);
+assert.equal(
+  coverageSummary({
+    id: "S03",
+    effects: { "Position reached": 1 },
+    completed: 0,
+  }),
+  "Position reached",
+);
+assert.equal(
+  coverageSummary({
+    id: "S03",
+    effects: {
+      "Position reached": 1,
+      "Angle held": 1,
+      "Enemy engaged from new angle": 1,
+    },
+    completed: 1,
+  }),
+  "Enemy engaged from new angle",
+);
+assert.equal(
+  coverageSummary({ id: "S03", events: 20, started: 1 }),
+  "Execution observed",
+);
+console.log("Evidence view: 11 regressions passed");

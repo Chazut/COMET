@@ -1,16 +1,30 @@
 <Project Sdk="Microsoft.NET.Sdk">
- <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><NoWarn>CS0649</NoWarn></PropertyGroup>
- <ItemGroup>
- <Compile Include="../../Shared/*.cs" Link="Core/%(Filename)%(Extension)" />
- <Compile Include="../../Client/OutcomeAdapter.cs" Link="OutcomeAdapter.cs" />
- <Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" />
- </ItemGroup>
- <!-- Exercise the build-transformed observer, so diagnostics cannot accidentally
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>CS0649</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Shared/*.cs" Link="Core/%(Filename)%(Extension)" />
+    <Compile Include="../../Client/OutcomeAdapter.cs" Link="OutcomeAdapter.cs" />
+    <Reference
+      Include="Newtonsoft.Json"
+      HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll"
+    />
+  </ItemGroup>
+  <!-- Exercise the build-transformed observer, so diagnostics cannot accidentally
       acquire a combat fault boundary that is absent from the source-only test. -->
- <Target Name="CounterObserverBoundary" BeforeTargets="CoreCompile">
-  <MakeDir Directories="obj/counter-input" />
-  <Copy SourceFiles="../../Client/TacticCountersAdapter.cs" DestinationFolder="obj/counter-input" />
-  <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/FaultBoundaries&quot; -c Release -- &quot;$(MSBuildProjectDirectory)/obj/counter-input&quot; &quot;$(MSBuildProjectDirectory)/obj/counter-generated&quot;" />
-  <ItemGroup><Compile Include="obj/counter-generated/TacticCountersAdapter.cs" /></ItemGroup>
- </Target>
+  <Target Name="CounterObserverBoundary" BeforeTargets="CoreCompile">
+    <MakeDir Directories="obj/counter-input" />
+    <Copy
+      SourceFiles="../../Client/TacticCountersAdapter.cs"
+      DestinationFolder="obj/counter-input"
+    />
+    <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/FaultBoundaries&quot; -c Release -- &quot;$(MSBuildProjectDirectory)/obj/counter-input&quot; &quot;$(MSBuildProjectDirectory)/obj/counter-generated&quot;" />
+    <ItemGroup>
+      <Compile Include="obj/counter-generated/TacticCountersAdapter.cs" />
+    </ItemGroup>
+  </Target>
 </Project>

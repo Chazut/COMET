@@ -5,11 +5,19 @@ namespace Comet.Core;
 public sealed class PreparationWait
 {
     public double Seconds { get; private set; }
-    private double last=-1;
-    public void Defer(double now,double delta)
+    private double last = -1;
+
+    public void Defer(double now, double delta)
     {
-        if(!DoorPolicy.Finite(now)||!DoorPolicy.Finite(delta)||now<=last||delta<=0)return;
-        last=now;Seconds=System.Math.Min(2,Seconds+System.Math.Min(.1,delta));
+        if (!DoorPolicy.Finite(now) || !DoorPolicy.Finite(delta) || now <= last || delta <= 0)
+            return;
+        last = now;
+        Seconds = System.Math.Min(2, Seconds + System.Math.Min(.1, delta));
     }
-    public void Clear(){Seconds=0;last=-1;}
+
+    public void Clear()
+    {
+        Seconds = 0;
+        last = -1;
+    }
 }

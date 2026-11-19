@@ -1,7 +1,33 @@
 <Project Sdk="Microsoft.NET.Sdk">
- <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><NoWarn>CS9113</NoWarn></PropertyGroup>
- <ItemGroup><Compile Include="../../Client/OwnGrenadeSafetyAdapter.cs" Link="OwnGrenadeSafetyAdapter.cs" /><Compile Include="../../Shared/OwnGrenadeSafety.cs" Link="OwnGrenadeSafety.cs" /></ItemGroup>
- <ItemGroup><Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" /></ItemGroup>
- <ItemGroup><Compile Include="../../Client/GrenadeReactionAdapter.cs" Link="GrenadeReactionAdapter.cs" /><Compile Include="../../Shared/GrenadeReaction.cs" Link="GrenadeReaction.cs" /></ItemGroup>
- <ItemGroup><Compile Include="../../Client/GrenadeDispersionAdapter.cs" Link="GrenadeDispersionAdapter.cs" /><Compile Include="../../Shared/GrenadeDispersion.cs" Link="GrenadeDispersion.cs" /></ItemGroup>
-<ItemGroup><Compile Include="../../Client/GrenadeKinds.cs" /></ItemGroup></Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>CS9113</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Client/OwnGrenadeSafetyAdapter.cs" Link="OwnGrenadeSafetyAdapter.cs" />
+    <Compile Include="../../Shared/OwnGrenadeSafety.cs" Link="OwnGrenadeSafety.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference
+      Include="Newtonsoft.Json"
+      HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll"
+    />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../Client/GrenadeReactionAdapter.cs" Link="GrenadeReactionAdapter.cs" />
+    <Compile Include="../../Shared/GrenadeReaction.cs" Link="GrenadeReaction.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile
+      Include="../../Client/GrenadeDispersionAdapter.cs"
+      Link="GrenadeDispersionAdapter.cs"
+    />
+    <Compile Include="../../Shared/GrenadeDispersion.cs" Link="GrenadeDispersion.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../Client/GrenadeKinds.cs" />
+  </ItemGroup>
+</Project>

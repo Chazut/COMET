@@ -21,7 +21,10 @@ internal sealed class EmbeddedFika : IDisposable
     {
         using (var stream = owner.GetManifestResourceStream(resource))
         {
-            if (stream == null) throw new InvalidOperationException("Missing embedded Fika integration: " + resource);
+            if (stream == null)
+                throw new InvalidOperationException(
+                    "Missing embedded Fika integration: " + resource
+                );
             using (var bytes = new MemoryStream())
             {
                 stream.CopyTo(bytes);
@@ -31,10 +34,17 @@ internal sealed class EmbeddedFika : IDisposable
         }
     }
 
-    internal void Start(bool fikaPresent, bool legacyPresent, Func<object> factory,
-        object logger, Action<string> info, Action<string> reportError)
+    internal void Start(
+        bool fikaPresent,
+        bool legacyPresent,
+        Func<object> factory,
+        object logger,
+        Action<string> info,
+        Action<string> reportError
+    )
     {
-        if (started) return;
+        if (started)
+            return;
         started = true;
         error = reportError;
         if (!fikaPresent)
@@ -44,28 +54,37 @@ internal sealed class EmbeddedFika : IDisposable
         }
         if (legacyPresent)
         {
-            info("Legacy Fika addon detected: using it for this launch. Remove the old addon DLL to use the built-in integration.");
+            info(
+                "Legacy Fika addon detected: using it for this launch. Remove the old addon DLL to use the built-in integration."
+            );
             return;
         }
         try
         {
             bridge = factory();
             var type = bridge.GetType();
-            release = (Action)Delegate.CreateDelegate(typeof(Action), bridge, type.GetMethod("Dispose"));
-            tick = (Action)Delegate.CreateDelegate(typeof(Action), bridge, type.GetMethod("Update"));
+            release = (Action)
+                Delegate.CreateDelegate(typeof(Action), bridge, type.GetMethod("Dispose"));
+            tick = (Action)
+                Delegate.CreateDelegate(typeof(Action), bridge, type.GetMethod("Update"));
             type.GetMethod("Initialize").Invoke(bridge, new[] { logger });
             info("Fika detected: embedded integration activated.");
         }
         catch (Exception ex)
         {
             Dispose();
-            reportError("Embedded Fika integration failed to initialize: " + (ex.InnerException ?? ex));
+            reportError(
+                "Embedded Fika integration failed to initialize: " + (ex.InnerException ?? ex)
+            );
         }
     }
 
     internal void Update()
     {
-        try { tick?.Invoke(); }
+        try
+        {
+            tick?.Invoke();
+        }
         catch (Exception ex)
         {
             Dispose();
@@ -79,7 +98,13 @@ internal sealed class EmbeddedFika : IDisposable
         tick = null;
         release = null;
         bridge = null;
-        try { cleanup?.Invoke(); }
-        catch (Exception ex) { error?.Invoke("Embedded Fika cleanup failed: " + ex); }
+        try
+        {
+            cleanup?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            error?.Invoke("Embedded Fika cleanup failed: " + ex);
+        }
     }
 }

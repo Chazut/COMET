@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+
 namespace Comet.Core;
 
 public sealed class PostCombatConfig
@@ -15,31 +16,79 @@ public sealed class PostCombatConfig
     public double AdvanceMax { get; set; } = 40;
     public double Duration { get; set; } = 14;
     public double MedicalDuration { get; set; } = 60;
-    public Dictionary<string,double> AdvanceChances { get; set; } = new()
-    { ["Wreckless"]=85,["GigaChad"]=80,["Chad"]=65,["Normal"]=40,["Timmy"]=30,["Rat"]=10,["SnappingTurtle"]=10,["Coward"]=0 };
+    public Dictionary<string, double> AdvanceChances { get; set; } =
+        new()
+        {
+            ["Wreckless"] = 85,
+            ["GigaChad"] = 80,
+            ["Chad"] = 65,
+            ["Normal"] = 40,
+            ["Timmy"] = 30,
+            ["Rat"] = 10,
+            ["SnappingTurtle"] = 10,
+            ["Coward"] = 0,
+        };
+
     public void Validate()
     {
-        CometConfig.Range(Interval,.1,1,nameof(Interval)); CometConfig.Range(ReloadBelow,0,100,nameof(ReloadBelow));
-        CometConfig.Range(WatchMin,0,15,nameof(WatchMin)); CometConfig.Range(WatchMax,WatchMin,20,nameof(WatchMax));
-        CometConfig.Range(CoverRadius,5,40,nameof(CoverRadius)); CometConfig.Range(RegroupDistance,5,60,nameof(RegroupDistance));
-        CometConfig.Range(AdvanceMin,0,20,nameof(AdvanceMin)); CometConfig.Range(AdvanceMax,AdvanceMin,60,nameof(AdvanceMax));
-        CometConfig.Range(Duration,WatchMax,60,nameof(Duration)); CometConfig.Range(MedicalDuration,Duration,120,nameof(MedicalDuration));
-        if(AdvanceChances==null||AdvanceChances.Count!=8)throw new ArgumentException("Eight post-combat personality chances required");
-        foreach(var key in new[]{"Wreckless","GigaChad","Chad","Normal","Timmy","Rat","SnappingTurtle","Coward"})
-        {if(!AdvanceChances.TryGetValue(key,out var v))throw new ArgumentException("Missing post-combat chance: "+key);CometConfig.Range(v,0,100,key);}
+        CometConfig.Range(Interval, .1, 1, nameof(Interval));
+        CometConfig.Range(ReloadBelow, 0, 100, nameof(ReloadBelow));
+        CometConfig.Range(WatchMin, 0, 15, nameof(WatchMin));
+        CometConfig.Range(WatchMax, WatchMin, 20, nameof(WatchMax));
+        CometConfig.Range(CoverRadius, 5, 40, nameof(CoverRadius));
+        CometConfig.Range(RegroupDistance, 5, 60, nameof(RegroupDistance));
+        CometConfig.Range(AdvanceMin, 0, 20, nameof(AdvanceMin));
+        CometConfig.Range(AdvanceMax, AdvanceMin, 60, nameof(AdvanceMax));
+        CometConfig.Range(Duration, WatchMax, 60, nameof(Duration));
+        CometConfig.Range(MedicalDuration, Duration, 120, nameof(MedicalDuration));
+        if (AdvanceChances == null || AdvanceChances.Count != 8)
+            throw new ArgumentException("Eight post-combat personality chances required");
+        foreach (
+            var key in new[]
+            {
+                "Wreckless",
+                "GigaChad",
+                "Chad",
+                "Normal",
+                "Timmy",
+                "Rat",
+                "SnappingTurtle",
+                "Coward",
+            }
+        )
+        {
+            if (!AdvanceChances.TryGetValue(key, out var v))
+                throw new ArgumentException("Missing post-combat chance: " + key);
+            CometConfig.Range(v, 0, 100, key);
+        }
     }
 }
+
 public sealed class PostCombatFrame
 {
-    public double Now, AmmoPercent=100, Health=1;
-    public bool Scope=true, Threat, NativePriority, MedicalBusy, MedicalUseful, MedicalUrgent, Reloading, HandsReady=true;
-    public bool NeedsCover, Regroup, CanAdvance, Heard, Coming;
-    public string Personality="Normal";
+    public double Now,
+        AmmoPercent = 100,
+        Health = 1;
+    public bool Scope = true,
+        Threat,
+        NativePriority,
+        MedicalBusy,
+        MedicalUseful,
+        MedicalUrgent,
+        Reloading,
+        HandsReady = true;
+    public bool NeedsCover,
+        Regroup,
+        CanAdvance,
+        Heard,
+        Coming;
+    public string Personality = "Normal";
 }
+
 public sealed class PostCombatTrace
 {
-    public string State { get; set; }="watch";
-    public string Reason { get; set; }="post-combat-start";
+    public string State { get; set; } = "watch";
+    public string Reason { get; set; } = "post-combat-start";
     public int Episode { get; set; }
     public bool Applied { get; set; }
     public double ValidFor { get; set; }
@@ -52,69 +101,194 @@ public sealed class PostCombatTrace
     public double AdvanceChance { get; set; }
     public double AdvanceRoll { get; set; }
     public bool AdvanceSelected { get; set; }
-    public string Contact { get; set; }="";
+    public string Contact { get; set; } = "";
     public double ContactAge { get; set; }
     public double? X { get; set; }
     public double? Y { get; set; }
     public double? Z { get; set; }
-    public string Execution { get; set; }="pending layer";
-    public string[] Alternatives { get; set; }=Array.Empty<string>();
+    public string Execution { get; set; } = "pending layer";
+    public string[] Alternatives { get; set; } = Array.Empty<string>();
 }
+
 // A single bounded episode. Failed optional work is not retried every update.
 public sealed class PostCombat
 {
     public PostCombatTrace? Trace { get; private set; }
     public bool Active { get; private set; }
-    public double LastFight { get; private set; }=-1000;
-    private bool armed, coverDone, reloadDone, regroupDone, advanceDone;
-    private double start, watchUntil, watchDuration, lastNow=-1;
+    public double LastFight { get; private set; } = -1000;
+    private bool armed,
+        coverDone,
+        reloadDone,
+        regroupDone,
+        advanceDone;
+    private double start,
+        watchUntil,
+        watchDuration,
+        lastNow = -1;
     private int episode;
-    public bool WantsRecovery(double now)=>Active||armed&&now>=LastFight&&now-LastFight<=60;
-    public void ObserveFight(double now) { if(MedicalChoice.Finite(now)){LastFight=now;armed=true;} }
-    public bool Tick(PostCombatFrame f,PostCombatConfig c,double watchRoll,double advanceRoll)
+
+    public bool WantsRecovery(double now) =>
+        Active || armed && now >= LastFight && now - LastFight <= 60;
+
+    public void ObserveFight(double now)
     {
-        if(!c.Enabled||!f.Scope||!MedicalChoice.Finite(f.Now)||!MedicalChoice.Finite(f.Health)||!MedicalChoice.Finite(f.AmmoPercent)||lastNow>=0&&f.Now<lastNow)
-        {Clear("post-combat-out-of-scope");return false;}
-        lastNow=f.Now;
-        if(f.Threat||f.NativePriority)
-        {if(Active){End(f.Threat?"post-combat-threat-returned":"post-combat-native-priority");armed=false;}return false;}
-        if(!Active)
+        if (MedicalChoice.Finite(now))
         {
-            if(!armed||f.Now-LastFight>60)return false;
-            armed=false;Active=true;start=f.Now;watchDuration=c.WatchMin+Clamp(watchRoll)*(c.WatchMax-c.WatchMin);watchUntil=f.Now+watchDuration;
-            coverDone=reloadDone=regroupDone=advanceDone=false;
-            double chance=c.AdvanceChances.TryGetValue(f.Personality,out var v)?v:40;
-            if(f.Health<.4)chance*=.2;
-            Trace=new(){Episode=++episode,AdvanceChance=chance,AdvanceRoll=Clamp(advanceRoll)*100,AdvanceSelected=f.CanAdvance&&Clamp(advanceRoll)*100<chance};
+            LastFight = now;
+            armed = true;
         }
-        var t=Trace!;t.Elapsed=Math.Max(0,f.Now-start);t.WatchRemaining=watchUntil<0?watchDuration:Math.Max(0,watchUntil-f.Now);
-        t.MedicalBusy=f.MedicalBusy;t.MedicalUseful=f.MedicalUseful;t.AmmoPercent=f.AmmoPercent;
-        t.Remaining=Math.Max(0,(f.MedicalUseful||f.MedicalBusy?c.MedicalDuration:c.Duration)-t.Elapsed);
-        if(f.Heard){t.AdvanceSelected=false;watchUntil=Math.Max(watchUntil,f.Now+3);}
-        if(f.MedicalBusy)return Stage("medical","post-combat-native-treatment-active");
-        if(f.Reloading)return Stage("reload","post-combat-native-reload-active");
-        if(!reloadDone&&f.AmmoPercent<c.ReloadBelow)return Stage("reload","post-combat-top-up-magazine");
-        reloadDone=true;
-        if(!coverDone&&f.NeedsCover&&t.Elapsed<c.Duration)return Stage("cover","post-combat-seek-protection");
-        coverDone=true;
-        if(f.MedicalUseful&&!f.Coming)return Stage("medical","post-combat-useful-treatment");
-        if(t.Elapsed>=c.Duration&&!f.Heard)return End("post-combat-time-budget-ended");
-        if(!reloadDone&&f.AmmoPercent<c.ReloadBelow)return Stage("reload","post-combat-top-up-magazine");
-        reloadDone=true;
-        if(watchUntil<0)watchUntil=f.Now+watchDuration;
-        t.WatchRemaining=Math.Max(0,watchUntil-f.Now);
-        if(!f.Heard&&!regroupDone&&f.Regroup)return Stage("regroup","post-combat-rejoin-leader");
-        regroupDone=true;
-        if(f.Now<watchUntil)return Stage("watch","post-combat-watch-last-threat");
-        if(!advanceDone&&t.AdvanceSelected&&f.CanAdvance)return Stage("check","post-combat-check-known-position");
+    }
+
+    public bool Tick(PostCombatFrame f, PostCombatConfig c, double watchRoll, double advanceRoll)
+    {
+        if (
+            !c.Enabled
+            || !f.Scope
+            || !MedicalChoice.Finite(f.Now)
+            || !MedicalChoice.Finite(f.Health)
+            || !MedicalChoice.Finite(f.AmmoPercent)
+            || lastNow >= 0 && f.Now < lastNow
+        )
+        {
+            Clear("post-combat-out-of-scope");
+            return false;
+        }
+        lastNow = f.Now;
+        if (f.Threat || f.NativePriority)
+        {
+            if (Active)
+            {
+                End(f.Threat ? "post-combat-threat-returned" : "post-combat-native-priority");
+                armed = false;
+            }
+            return false;
+        }
+        if (!Active)
+        {
+            if (!armed || f.Now - LastFight > 60)
+                return false;
+            armed = false;
+            Active = true;
+            start = f.Now;
+            watchDuration = c.WatchMin + Clamp(watchRoll) * (c.WatchMax - c.WatchMin);
+            watchUntil = f.Now + watchDuration;
+            coverDone = reloadDone = regroupDone = advanceDone = false;
+            double chance = c.AdvanceChances.TryGetValue(f.Personality, out var v) ? v : 40;
+            if (f.Health < .4)
+                chance *= .2;
+            Trace = new()
+            {
+                Episode = ++episode,
+                AdvanceChance = chance,
+                AdvanceRoll = Clamp(advanceRoll) * 100,
+                AdvanceSelected = f.CanAdvance && Clamp(advanceRoll) * 100 < chance,
+            };
+        }
+        var t = Trace!;
+        t.Elapsed = Math.Max(0, f.Now - start);
+        t.WatchRemaining = watchUntil < 0 ? watchDuration : Math.Max(0, watchUntil - f.Now);
+        t.MedicalBusy = f.MedicalBusy;
+        t.MedicalUseful = f.MedicalUseful;
+        t.AmmoPercent = f.AmmoPercent;
+        t.Remaining = Math.Max(
+            0,
+            (f.MedicalUseful || f.MedicalBusy ? c.MedicalDuration : c.Duration) - t.Elapsed
+        );
+        if (f.Heard)
+        {
+            t.AdvanceSelected = false;
+            watchUntil = Math.Max(watchUntil, f.Now + 3);
+        }
+        if (f.MedicalBusy)
+            return Stage("medical", "post-combat-native-treatment-active");
+        if (f.Reloading)
+            return Stage("reload", "post-combat-native-reload-active");
+        if (!reloadDone && f.AmmoPercent < c.ReloadBelow)
+            return Stage("reload", "post-combat-top-up-magazine");
+        reloadDone = true;
+        if (!coverDone && f.NeedsCover && t.Elapsed < c.Duration)
+            return Stage("cover", "post-combat-seek-protection");
+        coverDone = true;
+        if (f.MedicalUseful && !f.Coming)
+            return Stage("medical", "post-combat-useful-treatment");
+        if (t.Elapsed >= c.Duration && !f.Heard)
+            return End("post-combat-time-budget-ended");
+        if (!reloadDone && f.AmmoPercent < c.ReloadBelow)
+            return Stage("reload", "post-combat-top-up-magazine");
+        reloadDone = true;
+        if (watchUntil < 0)
+            watchUntil = f.Now + watchDuration;
+        t.WatchRemaining = Math.Max(0, watchUntil - f.Now);
+        if (!f.Heard && !regroupDone && f.Regroup)
+            return Stage("regroup", "post-combat-rejoin-leader");
+        regroupDone = true;
+        if (f.Now < watchUntil)
+            return Stage("watch", "post-combat-watch-last-threat");
+        if (!advanceDone && t.AdvanceSelected && f.CanAdvance)
+            return Stage("check", "post-combat-check-known-position");
         return End("post-combat-work-complete");
     }
-    public void Complete(string stage,string outcome)
-    {if(stage=="cover")coverDone=true;if(stage=="reload")reloadDone=true;if(stage=="regroup")regroupDone=true;if(stage=="check")advanceDone=true;if(Trace!=null)Trace.Execution=outcome;}
-    public void Applied(bool value){if(Trace!=null){Trace.Applied=value&&Active;Trace.ValidFor=Trace.Applied?1:0;}}
-    private bool Stage(string state,string why)
-    {var t=Trace!;if(t.State!=state)t.Execution="awaiting native step";t.State=state;t.Reason=why;t.Alternatives=new[]{"New threat: native combat immediately","No loot or extraction objective","Finish early when useful work is done"};return true;}
-    public bool End(string why){Active=false;if(Trace!=null){Trace.State="ended";Trace.Reason=why;Trace.Applied=false;Trace.ValidFor=0;}return false;}
-    public void Clear(string why){End(why);armed=false;LastFight=-1000;lastNow=-1;}
-    private static double Clamp(double v)=>MedicalChoice.Finite(v)?Math.Max(0,Math.Min(1,v)):1;
+
+    public void Complete(string stage, string outcome)
+    {
+        if (stage == "cover")
+            coverDone = true;
+        if (stage == "reload")
+            reloadDone = true;
+        if (stage == "regroup")
+            regroupDone = true;
+        if (stage == "check")
+            advanceDone = true;
+        if (Trace != null)
+            Trace.Execution = outcome;
+    }
+
+    public void Applied(bool value)
+    {
+        if (Trace != null)
+        {
+            Trace.Applied = value && Active;
+            Trace.ValidFor = Trace.Applied ? 1 : 0;
+        }
+    }
+
+    private bool Stage(string state, string why)
+    {
+        var t = Trace!;
+        if (t.State != state)
+            t.Execution = "awaiting native step";
+        t.State = state;
+        t.Reason = why;
+        t.Alternatives = new[]
+        {
+            "New threat: native combat immediately",
+            "No loot or extraction objective",
+            "Finish early when useful work is done",
+        };
+        return true;
+    }
+
+    public bool End(string why)
+    {
+        Active = false;
+        if (Trace != null)
+        {
+            Trace.State = "ended";
+            Trace.Reason = why;
+            Trace.Applied = false;
+            Trace.ValidFor = 0;
+        }
+        return false;
+    }
+
+    public void Clear(string why)
+    {
+        End(why);
+        armed = false;
+        LastFight = -1000;
+        lastNow = -1;
+    }
+
+    private static double Clamp(double v) =>
+        MedicalChoice.Finite(v) ? Math.Max(0, Math.Min(1, v)) : 1;
 }

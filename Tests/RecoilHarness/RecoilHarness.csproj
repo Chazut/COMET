@@ -1,5 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
-  <ItemGroup><Compile Include="../../Client/RecoilRecoveryAdapter.cs" Link="RecoilRecoveryAdapter.cs" /><Compile Include="../../Shared/RecoilRecovery.cs" Link="RecoilRecovery.cs" /></ItemGroup>
-  <ItemGroup><Reference Include="Newtonsoft.Json" HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll" /></ItemGroup>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Client/RecoilRecoveryAdapter.cs" Link="RecoilRecoveryAdapter.cs" />
+    <Compile Include="../../Shared/RecoilRecovery.cs" Link="RecoilRecovery.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference
+      Include="Newtonsoft.Json"
+      HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll"
+    />
+  </ItemGroup>
 </Project>

@@ -2,11 +2,15 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Web
 <section class="protections">
-    <div class="section-heading"><h3>Compatibility &amp; startup</h3><button @onclick="Refresh">Refresh reports</button></div>
+    <div class="section-heading">
+        <h3>Compatibility &amp; startup</h3>
+        <button @onclick="Refresh">Refresh reports</button>
+    </div>
     <p>Reports from the last game startup. These are not a live connection status.</p>
-    <details class="quiet-details"><summary>SAIN and other AI mods</summary>
-    <p><b>Automatic handoff - I02.</b> COMET supports SAIN alone, SAIN + ORBIT, or SAIN + Questing Bots + Looting Bots. After recovery it releases its own actions and observes who takes over. Quests, loot and extraction remain with your installed system. ORBIT's 15-second delay is not applied to Questing Bots. COMET pauses for ORBIT Ghost Mode or QB sleeping.</p>
-    <p>Optional integration detection appears below. No extra gameplay toggle or delay is needed. Logs and Raid Review record releases, actual layer changes and prolonged waits; these observations do not prove that an action succeeded.</p>
+    <details class="quiet-details">
+        <summary>SAIN and other AI mods</summary>
+        <p><b>Automatic handoff - I02.</b> COMET supports SAIN alone, SAIN + ORBIT, or SAIN + Questing Bots + Looting Bots. After recovery it releases its own actions and observes who takes over. Quests, loot and extraction remain with your installed system. ORBIT's 15-second delay is not applied to Questing Bots. COMET pauses for ORBIT Ghost Mode or QB sleeping.</p>
+        <p>Optional integration detection appears below. No extra gameplay toggle or delay is needed. Logs and Raid Review record releases, actual layer changes and prolonged waits; these observations do not prove that an action succeeded.</p>
     </details>
     @if (reports.Count==0) {
         <p>No startup report received. This does not mean COMET is ready. Start the game, then refresh. If nothing appears, check BepInEx/LogOutput.log for I01.</p>
@@ -17,14 +21,24 @@
             <h3>@(report.Outcome=="ready"?"Startup checks passed":"COMET inactive") · @report.Role</h3>
             <p>@report.Message</p>
             <small>Received @item.ReceivedUtc.ToString("yyyy-MM-dd HH:mm:ss") UTC · COMET @report.Version · @report.Targets target methods / @report.Callbacks hooks</small>
-            @if(report.Outcome=="blocked") { <p>Failed step: @report.Phase</p> }
-            @foreach(var note in report.Notices) { <p class="notice">@note</p> }
+            @if(report.Outcome=="blocked") {
+                <p>Failed step: @report.Phase</p>
+            }
+            @foreach(var note in report.Notices) {
+                <p class="notice">@note</p>
+            }
         </section>
     }
 </section>
+
 @code {
-    [Parameter,EditorRequired] public IntegrationReports Reports {get;set;}=null!;
-    private IReadOnlyList<ReceivedIntegrationReport> reports=Array.Empty<ReceivedIntegrationReport>();
-    protected override void OnInitialized()=>Refresh();
-    private void Refresh()=>reports=Reports.Read(DateTime.UtcNow);
+    [Parameter, EditorRequired]
+    public IntegrationReports Reports { get; set; } = null!;
+
+    private IReadOnlyList<ReceivedIntegrationReport> reports =
+        Array.Empty<ReceivedIntegrationReport>();
+
+    protected override void OnInitialized() => Refresh();
+
+    private void Refresh() => reports = Reports.Read(DateTime.UtcNow);
 }

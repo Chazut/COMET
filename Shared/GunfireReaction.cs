@@ -12,6 +12,7 @@ public sealed class GunfireConfig
     public double SearchInterval { get; set; } = 60;
     public double IncomingMemory { get; set; } = 5;
     public bool AllowDistantSearch { get; set; } = true;
+
     public void Validate()
     {
         CometConfig.Range(NearDistance, 10, 300, nameof(NearDistance));
@@ -26,9 +27,22 @@ public sealed class GunfireConfig
 // Only supplied AFTER SAIN's native audibility check. Nothing in this policy creates hearing.
 public sealed class GunfireFrame
 {
-    public double Now, EmittedAt, Distance, NearDistance = double.NaN;
-    public string Source = "", Personality = "", Owner = "", Unsafe = "";
-    public bool Scoped = true, Audible = true, Incoming, Engaged, Busy, CanLook = true, CanSearch = true, PersonalityChases;
+    public double Now,
+        EmittedAt,
+        Distance,
+        NearDistance = double.NaN;
+    public string Source = "",
+        Personality = "",
+        Owner = "",
+        Unsafe = "";
+    public bool Scoped = true,
+        Audible = true,
+        Incoming,
+        Engaged,
+        Busy,
+        CanLook = true,
+        CanSearch = true,
+        PersonalityChases;
 }
 
 public sealed class GunfireTrace
@@ -54,75 +68,152 @@ public sealed class GunfireTrace
     public double? X { get; set; }
     public double? Y { get; set; }
     public double? Z { get; set; }
+
     public GunfireTrace Copy() => (GunfireTrace)MemberwiseClone();
 }
 
 public sealed class GunfireReaction
 {
     private readonly GunfireConfig config;
-    private double last = -1, nextLook, nextSearch, end;
+    private double last = -1,
+        nextLook,
+        nextSearch,
+        end;
     public GunfireTrace? Look { get; private set; }
-    public GunfireReaction(GunfireConfig config) { this.config = config; }
+
+    public GunfireReaction(GunfireConfig config)
+    {
+        this.config = config;
+    }
+
     private static bool Finite(double x) => !double.IsNaN(x) && !double.IsInfinity(x);
-    public static bool Recent(double now, double at, double window) => Finite(now) && Finite(at) && at > 0 && at <= now && now - at < window;
+
+    public static bool Recent(double now, double at, double window) =>
+        Finite(now) && Finite(at) && at > 0 && at <= now && now - at < window;
 
     public GunfireTrace Evaluate(GunfireFrame f)
     {
-        var t = new GunfireTrace { At = f.Now, EmittedAt = f.EmittedAt, Distance = f.Distance, Source = f.Source,
-            Personality = f.Personality, Owner = f.Owner, Audible = f.Audible, Incoming = f.Incoming, Engaged = f.Engaged,
-            LookCooldown = Math.Max(0, nextLook - f.Now), SearchCooldown = Math.Max(0, nextSearch - f.Now) };
-        GunfireTrace Result(string state, string reason, bool pass = false) { t.State = state; t.Reason = reason; t.PassToSain = pass; return t; }
-        if (!config.Enabled || !f.Scoped) return Result("native", "gunfire-out-of-scope", true);
-        if (!Finite(f.Now) || !Finite(f.Distance) || f.Distance < 0 || !Finite(f.EmittedAt) || f.EmittedAt > f.Now)
+        var t = new GunfireTrace
+        {
+            At = f.Now,
+            EmittedAt = f.EmittedAt,
+            Distance = f.Distance,
+            Source = f.Source,
+            Personality = f.Personality,
+            Owner = f.Owner,
+            Audible = f.Audible,
+            Incoming = f.Incoming,
+            Engaged = f.Engaged,
+            LookCooldown = Math.Max(0, nextLook - f.Now),
+            SearchCooldown = Math.Max(0, nextSearch - f.Now),
+        };
+        GunfireTrace Result(string state, string reason, bool pass = false)
+        {
+            t.State = state;
+            t.Reason = reason;
+            t.PassToSain = pass;
+            return t;
+        }
+        if (!config.Enabled || !f.Scoped)
+            return Result("native", "gunfire-out-of-scope", true);
+        if (
+            !Finite(f.Now)
+            || !Finite(f.Distance)
+            || f.Distance < 0
+            || !Finite(f.EmittedAt)
+            || f.EmittedAt > f.Now
+        )
             return Result("native", "gunfire-invalid-signal", true);
-        if (last > f.Now) { Look = null; return Result("native", "gunfire-clock-reset", true); }
+        if (last > f.Now)
+        {
+            Look = null;
+            return Result("native", "gunfire-clock-reset", true);
+        }
         last = f.Now;
-        if (!f.Audible) return Result("ignored", "gunfire-inaudible");
-        if (f.Distance <= (Finite(f.NearDistance) ? f.NearDistance : config.NearDistance)) return Result("native", "gunfire-near-contact", true);
-        if (f.Incoming) return Result("native", "gunfire-directed-at-me", true);
-        if (f.Distance > config.InterestDistance) return Result("ignored", "gunfire-too-distant");
-        if (f.Busy) return Result("ignored", f.Unsafe.Length > 0 ? f.Unsafe : "gunfire-priority");
+        if (!f.Audible)
+            return Result("ignored", "gunfire-inaudible");
+        if (f.Distance <= (Finite(f.NearDistance) ? f.NearDistance : config.NearDistance))
+            return Result("native", "gunfire-near-contact", true);
+        if (f.Incoming)
+            return Result("native", "gunfire-directed-at-me", true);
+        if (f.Distance > config.InterestDistance)
+            return Result("ignored", "gunfire-too-distant");
+        if (f.Busy)
+            return Result("ignored", f.Unsafe.Length > 0 ? f.Unsafe : "gunfire-priority");
         if (config.AllowDistantSearch && f.PersonalityChases && f.Now >= nextSearch)
         {
-            nextSearch = f.Now + config.SearchInterval; t.SearchCooldown = config.SearchInterval;
+            nextSearch = f.Now + config.SearchInterval;
+            t.SearchCooldown = config.SearchInterval;
             return Result("search", "gunfire-search-allowed", true);
         }
-        if (!f.CanLook) return Result("ignored", "gunfire-steering-unavailable");
-        if (f.Now < nextLook) return Result("ignored", "gunfire-look-cooldown");
-        nextLook = f.Now + config.LookInterval; end = f.Now;
-        t.LookCooldown = config.LookInterval; t.Remaining = 0;
-        t.Reason = !f.CanSearch && f.Owner == "ORBIT" ? "gunfire-orbit-keeps-objective" : "gunfire-look-at-sound";
-        t.State = "look"; Look = t.Copy(); return t;
+        if (!f.CanLook)
+            return Result("ignored", "gunfire-steering-unavailable");
+        if (f.Now < nextLook)
+            return Result("ignored", "gunfire-look-cooldown");
+        nextLook = f.Now + config.LookInterval;
+        end = f.Now;
+        t.LookCooldown = config.LookInterval;
+        t.Remaining = 0;
+        t.Reason =
+            !f.CanSearch && f.Owner == "ORBIT"
+                ? "gunfire-orbit-keeps-objective"
+                : "gunfire-look-at-sound";
+        t.State = "look";
+        Look = t.Copy();
+        return t;
     }
 
     public void Locate(double x, double y, double z)
     {
-        if (Look == null || !Finite(x) || !Finite(y) || !Finite(z)) throw new ArgumentException("No valid perceived gunfire position.");
-        Look.X = x; Look.Y = y; Look.Z = z;
+        if (Look == null || !Finite(x) || !Finite(y) || !Finite(z))
+            throw new ArgumentException("No valid perceived gunfire position.");
+        Look.X = x;
+        Look.Y = y;
+        Look.Z = z;
     }
+
     // The lease is absolute: more bullets and repeated updates cannot prolong it.
     public GunfireTrace? Tick(double now, string unsafeReason = "")
     {
-        if (Look == null) return null;
-        if (!Finite(now) || now < last) return Stop(now, "gunfire-clock-reset");
+        if (Look == null)
+            return null;
+        if (!Finite(now) || now < last)
+            return Stop(now, "gunfire-clock-reset");
         last = now;
-        if (unsafeReason.Length > 0) return Stop(now, unsafeReason);
-        if (now >= end) return Stop(now, "gunfire-look-complete");
-        Look.Remaining = end - now; Look.At = now;
+        if (unsafeReason.Length > 0)
+            return Stop(now, unsafeReason);
+        if (now >= end)
+            return Stop(now, "gunfire-look-complete");
+        Look.Remaining = end - now;
+        Look.At = now;
         Look.ValidFor = Look.Applied ? Math.Min(1.5, Look.Remaining) : 0;
         return Look.Copy();
     }
+
     public GunfireTrace? Applied(double now)
     {
-        if (Look == null || !Look.X.HasValue || !Look.Y.HasValue || !Look.Z.HasValue) return null;
-        var t = Tick(now); if (Look == null) return t;
-        Look.Applied = true; Look.ValidFor = Math.Min(1.5, Look.Remaining); return Look.Copy();
+        if (Look == null || !Look.X.HasValue || !Look.Y.HasValue || !Look.Z.HasValue)
+            return null;
+        var t = Tick(now);
+        if (Look == null)
+            return t;
+        Look.Applied = true;
+        Look.ValidFor = Math.Min(1.5, Look.Remaining);
+        return Look.Copy();
     }
+
     public GunfireTrace? Stop(double now, string reason)
     {
-        if (Look == null) return null;
-        var t = Look.Copy(); t.State = "ended"; t.Reason = reason; t.At = Finite(now) ? now : last;
-        t.Remaining = t.ValidFor = 0; t.Applied = false; Look = null; return t;
+        if (Look == null)
+            return null;
+        var t = Look.Copy();
+        t.State = "ended";
+        t.Reason = reason;
+        t.At = Finite(now) ? now : last;
+        t.Remaining = t.ValidFor = 0;
+        t.Applied = false;
+        Look = null;
+        return t;
     }
 }
 
@@ -130,18 +221,34 @@ public sealed class GunfireReaction
 // consume every log slot and let RR's 1.5-second display lease expire during a real glance.
 public sealed class GunfireLogThrottle
 {
-    private double ordinaryAt = double.NegativeInfinity, appliedAt = double.NegativeInfinity;
+    private double ordinaryAt = double.NegativeInfinity,
+        appliedAt = double.NegativeInfinity;
     private bool wasApplied;
     private int coalesced;
+
     public bool ShouldWrite(double now, GunfireTrace trace, bool force = false)
     {
         bool applied = trace.State == "look" && trace.Applied;
         double previous = applied ? appliedAt : ordinaryAt;
         if (!force && !(applied && !wasApplied) && now >= previous && now - previous < 1)
-        { if (coalesced < int.MaxValue) coalesced++; return false; }
-        if (applied) appliedAt = now; else ordinaryAt = now;
-        if (trace.State == "look" || trace.State == "ended") wasApplied = applied;
+        {
+            if (coalesced < int.MaxValue)
+                coalesced++;
+            return false;
+        }
+        if (applied)
+            appliedAt = now;
+        else
+            ordinaryAt = now;
+        if (trace.State == "look" || trace.State == "ended")
+            wasApplied = applied;
         return true;
     }
-    public int TakeCoalesced() { int count = coalesced; coalesced = 0; return count; }
+
+    public int TakeCoalesced()
+    {
+        int count = coalesced;
+        coalesced = 0;
+        return count;
+    }
 }

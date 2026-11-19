@@ -1,1 +1,4 @@
-static class PistolSwapTests { public static int Run()=>SourceWeaponBaselineTests.Run("W02"); }
+static class PistolSwapTests
+{
+    public static int Run() => SourceWeaponBaselineTests.Run("W02");
+}

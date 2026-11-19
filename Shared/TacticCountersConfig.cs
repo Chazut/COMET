@@ -4,5 +4,7 @@ public sealed class TacticCountersConfig
 {
     public bool Enabled { get; set; } = true;
     public int MaxOpportunities { get; set; } = 16384;
-    public void Validate() => CometConfig.Range(MaxOpportunities, 1024, 65536, nameof(MaxOpportunities));
+
+    public void Validate() =>
+        CometConfig.Range(MaxOpportunities, 1024, 65536, nameof(MaxOpportunities));
 }

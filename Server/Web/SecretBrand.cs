@@ -12,14 +12,19 @@ public sealed class SecretBrand
     public void Restore(string value)
     {
         // A delayed browser read must not undo a click received during startup.
-        if (!Changed) Slop = value == "1";
+        if (!Changed)
+            Slop = value == "1";
     }
 
     public bool Click(long nowMilliseconds)
     {
         if (clicks == 0 || nowMilliseconds - started > 4000 || nowMilliseconds < started)
-        { clicks = 0; started = nowMilliseconds; }
-        if (++clicks < 5) return false;
+        {
+            clicks = 0;
+            started = nowMilliseconds;
+        }
+        if (++clicks < 5)
+            return false;
         Set(!Slop);
         return true;
     }

@@ -1,6 +1,5 @@
 // Port of R_F zzap PeekSpot at fbb86b838e0fa692b759b2c0b11fc30158a53876.
 using SAIN.Components;
-
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -52,8 +51,10 @@ internal sealed class SourcePeekSpot(BotComponent bot, string owner)
     }
 
     private const float STAND_GUN_HEIGHT = 1.45f;
+
     // Head above the weapon root (standing ~1.6 vs 1.45, crouched about the same gap). Bots see from the head.
     private const float EYE_ABOVE_GUN = 0.15f;
+
     // zzap (10/2 14:38 sim + screenshot): the first spot where the gun line clears is the knife edge - body on the wall,
     // barrel past the frame, head still behind it (the bot "holds" an angle it can't see; one was killed holding it by a
     // player it never saw). Go one more step past the edge when the navmesh allows.
@@ -85,10 +86,14 @@ internal sealed class SourcePeekSpot(BotComponent bot, string owner)
         _tries++;
 
         // zzap: crouched behind low cover - standing up here is the smallest change that opens the angle.
-        if (!StandToSee && gunUp < STAND_GUN_HEIGHT - 0.2f && Sees(from, STAND_GUN_HEIGHT, aim, mask))
+        if (
+            !StandToSee
+            && gunUp < STAND_GUN_HEIGHT - 0.2f
+            && Sees(from, STAND_GUN_HEIGHT, aim, mask)
+        )
         {
             StandToSee = true;
-                return false;
+            return false;
         }
         if (StandToSee)
         {
@@ -100,20 +105,53 @@ internal sealed class SourcePeekSpot(BotComponent bot, string owner)
         float toDist = toTarget.magnitude;
         Vector3 toAim = aim - from;
         toAim.y = 0f;
-        Vector3 side = toAim.sqrMagnitude > 0.01f ? new Vector3(-toAim.z, 0f, toAim.x).normalized : Vector3.zero;
+        Vector3 side =
+            toAim.sqrMagnitude > 0.01f
+                ? new Vector3(-toAim.z, 0f, toAim.x).normalized
+                : Vector3.zero;
 
         Vector3? best = null;
         float bestStep = float.MaxValue;
         if (toDist > keepFromToward + STEP)
         {
             Vector3 toward1 = toTarget / toDist;
-            Search(from, toward1, Mathf.Min(maxStep, toDist - keepFromToward), gunUp, aim, mask, ref best, ref bestStep, 0f);
+            Search(
+                from,
+                toward1,
+                Mathf.Min(maxStep, toDist - keepFromToward),
+                gunUp,
+                aim,
+                mask,
+                ref best,
+                ref bestStep,
+                0f
+            );
             if (side != Vector3.zero)
             {
                 // zzap: half toward the corner, half sideways (most "no spot" cases: the opening is diagonal from the bot -
                 // 13th/14th sims, no spot 497-622 times against 111-165 steps).
-                Search(from, (toward1 + side).normalized, maxStep, gunUp, aim, mask, ref best, ref bestStep, STEP * 0.5f);
-                Search(from, (toward1 - side).normalized, maxStep, gunUp, aim, mask, ref best, ref bestStep, STEP * 0.5f);
+                Search(
+                    from,
+                    (toward1 + side).normalized,
+                    maxStep,
+                    gunUp,
+                    aim,
+                    mask,
+                    ref best,
+                    ref bestStep,
+                    STEP * 0.5f
+                );
+                Search(
+                    from,
+                    (toward1 - side).normalized,
+                    maxStep,
+                    gunUp,
+                    aim,
+                    mask,
+                    ref best,
+                    ref bestStep,
+                    STEP * 0.5f
+                );
             }
         }
         if (side != Vector3.zero)
@@ -124,14 +162,24 @@ internal sealed class SourcePeekSpot(BotComponent bot, string owner)
         }
         if (best == null)
         {
-                return false;
+            return false;
         }
         _spot = best;
         _moveUntil = Time.time + 4f;
         return Walk();
     }
 
-    private static void Search(Vector3 from, Vector3 dir, float max, float gunUp, Vector3 aim, int mask, ref Vector3? best, ref float bestStep, float penalty)
+    private static void Search(
+        Vector3 from,
+        Vector3 dir,
+        float max,
+        float gunUp,
+        Vector3 aim,
+        int mask,
+        ref Vector3? best,
+        ref float bestStep,
+        float penalty
+    )
     {
         for (float step = STEP; step <= max + 0.01f && step + penalty < bestStep; step += STEP)
         {
@@ -150,7 +198,10 @@ internal sealed class SourcePeekSpot(BotComponent bot, string owner)
             }
             // Off the knife edge: a little further out if that is walkable and still sees the angle.
             Vector3 past = spot + dir * EDGE_MARGIN;
-            if (!NavMesh.Raycast(spot, past, out NavMeshHit pastHit, -1) && Sees(pastHit.position, gunUp, aim, mask))
+            if (
+                !NavMesh.Raycast(spot, past, out NavMeshHit pastHit, -1)
+                && Sees(pastHit.position, gunUp, aim, mask)
+            )
             {
                 spot = pastHit.position;
             }
@@ -163,7 +214,8 @@ internal sealed class SourcePeekSpot(BotComponent bot, string owner)
     /// <summary>Both the gun and the head clear the wall (a gun past the frame with the head behind it sees nothing).</summary>
     private static bool Sees(Vector3 spot, float gunUp, Vector3 aim, int mask)
     {
-        return !Physics.Linecast(spot + Vector3.up * gunUp, aim, mask) && !Physics.Linecast(spot + Vector3.up * (gunUp + EYE_ABOVE_GUN), aim, mask);
+        return !Physics.Linecast(spot + Vector3.up * gunUp, aim, mask)
+            && !Physics.Linecast(spot + Vector3.up * (gunUp + EYE_ABOVE_GUN), aim, mask);
     }
 
     private bool Walk()
@@ -171,7 +223,11 @@ internal sealed class SourcePeekSpot(BotComponent bot, string owner)
         Vector3 spot = _spot.Value;
         Vector3 d = spot - _bot.Position;
         d.y = 0f;
-        if (d.sqrMagnitude < 0.25f * 0.25f || Time.time > _moveUntil || !_bot.Mover.WalkToPoint(spot, true, 0.2f))
+        if (
+            d.sqrMagnitude < 0.25f * 0.25f
+            || Time.time > _moveUntil
+            || !_bot.Mover.WalkToPoint(spot, true, 0.2f)
+        )
         {
             _spot = null;
             _bot.Mover.Stop();

@@ -23,7 +23,14 @@ internal static class SourceOpenGround
         for (int i = 0; i < 8; i++)
         {
             Vector3 dir = Quaternion.AngleAxis(i * 45f, Vector3.up) * Vector3.forward;
-            if (Physics.Raycast(origin, dir, ENCLOSE_DIST, LayersMaskController.HighPolyWithTerrainMask))
+            if (
+                Physics.Raycast(
+                    origin,
+                    dir,
+                    ENCLOSE_DIST,
+                    LayersMaskController.HighPolyWithTerrainMask
+                )
+            )
             {
                 n++;
             }
@@ -43,7 +50,11 @@ internal static class SourceOpenGround
 
     private static bool BlocksLine(Vector3 pos, Vector3 threat)
     {
-        return Physics.Linecast(threat + Vector3.up * 1.4f, pos + Vector3.up * 1.0f, LayersMaskController.HighPolyWithTerrainMask);
+        return Physics.Linecast(
+            threat + Vector3.up * 1.4f,
+            pos + Vector3.up * 1.0f,
+            LayersMaskController.HighPolyWithTerrainMask
+        );
     }
 
     private static readonly float[] _near = { 3f, 6f, 9f, 12f };
@@ -51,7 +62,12 @@ internal static class SourceOpenGround
 
     /// <summary>Near pass (3-12m, path 20m, needs a decent spot), then a far pass (16-25m, path 35m, anything that beats the
     /// open: walls on 2 sides or the line from the fight blocked) - in a wide hall, a long run to cover beats sitting in the open.</summary>
-    public static Vector3? FindCover(BotComponent bot, Vector3? threat, out string why, out bool far)
+    public static Vector3? FindCover(
+        BotComponent bot,
+        Vector3? threat,
+        out string why,
+        out bool far
+    )
     {
         far = false;
         Vector3? p = Search(bot, threat, _near, 20f, 2.5f, out why);
@@ -67,7 +83,14 @@ internal static class SourceOpenGround
         return p;
     }
 
-    private static Vector3? Search(BotComponent bot, Vector3? threat, float[] rings, float maxPath, float minScore, out string why)
+    private static Vector3? Search(
+        BotComponent bot,
+        Vector3? threat,
+        float[] rings,
+        float maxPath,
+        float minScore,
+        out string why
+    )
     {
         why = null;
         Vector3 pos = bot.Position;
@@ -89,7 +112,10 @@ internal static class SourceOpenGround
                 bool blocks = threat != null && BlocksLine(p, threat.Value);
                 // Closer is better; toward the threat is worse (don't walk into his friends).
                 float score = enclosure + (blocks ? 3f : 0f) - r * 0.08f;
-                if (threat != null && Vector3.Dot((p - pos).normalized, (threat.Value - pos).normalized) > 0.5f)
+                if (
+                    threat != null
+                    && Vector3.Dot((p - pos).normalized, (threat.Value - pos).normalized) > 0.5f
+                )
                 {
                     score -= 1f;
                 }
@@ -97,13 +123,18 @@ internal static class SourceOpenGround
                 {
                     continue;
                 }
-                if (!NavMesh.CalculatePath(pathStart, p, -1, path) || path.status != NavMeshPathStatus.PathComplete || PathLength(path) > maxPath)
+                if (
+                    !NavMesh.CalculatePath(pathStart, p, -1, path)
+                    || path.status != NavMeshPathStatus.PathComplete
+                    || PathLength(path) > maxPath
+                )
                 {
                     continue;
                 }
                 bestScore = score;
                 best = p;
-                why = $"{(p - pos).magnitude:0}m, walls on {enclosure}/8 sides{(blocks ? ", blocks the line from the fight" : "")}";
+                why =
+                    $"{(p - pos).magnitude:0}m, walls on {enclosure}/8 sides{(blocks ? ", blocks the line from the fight" : "")}";
             }
             if (best != null && bestScore >= 6f)
             {

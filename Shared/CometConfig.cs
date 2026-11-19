@@ -3,7 +3,15 @@ using System.Collections.Generic;
 
 namespace Comet.Core;
 
-public enum Tactic { Push, Grenade, Hold, Flank, Search, FallBack }
+public enum Tactic
+{
+    Push,
+    Grenade,
+    Hold,
+    Flank,
+    Search,
+    FallBack,
+}
 
 public sealed class MovementHearingConfig
 {
@@ -12,6 +20,7 @@ public sealed class MovementHearingConfig
     public bool JumpsAndLandings { get; set; } = true;
     public double RangeMultiplier { get; set; } = 1;
     public double MinimumInterval { get; set; } = .2;
+
     public void Validate()
     {
         CometConfig.Range(RangeMultiplier, .25, 2, nameof(RangeMultiplier));
@@ -32,35 +41,35 @@ public sealed class CometConfig
     public PresetIdentity? PresetSource { get; set; }
     public string DifficultyPreset { get; set; } = "Hard";
     public FaultIsolationConfig FaultIsolation { get; set; } = new();
-    public CoverScanConfig CoverScan {get;set;}=new();
-    public MovementRecoveryConfig MovementRecovery {get;set;}=new();
-    public DoorClosingConfig DoorClosing {get;set;}=new();
-    public DoorMotionConfig DoorMotion {get;set;}=new();
-    public DoorSpatialConfig DoorSpatial {get;set;}=new();
-    public DoorRecoveryConfig DoorRecovery {get;set;}=new();
-    public DoorTransitConfig DoorTransit {get;set;}=new();
-    public OutcomeConfig Outcomes {get;set;}=new();
-    public EncounterConfig Encounter {get;set;}=new();
-    public SecondaryEntranceConfig SecondaryEntrance {get;set;}=new();
-    public SquadManeuverConfig SquadManeuver {get;set;}=new();
-    public RestLightsConfig RestLights {get;set;} = new();
-    public TacticalDevicesConfig TacticalDevices {get;set;} = new();
-    public LightDisciplineConfig LightDiscipline {get;set;} = new();
-    public SquadVoiceConfig SquadVoice {get;set;} = new();
-    public SquadFireConfig SquadFire {get;set;} = new();
-    public FireLaneConfig FireLane {get;set;} = new();
-    public SquadStormConfig SquadStorm {get;set;}=new();
-    public SquadTradeConfig SquadTrade {get;set;}=new();
-    public CoverMateConfig CoverMate {get;set;}=new();
-    public CrossfireConfig Crossfire {get;set;}=new();
-    public ReadyStanceConfig ReadyStance {get;set;}=new();
-    public PostCombatConfig PostCombat {get;set;}=new();
-    public MedicalPostureConfig MedicalPosture {get;set;}=new();
-    public SurgeryInterruptionConfig SurgeryInterruption {get;set;}=new();
-    public MedicalChoiceConfig MedicalChoice {get;set;}=new();
-    public ExplosionAwarenessConfig ExplosionAwareness {get;set;}=new();
-    public FlashContinuityConfig FlashContinuity {get;set;}=new();
-    public GasExposureConfig GasExposure {get;set;}=new();
+    public CoverScanConfig CoverScan { get; set; } = new();
+    public MovementRecoveryConfig MovementRecovery { get; set; } = new();
+    public DoorClosingConfig DoorClosing { get; set; } = new();
+    public DoorMotionConfig DoorMotion { get; set; } = new();
+    public DoorSpatialConfig DoorSpatial { get; set; } = new();
+    public DoorRecoveryConfig DoorRecovery { get; set; } = new();
+    public DoorTransitConfig DoorTransit { get; set; } = new();
+    public OutcomeConfig Outcomes { get; set; } = new();
+    public EncounterConfig Encounter { get; set; } = new();
+    public SecondaryEntranceConfig SecondaryEntrance { get; set; } = new();
+    public SquadManeuverConfig SquadManeuver { get; set; } = new();
+    public RestLightsConfig RestLights { get; set; } = new();
+    public TacticalDevicesConfig TacticalDevices { get; set; } = new();
+    public LightDisciplineConfig LightDiscipline { get; set; } = new();
+    public SquadVoiceConfig SquadVoice { get; set; } = new();
+    public SquadFireConfig SquadFire { get; set; } = new();
+    public FireLaneConfig FireLane { get; set; } = new();
+    public SquadStormConfig SquadStorm { get; set; } = new();
+    public SquadTradeConfig SquadTrade { get; set; } = new();
+    public CoverMateConfig CoverMate { get; set; } = new();
+    public CrossfireConfig Crossfire { get; set; } = new();
+    public ReadyStanceConfig ReadyStance { get; set; } = new();
+    public PostCombatConfig PostCombat { get; set; } = new();
+    public MedicalPostureConfig MedicalPosture { get; set; } = new();
+    public SurgeryInterruptionConfig SurgeryInterruption { get; set; } = new();
+    public MedicalChoiceConfig MedicalChoice { get; set; } = new();
+    public ExplosionAwarenessConfig ExplosionAwareness { get; set; } = new();
+    public FlashContinuityConfig FlashContinuity { get; set; } = new();
+    public GasExposureConfig GasExposure { get; set; } = new();
     public GrenadeFilterConfig GrenadeFilter { get; set; } = new();
     public GrenadeReactionConfig GrenadeReaction { get; set; } = new();
     public GrenadeDispersionConfig GrenadeDispersion { get; set; } = new();
@@ -94,26 +103,27 @@ public sealed class CometConfig
     public FloorHearingConfig FloorHearing { get; set; } = new FloorHearingConfig();
     public CloseDetectionConfig CloseDetection { get; set; } = new CloseDetectionConfig();
     public SearchAbandonmentConfig SearchAbandonment { get; set; } = new SearchAbandonmentConfig();
-    public EnvironmentContextConfig EnvironmentContext { get; set; } = new EnvironmentContextConfig();
+    public EnvironmentContextConfig EnvironmentContext { get; set; } =
+        new EnvironmentContextConfig();
     public DoorJumpPeekConfig DoorJumpPeek { get; set; } = new DoorJumpPeekConfig();
     public DoorRunByConfig DoorRunBy { get; set; } = new DoorRunByConfig();
-    public DoorFakeGrenadeConfig DoorFakeGrenade { get; set; }=new();
-    public DoorFakeMedicalConfig DoorFakeMedical { get; set; }=new();
-    public DoorRoomClearConfig DoorRoomClear { get; set; }=new();
-    public DoorSearchClearConfig DoorSearchClear { get; set; }=new();
-    public DoorSupportConfig DoorSupport { get; set; }=new();
-    public DoorInterruptionConfig DoorInterruption { get; set; }=new();
-    public DoorEntryConfig DoorEntry { get; set; }=new();
-    public CombatStepConfig CombatStep { get; set; }=new();
-    public FirePauseConfig FirePause { get; set; }=new();
-    public CornerPeekConfig CornerPeek { get; set; }=new();
-    public CombatLeanConfig CombatLean { get; set; }=new();
-    public AngleWatchConfig AngleWatch { get; set; }=new();
-    public CornerPrefireConfig CornerPrefire { get; set; }=new();
-    public CornerChaseConfig CornerChase { get; set; }=new();
-    public DoorReservationConfig DoorReservation { get; set; }=new();
-    public DoorEmergencyConfig DoorEmergency { get; set; }=new();
-    public DoorAmbushConfig DoorAmbush { get; set; }=new();
+    public DoorFakeGrenadeConfig DoorFakeGrenade { get; set; } = new();
+    public DoorFakeMedicalConfig DoorFakeMedical { get; set; } = new();
+    public DoorRoomClearConfig DoorRoomClear { get; set; } = new();
+    public DoorSearchClearConfig DoorSearchClear { get; set; } = new();
+    public DoorSupportConfig DoorSupport { get; set; } = new();
+    public DoorInterruptionConfig DoorInterruption { get; set; } = new();
+    public DoorEntryConfig DoorEntry { get; set; } = new();
+    public CombatStepConfig CombatStep { get; set; } = new();
+    public FirePauseConfig FirePause { get; set; } = new();
+    public CornerPeekConfig CornerPeek { get; set; } = new();
+    public CombatLeanConfig CombatLean { get; set; } = new();
+    public AngleWatchConfig AngleWatch { get; set; } = new();
+    public CornerPrefireConfig CornerPrefire { get; set; } = new();
+    public CornerChaseConfig CornerChase { get; set; } = new();
+    public DoorReservationConfig DoorReservation { get; set; } = new();
+    public DoorEmergencyConfig DoorEmergency { get; set; } = new();
+    public DoorAmbushConfig DoorAmbush { get; set; } = new();
     public DoorStepPeekConfig DoorStepPeek { get; set; } = new DoorStepPeekConfig();
     public DoorApproachConfig DoorApproach { get; set; } = new DoorApproachConfig();
     public SilentSearchConfig SilentSearch { get; set; } = new SilentSearchConfig();
@@ -138,183 +148,311 @@ public sealed class CometConfig
     public double RetryDelay { get; set; } = 5;
     public double PushMaxDistance { get; set; } = 25;
     public double GrenadeContactLifetime { get; set; } = 8;
-    public Dictionary<string, double> Weights { get; set; } = new Dictionary<string, double>
-    {
-        ["Push"] = 1, ["Grenade"] = 1, ["Hold"] = 1, ["Flank"] = 1, ["Search"] = 1, ["FallBack"] = 1
-    };
-    public Dictionary<string, double> Aggression { get; set; } = new Dictionary<string, double>
-    {
-        ["Normal"] = .5, ["Chad"] = .8, ["GigaChad"] = 1, ["Wreckless"] = 1,
-        ["Rat"] = .2, ["SnappingTurtle"] = .3, ["Coward"] = 0, ["Timmy"] = .4
-    };
+    public Dictionary<string, double> Weights { get; set; } =
+        new Dictionary<string, double>
+        {
+            ["Push"] = 1,
+            ["Grenade"] = 1,
+            ["Hold"] = 1,
+            ["Flank"] = 1,
+            ["Search"] = 1,
+            ["FallBack"] = 1,
+        };
+    public Dictionary<string, double> Aggression { get; set; } =
+        new Dictionary<string, double>
+        {
+            ["Normal"] = .5,
+            ["Chad"] = .8,
+            ["GigaChad"] = 1,
+            ["Wreckless"] = 1,
+            ["Rat"] = .2,
+            ["SnappingTurtle"] = .3,
+            ["Coward"] = 0,
+            ["Timmy"] = .4,
+        };
 
     public void Validate()
     {
-        if(Performance==null)Performance=new();Performance.Validate();
-        if(CombatJournal==null)CombatJournal=new();CombatJournal.Validate();
-        if(ControlJournal==null)ControlJournal=new();ControlJournal.Validate();
-        if(WeaponJournal==null)WeaponJournal=new();WeaponJournal.Validate();
-        if(TacticCounters==null)TacticCounters=new();TacticCounters.Validate();
-        if (!DifficultyPresets.IsKnown(DifficultyPreset)) throw new ArgumentException("Unknown COMET difficulty preset.");
+        if (Performance == null)
+            Performance = new();
+        Performance.Validate();
+        if (CombatJournal == null)
+            CombatJournal = new();
+        CombatJournal.Validate();
+        if (ControlJournal == null)
+            ControlJournal = new();
+        ControlJournal.Validate();
+        if (WeaponJournal == null)
+            WeaponJournal = new();
+        WeaponJournal.Validate();
+        if (TacticCounters == null)
+            TacticCounters = new();
+        TacticCounters.Validate();
+        if (!DifficultyPresets.IsKnown(DifficultyPreset))
+            throw new ArgumentException("Unknown COMET difficulty preset.");
         PresetSource?.Validate();
-        if(MedicalChoice==null)throw new ArgumentException("Missing medical choice settings.");
+        if (MedicalChoice == null)
+            throw new ArgumentException("Missing medical choice settings.");
         MedicalChoice.Validate();
-        if(SurgeryInterruption==null)throw new ArgumentException("Missing surgery interruption settings.");
+        if (SurgeryInterruption == null)
+            throw new ArgumentException("Missing surgery interruption settings.");
         SurgeryInterruption.Validate();
-        if(PostCombat==null)throw new ArgumentException("Missing post-combat settings.");
+        if (PostCombat == null)
+            throw new ArgumentException("Missing post-combat settings.");
         PostCombat.Validate();
-        if(ReadyStance==null)throw new ArgumentException("Missing ready stance settings.");
+        if (ReadyStance == null)
+            throw new ArgumentException("Missing ready stance settings.");
         ReadyStance.Validate();
-        if(Crossfire==null)throw new ArgumentException("Missing crossfire settings.");
+        if (Crossfire == null)
+            throw new ArgumentException("Missing crossfire settings.");
         Crossfire.Validate();
-        if(CoverMate==null)throw new ArgumentException("Missing cover mate settings.");
+        if (CoverMate == null)
+            throw new ArgumentException("Missing cover mate settings.");
         CoverMate.Validate();
-        if(SquadTrade==null)throw new ArgumentException("Missing squad trade settings.");
+        if (SquadTrade == null)
+            throw new ArgumentException("Missing squad trade settings.");
         SquadTrade.Validate();
-        if(SquadStorm==null)throw new ArgumentException("Missing squad storm settings.");
+        if (SquadStorm == null)
+            throw new ArgumentException("Missing squad storm settings.");
         SquadStorm.Validate();
-        if(FaultIsolation==null)FaultIsolation=new();FaultIsolation.Validate();
-        if(CoverScan==null)CoverScan=new();CoverScan.Validate();
-        if(MovementRecovery==null)MovementRecovery=new();MovementRecovery.Validate();
-        if(DoorClosing==null)DoorClosing=new();DoorClosing.Validate();
-        if(DoorMotion==null)DoorMotion=new();DoorMotion.Validate();
-        if(DoorSpatial==null)DoorSpatial=new();DoorSpatial.Validate();
-        if(DoorRecovery==null)DoorRecovery=new();DoorRecovery.Validate();
-        if(DoorTransit==null)DoorTransit=new();DoorTransit.Validate();
-        if(Outcomes==null)Outcomes=new();Outcomes.Validate();
-        if(Encounter==null)Encounter=new();Encounter.Validate();
-        if(RestLights==null)RestLights=new();RestLights.Validate();
-        if(TacticalDevices==null)TacticalDevices=new();TacticalDevices.Validate();
-        if(LightDiscipline==null)LightDiscipline=new();LightDiscipline.Validate();
-        if(SquadVoice==null)SquadVoice=new();SquadVoice.Validate();
-        if(SquadFire==null)SquadFire=new();SquadFire.Validate();
-        if(FireLane==null)FireLane=new();FireLane.Validate();
-        if(SquadManeuver==null)throw new ArgumentException("Missing squad maneuver settings.");
+        if (FaultIsolation == null)
+            FaultIsolation = new();
+        FaultIsolation.Validate();
+        if (CoverScan == null)
+            CoverScan = new();
+        CoverScan.Validate();
+        if (MovementRecovery == null)
+            MovementRecovery = new();
+        MovementRecovery.Validate();
+        if (DoorClosing == null)
+            DoorClosing = new();
+        DoorClosing.Validate();
+        if (DoorMotion == null)
+            DoorMotion = new();
+        DoorMotion.Validate();
+        if (DoorSpatial == null)
+            DoorSpatial = new();
+        DoorSpatial.Validate();
+        if (DoorRecovery == null)
+            DoorRecovery = new();
+        DoorRecovery.Validate();
+        if (DoorTransit == null)
+            DoorTransit = new();
+        DoorTransit.Validate();
+        if (Outcomes == null)
+            Outcomes = new();
+        Outcomes.Validate();
+        if (Encounter == null)
+            Encounter = new();
+        Encounter.Validate();
+        if (RestLights == null)
+            RestLights = new();
+        RestLights.Validate();
+        if (TacticalDevices == null)
+            TacticalDevices = new();
+        TacticalDevices.Validate();
+        if (LightDiscipline == null)
+            LightDiscipline = new();
+        LightDiscipline.Validate();
+        if (SquadVoice == null)
+            SquadVoice = new();
+        SquadVoice.Validate();
+        if (SquadFire == null)
+            SquadFire = new();
+        SquadFire.Validate();
+        if (FireLane == null)
+            FireLane = new();
+        FireLane.Validate();
+        if (SquadManeuver == null)
+            throw new ArgumentException("Missing squad maneuver settings.");
         SquadManeuver.Validate();
-        if(SecondaryEntrance==null)throw new ArgumentException("Missing secondary entrance settings.");
+        if (SecondaryEntrance == null)
+            throw new ArgumentException("Missing secondary entrance settings.");
         SecondaryEntrance.Validate();
-        if(MedicalPosture==null)throw new ArgumentException("Missing medical posture settings.");
+        if (MedicalPosture == null)
+            throw new ArgumentException("Missing medical posture settings.");
         MedicalPosture.Validate();
-        if(ExplosionAwareness==null)throw new ArgumentException("Missing explosion awareness settings.");
+        if (ExplosionAwareness == null)
+            throw new ArgumentException("Missing explosion awareness settings.");
         ExplosionAwareness.Validate();
-        if(HandsRecovery==null)throw new ArgumentException("Missing hands recovery settings.");
+        if (HandsRecovery == null)
+            throw new ArgumentException("Missing hands recovery settings.");
         HandsRecovery.Validate();
-        if(RecoilRecovery==null)throw new ArgumentException("Missing recoil recovery settings.");
+        if (RecoilRecovery == null)
+            throw new ArgumentException("Missing recoil recovery settings.");
         RecoilRecovery.Validate();
-        if(ShotGeometry==null)throw new ArgumentException("Missing shot geometry settings.");
+        if (ShotGeometry == null)
+            throw new ArgumentException("Missing shot geometry settings.");
         ShotGeometry.Validate();
-        if(SuppressionDiscipline==null)throw new ArgumentException("Missing suppression discipline settings.");
+        if (SuppressionDiscipline == null)
+            throw new ArgumentException("Missing suppression discipline settings.");
         SuppressionDiscipline.Validate();
-        if(QuickReload==null)throw new ArgumentException("Missing quick reload settings.");
+        if (QuickReload == null)
+            throw new ArgumentException("Missing quick reload settings.");
         QuickReload.Validate();
-        if(WeaponRange==null)throw new ArgumentException("Missing weapon range settings.");
+        if (WeaponRange == null)
+            throw new ArgumentException("Missing weapon range settings.");
         WeaponRange.Validate();
-        if(WeaponSync==null)throw new ArgumentException("Missing weapon sync settings.");
+        if (WeaponSync == null)
+            throw new ArgumentException("Missing weapon sync settings.");
         WeaponSync.Validate();
-        if(WeaponReturn==null)throw new ArgumentException("Missing weapon return settings.");
+        if (WeaponReturn == null)
+            throw new ArgumentException("Missing weapon return settings.");
         WeaponReturn.Validate();
-        if(PistolSwap==null)throw new ArgumentException("Missing pistol swap settings.");
+        if (PistolSwap == null)
+            throw new ArgumentException("Missing pistol swap settings.");
         PistolSwap.Validate();
-        if(ReloadTiming==null)throw new ArgumentException("Missing reload timing settings.");
+        if (ReloadTiming == null)
+            throw new ArgumentException("Missing reload timing settings.");
         ReloadTiming.Validate();
-        if(CoverFeint==null)throw new ArgumentException("Missing cover feint settings.");
+        if (CoverFeint == null)
+            throw new ArgumentException("Missing cover feint settings.");
         CoverFeint.Validate();
-        if(OutdoorRelocation==null)throw new ArgumentException("Missing outdoor relocation settings.");
+        if (OutdoorRelocation == null)
+            throw new ArgumentException("Missing outdoor relocation settings.");
         OutdoorRelocation.Validate();
-        if(HoldAngle==null)throw new ArgumentException("Missing hold angle settings.");
+        if (HoldAngle == null)
+            throw new ArgumentException("Missing hold angle settings.");
         HoldAngle.Validate();
-        if(CoverTravel==null)throw new ArgumentException("Missing cover travel settings.");
+        if (CoverTravel == null)
+            throw new ArgumentException("Missing cover travel settings.");
         CoverTravel.Validate();
-        if(AdsTravel==null)throw new ArgumentException("Missing ADS travel settings.");
+        if (AdsTravel == null)
+            throw new ArgumentException("Missing ADS travel settings.");
         AdsTravel.Validate();
-        if(RetreatWeave==null)throw new ArgumentException("Missing retreat weave settings.");
+        if (RetreatWeave == null)
+            throw new ArgumentException("Missing retreat weave settings.");
         RetreatWeave.Validate();
-        if(TacticalJump==null)throw new ArgumentException("Missing tactical jump settings.");
+        if (TacticalJump == null)
+            throw new ArgumentException("Missing tactical jump settings.");
         TacticalJump.Validate();
-        if(AngleWatch==null)throw new ArgumentException("Missing angle watch settings.");
+        if (AngleWatch == null)
+            throw new ArgumentException("Missing angle watch settings.");
         AngleWatch.Validate();
-        if (Schema != 1 || Revision < 1) throw new ArgumentException("Unsupported config schema or revision.");
-        if (MovementHearing == null) throw new ArgumentException("Missing movement hearing settings.");
+        if (Schema != 1 || Revision < 1)
+            throw new ArgumentException("Unsupported config schema or revision.");
+        if (MovementHearing == null)
+            throw new ArgumentException("Missing movement hearing settings.");
         MovementHearing.Validate();
-        if (QuietApproach == null) throw new ArgumentException("Missing quiet approach settings.");
+        if (QuietApproach == null)
+            throw new ArgumentException("Missing quiet approach settings.");
         QuietApproach.Validate();
-        if (Gunfire == null) throw new ArgumentException("Missing gunfire reaction settings.");
+        if (Gunfire == null)
+            throw new ArgumentException("Missing gunfire reaction settings.");
         Gunfire.Validate();
-        if (FloorHearing == null) throw new ArgumentException("Missing floor hearing settings.");
+        if (FloorHearing == null)
+            throw new ArgumentException("Missing floor hearing settings.");
         FloorHearing.Validate();
-        if (CloseDetection == null) throw new ArgumentException("Missing close detection settings.");
+        if (CloseDetection == null)
+            throw new ArgumentException("Missing close detection settings.");
         CloseDetection.Validate();
-        if (ImpactReaction == null) throw new ArgumentException("Missing impact reaction settings.");
+        if (ImpactReaction == null)
+            throw new ArgumentException("Missing impact reaction settings.");
         ImpactReaction.Validate();
-        if (SilentSearch == null) throw new ArgumentException("Missing silent search settings.");
+        if (SilentSearch == null)
+            throw new ArgumentException("Missing silent search settings.");
         SilentSearch.Validate();
-        if (SearchAbandonment == null) throw new ArgumentException("Missing search abandonment settings.");
+        if (SearchAbandonment == null)
+            throw new ArgumentException("Missing search abandonment settings.");
         SearchAbandonment.Validate();
-        if (EnvironmentContext == null) throw new ArgumentException("Missing environment context settings.");
+        if (EnvironmentContext == null)
+            throw new ArgumentException("Missing environment context settings.");
         EnvironmentContext.Validate();
-        if (DoorApproach == null) throw new ArgumentException("Missing door approach settings.");
+        if (DoorApproach == null)
+            throw new ArgumentException("Missing door approach settings.");
         DoorApproach.Validate();
-        if (DoorJumpPeek == null) throw new ArgumentException("Missing door jump peek settings.");
+        if (DoorJumpPeek == null)
+            throw new ArgumentException("Missing door jump peek settings.");
         DoorJumpPeek.Validate();
-        if (DoorRunBy == null) throw new ArgumentException("Missing doorway run-by settings.");
+        if (DoorRunBy == null)
+            throw new ArgumentException("Missing doorway run-by settings.");
         DoorRunBy.Validate();
-        if(DoorStepPeek==null) throw new ArgumentException("DoorStepPeek is required");
+        if (DoorStepPeek == null)
+            throw new ArgumentException("DoorStepPeek is required");
         DoorStepPeek.Validate();
-        if(DoorFakeGrenade==null)throw new ArgumentException("DoorFakeGrenade is required");
+        if (DoorFakeGrenade == null)
+            throw new ArgumentException("DoorFakeGrenade is required");
         DoorFakeGrenade.Validate();
-        if(DoorFakeMedical==null)throw new ArgumentException("DoorFakeMedical is required");
+        if (DoorFakeMedical == null)
+            throw new ArgumentException("DoorFakeMedical is required");
         DoorFakeMedical.Validate();
-        if(DoorRoomClear==null)throw new ArgumentException("DoorRoomClear is required");
+        if (DoorRoomClear == null)
+            throw new ArgumentException("DoorRoomClear is required");
         DoorRoomClear.Validate();
-        if(DoorSearchClear==null)throw new ArgumentException("DoorSearchClear is required");
+        if (DoorSearchClear == null)
+            throw new ArgumentException("DoorSearchClear is required");
         DoorSearchClear.Validate(DoorRoomClear.ContactLifetime);
-        if(DoorAmbush==null)throw new ArgumentException("DoorAmbush is required");
+        if (DoorAmbush == null)
+            throw new ArgumentException("DoorAmbush is required");
         DoorAmbush.Validate();
-        if (DoorSupport == null) throw new ArgumentException("Missing door support settings.");
+        if (DoorSupport == null)
+            throw new ArgumentException("Missing door support settings.");
         DoorSupport.Validate();
-        if (DoorInterruption == null) throw new ArgumentException("Missing door interruption settings.");
+        if (DoorInterruption == null)
+            throw new ArgumentException("Missing door interruption settings.");
         DoorInterruption.Validate();
-        if (DoorEmergency == null) throw new ArgumentException("Missing door emergency settings.");
+        if (DoorEmergency == null)
+            throw new ArgumentException("Missing door emergency settings.");
         DoorEmergency.Validate();
-        if(DoorReservation == null) throw new ArgumentException("Missing door reservation settings.");
+        if (DoorReservation == null)
+            throw new ArgumentException("Missing door reservation settings.");
         DoorReservation.Validate();
-        if(DoorEntry==null)throw new ArgumentException("Missing door ram settings.");
+        if (DoorEntry == null)
+            throw new ArgumentException("Missing door ram settings.");
         DoorEntry.Validate();
-        if(CombatStep==null)throw new ArgumentException("Missing combat movement settings.");
+        if (CombatStep == null)
+            throw new ArgumentException("Missing combat movement settings.");
         CombatStep.Validate();
-        if(FirePause==null)throw new ArgumentException("Missing firing pause settings.");
+        if (FirePause == null)
+            throw new ArgumentException("Missing firing pause settings.");
         FirePause.Validate();
-        if(CornerPeek==null)throw new ArgumentException("Missing corner peek settings.");
+        if (CornerPeek == null)
+            throw new ArgumentException("Missing corner peek settings.");
         CornerPeek.Validate();
-        if(CombatLean==null)throw new ArgumentException("Missing combat lean settings.");
+        if (CombatLean == null)
+            throw new ArgumentException("Missing combat lean settings.");
         CombatLean.Validate();
-        if(CornerChase==null)throw new ArgumentException("Missing corner chase settings.");
+        if (CornerChase == null)
+            throw new ArgumentException("Missing corner chase settings.");
         CornerChase.Validate();
-        if(CornerPrefire==null)throw new ArgumentException("Missing corner prefire settings.");
+        if (CornerPrefire == null)
+            throw new ArgumentException("Missing corner prefire settings.");
         CornerPrefire.Validate();
-        if (VisibleCombat == null) throw new ArgumentException("Missing visible combat settings.");
+        if (VisibleCombat == null)
+            throw new ArgumentException("Missing visible combat settings.");
         VisibleCombat.Validate();
-        if (SightContinuity == null) throw new ArgumentException("Missing sight continuity settings.");
+        if (SightContinuity == null)
+            throw new ArgumentException("Missing sight continuity settings.");
         SightContinuity.Validate();
-        if (DecisionVariety == null) throw new ArgumentException("Missing decision variety settings.");
+        if (DecisionVariety == null)
+            throw new ArgumentException("Missing decision variety settings.");
         DecisionVariety.Validate();
-        if (TacticalMistakes == null) throw new ArgumentException("Missing tactical mistake settings.");
+        if (TacticalMistakes == null)
+            throw new ArgumentException("Missing tactical mistake settings.");
         TacticalMistakes.Validate();
-        if (Fear == null) throw new ArgumentException("Missing fear settings.");
+        if (Fear == null)
+            throw new ArgumentException("Missing fear settings.");
         Fear.Validate();
-        if (ThreatSelection == null) throw new ArgumentException("Missing threat selection settings.");
+        if (ThreatSelection == null)
+            throw new ArgumentException("Missing threat selection settings.");
         ThreatSelection.Validate();
-        if (Loadout == null) throw new ArgumentException("Missing loadout settings.");
+        if (Loadout == null)
+            throw new ArgumentException("Missing loadout settings.");
         Loadout.Validate();
-        if (Opponent == null) throw new ArgumentException("Missing opponent assessment settings.");
+        if (Opponent == null)
+            throw new ArgumentException("Missing opponent assessment settings.");
         Opponent.Validate();
-        if (Opportunity == null) throw new ArgumentException("Missing opportunity settings.");
+        if (Opportunity == null)
+            throw new ArgumentException("Missing opportunity settings.");
         Opportunity.Validate();
-        if (CoverResponse == null) throw new ArgumentException("Missing cover response settings.");
+        if (CoverResponse == null)
+            throw new ArgumentException("Missing cover response settings.");
         CoverResponse.Validate();
-        if (Progress == null) throw new ArgumentException("Missing plan progress settings.");
+        if (Progress == null)
+            throw new ArgumentException("Missing plan progress settings.");
         Progress.Validate();
-        if (Handoff == null) throw new ArgumentException("Missing SAIN handoff settings.");
+        if (Handoff == null)
+            throw new ArgumentException("Missing SAIN handoff settings.");
         Handoff.Validate();
         Range(ContactLifetime, 3, 120, nameof(ContactLifetime));
         Range(Commitment, .25, 10, nameof(Commitment));
@@ -324,31 +462,59 @@ public sealed class CometConfig
         Range(RetryDelay, 1, 30, nameof(RetryDelay));
         Range(PushMaxDistance, 3, 50, nameof(PushMaxDistance));
         Range(GrenadeContactLifetime, 1, ContactLifetime, nameof(GrenadeContactLifetime));
-        if(GrenadeJudgment==null)throw new ArgumentException("Missing grenade judgment settings.");
+        if (GrenadeJudgment == null)
+            throw new ArgumentException("Missing grenade judgment settings.");
         GrenadeJudgment.Validate(GrenadeContactLifetime);
-        if(GrenadeTrajectory==null)throw new ArgumentException("Missing grenade trajectory settings.");
+        if (GrenadeTrajectory == null)
+            throw new ArgumentException("Missing grenade trajectory settings.");
         GrenadeTrajectory.Validate();
-        if(GrenadeChoice==null)throw new ArgumentException("Missing grenade choice settings.");
+        if (GrenadeChoice == null)
+            throw new ArgumentException("Missing grenade choice settings.");
         GrenadeChoice.Validate();
-        if(OwnGrenadeSafety==null)throw new ArgumentException("Missing own grenade safety settings.");
+        if (OwnGrenadeSafety == null)
+            throw new ArgumentException("Missing own grenade safety settings.");
         OwnGrenadeSafety.Validate();
-        if(GrenadeReaction==null)throw new ArgumentException("Missing grenade reaction settings.");
+        if (GrenadeReaction == null)
+            throw new ArgumentException("Missing grenade reaction settings.");
         GrenadeReaction.Validate();
-        if(GrenadeDispersion==null)throw new ArgumentException("Missing grenade dispersion settings.");
+        if (GrenadeDispersion == null)
+            throw new ArgumentException("Missing grenade dispersion settings.");
         GrenadeDispersion.Validate();
-        if(FlashContinuity==null)throw new ArgumentException("Missing flash continuity settings.");
-        if(GasExposure==null)throw new ArgumentException("Missing gas exposure settings.");
+        if (FlashContinuity == null)
+            throw new ArgumentException("Missing flash continuity settings.");
+        if (GasExposure == null)
+            throw new ArgumentException("Missing gas exposure settings.");
         GasExposure.Validate();
-        if(GrenadeFilter==null)throw new ArgumentException("Missing offensive grenade settings.");
-        if (Weights == null || Aggression == null) throw new ArgumentException("Missing tactic or personality settings.");
-        if (Weights.Count != 6 || Aggression.Count != 8) throw new ArgumentException("Unexpected tactic or personality settings.");
+        if (GrenadeFilter == null)
+            throw new ArgumentException("Missing offensive grenade settings.");
+        if (Weights == null || Aggression == null)
+            throw new ArgumentException("Missing tactic or personality settings.");
+        if (Weights.Count != 6 || Aggression.Count != 8)
+            throw new ArgumentException("Unexpected tactic or personality settings.");
         foreach (Tactic tactic in Enum.GetValues(typeof(Tactic)))
-            if (!Weights.TryGetValue(tactic.ToString(), out var weight)) throw new ArgumentException("Missing " + tactic);
-            else Range(weight, 0, 3, tactic.ToString());
-        foreach (var name in new[] { "Normal", "Chad", "GigaChad", "Wreckless", "Rat", "SnappingTurtle", "Coward", "Timmy" })
-            if (!Aggression.TryGetValue(name, out var aggression)) throw new ArgumentException("Missing " + name);
-            else Range(aggression, 0, 1, name);
+            if (!Weights.TryGetValue(tactic.ToString(), out var weight))
+                throw new ArgumentException("Missing " + tactic);
+            else
+                Range(weight, 0, 3, tactic.ToString());
+        foreach (
+            var name in new[]
+            {
+                "Normal",
+                "Chad",
+                "GigaChad",
+                "Wreckless",
+                "Rat",
+                "SnappingTurtle",
+                "Coward",
+                "Timmy",
+            }
+        )
+            if (!Aggression.TryGetValue(name, out var aggression))
+                throw new ArgumentException("Missing " + name);
+            else
+                Range(aggression, 0, 1, name);
     }
+
     internal static void Range(double value, double min, double max, string name)
     {
         if (double.IsNaN(value) || double.IsInfinity(value) || value < min || value > max)
@@ -367,11 +533,13 @@ public sealed class ProgressConfig
     public double Retry { get; set; } = 8;
     public double RepeatRetry { get; set; } = 15;
     public double QuietReset { get; set; } = 20;
+
     public void Validate()
     {
         CometConfig.Range(HoldSoft, 1, 30, nameof(HoldSoft));
         CometConfig.Range(HoldLimit, 2, 60, nameof(HoldLimit));
-        if(HoldLimit<=HoldSoft)throw new ArgumentException("Hold limit must exceed fatigue start.");
+        if (HoldLimit <= HoldSoft)
+            throw new ArgumentException("Hold limit must exceed fatigue start.");
         CometConfig.Range(StalledLimit, 2, 15, nameof(StalledLimit));
         CometConfig.Range(ProgressMeters, .25, 2, nameof(ProgressMeters));
         CometConfig.Range(ReviewInterval, StalledLimit, 60, nameof(ReviewInterval));
@@ -387,11 +555,13 @@ public sealed class CoverResponseConfig
     public double ShortExposure { get; set; } = .75;
     public double LongExposure { get; set; } = 1.5;
     public double ScoreCap { get; set; } = 25;
+
     public void Validate()
     {
         CometConfig.Range(ShortExposure, .1, 2, nameof(ShortExposure));
         CometConfig.Range(LongExposure, .2, 6, nameof(LongExposure));
-        if (LongExposure <= ShortExposure) throw new ArgumentException("Long exposure must exceed short exposure.");
+        if (LongExposure <= ShortExposure)
+            throw new ArgumentException("Long exposure must exceed short exposure.");
         CometConfig.Range(ScoreCap, 0, 25, nameof(ScoreCap));
     }
 }
@@ -408,6 +578,7 @@ public sealed class ThreatSelectionConfig
     public double ImmediateDistance { get; set; } = 6;
     public double FootstepDistance { get; set; } = 10;
     public double FootstepMemory { get; set; } = 1.5;
+
     public void Validate()
     {
         CometConfig.Range(Interval, .1, 2, nameof(Interval));
@@ -437,16 +608,36 @@ public sealed class FearConfig
     public double PanicEnter { get; set; } = .75;
     public double PanicExit { get; set; } = .55;
     public double ScoreCap { get; set; } = 15;
-    public Dictionary<string, double> Base { get; set; } = new Dictionary<string, double> {
-        ["Coward"] = .35, ["Timmy"] = .20, ["Rat"] = .20, ["Normal"] = .10,
-        ["SnappingTurtle"] = .10, ["Chad"] = .05, ["GigaChad"] = 0, ["Wreckless"] = 0 };
-    public Dictionary<string, double> Sensitivity { get; set; } = new Dictionary<string, double> {
-        ["Coward"] = 1.5, ["Timmy"] = 1.3, ["Rat"] = 1.2, ["Normal"] = 1,
-        ["SnappingTurtle"] = .9, ["Chad"] = .6, ["GigaChad"] = .4, ["Wreckless"] = .3 };
+    public Dictionary<string, double> Base { get; set; } =
+        new Dictionary<string, double>
+        {
+            ["Coward"] = .35,
+            ["Timmy"] = .20,
+            ["Rat"] = .20,
+            ["Normal"] = .10,
+            ["SnappingTurtle"] = .10,
+            ["Chad"] = .05,
+            ["GigaChad"] = 0,
+            ["Wreckless"] = 0,
+        };
+    public Dictionary<string, double> Sensitivity { get; set; } =
+        new Dictionary<string, double>
+        {
+            ["Coward"] = 1.5,
+            ["Timmy"] = 1.3,
+            ["Rat"] = 1.2,
+            ["Normal"] = 1,
+            ["SnappingTurtle"] = .9,
+            ["Chad"] = .6,
+            ["GigaChad"] = .4,
+            ["Wreckless"] = .3,
+        };
+
     public void Validate()
     {
         CometConfig.Range(Multiplier, 0, 3, nameof(Multiplier));
-        foreach (var x in new[] { AllyDeath, Injury, Outnumbered, HeavySuppression }) CometConfig.Range(x, 0, 1, "Fear contribution");
+        foreach (var x in new[] { AllyDeath, Injury, Outnumbered, HeavySuppression })
+            CometConfig.Range(x, 0, 1, "Fear contribution");
         CometConfig.Range(DeathMemory, 1, 120, nameof(DeathMemory));
         CometConfig.Range(RisePerSecond, .01, 2, nameof(RisePerSecond));
         CometConfig.Range(RecoveryPerSecond, .01, 1, nameof(RecoveryPerSecond));
@@ -454,11 +645,26 @@ public sealed class FearConfig
         CometConfig.Range(PanicExit, 0, .98, nameof(PanicExit));
         CometConfig.Range(PanicEnter, PanicExit + .01, 1, nameof(PanicEnter));
         CometConfig.Range(ScoreCap, 0, 25, nameof(ScoreCap));
-        if (Base == null || Sensitivity == null || Base.Count != 8 || Sensitivity.Count != 8) throw new ArgumentException("Expected eight fear personalities.");
-        foreach (var name in new[] { "Normal", "Chad", "GigaChad", "Wreckless", "Rat", "SnappingTurtle", "Coward", "Timmy" })
+        if (Base == null || Sensitivity == null || Base.Count != 8 || Sensitivity.Count != 8)
+            throw new ArgumentException("Expected eight fear personalities.");
+        foreach (
+            var name in new[]
+            {
+                "Normal",
+                "Chad",
+                "GigaChad",
+                "Wreckless",
+                "Rat",
+                "SnappingTurtle",
+                "Coward",
+                "Timmy",
+            }
+        )
         {
-            if (!Base.TryGetValue(name, out var b) || !Sensitivity.TryGetValue(name, out var s)) throw new ArgumentException("Missing fear personality: " + name);
-            CometConfig.Range(b, 0, 1, name + " base fear"); CometConfig.Range(s, 0, 3, name + " fear sensitivity");
+            if (!Base.TryGetValue(name, out var b) || !Sensitivity.TryGetValue(name, out var s))
+                throw new ArgumentException("Missing fear personality: " + name);
+            CometConfig.Range(b, 0, 1, name + " base fear");
+            CometConfig.Range(s, 0, 3, name + " fear sensitivity");
         }
     }
 }
@@ -470,21 +676,44 @@ public sealed class TacticalMistakesConfig
     public double HiddenMaxLoss { get; set; } = .25;
     public double VisibleMaxLoss { get; set; } = .20;
     public double MinimumInterval { get; set; } = 10;
-    public Dictionary<string, double> Chances { get; set; } = new Dictionary<string, double>
-    {
-        ["Timmy"] = .12, ["Wreckless"] = .08, ["Coward"] = .06, ["Normal"] = .05,
-        ["Chad"] = .04, ["Rat"] = .03, ["SnappingTurtle"] = .03, ["GigaChad"] = .02
-    };
+    public Dictionary<string, double> Chances { get; set; } =
+        new Dictionary<string, double>
+        {
+            ["Timmy"] = .12,
+            ["Wreckless"] = .08,
+            ["Coward"] = .06,
+            ["Normal"] = .05,
+            ["Chad"] = .04,
+            ["Rat"] = .03,
+            ["SnappingTurtle"] = .03,
+            ["GigaChad"] = .02,
+        };
+
     public void Validate()
     {
         CometConfig.Range(Multiplier, 0, 3, nameof(Multiplier));
         CometConfig.Range(HiddenMaxLoss, 0, .5, nameof(HiddenMaxLoss));
         CometConfig.Range(VisibleMaxLoss, 0, .5, nameof(VisibleMaxLoss));
         CometConfig.Range(MinimumInterval, 1, 120, nameof(MinimumInterval));
-        if (Chances == null || Chances.Count != 8) throw new ArgumentException("Expected eight mistake chances.");
-        foreach (var name in new[] { "Normal", "Chad", "GigaChad", "Wreckless", "Rat", "SnappingTurtle", "Coward", "Timmy" })
-            if (!Chances.TryGetValue(name, out var chance)) throw new ArgumentException("Missing mistake chance: " + name);
-            else CometConfig.Range(chance, 0, 1, name + " mistake chance");
+        if (Chances == null || Chances.Count != 8)
+            throw new ArgumentException("Expected eight mistake chances.");
+        foreach (
+            var name in new[]
+            {
+                "Normal",
+                "Chad",
+                "GigaChad",
+                "Wreckless",
+                "Rat",
+                "SnappingTurtle",
+                "Coward",
+                "Timmy",
+            }
+        )
+            if (!Chances.TryGetValue(name, out var chance))
+                throw new ArgumentException("Missing mistake chance: " + name);
+            else
+                CometConfig.Range(chance, 0, 1, name + " mistake chance");
     }
 }
 
@@ -496,6 +725,7 @@ public sealed class DecisionVarietyConfig
     public double VisibleScoreGap { get; set; } = .10;
     public double HiddenIntensity { get; set; } = 1;
     public double VisibleIntensity { get; set; } = .6;
+
     public void Validate()
     {
         CometConfig.Range(MaxOptions, 1, 3, nameof(MaxOptions));
@@ -514,6 +744,7 @@ public sealed class SightContinuityConfig
     public double MediumDuration { get; set; } = 1.5;
     public double MaxDistance { get; set; } = 45;
     public double StableSight { get; set; } = 0;
+
     public void Validate()
     {
         CometConfig.Range(CloseDuration, .1, 2, nameof(CloseDuration));
@@ -535,6 +766,7 @@ public sealed class VisibleCombatConfig
     public double SwitchMargin { get; set; } = 12;
     public double MaxPushPath { get; set; } = 25;
     public double CoverMemory { get; set; } = 3;
+
     public void Validate()
     {
         CometConfig.Range(ShootWeight, 0, 3, nameof(ShootWeight));
@@ -554,22 +786,51 @@ public sealed class LoadoutConfig
     public double ScoreCap { get; set; } = 15;
     public double RefreshSeconds { get; set; } = 5;
     public int GrenadeStockCap { get; set; } = 3;
-    public Dictionary<string, double> Ranges { get; set; } = new Dictionary<string, double> {
-        ["Pistol"] = 8, ["Shotgun"] = 8, ["ShotgunSlug"] = 25, ["Smg"] = 12,
-        ["RifleIron"] = 20, ["RifleDot"] = 25, ["RifleScope"] = 35,
-        ["DmrIron"] = 30, ["DmrScope"] = 50, ["BoltIron"] = 40, ["BoltScope"] = 70 };
+    public Dictionary<string, double> Ranges { get; set; } =
+        new Dictionary<string, double>
+        {
+            ["Pistol"] = 8,
+            ["Shotgun"] = 8,
+            ["ShotgunSlug"] = 25,
+            ["Smg"] = 12,
+            ["RifleIron"] = 20,
+            ["RifleDot"] = 25,
+            ["RifleScope"] = 35,
+            ["DmrIron"] = 30,
+            ["DmrScope"] = 50,
+            ["BoltIron"] = 40,
+            ["BoltScope"] = 70,
+        };
+
     public void Validate()
     {
         CometConfig.Range(ScoreCap, 0, 25, nameof(ScoreCap));
         CometConfig.Range(RefreshSeconds, 1, 30, nameof(RefreshSeconds));
         CometConfig.Range(GrenadeStockCap, 1, 10, nameof(GrenadeStockCap));
-        if (Ranges == null || Ranges.Count != 11) throw new ArgumentException("Expected eleven loadout ranges.");
-        foreach (var key in new[] { "Pistol", "Shotgun", "ShotgunSlug", "Smg", "RifleIron", "RifleDot", "RifleScope", "DmrIron", "DmrScope", "BoltIron", "BoltScope" })
-            if (!Ranges.TryGetValue(key, out var value)) throw new ArgumentException("Missing loadout range: " + key);
-            else CometConfig.Range(value, 3, 150, key);
+        if (Ranges == null || Ranges.Count != 11)
+            throw new ArgumentException("Expected eleven loadout ranges.");
+        foreach (
+            var key in new[]
+            {
+                "Pistol",
+                "Shotgun",
+                "ShotgunSlug",
+                "Smg",
+                "RifleIron",
+                "RifleDot",
+                "RifleScope",
+                "DmrIron",
+                "DmrScope",
+                "BoltIron",
+                "BoltScope",
+            }
+        )
+            if (!Ranges.TryGetValue(key, out var value))
+                throw new ArgumentException("Missing loadout range: " + key);
+            else
+                CometConfig.Range(value, 3, 150, key);
     }
 }
-
 
 public sealed class OpponentConfig
 {
@@ -581,6 +842,7 @@ public sealed class OpponentConfig
     public double WeaponMemory { get; set; } = 5;
     public double ProtectionMemory { get; set; } = 15;
     public double InjuryMemory { get; set; } = 3;
+
     public void Validate()
     {
         CometConfig.Range(ScoreCap, 0, 25, nameof(ScoreCap));
@@ -606,19 +868,36 @@ public sealed class OpportunityConfig
     public double MaxPath { get; set; } = 25;
     public double ScoreCap { get; set; } = 20;
     public double CombinedScoreCap { get; set; } = 25;
+
     // A long action can emit many sounds. Silence must outlast even the largest allowed window.
     public double RearmSilence { get; set; } = 30;
-    public double Window(string cue) => cue switch {
-        "reload" => ReloadWindow, "heal" => HealWindow, "surgery" => SurgeryWindow,
-        "looting" => LootWindow, "dry-fire" => DryFireWindow, _ => 0 };
+
+    public double Window(string cue) =>
+        cue switch
+        {
+            "reload" => ReloadWindow,
+            "heal" => HealWindow,
+            "surgery" => SurgeryWindow,
+            "looting" => LootWindow,
+            "dry-fire" => DryFireWindow,
+            _ => 0,
+        };
+
     public void Validate()
     {
-        foreach (var v in new[] { ReloadWindow, HealWindow, SurgeryWindow, LootWindow, DryFireWindow })
+        foreach (
+            var v in new[] { ReloadWindow, HealWindow, SurgeryWindow, LootWindow, DryFireWindow }
+        )
             CometConfig.Range(v, 1, 25, "Opportunity window");
         CometConfig.Range(ReactionDelay, .1, 1, nameof(ReactionDelay));
         CometConfig.Range(SafetyMargin, .1, 2, nameof(SafetyMargin));
-        foreach (var v in new[] { ReloadWindow, HealWindow, SurgeryWindow, LootWindow, DryFireWindow })
-            if (v <= ReactionDelay + SafetyMargin) throw new ArgumentException("Opportunity windows must exceed reaction delay plus safety margin.");
+        foreach (
+            var v in new[] { ReloadWindow, HealWindow, SurgeryWindow, LootWindow, DryFireWindow }
+        )
+            if (v <= ReactionDelay + SafetyMargin)
+                throw new ArgumentException(
+                    "Opportunity windows must exceed reaction delay plus safety margin."
+                );
         CometConfig.Range(MaxPath, 1, 50, nameof(MaxPath));
         CometConfig.Range(ScoreCap, 0, 25, nameof(ScoreCap));
         CometConfig.Range(CombinedScoreCap, 25, 50, nameof(CombinedScoreCap));
@@ -626,12 +905,12 @@ public sealed class OpportunityConfig
     }
 }
 
-
 public sealed class HandoffConfig
 {
     public double Grace { get; set; } = .5;
     public double Retry { get; set; } = 1;
     public double ErrorRetry { get; set; } = 10;
+
     public void Validate()
     {
         CometConfig.Range(Grace, 0, 2, nameof(Grace));
