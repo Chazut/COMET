@@ -3,7 +3,7 @@ from unittest.mock import patch
 import test_archive as fixtures
 
 event = fixtures.event
-from analyze import analyze, ANALYZER_VERSION, stale_analyses
+from analyze import analyze, ANALYZER_VERSION, CATALOG_BY_ID, stale_analyses
 from common import backup_analysis, insert_event, dumps
 from collector import collect
 from app import totals
@@ -15,6 +15,27 @@ class EvidenceRegression(unittest.TestCase):
     add = fixtures.ArchiveTests.add
     finish = fixtures.ArchiveTests.finish
     m = fixtures.ArchiveTests.m
+
+    def test_coverage_survives_anonymous_events_and_summaries(self):
+        for feature, last_stage in (("D01", "evaluated"), ("G05", "summary")):
+            offset = 0 if feature == "D01" else 10
+            trace = {CATALOG_BY_ID[feature]["trace"]: {"episode": 1}}
+            self.add(
+                event(offset + 1, feature=feature, **trace),
+                event(offset + 2, last_stage, feature),
+                dict(event(offset + 3, feature=feature), profileId="other"),
+            )
+        self.finish()
+        analyze(self.c, "r")
+        campaign = {f["id"]: f for f in totals(self.c, {})["features"]}
+        for feature in ("D01", "G05"):
+            with self.subTest(feature=feature):
+                self.assertEqual(self.m(feature, "p")["coverage"], "identified-attempts")
+                self.assertEqual(self.m(feature, "other")["coverage"], "events-only")
+                self.assertEqual(self.m(feature)["coverage"], "identified-attempts")
+                self.assertEqual(campaign[feature]["identifiedRaids"], 1)
+                self.assertEqual(campaign[feature]["started"], 0)
+                self.assertEqual(campaign[feature]["completed"], 0)
 
     def test_legacy_door_requires_an_explicit_request_for_the_same_target_and_door(self):
         def step(n, reason, **fields):

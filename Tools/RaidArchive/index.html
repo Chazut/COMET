@@ -550,12 +550,7 @@
               `<td>${f.raids} / ${overview.recordedRaids}<br>` +
               `<small>${f.disabledRaids ? f.disabledRaids + " disabled; " : ""}${f.unknownConfigRaids ? f.unknownConfigRaids + " config unknown" : ""}${f.changedConfigRaids ? "; " + f.changedConfigRaids + " changed during raid" : ""}</small>` +
               `</td>` +
-              `<td>${["started", "completed"]
-                .map((k) => {
-                  const n = lifecycleValue(f, k);
-                  return n === null ? "-" : num(n);
-                })
-                .join(" / ")}` +
+              `<td>${lifecycleSummary(f)}` +
               `</td>` +
               `</tr>`,
           )

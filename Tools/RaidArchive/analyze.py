@@ -329,7 +329,6 @@ def analyze(c, raid):
                     episodes.weapon_request(e, t, clock, key)
                 a["last"] = clock
                 a["reason"] = reason
-                m["coverage"] = "identified-attempts"
                 facts = phases(e, t, spec)
                 for effect in effects - a["seen"]:
                     m["effects"][effect] += 1
@@ -437,6 +436,8 @@ def analyze(c, raid):
     for a in attempts.values():
         seen = a["seen"]
         m = metrics[a["feature"], a["profile"]]
+        # An anonymous observation or summary later in the raid cannot erase an identified attempt.
+        m["coverage"] = "identified-attempts"
         if ("requested" in seen or "accepted" in seen) and not {
             "started",
             "completed",

@@ -46,5 +46,15 @@ function lifecycleValue(f, key) {
   if (!f.identifiedRaids && f.coverage !== "identified-attempts") return null;
   return f[key] || 0;
 }
+function lifecycleSummary(f) {
+  if (f.counting === "draw") return "Not applicable to draws";
+  const started = lifecycleValue(f, "started");
+  if (started === null) {
+    if (f.status && f.status !== "runtime") return "-";
+    return f.events ? "No distinct attempt ID" : "No events";
+  }
+  const completed = lifecycleValue(f, "completed");
+  return started.toLocaleString() + " / " + (completed === null ? "-" : completed.toLocaleString());
+}
 if (typeof module !== "undefined")
-  module.exports = { coverageSummary, lifecycleValue };
+  module.exports = { coverageSummary, lifecycleValue, lifecycleSummary };

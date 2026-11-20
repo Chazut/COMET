@@ -1,5 +1,10 @@
 const { strict: assert } = require("node:assert");
-const { coverageSummary, lifecycleValue } = require("./evidence-view.js");
+const { coverageSummary, lifecycleValue, lifecycleSummary } = require("./evidence-view.js");
+assert.equal(lifecycleSummary({ events: 3 }), "No distinct attempt ID");
+assert.equal(lifecycleSummary({ events: 0 }), "No events");
+assert.equal(lifecycleSummary({ counting: "draw", identifiedRaids: 1 }), "Not applicable to draws");
+assert.equal(lifecycleSummary({ identifiedRaids: 1 }), "0 / 0");
+assert.equal(lifecycleSummary({ id: "A01", started: 2, identifiedRaids: 1 }), "2 / -");
 assert.equal(
   coverageSummary({ disabledRaids: 4 }, 4),
   "Disabled in recorded config",
