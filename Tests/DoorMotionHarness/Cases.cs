@@ -40,6 +40,7 @@ static class Cases
             var link = new Link();
             b.BotOwner.VoxelesPersonalData.CurVoxel!.DoorLinks.Add(link);
             var d = link.Door;
+            Physics.Leaves = [d.Collider];
             d.CurrentAngle = angle;
             d.DoorState = angle == 0 ? EDoorState.Shut : EDoorState.Open;
             Singleton<GameWorld>.Instance.Doors[d.Id] = d;
@@ -92,6 +93,16 @@ static class Cases
         DoorMotionNetwork.Ready = () => true;
         Check(x.p.Push(x.d, x.b) == -90, "ready custom transport permits reverse opening");
         x = Setup(-90);
+        var wrongFloor = new Link();
+        wrongFloor.Door.transform.position = new(-12, -8, -2);
+        wrongFloor.Door.DoorState = EDoorState.Open;
+        wrongFloor.Door.CurrentAngle = -90;
+        wrongFloor.Door.Collider.enabled = false;
+        x.b.BotOwner.VoxelesPersonalData.CurVoxel!.DoorLinks.Clear();
+        x.b.BotOwner.VoxelesPersonalData.CurVoxel.DoorLinks.Add(wrongFloor);
+        var beside = new Door { DoorState = EDoorState.Open, CurrentAngle = -90 };
+        beside.transform.position = new(.36f, 0, 0);
+        Physics.Leaves = [wrongFloor.Door.Collider, beside.Collider, x.d.Collider];
         x.b.Position = x.b.Player.Position = new(-.55f, 0, .9f);
         x.p.MotionTick(0);
         x.p.MotionTick(1);
@@ -99,7 +110,8 @@ static class Cases
         x.p.MotionTick(1.5f);
         Check(x.p.Swings == 1, "reversed nearby leaf unjam scheduled");
         x.p.MotionTick(1.75f);
-        Check(Math.Abs(x.d.CurrentAngle) < .01, "physical halfway correction");
+        Check(Math.Abs(x.d.CurrentAngle) < .01, "nearest physical leaf corrected despite wrong-floor voxel link and first hit");
+        Check(beside.CurrentAngle == -90 && wrongFloor.Door.CurrentAngle == -90, "other leaves stay in place");
         x.p.MotionTick(2);
         Check(x.d.CurrentAngle == 90 && x.p.Swings == 0, "smooth correction reaches normal angle");
         fixture.AddRange(x.p.diagnostics!.Lines);

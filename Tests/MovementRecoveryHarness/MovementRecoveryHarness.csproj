@@ -6,6 +6,7 @@
     <NoWarn>CS0649;CS0414</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../Client/PhysicalDoorLeaf.cs" Link="PhysicalDoorLeaf.cs" />
     <Compile Include="../../Shared/*.cs" Link="Core/%(Filename)%(Extension)" />
     <Compile Include="../../Client/MovementRecoveryAdapter.cs" Link="MovementRecoveryAdapter.cs" />
     <Compile Include="../../Client/MovementRecoveryNetwork.cs" Link="MovementRecoveryNetwork.cs" />

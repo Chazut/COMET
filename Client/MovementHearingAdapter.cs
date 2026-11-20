@@ -59,6 +59,7 @@ public sealed partial class Plugin
         public float Distance;
         public bool Heard;
         public Vector3? Perceived;
+        public float? AnalysisDistance, NativeRange, FinalRange, Environment, Occlusion;
     }
 
     private sealed class MovementCacheState
@@ -679,6 +680,11 @@ public sealed partial class Plugin
             distance = d.Distance,
             range = sound.Range,
             volume = sound.Volume,
+            analysisDistance = d.AnalysisDistance,
+            nativeRange = d.NativeRange,
+            finalRange = d.FinalRange,
+            environment = d.Environment,
+            occlusion = d.Occlusion,
             x = point?.x,
             y = point?.y,
             z = point?.z,

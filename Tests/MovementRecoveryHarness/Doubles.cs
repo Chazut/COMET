@@ -53,8 +53,20 @@ namespace UnityEngine
             where T : class => null;
     }
 
+    public struct Bounds
+    {
+        public Vector3 center;
+        public Vector3 ClosestPoint(Vector3 point) => center;
+    }
+
+    public static class LayerMask
+    {
+        public static int GetMask(params string[] names) => 8;
+    }
+
     public class Collider
     {
+        public Bounds bounds;
         public object? Parent;
         public Transform transform = new();
 
@@ -82,6 +94,8 @@ namespace UnityEngine
 
     public static class Physics
     {
+        public static Collider? ChestLeaf;
+        public static int OverlapSphereNonAlloc(Vector3 p, float radius, Collider[] hits, int mask, QueryTriggerInteraction mode) => 0;
         public static bool Low = true,
             High,
             Volume,
@@ -136,6 +150,16 @@ namespace UnityEngine
         )
         {
             Queries++;
+            if (m == 12)
+            {
+                if (ChestLeaf == null) return 0;
+                var axis = b - a;
+                var center = ChestLeaf.bounds.center;
+                float t = axis.sqrMagnitude == 0 ? 0 : Math.Clamp(Vector3.Dot(center - a, axis) / axis.sqrMagnitude, 0, 1);
+                if (Vector3.Distance(center, a + axis * t) > r) return 0;
+                hits[0] = ChestLeaf;
+                return 1;
+            }
             if (Volume || VolumeAt?.Invoke(a) == true)
             {
                 hits[0] = new();
@@ -244,7 +268,7 @@ namespace EFT
 
     public static class LayersMaskController
     {
-        public const int PlayerStaticDoorMask = 1,
+        public const int DoorLayer = 2, PlayerStaticDoorMask = 1,
             HighPolyWithTerrainMask = 2;
     }
 

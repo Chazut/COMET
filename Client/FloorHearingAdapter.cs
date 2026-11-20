@@ -124,7 +124,21 @@ public sealed partial class Plugin
             return nativeRange;
         try
         {
-            return p.FilterFloorRange(nativeRange, analysis.Bot, sound, environment, occlusion);
+            float finalRange = p.FilterFloorRange(nativeRange, analysis.Bot, sound, environment, occlusion);
+            // Enrich the existing P01 result even when SAIN rejects the sound at its distance check.
+            // An earlier native rejection never reaches this hook and leaves the measurements null.
+            if (p.movementReaction is { } delivery && ReferenceEquals(delivery.Bot, analysis.Bot)
+                && ReferenceEquals(delivery.Signal.Sound.PlayerComponent, sound.Sound.PlayerComponent)
+                && delivery.Signal.Sound.TimeCreated == sound.Sound.TimeCreated
+                && delivery.Signal.Sound.SoundType == sound.Sound.SoundType)
+            {
+                delivery.AnalysisDistance = sound.PlayerDistance;
+                delivery.NativeRange = nativeRange;
+                delivery.FinalRange = finalRange;
+                delivery.Environment = environment;
+                delivery.Occlusion = occlusion;
+            }
+            return finalRange;
         }
         catch (Exception ex)
         {

@@ -463,79 +463,51 @@ public sealed partial class Plugin
             var clock = System.Diagnostics.Stopwatch.StartNew();
             try
             {
-                var links = b.BotOwner.VoxelesPersonalData.CurVoxel?.DoorLinks;
-                if (links == null || links.Count > 48)
+                var chest = b.Position + Vector3.up;
+                var d = NearestPhysicalLeaf(chest, chest, (float)config.DoorMotion.LeafDistance,
+                    static door => door.DoorState == EDoorState.Open, out float leafDistance);
+                if (d == null || d.GetType() != typeof(Door) || !d.Operatable
+                    || !DoorMotion.Reversed(d.GetAngle(EDoorState.Shut), d.GetAngle(EDoorState.Open), d.CurrentAngle)
+                    || doorSwings.Exists(x => x.Door == d) || RecoveryBusy(b, pair.Value, d))
                     continue;
-                foreach (var link in links)
+                watch.Attempt = Time.time + 3;
+                float to = d.GetAngle(EDoorState.Open);
+                if (!SwingClear(d, d.CurrentAngle, to, b, true))
                 {
-                    var d = link?.Door;
-                    if (
-                        d == null
-                        || d.GetType() != typeof(Door)
-                        || d.DoorState != EDoorState.Open
-                        || !d.Operatable
-                        || !DoorMotion.Reversed(
-                            d.GetAngle(EDoorState.Shut),
-                            d.GetAngle(EDoorState.Open),
-                            d.CurrentAngle
-                        )
-                        || doorSwings.Exists(x => x.Door == d)
-                        || RecoveryBusy(b, pair.Value, d)
-                    )
-                        continue;
-                    bool near = false;
-                    foreach (var collider in d.CollisionColliders)
-                        if (
-                            collider != null
-                            && Vector3.Distance(
-                                collider.ClosestPoint(b.Position + Vector3.up),
-                                b.Position + Vector3.up
-                            ) < config.DoorMotion.LeafDistance
-                        )
-                        {
-                            near = true;
-                            break;
-                        }
-                    if (!near)
-                        continue;
-                    watch.Attempt = Time.time + 3;
-                    float to = d.GetAngle(EDoorState.Open);
-                    if (!SwingClear(d, d.CurrentAngle, to, b, true))
-                    {
-                        RecordDoorMotion(
-                            pair.Value,
-                            d,
-                            "rejected",
-                            "motion-sweep-occupied",
-                            "unjam",
-                            to
-                        );
-                        break;
-                    }
-                    doorSwings.Add(
-                        new()
-                        {
-                            Door = d,
-                            Bot = b,
-                            State = pair.Value,
-                            From = d.CurrentAngle,
-                            To = to,
-                            Start = Time.time,
-                            Interaction = (WorldInteractiveObject.InteractionState)
-                                recoveryInteraction.GetValue(d)!,
-                            Generation = recoveryEpochs.GetValue(d, _ => new()).Generation,
-                        }
-                    );
                     RecordDoorMotion(
                         pair.Value,
                         d,
-                        "requested",
-                        "motion-unjam-requested",
+                        "rejected",
+                        "motion-sweep-occupied",
                         "unjam",
-                        to
+                        to,
+                        leafDistance
                     );
-                    break;
+                    continue;
                 }
+                doorSwings.Add(
+                    new()
+                    {
+                        Door = d,
+                        Bot = b,
+                        State = pair.Value,
+                        From = d.CurrentAngle,
+                        To = to,
+                        Start = Time.time,
+                        Interaction = (WorldInteractiveObject.InteractionState)
+                            recoveryInteraction.GetValue(d)!,
+                        Generation = recoveryEpochs.GetValue(d, _ => new()).Generation,
+                    }
+                );
+                RecordDoorMotion(
+                    pair.Value,
+                    d,
+                    "requested",
+                    "motion-unjam-requested",
+                    "unjam",
+                    to,
+                    leafDistance
+                );
             }
             catch (Exception ex)
             {
@@ -556,7 +528,8 @@ public sealed partial class Plugin
         string state,
         string reason,
         string action,
-        float target
+        float target,
+        float? leafDistance = null
     )
     {
         var point = door.transform.position;
@@ -591,6 +564,7 @@ public sealed partial class Plugin
                 profileId = s.ProfileId,
                 name = s.Name,
                 botInstance = s.Id,
+                leafDistance,
                 doorMotion = t,
             }
         );

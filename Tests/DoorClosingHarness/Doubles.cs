@@ -82,6 +82,7 @@ namespace UnityEngine
     public struct Bounds
     {
         public Vector3 center;
+        public Vector3 ClosestPoint(Vector3 point) => center;
     }
 
     public class Transform
@@ -111,8 +112,23 @@ namespace UnityEngine
         }
     }
 
+    public static class LayerMask
+    {
+        public static int GetMask(params string[] names) => 8;
+    }
+
     public static class Physics
     {
+        public static Collider[] Leaves = [];
+        public static int OverlapSphereNonAlloc(Vector3 center, float radius, Collider[] hits, int mask, QueryTriggerInteraction mode)
+        {
+            int count = 0;
+            foreach (var leaf in Leaves)
+                if (leaf.enabled && !leaf.isTrigger && leaf.gameObject.activeInHierarchy
+                    && Vector3.Distance(center, leaf.bounds.center) <= radius && count < hits.Length)
+                    hits[count++] = leaf;
+            return count;
+        }
         public static Func<Vector3, bool>? Occupied;
         public static int Queries;
 
@@ -215,7 +231,7 @@ namespace EFT
 
     public static class LayersMaskController
     {
-        public const int PlayerStaticDoorMask = 1;
+        public const int DoorLayer = 2, PlayerStaticDoorMask = 1;
     }
 }
 

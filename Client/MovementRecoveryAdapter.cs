@@ -335,7 +335,8 @@ public sealed partial class Plugin
         reason = "recovery-no-low-obstacle";
         var dir = next - b.Position;
         dir.y = 0;
-        if (dir.sqrMagnitude < .01f)
+        float cornerDistance = dir.magnitude;
+        if (cornerDistance < .1f)
             return false;
         dir.Normalize();
         if (!RecoveryActorsClear(b, b.Position, b.Position + dir * 1.2f, .7f))
@@ -343,23 +344,21 @@ public sealed partial class Plugin
             reason = "recovery-person-ahead";
             return false;
         }
-        if (
-            !Physics.Raycast(
-                b.Position + Vector3.up * .4f,
-                dir,
-                out var low,
-                .75f,
-                LayersMaskController.PlayerStaticDoorMask,
-                QueryTriggerInteraction.Ignore
-            )
-        )
-            return false;
-        door = low.collider.GetComponentInParent<Door>();
+        bool lowObstacle = Physics.Raycast(
+            b.Position + Vector3.up * .4f, dir, out var low, .75f,
+            LayersMaskController.PlayerStaticDoorMask, QueryTriggerInteraction.Ignore
+        );
+        door = lowObstacle ? low.collider.GetComponentInParent<Door>() : null;
+        // The knee ray misses a leaf that catches the shoulder, or starts inside its collider.
+        var chest = b.Position + Vector3.up;
+        door ??= NearestPhysicalLeaf(chest, chest + dir * Math.Min(.75f, cornerDistance), .2f, null, out _);
         if (door != null)
         {
             reason = "recovery-door-leaf-blocking-route";
             return false;
         }
+        if (!lowObstacle)
+            return false;
         if (
             Physics.Raycast(
                 b.Position + Vector3.up * 1.3f,

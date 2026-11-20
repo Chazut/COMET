@@ -14,6 +14,15 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### Door recovery at Ground Zero (2026-11-20)
+
+In raid 485 a PMC held the same doorway for 37 seconds. C04 selected a reversed
+leaf on the floor below nine times. C01 recorded the doorway on the route as
+open, and both knee-level probes in C06 missed the obstruction. C04 now uses
+the nearest physical open leaf, following `DoorLeafCheck.OpenLeafDoorNear` in
+remix 7.6. C06 also checks a short chest-height capsule along the stalled
+route. A confirmed leaf enters the existing repath and route-release sequence.
+
 ### Door decisions and engagement scoring (2026-11-20)
 
 Combat door selection follows a refused rush. Search has its own room-clear roll.

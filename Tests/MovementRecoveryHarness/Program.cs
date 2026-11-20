@@ -25,6 +25,7 @@ void Check(bool v, string why)
     p.states[b] = s;
     Singleton<GameWorld>.Instance = new();
     Singleton<GameWorld>.Instance.AllAlivePlayersList.Add(b.Player);
+    Physics.ChestLeaf = null;
     Physics.Low = true;
     Physics.High = Physics.Volume = Physics.Sweep = false;
     Physics.VolumeAt = null;
@@ -114,6 +115,31 @@ foreach (
     p.states.Clear();
     p.Enroll(b);
     Check(p.states.ContainsKey(b), "C06 enrolls independently of W10 or combat decisions");
+}
+
+// Raid485: the knee ray missed a door that blocked a SeekCover route.
+{
+    var (p, b, s) = Setup();
+    b.Decision.CurrentCombatDecision = "SeekCover";
+    Physics.Low = false;
+    Physics.ChestLeaf = new()
+    {
+        Parent = new Door { Id = "ground-zero-leaf", DoorState = "Open" },
+        bounds = new() { center = new(.48f, 1, .14f) },
+    };
+    Run(p, b, s, 6);
+    Check(b.Mover.Repaths == 1 && b.Mover.Stops == 1 && b.Cover.Releases == 1
+        && s.MovementRecovery.Policy.Trace.BlockingDoor == "ground-zero-leaf",
+        "shoulder contact releases the obstructed route even when the low ray misses");
+    Check(b.Mover.Jumps == 0 && b.Mover.Vaults == 0, "no jumps through a leaf");
+}
+{
+    var (p, b, s) = Setup();
+    Physics.Low = false;
+    Physics.ChestLeaf = new() { Parent = new Door(), bounds = new() { center = new(-.5f, 1, 0) } };
+    Run(p, b, s, 6);
+    Check(b.Mover.Stops == 0 && s.MovementRecovery.Policy.Trace.BlockingDoor == "",
+        "a nearby leaf behind the route does not cause a door replan");
 }
 
 // Raid435 feiqiuT_T: a leaf is not evidence that a door interaction is in progress.
