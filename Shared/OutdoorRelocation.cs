@@ -51,8 +51,16 @@ public sealed class RelocationHistory
     public void Clear() => canRoll.Clear();
 }
 
+public enum RelocationRoute
+{
+    AwaitingPath,
+    ToSelectedCover,
+    Replaced,
+}
+
 public sealed class RelocationFrame
 {
+    public RelocationRoute Route;
     public double Now,
         ContactAge,
         SightAge,
@@ -73,8 +81,7 @@ public sealed class RelocationFrame
         MatesEngaging,
         OtherTactic,
         NativeMoveStarted,
-        HandsReady,
-        RouteOwned = true;
+        HandsReady;
 }
 
 public sealed class RelocationCandidate
@@ -103,6 +110,8 @@ public sealed class RelocationTrace
         GrenadeOutcome = "not-tried",
         Action = "Freeze";
     public int Episode,
+        MoveOrders,
+        OrdersAwaitingPath,
         Samples,
         ConcealedPoints,
         Candidates,
@@ -133,6 +142,7 @@ public sealed class RelocationTrace
     public bool Requested,
         Accepted,
         MoveRequested,
+        NativePathReused,
         MovementObserved,
         Arrived,
         ThrowAccepted,
@@ -155,6 +165,7 @@ public sealed class OutdoorRelocation
         lastTime,
         throwAt;
     private double releaseAt = -1;
+    private double nextMoveOrder;
     private int episode;
 
     public static bool Valid(double v) => DoorPolicy.Finite(v) && v >= 0;
@@ -352,6 +363,35 @@ public sealed class OutdoorRelocation
 
     private DoorPoint moveOrigin;
 
+    private bool SameMoveDestination(DoorPoint point)
+    {
+        var delta = point - Goal;
+        // Same 3D tolerance as the native mover's TryUpdatePath.
+        return delta.Dot(delta) < .5;
+    }
+
+    public RelocationRoute ClassifyRoute(DoorPoint? cover, DoorPoint? active, DoorPoint? queued, bool activeComplete)
+    {
+        // SAIN can leave the outgoing path active until it starts its queued replacement.
+        var next = queued ?? active;
+        if ((cover.HasValue && !SameMoveDestination(cover.Value))
+            || (next.HasValue && !SameMoveDestination(next.Value)))
+            return RelocationRoute.Replaced;
+        return active.HasValue && activeComplete && SameMoveDestination(active.Value)
+            ? RelocationRoute.ToSelectedCover : RelocationRoute.AwaitingPath;
+    }
+
+    public bool TryBeginMoveOrder(double now, RelocationRoute route)
+    {
+        if (Trace?.State != "moving" || route == RelocationRoute.Replaced || now < nextMoveOrder)
+            return false;
+        if (Trace.MoveOrders > 0 && route == RelocationRoute.AwaitingPath)
+            Trace.OrdersAwaitingPath++;
+        Trace.MoveOrders++;
+        nextMoveOrder = now + .6;
+        return true;
+    }
+
     public bool AtDestination(DoorPoint position)
     {
         var offset = position - Goal;
@@ -369,6 +409,7 @@ public sealed class OutdoorRelocation
         moveOrigin = position;
         Trace.Reason = "relocate-native-cover-move";
         movingAt = progressAt = now;
+        nextMoveOrder = now;
         bestRemaining = (Goal - Origin).Length;
     }
 
@@ -378,7 +419,7 @@ public sealed class OutdoorRelocation
             return false;
         var t = Trace!;
         // Capture the last movement sample even if this tick also reveals a threat.
-        if (t.State == "moving" && f.RouteOwned && f.Position.Finite)
+        if (t.State == "moving" && f.Route == RelocationRoute.ToSelectedCover && f.Position.Finite)
         {
             t.DistanceMoved = (f.Position - moveOrigin).Length;
             t.MovementObserved |= f.NativeMoveStarted && t.DistanceMoved > .5;
@@ -394,7 +435,7 @@ public sealed class OutdoorRelocation
         if (why.Length == 0 && t.State == "moving")
         {
             double remaining = (f.Position - Goal).Length;
-            if (!f.RouteOwned && !AtDestination(f.Position))
+            if (f.Route == RelocationRoute.Replaced)
                 why = "relocate-native-route-replaced";
             else
             {

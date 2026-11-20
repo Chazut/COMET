@@ -14,6 +14,15 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### M13 outdoor relocation route renewal (2026-11-20)
+
+Once SAIN accepts the relocation and starts its cover action, COMET reissues
+the native move to the selected position every 0.6 seconds, as in remix 7.6
+`RepositionClass.MoveTo`. SAIN can reuse or rebuild its path. A gap before
+the next path starts keeps the move pending. A different destination, a
+replacement action, or a refused move ends the relocation. Cleanup only
+cancels path generations created during COMET's own orders.
+
 ### A05/H01 ordinary medical decisions (2026-11-20)
 
 With a known enemy, ordinary medical choices use the remix 7.6 `HealUtility`

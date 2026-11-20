@@ -33,7 +33,6 @@ internal sealed class RelocationRuntime
     internal float Next,
         NextProbe,
         LastSafety = -1000,
-        RequestedAt,
         ReleaseAt = -1;
     internal int Candidate,
         RequestFrame = -1,
@@ -46,7 +45,7 @@ internal sealed class RelocationRuntime
         ThrowCall,
         GuardPassed,
         NativeMoveStarted,
-        CoverCall;
+        IssuingMove;
     internal int ProjectileId = -1;
     internal WeakReference<Grenade>? Projectile;
     internal Vector3 Blast;
@@ -67,7 +66,7 @@ internal sealed class RelocationRuntime
         BlastRadius = 0;
         GrenadeItem = "";
         RequestFrame = -1;
-        NativeMoveStarted = CoverCall = false;
+        NativeMoveStarted = IssuingMove = false;
     }
 }
 
@@ -91,42 +90,9 @@ public sealed partial class Plugin
         relocationPathStatus = AccessTools.PropertySetter(typeof(BotPathDataManual), "Status")
             ?? throw new MissingMethodException("M13 queued path state");
         h.Patch(
-            AccessTools.Method(
-                typeof(SAINMoverClass),
-                "GoToCoverPoint",
-                new[] { typeof(CoverPoint), typeof(bool), typeof(ESprintUrgency) }
-            ),
-            prefix: new HarmonyMethod(typeof(Plugin), nameof(RelocationCoverCall)),
-            finalizer: new HarmonyMethod(typeof(Plugin), nameof(RelocationCoverFinally))
-        );
-        h.Patch(
             AccessTools.Method(typeof(BotPathDataManual), "Initialize"),
             postfix: new HarmonyMethod(typeof(Plugin), nameof(RelocationPathInitialized))
         );
-    }
-
-    private static void RelocationCoverCall(
-        SAINMoverClass __instance,
-        CoverPoint point,
-        out bool __state
-    )
-    {
-        __state = false;
-        var p = Instance;
-        if (p == null || !p.states.TryGetValue(__instance.Bot, out var s))
-            return;
-        var r = s.Relocation;
-        __state = r.CoverCall;
-        r.CoverCall =
-            r.Policy.Active
-            && r.Policy.Trace?.State == "moving"
-            && ReferenceEquals(point, r.Selected);
-    }
-
-    private static void RelocationCoverFinally(SAINMoverClass __instance, bool __state)
-    {
-        if (Instance?.states.TryGetValue(__instance.Bot, out var s) == true)
-            s.Relocation.CoverCall = __state;
     }
 
     private static void RelocationPathInitialized(BotPathDataManual __instance, NavMeshPath path)
@@ -141,12 +107,7 @@ public sealed partial class Plugin
         var r = s.Relocation;
         // Native paths are reused. Every initialization revokes the previous ownership, even at the same destination.
         r.Routes.Remove(__instance);
-        if (
-            r.CoverCall
-            && r.Policy.Active
-            && ReferenceEquals(path, r.Selected?.PathToPoint)
-            && r.Routes.Count < 2
-        )
+        if (r.IssuingMove && r.Policy.Active)
             r.Routes[__instance] = path;
     }
 
@@ -260,33 +221,35 @@ public sealed partial class Plugin
         }
         if (r.Policy.Trace?.State == "moving")
         {
-            var path = b.Mover.ActivePath;
             f.NativeMoveStarted = r.NativeMoveStarted;
-            // WalkToPointByWay does not populate IBotPathData.PathStatus in official SAIN. Check its actual mesh.
-            f.RouteOwned =
-                r.Policy.AtDestination(f.Position)
-                || !r.NativeMoveStarted
-                || OwnRelocationRoute(r, path)
-                    && path!.NavMeshPath.status == NavMeshPathStatus.PathComplete
-                    && ReferenceEquals(b.Cover.CoverPoint_MovingTo, r.Selected);
-            if (
-                r.NativeMoveStarted
-                && Time.time - r.RequestedAt < .5f
-                && r.Routes.Keys.Any(x =>
-                    OwnRelocationRoute(r, x) && x.Status == EBotMoveStatus.ReadyToMove
-                )
-            )
-                f.RouteOwned = true;
-            // Native arrival can finish the path one tick before CoverInUse is updated; this does not declare arrival.
-            if (
-                path == null
-                && ReferenceEquals(b.Cover.CoverPoint_MovingTo, r.Selected)
-                && Vector3.Distance(b.Position, VP(r.Policy.Goal)) <= .8f
-            )
-                f.RouteOwned = true;
+            if (r.NativeMoveStarted)
+            {
+                if (f.Block.Length == 0 && !RelocationControlsMovement(b))
+                    f.Block = "relocate-native-priority";
+                var cover = b.Cover.CoverPoint_MovingTo ?? b.Cover.CoverInUse;
+                var active = b.Mover.ActivePath;
+                if (active?.Moving != true || active is BotPathDataManual { CancelRequested: true })
+                    active = null;
+                var queued = QueuedDoorPath(b);
+                // By-way movement does not populate PathStatus. Use the actual mesh for travel evidence.
+                f.Route = r.Policy.ClassifyRoute(
+                    cover != null ? DP(cover.Position) : null,
+                    active != null ? DP(active.Destination) : null,
+                    queued != null ? DP(queued.Destination) : null,
+                    active?.NavMeshPath?.status == NavMeshPathStatus.PathComplete
+                );
+                if (f.Route == RelocationRoute.ToSelectedCover && !OwnRelocationRoute(r, active))
+                    r.Policy.Trace.NativePathReused = true;
+            }
         }
         return f;
     }
+
+    private static bool RelocationControlsMovement(BotComponent b) =>
+        b.Decision.CurrentCombatDecision == ECombatDecision.SeekCover
+        && b.Decision.CurrentSelfDecision == ESelfActionType.None
+        && b.Decision.CurrentSquadDecision == ESquadDecision.None
+        && (b.CurrentAction == null || b.CurrentAction.GetType().FullName == SeekCoverType);
 
     private static string RelocationContactSource(Enemy e)
     {
@@ -517,6 +480,10 @@ public sealed partial class Plugin
                 doorBudget.Charge(clock.Elapsed.TotalMilliseconds);
             }
         }
+        if (t.State == "moving" && t.Accepted
+            && (r.NativeMoveStarted || b.CurrentAction != null && RelocationControlsMovement(b))
+            && !OrderRelocationMove(b, s, f))
+            return;
         RecordRelocation(s);
     }
 
@@ -747,33 +714,32 @@ public sealed partial class Plugin
         var r = s.Relocation;
         if (r.Selected == null)
             return;
-        // Native SeekCover will request this point through FindCover on its next action update.
+        // Native SeekCover can start via FindCover or the next accepted movement update.
         b.Cover.StopSeekingCover();
         r.Routes.Clear();
         r.NativeMoveStarted = false;
-        r.RequestedAt = Time.time;
         r.Policy.MoveRequested(Time.time, DP(b.Position));
     }
 
     private bool FindRelocationCover(SAINCoverClass cover, BotState s, ref CoverPoint result)
     {
         var r = s.Relocation;
-        if (r.Policy.Trace?.State != "moving" || !r.Policy.Active)
+        if (r.Policy.Trace?.State != "moving" || !r.Policy.Trace.Accepted)
             return false;
         var b = cover.Bot;
         try
         {
-            if (
-                RelocationFrame(b, s).Block.Length > 0
-                || r.Selected == null
-                || !b.Mover.GoToCoverPoint(r.Selected, b.GoalEnemy?.IsVisible != true, ESprintUrgency.High)
-            )
+            if (!RelocationControlsMovement(b))
+                return false;
+            var f = RelocationFrame(b, s);
+            if (!r.Policy.Observe(f, config!.OutdoorRelocation))
             {
-                EndRelocation(s, "relocate-native-cover-refused");
+                FinishRelocation(s);
                 return false;
             }
-            result = r.Selected;
-            r.NativeMoveStarted = true;
+            if (!OrderRelocationMove(b, s, f))
+                return false;
+            result = r.Selected!;
             RecordRelocation(s);
             return true;
         }
@@ -782,6 +748,34 @@ public sealed partial class Plugin
             RelocationError(s, ex);
             return false;
         }
+    }
+
+    private bool OrderRelocationMove(BotComponent b, BotState s, RelocationFrame f)
+    {
+        var r = s.Relocation;
+        if (!r.Policy.TryBeginMoveOrder(f.Now, f.Route))
+            return r.NativeMoveStarted;
+        r.IssuingMove = true;
+        bool accepted;
+        try
+        {
+            var goal = VP(r.Policy.Goal);
+            const float reach = .7f * .7f;
+            accepted = !f.Visible
+                ? b.Mover.RunToPoint(goal, true, reach, ESprintUrgency.High)
+                : b.Mover.WalkToPoint(goal, true, reach);
+        }
+        finally
+        {
+            r.IssuingMove = false;
+        }
+        if (!accepted)
+        {
+            EndRelocation(s, "relocate-native-cover-refused");
+            return false;
+        }
+        r.NativeMoveStarted = true;
+        return true;
     }
 
     private string PrepareRelocationGrenade(BotComponent b, BotState s)
@@ -919,7 +913,9 @@ public sealed partial class Plugin
         var r = s.Relocation;
         try
         {
-            if (r.Owner != null && !r.Owner.IsDead && !r.Policy.Trace!.Arrived)
+            if (r.Owner != null && !r.Owner.IsDead && !r.Policy.Trace!.Arrived
+                && !(r.Policy.Trace.Reason == "relocate-native-priority"
+                    && r.NativeMoveStarted && !RelocationControlsMovement(r.Owner)))
             {
                 // Clear only our queued generation without PathComplete (which would stop a different active route).
                 foreach (var path in r.Routes.Keys.ToArray())

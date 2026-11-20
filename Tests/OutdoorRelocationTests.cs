@@ -48,6 +48,7 @@ internal static class OutdoorRelocationTests
                 InCover = true,
                 HandsReady = true,
                 NativeMoveStarted = true,
+                Route = RelocationRoute.ToSelectedCover,
             };
         RelocationCandidate C() =>
             new()
@@ -318,7 +319,7 @@ internal static class OutdoorRelocationTests
             switch (scenario)
             {
                 case "route":
-                    f.RouteOwned = false;
+                    f.Route = RelocationRoute.Replaced;
                     break;
                 case "contact":
                     f.Known = new(9, 0, 30);
@@ -359,6 +360,43 @@ internal static class OutdoorRelocationTests
                 );
         }
         var h = new RelocationHistory();
+        p = P();
+        p.Begin(F(), c, Low);
+        p.Select(C(), c);
+        p.MoveRequested(10, p.Origin);
+        var same = p.Goal + new DoorPoint(.3, .1, .2);
+        var elsewhere = p.Goal + new DoorPoint(0, 3, 0);
+        var waiting = p.ClassifyRoute(null, null, null, false);
+        Check(waiting == RelocationRoute.AwaitingPath, "a gap between native paths is recoverable");
+        Check(p.TryBeginMoveOrder(10, waiting) && !p.TryBeginMoveOrder(10, waiting),
+            "the native action and sampler share the first order");
+        f = F(10.4);
+        f.Position = new(2, 0, 0);
+        f.Route = waiting;
+        Check(p.Observe(f, c) && !p.Trace!.MovementObserved, "a path gap cannot prove movement");
+        Check(!p.TryBeginMoveOrder(10.599, waiting) && p.TryBeginMoveOrder(10.6, waiting)
+            && !p.TryBeginMoveOrder(10.6, waiting), "reissue after 0.6 s only once");
+        Check(p.Trace!.MoveOrders == 2 && p.Trace.OrdersAwaitingPath == 1,
+            "diagnostics distinguish reissues during path gaps from the initial order");
+        Check(p.ClassifyRoute(same, elsewhere, same, true) == waiting,
+            "queued replacement to the goal is pending while the outgoing path retires");
+        Check(p.ClassifyRoute(same, same, null, false) == waiting,
+            "an incomplete mesh is not evidence of travel or a takeover");
+        f.Route = p.ClassifyRoute(null, same, null, true);
+        Check(f.Route == RelocationRoute.ToSelectedCover && p.Observe(f, c) && p.Trace.MovementObserved,
+            "a new native path to the same goal can continue and prove movement without a cover object");
+        Check(p.TryBeginMoveOrder(11.3, f.Route) && p.Trace.OrdersAwaitingPath == 1,
+            "keep refreshing a live route without counting a recovery");
+        var takeover = p.ClassifyRoute(same, same, elsewhere, true);
+        Check(takeover == RelocationRoute.Replaced
+            && p.ClassifyRoute(elsewhere, same, null, true) == takeover
+            && p.ClassifyRoute(null, elsewhere, null, true) == takeover,
+            "different queued destination, selected cover or active path all yield, including another floor");
+        f.Now = 12;
+        f.Route = takeover;
+        Check(!p.TryBeginMoveOrder(f.Now, takeover) && !p.Observe(f, c)
+            && p.Trace.Reason == "relocate-native-route-replaced" && !p.TryBeginMoveOrder(13, waiting),
+            "a real takeover ends the episode before another order can be sent");
         h.Observe("bot-first", false, true, 0);
         h.Observe("bot-first", true, true, .1);
         Check(
@@ -496,6 +534,19 @@ internal static class OutdoorRelocationTests
                 Calls(pe, md, Method("FinishRelocation"), "OwnRelocationRoute") >= 2,
                 "only owned queued and active routes are cleaned"
             );
+            Check(Calls(pe, md, Method("RelocationFrame"), "ClassifyRoute") == 1
+                && Calls(pe, md, Method("RelocationFrame"), "QueuedDoorPath") == 1
+                && Calls(pe, md, Method("RelocationFrame"), "RelocationControlsMovement") == 1,
+                "real movement, queued replacement and decision owner feed the runtime policy");
+            Check(Calls(pe, md, Method("FinishRelocation"), "RelocationControlsMovement") == 1,
+                "an action that took over keeps its native movement even when it reused the previous path");
+            Check(Calls(pe, md, Method("FindRelocationCover"), "OrderRelocationMove") == 1
+                && Calls(pe, md, Method("RefreshRelocation"), "OrderRelocationMove") == 1
+                && Calls(pe, md, Method("OrderRelocationMove"), "TryBeginMoveOrder") == 1
+                && Calls(pe, md, Method("OrderRelocationMove"), "RunToPoint") == 1
+                && Calls(pe, md, Method("OrderRelocationMove"), "WalkToPoint") == 1
+                && Calls(pe, md, Method("OrderRelocationMove"), "EndRelocation") == 1,
+                "initial selection and maintenance share native point orders and yield on native refusal");
             Check(
                 Calls(pe, md, Method("ClearProjectileThrown"), "RelocationProjectile") == 1
                     && Calls(pe, md, Method("ClearProjectileExplosion"), "RelocationExplosion")
