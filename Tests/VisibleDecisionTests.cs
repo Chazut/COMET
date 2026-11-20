@@ -205,6 +205,62 @@ internal static class VisibleDecisionTests
             policy.Evaluate(frame).Decision == null,
             "no-shot eventually yields to native decisions"
         );
+        foreach (var tactic in Enum.GetValues<VisibleTactic>())
+        {
+            var e = new VisibleEnemyDecision(Only(tactic));
+            var f = Frame();
+            f.EffectiveWeaponDistance = 8;
+            f.Contact.KnownDistance = 2;
+            f.Contact.RealDistance = 10;
+            var initial = e.Evaluate(f);
+            Check(initial.Decision == tactic, "exactly 125% of effective range is eligible");
+            f.Contact.Now += .1;
+            f.Contact.RealDistance = 10.01;
+            f.CanShoot = false;
+            var blink = e.Evaluate(f);
+            Check(blink.Decision == tactic && !blink.Reconsidered && blink.Reason == "zzap-kept-no-shot",
+                "a blocked muzzle checks the same-enemy cache before range");
+            f.CanShoot = true;
+            var outside = e.Evaluate(f);
+            Check(outside.Changed && outside.Decision == null && e.Current == null && outside.KeepRankingOnHandoff
+                && outside.Reason == "out-of-weapon-range",
+                "clear muzzle outside range yields immediately, even with a fresh ranking: " + tactic);
+            Check(!e.Evaluate(f).Changed, "remaining out of range does not repeatedly release a choice");
+            f.Contact.Now += .1;
+            f.Contact.RealDistance = 10;
+            var resumed = e.Evaluate(f);
+            Check(resumed.Decision == tactic && resumed.Changed && !resumed.Reconsidered
+                && ReferenceEquals(initial.Candidates, resumed.Candidates),
+                "back in range of the same enemy reuses the original ranking");
+            f.Contact.RealDistance = 11;
+            f.Contact.Now += 4;
+            var expired = e.Evaluate(f);
+            Check(expired.Decision == null && !expired.KeepRankingOnHandoff, "expired ranking outside range still yields");
+            f.CanShoot = false;
+            Check(e.Evaluate(f).Decision == null, "an expired ranking cannot be revived by a blocked muzzle");
+            f.Contact.RealDistance = 9;
+            f.CanShoot = true;
+            Check(e.Evaluate(f).Reconsidered, "return after expiry scores the target again");
+        }
+        {
+            var e = new VisibleEnemyDecision(Only(VisibleTactic.Shoot));
+            var f = Frame();
+            f.EffectiveWeaponDistance = 8;
+            f.Contact.RealDistance = 11;
+            Check(e.Evaluate(f).Decision == null, "no initial ranking for a distant target with a clear line");
+            f.CanShoot = false;
+            Check(e.Evaluate(f).Decision == null, "a blocked muzzle cannot create a ranking");
+            f.Contact.RealDistance = 9;
+            f.CanShoot = true;
+            e.Evaluate(f);
+            f.CanShoot = false;
+            f.RecentHit = true;
+            Check(e.Evaluate(f).Decision == null, "a recent hit prevents retention during a muzzle blink");
+            f.Contact.Target = "another enemy";
+            f.RecentHit = false;
+            var other = e.Evaluate(f);
+            Check(other.Decision == null && !other.KeepRankingOnHandoff, "another enemy cannot inherit a blocked-muzzle ranking");
+        }
         foreach (
             Action<VisibleSituation> change in new Action<VisibleSituation>[]
             {

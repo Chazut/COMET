@@ -14,6 +14,7 @@ public enum VisibleTactic
 public sealed class VisibleSituation
 {
     public Situation Contact = new Situation();
+    public float? EffectiveWeaponDistance;
     internal double EnemyDistance =>
         Contact.RealDistance is double distance && double.IsFinite(distance)
             ? distance
@@ -53,6 +54,7 @@ public sealed class VisibleChoice
     public VisibleTactic? Decision;
     public bool Changed;
     public bool Reconsidered;
+    internal bool KeepRankingOnHandoff;
     public string Reason = "";
     public List<Candidate> Candidates = new List<Candidate>();
 }
@@ -128,12 +130,15 @@ public sealed class VisibleEnemyDecision
         if (rejection != null)
             return Release(rejection);
         bool same = target == s.Target && candidates.Count > 0;
+        bool fresh = same && (s.Now < until || s.Now - scoredAt < 1.5);
         if (!v.CanShoot)
         {
-            if (!v.RecentHit && same && (s.Now < until || s.Now - scoredAt < 1.5))
+            if (!v.RecentHit && fresh)
                 return SelectAvailable(v, "zzap-kept-no-shot");
-            return Release("no-clear-shot-or-out-of-range");
+            return YieldToNative("no-clear-shot", fresh);
         }
+        if (v.EffectiveWeaponDistance is float range && v.EnemyDistance > range * 1.25f)
+            return YieldToNative("out-of-weapon-range", fresh);
         if (same && s.Now < until && !v.RecentHit)
             return SelectAvailable(v, "zzap-ranked-memory");
         double aggression = config.Aggression.TryGetValue(s.Personality, out var a) ? a : .5;
@@ -214,16 +219,26 @@ public sealed class VisibleEnemyDecision
 
     public void ProbeRefreshed() { }
 
-    public VisibleChoice Release(string reason)
+    public VisibleChoice Release(string reason) => YieldToNative(reason, false);
+
+    private VisibleChoice YieldToNative(string reason, bool keepRanking)
     {
         bool changed = current.HasValue;
         current = null;
-        target = "";
-        until = 0;
-        candidates.Clear();
-        preference.Clear();
-        RankedEnemy = null;
-        return new VisibleChoice { Changed = changed, Reason = reason };
+        if (!keepRanking)
+        {
+            target = "";
+            until = 0;
+            candidates.Clear();
+            preference.Clear();
+            RankedEnemy = null;
+        }
+        return new VisibleChoice
+        {
+            Changed = changed,
+            Reason = reason,
+            KeepRankingOnHandoff = keepRanking,
+        };
     }
 
     private static bool Finite(double x) => !double.IsNaN(x) && !double.IsInfinity(x);

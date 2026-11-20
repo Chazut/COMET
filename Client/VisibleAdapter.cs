@@ -99,13 +99,13 @@ internal static class VisibleAdapter
     )
     {
         var cover = SelectCover(bot);
+        bool clearShot = enemy.CanShoot;
         var v = new VisibleSituation
         {
             Contact = contact,
             WeaponReady = WeaponReady(bot),
-            CanShoot =
-                enemy.CanShoot
-                && enemy.RealDistance <= bot.Info.WeaponInfo.EffectiveWeaponDistance * 1.25,
+            CanShoot = clearShot,
+            EffectiveWeaponDistance = clearShot ? bot.Info.WeaponInfo.EffectiveWeaponDistance : null,
             RecentHit = bot.Medical.TimeSinceShot < 1.5f,
             RecentHitAt = Time.time - bot.Medical.TimeSinceShot,
             ProbeReady = true,

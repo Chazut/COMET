@@ -23,7 +23,12 @@ public sealed partial class Plugin
                 Z = s.KnownZ,
             };
 
-    private void YieldToSain(BotState state, string reason, string kind = "unavailable")
+    private void YieldToSain(
+        BotState state,
+        string reason,
+        string kind = "unavailable",
+        bool preserveVisiblePlan = false
+    )
     {
         bool changed = state.Handoff.Begin(
             Time.time,
@@ -40,6 +45,7 @@ public sealed partial class Plugin
             Release(
                 state,
                 reason,
+                preserveVisiblePlan: preserveVisiblePlan,
                 preserveHiddenPreference: state.Feature == "A01" && reason == "no-feasible-option"
             );
         }

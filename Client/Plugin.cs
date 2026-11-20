@@ -1049,7 +1049,11 @@ public sealed partial class Plugin : BaseUnityPlugin
                         state.LastRefusal = choice.Reason;
                         state.LastRefusalAt = Time.time;
                     }
-                    plugin.YieldToSain(state, choice.Reason);
+                    plugin.YieldToSain(
+                        state,
+                        choice.Reason,
+                        preserveVisiblePlan: choice.KeepRankingOnHandoff
+                    );
                     return true;
                 }
                 state.LastRefusal = "";
@@ -1531,6 +1535,8 @@ public sealed partial class Plugin : BaseUnityPlugin
                     ? new
                     {
                         enemyDistance = state.VisibleSituation?.EnemyDistance,
+                        clearShot = state.VisibleSituation?.CanShoot,
+                        effectiveWeaponDistance = state.VisibleSituation?.EffectiveWeaponDistance,
                         currentExposure = state.VisibleSituation?.CurrentExposure,
                         coverExposure = state.VisibleSituation?.CoverExposure,
                         coverRouteRisk = state.VisibleSituation?.CoverRouteRisk,
