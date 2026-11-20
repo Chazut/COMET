@@ -990,6 +990,16 @@ public sealed partial class Plugin : BaseUnityPlugin
             plugin.RefreshDoorInterruption(bot, state);
             if (plugin.RequestDoorEmergency(bot, state, ref result, ref __result))
                 return false;
+            if (state.CoverFeint.Policy.ShouldPullBack(Time.time) && plugin.FeintScope(bot, state))
+            {
+                if (!VisibleAdapter.WeaponReady(bot))
+                {
+                    plugin.YieldToSain(state, "handoff-native-priority", "priority");
+                    return true;
+                }
+                plugin.RequestFeintPullBack(state, ref result, ref __result);
+                return false;
+            }
             if (plugin.RequestDoorResume(bot, state, ref result, ref __result))
                 return false;
             if (plugin.KeepDoorSupport(bot, state, ref result, ref __result))

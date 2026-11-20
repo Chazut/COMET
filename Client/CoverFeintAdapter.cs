@@ -127,8 +127,10 @@ public sealed partial class Plugin
     }
 
     private bool FeintScope(BotComponent b, BotState s) =>
-        ContactSafety.AllowsGoal(b)
-        && config?.Enabled == true
+        ContactSafety.AllowsGoal(b) && FeintBotScope(b, s);
+
+    private bool FeintBotScope(BotComponent b, BotState s) =>
+        config?.Enabled == true
         && config.CoverFeint.Enabled
         && NativeAdapter.IsSupportedAi(b)
         && b.BotActive
@@ -324,7 +326,7 @@ public sealed partial class Plugin
             && manager.CurrentSelfDecision == ESelfActionType.None
             && manager.CurrentSquadDecision == ESquadDecision.None;
         r.RequestFrame = -1;
-        r.Policy.Accepted(ours, Time.time);
+        r.Policy.Accepted(ours, Time.time, manager.CurrentCombatDecision == ECombatDecision.StandAndShoot);
         if (!ours)
         {
             FinishFeint(s);
@@ -332,6 +334,28 @@ public sealed partial class Plugin
         }
         RecordFeint(s);
         return true;
+    }
+
+    private void RequestFeintPullBack(BotState s, ref ECombatDecision decision, ref bool succeeded)
+    {
+        var t = s.CoverFeint.Policy.Trace!;
+        if (s.Feature != "M14" || s.Decision != "FallBack")
+        {
+            Release(s, "feint-pullback", preserveVisiblePlan: true, preserveHiddenPreference: true);
+            s.Feature = "M14";
+            s.Decision = "FallBack";
+            s.Mixing = null;
+            s.Candidates = new() { new() { Decision = "FallBack", Eligible = true, Reason = "feint-pullback" } };
+            Emit(s, "selected", "feint-pullback");
+        }
+        s.Expected = decision = ECombatDecision.Retreat;
+        s.RequestedFrame = Time.frameCount;
+        succeeded = true;
+        if (!t.PullBackRequested)
+        {
+            t.PullBackRequested = true;
+            RecordFeint(s, true);
+        }
     }
 
     private static bool FeintAction(SAIN.Layers.BotAction __instance)
@@ -384,7 +408,10 @@ public sealed partial class Plugin
             return;
         if (!FeintScope(b, s))
         {
-            EndFeint(s, "feint-out-of-scope", true);
+            // An absent goal skips enemy decisions. The short retreat window belongs to this bot.
+            bool keepWindow = b.GoalEnemy == null && s.CoverFeint.Policy.Trace is { } t
+                && Time.time < t.PullBackUntil && FeintBotScope(b, s);
+            EndFeint(s, "feint-out-of-scope", true, preservePullBack: keepWindow);
             return;
         }
         if (s.CoverFeint.Policy.Active)
@@ -727,14 +754,14 @@ public sealed partial class Plugin
         catch { }
     }
 
-    private void EndFeint(BotState s, string why, bool clear = false)
+    private void EndFeint(BotState s, string why, bool clear = false, bool preservePullBack = false)
     {
         var r = s.CoverFeint;
         if (r.Starting)
             return;
         bool active = r.Policy.Active;
         if (clear)
-            r.Policy.Clear(why, Time.time);
+            r.Policy.Clear(why, Time.time, preservePullBack);
         else if (active)
             r.Policy.End(why, Time.time);
         if (active)

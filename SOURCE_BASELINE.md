@@ -57,6 +57,12 @@ point through the check and hold, falling back to the encounter's last known
 position if none was available. A bait peek uses the last known position.
 Both look 1.3 metres above their point and give native firing priority.
 
+When a started bait peek ends on sight of its enemy or on a native switch to
+`StandAndShoot`, M14 leaves ordinary decisions available for 0.9 s. For the
+next 1.6 s it requests native `Retreat` when the enemy chooser runs, after
+emergencies and before ordinary tactics. The window belongs to the bot.
+The feint trace records its start, expiry and whether a retreat was requested.
+
 ### A05/H01 ordinary medical decisions (2026-11-20)
 
 With a known enemy, ordinary medical choices use the remix 7.6 `HealUtility`

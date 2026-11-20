@@ -397,6 +397,69 @@ internal static class CoverFeintTests
         p.Observe(f, c);
         p.NoPeekPoint(f, c);
         Check(!p.Active && p.Trace!.FallbackReason == "", "new sight cancels both variants");
+        Check(!p.ShouldPullBack(12), "seeing a target before selecting a peek point cannot arm retreat");
+
+        CoverFeintPolicy StartedPeek()
+        {
+            var policy = new CoverFeintPolicy();
+            policy.Begin(F(), c, Low);
+            policy.Accepted(true, 10);
+            policy.Plan(new(1, 0, 0), 10);
+            return policy;
+        }
+        foreach (bool standAndShoot in new[] { false, true })
+        {
+            p = StartedPeek();
+            f = F(11);
+            if (standAndShoot) p.Accepted(false, f.Now, true);
+            else
+            {
+                f.Visible = true;
+                p.Observe(f, c);
+            }
+            var ended = p.Trace!;
+            Check(!p.Active && ended.Accepted && ended.SharedCooldownUntil == 16 && !ended.PullBackRequested,
+                "spotting ends the real peek before any retreat is requested");
+            Check(ended.PullBackFrom == 11.9f && ended.PullBackUntil == 13.5f
+                && !p.ShouldPullBack(11) && !p.ShouldPullBack(11.899)
+                && p.ShouldPullBack(11.9f) && p.ShouldPullBack(13.499) && !p.ShouldPullBack(13.5f),
+                "both sight outcomes preserve the initial decision and the exact half-open retreat window");
+            Save();
+            // Neither repeated callbacks nor reacquiring a different contact should restart the clock.
+            var other = F(12);
+            other.Target = "other";
+            p.Observe(other, c);
+            p.Accepted(false, 12, true);
+            p.Clear("no goal for one update", 12, preservePullBack: true);
+            Check(p.ShouldPullBack(12) && ended.PullBackUntil == 13.5f && !new CoverFeintPolicy().ShouldPullBack(12),
+                "pending retreat survives a contact gap, belongs to one bot and cannot be extended");
+            p.Clear("ghost", 12);
+            Check(!p.ShouldPullBack(12), "authority or scope cleanup discards pending retreat");
+        }
+        foreach (var interruption in new[] { "feint-under-fire", "feint-other-visible-enemy", "feint-throwing",
+            "target-changed", "native-priority", "timeout" })
+        {
+            p = StartedPeek();
+            f = F(interruption == "timeout" ? 40 : 11);
+            f.Visible = true;
+            if (interruption == "native-priority") p.Accepted(false, f.Now);
+            else
+            {
+                if (interruption == "target-changed") f.Target = "other";
+                if (interruption.StartsWith("feint-", StringComparison.Ordinal)) f.Block = interruption;
+                p.Observe(f, c);
+            }
+            Check(!p.Active && p.Trace!.PullBackUntil == 0, "no sight retreat on " + interruption);
+        }
+        p = new();
+        call = 0;
+        p.Begin(F(), c, MagRoll);
+        p.Plan(p.Home, 10);
+        p.MagazineResult(true, true, F(10), c);
+        f = F(11);
+        f.Visible = true;
+        p.Observe(f, c);
+        Check(!p.Active && !p.ShouldPullBack(12), "spotting during a fake reload ends it without scheduling retreat");
         p = new();
         p.Begin(F(), c, Low);
         p.Plan(new(1, 0, 0), 10);
@@ -661,9 +724,12 @@ internal static class CoverFeintTests
                 }
             )
                 Check(
-                    Calls(pe, md, Method("FeintScope"), gate) == 1,
+                    Calls(pe, md, Method("FeintBotScope"), gate) == 1,
                     "compiled scope gate " + gate
                 );
+            Check(Calls(pe, md, Method("FeintScope"), "FeintBotScope") == 1
+                && Calls(pe, md, Method("FeintScope"), "AllowsGoal") == 1,
+                "active feints and their retreat use the same bot and contact scope");
             Check(
                 Calls(pe, md, Method("FeintPathInitialized"), "Remove") == 1,
                 "reused path invalidates old generation"

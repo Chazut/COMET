@@ -144,6 +144,8 @@ public sealed class CoverFeintTrace
         DrewFire,
         ApproachObserved;
     public DoorPoint? MagazineVisiblePathPoint;
+    public float PullBackFrom, PullBackUntil;
+    public bool PullBackRequested;
     public string[] Alternatives = Array.Empty<string>();
 }
 
@@ -320,14 +322,20 @@ public sealed class CoverFeintPolicy
 
     public void Accepted(bool accepted) => Accepted(accepted, lastTime);
 
-    public void Accepted(bool accepted, double now)
+    public void Accepted(bool accepted, double now) => Accepted(accepted, now, false);
+
+    public void Accepted(bool accepted, double now, bool standAndShoot)
     {
-        if (Active)
+        if (!Active)
+            return;
+        if (!accepted && standAndShoot && Trace!.PeekPointSelected)
         {
-            Trace!.Accepted = accepted;
-            if (!accepted)
-                End("feint-native-priority", now);
+            EndOnSight("feint-stand-and-shoot", now);
+            return;
         }
+        Trace!.Accepted = accepted;
+        if (!accepted)
+            End("feint-native-priority", now);
     }
 
     public void DeferSafety(CoverFeintFrame f, CoverFeintConfig c, double lastSafety)
@@ -485,10 +493,14 @@ public sealed class CoverFeintPolicy
             || !c.Enabled
             || f.Target != t.Target
             || t.Elapsed >= 30
-            || f.Visible
         )
         {
             End(f.Block.Length > 0 ? f.Block : "feint-session-ended");
+            return false;
+        }
+        if (f.Visible)
+        {
+            EndOnSight("feint-enemy-spotted", f.Now);
             return false;
         }
         t.DrewFire |= f.Fire > fireAt + .01;
@@ -546,6 +558,19 @@ public sealed class CoverFeintPolicy
 
     public void End(string why) => End(why, lastTime);
 
+    private void EndOnSight(string why, double now)
+    {
+        if (Trace is { Kind: "peek", PeekPointSelected: true } t)
+        {
+            t.PullBackFrom = (float)now + .9f;
+            t.PullBackUntil = t.PullBackFrom + 1.6f;
+        }
+        End(why, now);
+    }
+
+    public bool ShouldPullBack(double now) =>
+        Trace is { PullBackUntil: > 0 } t && now >= t.PullBackFrom && now < t.PullBackUntil;
+
     public void End(string why, double now)
     {
         if (Trace == null)
@@ -559,9 +584,14 @@ public sealed class CoverFeintPolicy
 
     public void Clear(string why) => Clear(why, lastTime);
 
-    public void Clear(string why, double now)
+    public void Clear(string why, double now) => Clear(why, now, false);
+
+    public void Clear(string why, double now, bool preservePullBack)
     {
-        End(why, now);
+        if (Active)
+            End(why, now);
+        if (!preservePullBack && Trace != null)
+            Trace.PullBackUntil = Trace.PullBackFrom = 0;
         nextRoll = 0;
     }
 }

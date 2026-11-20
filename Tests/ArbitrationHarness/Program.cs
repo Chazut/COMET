@@ -64,6 +64,12 @@ var chooserCalls = choose
     .ToList();
 var grenadeRole = chooserCalls.IndexOf("plugin.StartSquadGrenade");
 var angleRole = chooserCalls.IndexOf("plugin.HoldForSquadGrenade");
+var pullBack = chooserCalls.IndexOf("plugin.RequestFeintPullBack");
+if (pullBack <= chooserCalls.IndexOf("plugin.RequestDoorEmergency")
+    || pullBack <= chooserCalls.IndexOf("NativeChoiceHasPriority")
+    || pullBack >= chooserCalls.IndexOf("plugin.RequestDoorResume")
+    || pullBack >= chooserCalls.IndexOf("plugin.ChooseVisible"))
+    throw new Exception("M14 retreat must follow native and door emergencies and precede ordinary tactics.");
 if (
     grenadeRole <= chooserCalls.IndexOf("NativeAdapter.Capabilities")
     || grenadeRole >= chooserCalls.IndexOf("state.Engine.Evaluate")
