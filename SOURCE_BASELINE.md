@@ -37,6 +37,14 @@ can itself end the session if refused. A declined roll or failed initial search
 leaves the shared clock alone. Terminal traces record the expiry in scaled
 game seconds as `sharedCooldownUntil`.
 
+M14 uses three source cues when ordering the cover feints. A shot directed at
+the bot within 10 seconds and a living squadmate engaging the same enemy
+(visible or seen within 5 seconds) favor a peek. A footstep or sprint favors
+the magazine check when it is the last accepted sound from that enemy, less
+than 5 seconds old, and closer to the listener than the enemy's last known
+position. Each observer/contact pair retains one sound. The selection trace
+records all three cues alongside the two weights.
+
 ### A05/H01 ordinary medical decisions (2026-11-20)
 
 With a known enemy, ordinary medical choices use the remix 7.6 `HealUtility`

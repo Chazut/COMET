@@ -134,6 +134,9 @@ public sealed class CoverFeintTrace
         ReturnedObserved,
         MagazineRequested,
         PeekPointSelected,
+        RecentShotAtMe,
+        SquadmateEngaging,
+        HeardApproach,
         MagazineAccepted,
         AnimationObserved,
         WeaponReady,
@@ -212,6 +215,9 @@ public sealed class CoverFeintPolicy
         return "";
     }
 
+    public static bool MateEngaging(string target, string mateTarget, bool visible, double sightAge) =>
+        mateTarget == target && (visible || sightAge < 5);
+
     public bool Begin(CoverFeintFrame f, CoverFeintConfig c, Func<double> random)
     {
         if (Active || f.Now < cooldown.Until || Gate(f, c).Length > 0)
@@ -232,8 +238,9 @@ public sealed class CoverFeintPolicy
         foreach (double v in new[] { order, pr, mr, ex, hold, pause })
             if (!DoorPolicy.Finite(v) || v < 0 || v >= 1)
                 return false;
+        bool recentShotAtMe = f.Fire > 0 && f.Now - f.Fire < 10;
         double pw =
-                (1 + (f.Fire > 0 && f.Now - f.Fire < 10 ? 1 : 0)) * (f.Healthy ? 1 : .4)
+                (1 + (recentShotAtMe ? 1 : 0)) * (f.Healthy ? 1 : .4)
                 + (f.Mates ? .7 : 0),
             mw =
                 (1 + (f.Coming ? 1.5 : 0) + (f.Distance < 20 ? .5 : 0))
@@ -271,6 +278,9 @@ public sealed class CoverFeintPolicy
             OrderRoll = order * 100,
             PeekWeight = pw,
             MagazineWeight = mw,
+            RecentShotAtMe = recentShotAtMe,
+            SquadmateEngaging = f.Mates,
+            HeardApproach = f.Coming,
             Exposure = c.ExposureMin + ex * (c.ExposureMax - c.ExposureMin),
             Hold = c.HoldMin + hold * (c.HoldMax - c.HoldMin),
             Pause = .8 + pause * 1.4,

@@ -7,6 +7,9 @@ using System.Runtime.Loader;
 using System.Text.Json;
 using Comet.Core;
 using HarmonyLib;
+using SAIN.Models.Structs;
+using SAIN.Preset.Shared.Enums;
+using UnityEngine;
 
 var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
 var paths = new[]
@@ -81,6 +84,9 @@ static class Audit
         // Metadata preparation runs against the actual built client, without JITing Unity
         // callbacks on the .NET test host or executing any game action.
         var client = typeof(Comet.Client.Plugin).Assembly;
+        if (!probe.Hooks.Any(h => h.Callback == "ObserveFeintSound" && h.Target.Contains("EnemyHearing.UpdateHeardPosition")))
+            throw new Exception("M14 must sample the accepted native hearing position.");
+        VerifyFeintHearing(client);
         VerifySiegeRoomLookup(client);
         VerifyDoorStateEvent();
         var plugin = typeof(Comet.Client.Plugin);
@@ -372,6 +378,39 @@ static class Audit
         var accessors = doorEvent.GetAccessors();
         if (doorEvent.Type != DoorType("WorldInteractiveObjectInteract") || accessors.Adder.IsNil || accessors.Remover.IsNil)
             throw new Exception("The native door state event contract changed.");
+    }
+
+    private static void VerifyFeintHearing(Assembly client)
+    {
+        var type = client.GetType("Comet.Client.FeintHeardSound", true)!;
+        var sample = Activator.CreateInstance(type)!;
+        const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        var record = type.GetMethod("Record", flags)!.CreateDelegate<Action<SAINHearingReport, float>>(sample);
+        var approaching = type.GetMethod("IsCloserStep", flags)!.CreateDelegate<Func<float, Vector3, Vector3, bool>>(sample);
+        var listener = new Vector3(10, 0, 0);
+        var known = new Vector3(35, 0, 0);
+        void Hear(SAINSoundType kind, Vector3 position, float at) =>
+            record(new SAINHearingReport { soundType = kind, position = position }, at);
+        var close = new Vector3(34.99f, 0, 0);
+        Hear(SAINSoundType.FootStep, close, 10);
+        if (!approaching(10, listener, known) || !approaching(14.999f, listener, known) || approaching(15, listener, known))
+            throw new Exception("A single closer footstep counts for strictly less than five seconds.");
+        Hear(SAINSoundType.Sprint, known, 15);
+        if (approaching(15, listener, known))
+            throw new Exception("Equal distance is not an approach.");
+        Hear(SAINSoundType.Sprint, new Vector3(11, 30, 0), 16);
+        if (approaching(16, listener, known))
+            throw new Exception("Hearing distance must include elevation.");
+        Hear(SAINSoundType.Sprint, close, 17);
+        if (!approaching(17, listener, known))
+            throw new Exception("A closer sprint must count too.");
+        foreach (var kind in new[] { SAINSoundType.Door, SAINSoundType.Reload, SAINSoundType.Jump, SAINSoundType.Shot })
+        {
+            Hear(kind, listener, 18);
+            if (approaching(18, listener, known))
+                throw new Exception("A later " + kind + " must supersede the movement cue.");
+        }
+        Console.WriteLine("M14 hearing: first step, expiry, 3D range, sprint and replacement sounds verified.");
     }
 
     private static void VerifySiegeRoomLookup(Assembly client)

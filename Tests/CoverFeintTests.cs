@@ -54,6 +54,33 @@ internal static class CoverFeintTests
             };
         var c = new CoverFeintConfig();
         c.Validate();
+        CoverFeintTrace ChooseAt25m(double shotAt = -1, bool mate = false, bool coming = false)
+        {
+            var frame = F(20);
+            frame.Distance = 25;
+            frame.Fire = shotAt;
+            frame.Mates = mate;
+            frame.Coming = coming;
+            var policy = new CoverFeintPolicy();
+            int draw = 0;
+            Check(policy.Begin(frame, c, () => draw++ == 0 ? .4 : .1), "both feints pass their own roll");
+            return policy.Trace!;
+        }
+        var neutral = ChooseAt25m();
+        var step = ChooseAt25m(coming: true);
+        Check(neutral.Kind == "peek" && neutral.MagazineWeight == 1 && !neutral.HeardApproach
+            && step.Kind == "magazine" && step.MagazineWeight == 2.5 && step.HeardApproach,
+            "a closer footstep changes the first choice at 25 m for the same 0.40 roll");
+        var recent = ChooseAt25m(shotAt: 10.001, mate: true);
+        Check(recent.PeekWeight == 2.7 && recent.RecentShotAtMe && recent.SquadmateEngaging,
+            "a recent directed shot and a supporting squadmate both favor a peek");
+        var oldShot = ChooseAt25m(shotAt: 10);
+        Check(oldShot.PeekWeight == 1 && !oldShot.RecentShotAtMe, "shot exactly ten seconds old has expired");
+        Check(CoverFeintPolicy.MateEngaging("A", "A", true, 30)
+            && CoverFeintPolicy.MateEngaging("A", "A", false, 4.999)
+            && !CoverFeintPolicy.MateEngaging("A", "A", false, 5)
+            && !CoverFeintPolicy.MateEngaging("A", "B", true, 0),
+            "only squadmates on the same target qualify, including brief sight loss");
         Check(
             c.Enabled
                 && c.BaitPeek
@@ -527,6 +554,11 @@ internal static class CoverFeintTests
                 Calls(pe, md, Method("FeintPathInitialized"), "Remove") == 1,
                 "reused path invalidates old generation"
             );
+            Check(Calls(pe, md, Method("FeintFrame"), "get_TimeLastShotAtMe") == 1
+                && Calls(pe, md, Method("FeintFrame"), "get_TimeLastShotMe") == 0
+                && Calls(pe, md, Method("FeintFrame"), "MateEngaging") == 1
+                && Calls(pe, md, Method("FeintFrame"), "IsCloserStep") == 1,
+                "shipped selector uses directed fire, squad sight and the last personal sound");
             Check(
                 Calls(pe, md, Method("RefreshFeint"), "RemainingRelocationRoute") == 0
                     && Calls(pe, md, Method("RefreshFeint"), "FeintRouteClear") == 0,
