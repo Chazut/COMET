@@ -32,9 +32,12 @@ internal static class ConfigEditorTests
         var before = JsonSerializer.Serialize(original);
         var editor = new ConfigEditor(original);
         EditorField Field(string path) => editor.Catalog.Fields[path];
+        var editablePaths = DifficultyPresets.Values(original).Keys
+            .Except(new[] { "Schema", "OutdoorRelocation.RetryDelay" })
+            .Select(path => path.Replace('[', '.').Replace("]", ""));
         Check(
-            editor.Catalog.Fields.Count == DifficultyPresets.Values(original).Count - 1,
-            "every editable scalar has a control, only Schema is excluded"
+            editor.Catalog.Fields.Keys.ToHashSet().SetEquals(editablePaths),
+            "each editable setting has a control; the legacy M13 delay stays in the preset format"
         );
         Check(
             editor.Catalog.Fields.Keys.All(p =>

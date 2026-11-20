@@ -49,6 +49,9 @@ internal static class PresetLibraryTests
         string unchanged = JsonSerializer.Serialize(hard);
         var config = DifficultyPresets.Create("Normal");
         config.CoverFeint.PeekChance = 19.75;
+        const string oldDelayPath = "OutdoorRelocation.RetryDelay";
+        const double oldDelay = 63.5;
+        config.OutdoorRelocation.RetryDelay = oldDelay;
         var saved = library.Create("My setup", config, 0);
         Check(
             saved.Revision == 1
@@ -79,6 +82,10 @@ internal static class PresetLibraryTests
             !editor.HasPending && preview.Changes.Any(c => c.Path == "PresetSource"),
             "preview stages no changes and explains identity"
         );
+        Check(!editor.Catalog.Fields.ContainsKey(oldDelayPath)
+            && preview.Changes.All(change => change.Path != oldDelayPath)
+            && editor.Catalog.Fields.ContainsKey("CoverFeint.RetryDelay"),
+            "M13 legacy delay stays hidden in preview; M14 still exposes its own delay");
         editor.Apply(preview);
         Check(
             editor.HasPending
@@ -104,6 +111,8 @@ internal static class PresetLibraryTests
             library.Read().Presets.Single().Config.CoverFeint.PeekChance == 19.75,
             "Save for next raid never overwrites the library copy"
         );
+        Check(store.Read().OutdoorRelocation.RetryDelay == oldDelay,
+            "saving another visible setting preserves the exact stored M13 delay");
         var update = library.Update(saved.Id, editor.Snapshot(), library.Read().Revision);
         editor.AttachPreset(update.Config.PresetSource!);
         Check(
@@ -233,6 +242,20 @@ internal static class PresetLibraryTests
             () => library.Create(imported.Name, imported.Config, library.Read().Revision),
             "import with existing name does not overwrite"
         );
+        Check(imported.Config.OutdoorRelocation.RetryDelay == oldDelay
+            && JsonNode.Parse(json)!["Settings"]!["OutdoorRelocation"]!["RetryDelay"]!.GetValue<double>() == oldDelay,
+            "loading, editing and re-exporting a personal preset retains its legacy delay");
+        var omitted = JsonNode.Parse(json)!.AsObject();
+        omitted["Settings"]!["OutdoorRelocation"]!.AsObject().Remove("RetryDelay");
+        var oldImport = PresetLibrary.PreviewImport(omitted.ToJsonString());
+        Check(oldImport.AddedSettings.SequenceEqual(new[] { oldDelayPath })
+            && !oldImport.AddedSettings.Any(editor.Catalog.ShowsAddedDefault)
+            && oldImport.Config.OutdoorRelocation.RetryDelay ==
+                DifficultyPresets.Create(oldImport.Config.DifficultyPreset).OutdoorRelocation.RetryDelay,
+            "a preset without the retired control imports without asking the user to review it");
+        Check(editor.Catalog.ShowsAddedDefault("OutdoorRelocation.Chance")
+            && editor.Catalog.ShowsAddedDefault("BehaviorBaseline"),
+            "import review retains active defaults and migration metadata");
         var previousDoorPreset = JsonNode.Parse(json)!.AsObject();
         var previousGrenadePreset = JsonNode.Parse(json)!.AsObject();
         var grenadeSettings = previousGrenadePreset["Settings"]!.AsObject();

@@ -291,7 +291,7 @@
                     );
 
             missing = mode is "duplicate" or "migrate"
-                ? operation!.AddedSettings
+                ? operation!.AddedSettings.Where(Editor.Catalog.ShowsAddedDefault).ToArray()
                 : Array.Empty<string>();
 
             PrepareDefaults();
@@ -318,7 +318,7 @@
         if (Chosen == null)
             return;
 
-        if (Chosen.AddedSettings.Count > 0)
+        if (Chosen.AddedSettings.Any(Editor.Catalog.ShowsAddedDefault))
         {
             Begin("migrate");
             return;
@@ -347,7 +347,7 @@
             operation = null;
             operationRevision = library.Revision;
 
-            missing = imported.AddedSettings;
+            missing = imported.AddedSettings.Where(Editor.Catalog.ShowsAddedDefault).ToArray();
             changes = Editor
                 .PreviewPreset(frozen)
                 .Changes.Where(c => c.Path != "PresetSource")

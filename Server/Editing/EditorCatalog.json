@@ -284,7 +284,7 @@
     },
     "OutdoorRelocation": {
       "Title": "Change cover after contact - M13",
-      "Description": "Once safe behind cover, a PMC may change position instead of showing up at the same angle. The new cover and its route must be worthwhile. Injuries, observed enemy weapons, personality and squad support adjust the base chance. Another attempt needs both the delay and new incoming fire or a meaningful change in the known enemy position. The angle is a preference, not a mandatory minimum. Urgent native actions keep priority.",
+      "Description": "Once safe behind cover, a PMC may change position instead of showing up at the same angle. The new cover and its route must be worthwhile. Injuries, observed enemy weapons, personality and squad support adjust the base chance. The bot rolls once per eligible contact. After a reposition or a cover feint, both tactics share a five-second cooldown. The angle is a preference, not a mandatory minimum. Urgent native actions keep priority.",
       "Category": "Movement",
       "Summary": "Once safe behind cover, a PMC may change position instead of showing up at the same angle."
     },
@@ -4464,16 +4464,6 @@
       "Help": "",
       "Min": 10.0,
       "Max": 45.0,
-      "Scale": 1,
-      "Section": "OutdoorRelocation",
-      "Simple": false,
-      "Unit": "s"
-    },
-    "OutdoorRelocation.RetryDelay": {
-      "Label": "Minimum delay before a new opportunity",
-      "Help": "",
-      "Min": 10.0,
-      "Max": 90.0,
       "Scale": 1,
       "Section": "OutdoorRelocation",
       "Simple": false,

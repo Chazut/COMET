@@ -37,6 +37,11 @@ public sealed class EditorCatalog
     public Dictionary<string, EditorField> Fields { get; set; } = new();
     public List<EditorSection> Notes { get; set; } = new();
 
+    // A preset can store legacy values that have no control in the editor.
+    public bool ShowsAddedDefault(string path) =>
+        Fields.ContainsKey(path)
+        || path is nameof(CometConfig.DifficultyPreset) or nameof(CometConfig.Schema) or nameof(CometConfig.BehaviorBaseline);
+
     public static EditorCatalog Read()
     {
         using var stream = typeof(EditorCatalog).Assembly.GetManifestResourceStream(
