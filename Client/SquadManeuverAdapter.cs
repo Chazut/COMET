@@ -61,11 +61,7 @@ public sealed partial class Plugin
         var enemy = b.GoalEnemy!;
         var known = enemy.KnownPlaces.LastKnownPosition!.Value;
         double distance = Vector3.Distance(b.Position, known);
-        if (
-            distance < c.MinDistance
-            || distance > c.MaxDistance
-            || enemy.TimeSinceLastKnownUpdated > c.ContactAge
-        )
+        if (distance < c.MinDistance || distance > c.MaxDistance)
             return false;
         string group = ManeuverGroup(b);
         var plan = maneuverBoard.Get(group);

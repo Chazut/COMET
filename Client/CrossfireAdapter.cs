@@ -327,11 +327,13 @@ public sealed partial class Plugin
             && observed.TimeSinceLastKnownUpdated >= 0
         )
             r.ContactAt = Math.Max(r.ContactAt, Time.time - observed.TimeSinceLastKnownUpdated);
-        string block = CrossfireBlock(
-            b,
-            s,
-            !r.Policy.Active && mayStart && config!.SquadManeuver.Enabled
-        );
+        // An expired maneuver can still leave a crossfire or secondary entrance available.
+        bool mayStartManeuver =
+            !r.Policy.Active
+            && mayStart
+            && config!.SquadManeuver.Enabled
+            && observed?.TimeSinceLastKnownUpdated <= config.SquadManeuver.ContactAge;
+        string block = CrossfireBlock(b, s, maneuverCandidate: mayStartManeuver);
         if (block.Length > 0)
         {
             if (r.Policy.Active)
@@ -360,7 +362,7 @@ public sealed partial class Plugin
             return r.Policy.Active && r.Policy.Trace!.State != "planning";
         }
         var c = config!.Crossfire;
-        if (!r.Policy.Active && mayStart && config.SquadManeuver.Enabled)
+        if (mayStartManeuver)
             TryBeginManeuver(b, s);
         // A declined S03 plan must not relax the separate S01 eligibility limits.
         if (!r.Policy.Active && CrossfireBlock(b, s).Length > 0)

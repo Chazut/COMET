@@ -86,6 +86,46 @@ CrossfireAction Start(Plugin p, BotComponent b)
     return a;
 }
 void Save(Plugin p) => events.AddRange(p.diagnostics!.Lines);
+foreach (var (age, mateSees, indoors, maneuverAge, crossfireAge, expected) in new[]
+{
+    (15f, true, false, 10, 20, "S01"),
+    (15f, true, true, 10, 20, "S02"),
+    (10f, false, false, 10, 20, "S03"),
+    (10.01f, false, false, 10, 20, "none"),
+    (20f, true, false, 10, 20, "S01"),
+    (20.01f, true, false, 10, 20, "none"),
+    (8f, true, false, 5, 9, "S01"),
+    (10f, false, false, 12, 8, "S03"),
+})
+{
+    var (p, b, mate) = Setup();
+    Step(30);
+    p.config!.SquadManeuver.Chance = 100;
+    p.config.SquadManeuver.ContactAge = maneuverAge;
+    p.config.Crossfire.ContactAge = crossfireAge;
+    if (indoors)
+    {
+        b.Player.Environment = EnvironmentType.Indoor;
+        NavMesh.Route = (start, end) => [start, new Vector3(4, 0, 8), end];
+    }
+    b.GoalEnemy!.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    mate.GoalEnemy!.KnownPlaces.LastKnownPosition = b.GoalEnemy.KnownPlaces.LastKnownPosition;
+    b.GoalEnemy.TimeSinceLastKnownUpdated = age;
+    mate.GoalEnemy.TimeSinceLastKnownUpdated = mateSees ? 0 : age;
+    mate.GoalEnemy.IsVisible = mateSees;
+    p.Observe(b);
+    NavMesh.Route = null;
+    var r = p.states[b].Crossfire;
+    var actual = r switch
+    {
+        { Policy.Active: false } => "none",
+        { Maneuver: not null } => "S03",
+        { Policy.Trace.Entrance: not null } => "S02",
+        _ => "S01",
+    };
+    C(actual == expected, $"contact age {age}s, mate sees {mateSees}: expected {expected}, got {actual}");
+    p.EndAll();
+}
 {
     var (p, b, m) = Setup();
     Plan(p, b);
