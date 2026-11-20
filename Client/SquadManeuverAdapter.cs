@@ -50,12 +50,7 @@ public sealed partial class Plugin
     {
         var c = config!.SquadManeuver;
         var r = s.Crossfire;
-        if (
-            !c.Enabled
-            || !config.Crossfire.Enabled
-            || Time.time < r.ManeuverNext
-            || r.Policy.Active
-        )
+        if (!c.Enabled || Time.time < r.ManeuverNext || r.Policy.Active)
             return false;
         r.ManeuverNext = Time.time + (float)config.Crossfire.Interval;
         var enemy = b.GoalEnemy!;

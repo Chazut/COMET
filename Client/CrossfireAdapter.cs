@@ -115,6 +115,7 @@ public sealed partial class Plugin
         config?.Enabled == true
         && (
             config.Crossfire.Enabled
+            || config.SquadManeuver.Enabled
             || config.CoverMate.Enabled
             || config.SquadTrade.Enabled
             || config.SquadStorm.Enabled
@@ -136,7 +137,11 @@ public sealed partial class Plugin
         bool supportCandidate = false
     )
     {
-        if (!CrossfireScope(b) || !config!.Crossfire.Enabled)
+        bool maneuver = maneuverCandidate || s.Crossfire.Maneuver != null;
+        if (
+            !CrossfireScope(b)
+            || !(maneuver ? config!.SquadManeuver.Enabled : config!.Crossfire.Enabled)
+        )
             return "crossfire-out-of-scope";
         var e = b.GoalEnemy;
         if (
@@ -156,7 +161,6 @@ public sealed partial class Plugin
 
         if (e.IsVisible && !supporting && !s.Crossfire.Policy.Active)
             return "crossfire-enemy-visible";
-        bool maneuver = maneuverCandidate || s.Crossfire.Maneuver?.Active == true;
         double contactAge =
             s.Crossfire.Policy.Active ? 25
             : maneuver ? config!.SquadManeuver.ContactAge
@@ -357,7 +361,7 @@ public sealed partial class Plugin
             return false;
         if (r.Policy.Active && !RevalidateCrossfireContext(b, s))
         {
-            if (r.Policy.Active && !r.Policy.Check(Time.time, config!.Crossfire, "", true))
+            if (r.Policy.Active && !r.Policy.CheckMotion(Time.time, config!.Crossfire))
                 EndCrossfire(b, s, r.Policy.Trace!.Reason);
             return r.Policy.Active && r.Policy.Trace!.State != "planning";
         }
@@ -378,12 +382,10 @@ public sealed partial class Plugin
             if (r.Policy.Trace!.Entrance != null && !ValidateEntranceActive(b, s, false))
                 return false;
             if (
-                !r.Policy.Check(
+                !r.Policy.CheckMotion(
                     Time.time,
                     c,
-                    "",
-                    support != null || r.Policy.Trace.Entrance != null,
-                    r.Policy.Trace.Entrance != null
+                    holdLimit: r.Policy.Trace.Entrance != null
                         ? config.SecondaryEntrance.WatchMax + config.SecondaryEntrance.Extension + 8
                         : null
                 )

@@ -86,6 +86,72 @@ CrossfireAction Start(Plugin p, BotComponent b)
     return a;
 }
 void Save(Plugin p) => events.AddRange(p.diagnostics!.Lines);
+foreach (bool crossfireOn in new[] { false, true })
+foreach (bool maneuverOn in new[] { true, false })
+foreach (bool mateSees in new[] { false, true })
+{
+    var (p, b, mate) = Setup();
+    var cfg = p.config!;
+    cfg.Crossfire.Enabled = crossfireOn;
+    cfg.SquadManeuver.Enabled = maneuverOn;
+    cfg.SquadManeuver.Chance = 100;
+    cfg.CoverMate.Enabled = cfg.SquadTrade.Enabled = cfg.SquadStorm.Enabled = false;
+    mate.Info.Personality = Personality.Rat;
+    mate.GoalEnemy!.IsVisible = mateSees;
+    b.GoalEnemy!.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    mate.GoalEnemy.KnownPlaces.LastKnownPosition = b.GoalEnemy.KnownPlaces.LastKnownPosition;
+    // A 15s contact with visible support isolates crossfire. A fresh hidden contact isolates maneuver.
+    b.GoalEnemy.TimeSinceLastKnownUpdated = mateSees ? 15 : 1;
+    p.Observe(b);
+    var runtime = p.states.TryGetValue(b, out var state) ? state.Crossfire : null;
+    bool expectManeuver = maneuverOn && !mateSees;
+    C(
+        (runtime?.Policy.Active == true) == (expectManeuver || crossfireOn && mateSees)
+            && (runtime?.Maneuver != null) == expectManeuver,
+        $"independent squad settings: crossfire={crossfireOn}, maneuver={maneuverOn}, visible support={mateSees}"
+    );
+    if (expectManeuver)
+    {
+        p.Observe(mate);
+        C(p.states[mate].Crossfire.Maneuver == runtime!.Maneuver, "support joins the same maneuver");
+        var supportAction = new CrossfireAction(mate.BotOwner);
+        supportAction.Start();
+        supportAction.OnSteeringTicked();
+        Plan(p, b);
+        var flankAction = Start(p, b);
+        cfg.Crossfire.Enabled = !crossfireOn;
+        Step();
+        flankAction.Update(new());
+        supportAction.OnSteeringTicked();
+        C(
+            runtime.Policy.Active && runtime.ManeuverRole!.Confirmed
+                && p.states[mate].Crossfire.ManeuverRole!.Confirmed,
+            "both maneuver roles keep executing across a crossfire toggle"
+        );
+        cfg.SquadManeuver.Enabled = false;
+        p.Sample(b);
+        p.Sample(mate);
+        C(
+            !runtime.Policy.Active && !p.states[mate].Crossfire.Policy.Active && p.Claims == 0,
+            "disabling maneuver releases both roles and their claims"
+        );
+    }
+    p.EndAll();
+}
+foreach (bool crossfireOn in new[] { false, true })
+{
+    var (p, b, mate) = Setup();
+    p.config!.SquadManeuver.Enabled = true;
+    p.config.SquadManeuver.Chance = 0;
+    p.config.Crossfire.Enabled = crossfireOn;
+    b.GoalEnemy!.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    mate.GoalEnemy!.KnownPlaces.LastKnownPosition = b.GoalEnemy.KnownPlaces.LastKnownPosition;
+    p.Observe(b);
+    var runtime = p.states[b].Crossfire;
+    C(runtime.Maneuver == null && runtime.Policy.Active == crossfireOn,
+        "a declined maneuver falls back to plain crossfire only when enabled");
+    p.EndAll();
+}
 foreach (var (age, mateSees, indoors, maneuverAge, crossfireAge, expected) in new[]
 {
     (15f, true, false, 10, 20, "S01"),

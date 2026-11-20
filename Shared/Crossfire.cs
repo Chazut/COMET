@@ -147,11 +147,19 @@ public sealed class Crossfire
         string block,
         bool support,
         double? holdLimit = null
+    ) => CheckMotion(now, c, c.Enabled ? block : "crossfire-disabled-or-clock-reset", holdLimit);
+
+    // The squad adapter checks the owning tactic's switch before advancing its shared movement.
+    internal bool CheckMotion(
+        double now,
+        CrossfireConfig c,
+        string block = "",
+        double? holdLimit = null
     )
     {
         if (!Active)
             return false;
-        if (!c.Enabled || !MedicalChoice.Finite(now) || now < lastNow)
+        if (!MedicalChoice.Finite(now) || now < lastNow)
             return End(
                 MedicalChoice.Finite(now) ? now : lastNow,
                 c,
