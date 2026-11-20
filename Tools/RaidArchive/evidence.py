@@ -45,7 +45,11 @@ def extra_phases(feature, t, event=None):
         if t.get("reason") == "relocate-searching-better-cover":
             result.add("selected")
         if t.get("moveRequested") is True and t.get("arrived") is True:
-            result.update(("started", "completed"))
+            result.add("started")
+            if "holdSeconds" not in t or (
+                t.get("holdApplied") is True and t.get("reason") == "relocate-hold-complete"
+            ):
+                result.add("completed")
     if feature == "D05" and t.get("reason") == "fake-roll-declined":
         result.add("refused")
     if feature == "D01":
@@ -187,7 +191,7 @@ def evidence_note(feature):
     if feature == "A03":
         return "Start means the matching native combat action was observed. Completion means contact returned or the memory window expired after an observed start."
     if feature == "M13":
-        return "A relocation roll and a cover search precede the movement order. Start records displacement; completion records arrival at the destination."
+        return "Start records movement to the selected cover. Completion records arrival and a finished hold. Older raids recorded completion on arrival."
     if feature in {"S01", "S03"}:
         return "Position reached and Angle held record arrival and holding separately from Enemy engaged from new angle. Completion records the latter outcome, not hits or a won firefight. Counts are per identified tactic, not per snapshot."
     if feature in {

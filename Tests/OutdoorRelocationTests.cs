@@ -111,12 +111,49 @@ internal static class OutdoorRelocationTests
         Check(p.Observe(f, c) && !p.Trace.Arrived, "outside the source arrival radius");
         f.Position = new(9.31, .1, 0);
         Check(
-            !p.Observe(f, c)
+            p.Observe(f, c)
                 && p.Trace.Arrived
-                && p.Trace.State == "arrived"
-                && p.Trace.ValidFor == 0,
-            "native arrival at matching floor completes"
+                && p.Holding && p.Trace.HoldSeconds == 5.5 && p.Trace.ValidFor == 5.5,
+            "arrival starts the selected hold duration at the new position"
         );
+        Check(!p.TryBeginMoveOrder(12, RelocationRoute.AwaitingPath), "hold never renews travel");
+        p.MoveRequested(12, p.Goal);
+        f.Now = 16.5;
+        Check(p.Observe(f, c) && p.Holding && p.Trace.HoldElapsed == 5.5,
+            "the exact hold deadline is still active and cannot be reset by a move request");
+        f.Now += .001;
+        Check(!p.Observe(f, c) && p.Trace.State == "arrived" && p.Trace.ValidFor == 0
+            && p.Trace.Reason == "relocate-hold-complete", "first sample past deadline ends the hold");
+        foreach (double draw in new[] { 0d, .5, 1d })
+        {
+            p = P();
+            int draws = 0;
+            p.Begin(F(), c, () => draws++ == 0 ? 0 : draw);
+            var rejected = C();
+            rejected.Safe = false;
+            Check(!p.Select(rejected, c) && draws == 1, "an invalid cover never draws a hold time");
+            Check(p.Select(C(), c) && !p.Select(C(), c) && draws == 2
+                && p.Trace!.HoldSeconds == 5 + 5 * draw, "draw once per selected destination");
+        }
+        foreach (var interruption in new[] { "visible", "target", "relocate-other-immediate-threat",
+            "relocate-under-immediate-fire", "relocate-ineligible", "relocate-native-priority", "timeout" })
+        {
+            p = P();
+            p.Begin(F(), c, Low);
+            p.Select(C(), c);
+            p.MoveRequested(10, p.Origin);
+            f = F(interruption == "timeout" ? 39 : 11);
+            f.Position = p.Goal;
+            Check(p.Observe(f, c) && p.Holding, "enter hold before " + interruption);
+            f.Now += 1;
+            if (interruption == "visible") { f.Visible = true; f.Distance = 60; }
+            else if (interruption == "target") f.Target = "another";
+            else if (interruption != "timeout") f.Block = interruption;
+            string expected = interruption switch { "visible" => "relocate-visible-threat",
+                "target" => "relocate-contact-changed", "timeout" => "relocate-session-timeout", _ => interruption };
+            Check(!p.Observe(f, c) && !p.Active && p.Trace!.Reason == expected
+                && p.Trace.Arrived && p.Trace.ValidFor == 0, "hold yields on " + interruption);
+        }
         p = P();
         f = F();
         f.OtherTactic = true;
@@ -348,7 +385,8 @@ internal static class OutdoorRelocationTests
                 case "floor":
                     f.Position = new(10, 2, 0);
                     f.NativeMoveStarted = false;
-                    Check(!p.Observe(f, c) && !p.Trace!.Arrived, "horizontal arrival ends the plan without inventing a native move");
+                    Check(p.Observe(f, c) && p.Holding && !p.Trace!.Arrived && !p.Trace.MovementObserved,
+                        "already within horizontal range can hold without inventing observed travel");
                     continue;
             }
             if (scenario is "contact" or "visible" or "stuck" or "origin")
@@ -540,6 +578,12 @@ internal static class OutdoorRelocationTests
                 "real movement, queued replacement and decision owner feed the runtime policy");
             Check(Calls(pe, md, Method("FinishRelocation"), "RelocationControlsMovement") == 1,
                 "an action that took over keeps its native movement even when it reused the previous path");
+            Check(Calls(pe, md, Method("UpdateRelocationHold"), "Stop") == 1
+                && Calls(pe, md, Method("UpdateRelocationHold"), "SetTargetPose") == 1
+                && Calls(pe, md, Method("UpdateRelocationHold"), "OwnsRelocationHold") == 1
+                && Calls(pe, md, Method("FinishRelocation"), "SetTargetPose") == 1
+                && Calls(pe, md, Method("SteerRelocationHold"), "LookToPoint") == 1,
+                "native hold stops, applies and releases its pose, and watches last known contact");
             Check(Calls(pe, md, Method("FindRelocationCover"), "OrderRelocationMove") == 1
                 && Calls(pe, md, Method("RefreshRelocation"), "OrderRelocationMove") == 1
                 && Calls(pe, md, Method("OrderRelocationMove"), "TryBeginMoveOrder") == 1
@@ -608,6 +652,13 @@ internal static class OutdoorRelocationTests
         Save();
         f = F(12);
         f.Position = new(10, 0, 0);
+        p.Observe(f, c);
+        Save();
+        p.Trace!.HoldApplied = true;
+        f.Now = 14;
+        p.Observe(f, c);
+        Save();
+        f.Now = 17.51;
         p.Observe(f, c);
         Save();
         Directory.CreateDirectory("artifacts");

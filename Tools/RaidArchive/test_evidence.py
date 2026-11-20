@@ -55,6 +55,20 @@ class EvidenceRegression(unittest.TestCase):
                          (1, 1, 1, 1))
         self.assertEqual((self.m("M13")["opportunities"], self.m("M13")["selected"]), (2, 1))
 
+    def test_relocation_distinguishes_arrival_interrupted_hold_and_finished_hold(self):
+        def trace(n, ep, state, reason, applied):
+            return event(n, feature="M13", outdoorRelocation=dict(episode=ep, target="e",
+                moveRequested=True, arrived=True, holdSeconds=7, holdApplied=applied,
+                state=state, reason=reason))
+        self.add(trace(1, 1, "holding", "relocate-holding-new-cover", True),
+                 trace(2, 1, "arrived", "relocate-native-priority", True),
+                 trace(3, 2, "holding", "relocate-holding-new-cover", True),
+                 trace(4, 2, "arrived", "relocate-hold-complete", True),
+                 trace(5, 3, "arrived", "relocate-hold-complete", False))
+        self.finish()
+        analyze(self.c, "r")
+        self.assertEqual((self.m("M13")["started"], self.m("M13")["completed"]), (3, 1))
+
     def test_coverage_survives_anonymous_events_and_summaries(self):
         for feature, last_stage in (("D01", "evaluated"), ("G05", "summary")):
             offset = 0 if feature == "D01" else 10

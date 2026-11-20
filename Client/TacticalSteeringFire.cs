@@ -8,6 +8,7 @@ internal enum TacticalSteeringKind
     CornerChase,
     CoverFeint,
     PostCombat,
+    OutdoorRelocation,
 }
 
 // Preserve the firing part of zzap's steering callbacks before applying our look target.
@@ -21,7 +22,7 @@ internal static class TacticalSteeringFire
         bool suppressed = false;
         if (
             !fired
-            && (kind == TacticalSteeringKind.SquadAngle || kind == TacticalSteeringKind.CoverFeint)
+            && kind is TacticalSteeringKind.SquadAngle or TacticalSteeringKind.CoverFeint or TacticalSteeringKind.OutdoorRelocation
         )
             suppressed = bot.Suppression.TrySuppressAnyEnemy(
                 enemy,

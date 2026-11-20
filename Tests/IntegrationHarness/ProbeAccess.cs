@@ -57,6 +57,8 @@ public static class ProbeAccess
             null
         );
 
+    public static MethodInfo? DeclaredMethod(Type type, string name) => type.GetMethod(name, Flags);
+
     public static MethodInfo? Method(
         Type? type,
         string name,

@@ -509,7 +509,7 @@ foreach (TacticalSteeringKind kind in Enum.GetValues<TacticalSteeringKind>())
     b.Suppression.Result = true;
     int calls = b.Suppression.Calls;
     bool suppress =
-        kind == TacticalSteeringKind.SquadAngle || kind == TacticalSteeringKind.CoverFeint;
+        kind is TacticalSteeringKind.SquadAngle or TacticalSteeringKind.CoverFeint or TacticalSteeringKind.OutdoorRelocation;
     C(
         TacticalSteeringFire.TryShoot(b, kind) == suppress
             && b.Suppression.Calls - calls == (suppress ? 1 : 0),

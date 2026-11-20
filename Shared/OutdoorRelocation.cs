@@ -122,6 +122,8 @@ public sealed class RelocationTrace
         Chance,
         Roll = -1,
         Elapsed,
+        HoldSeconds,
+        HoldElapsed,
         ContactAge,
         SightAge,
         PathLength,
@@ -145,6 +147,7 @@ public sealed class RelocationTrace
         NativePathReused,
         MovementObserved,
         Arrived,
+        HoldApplied,
         ThrowAccepted,
         ProjectileObserved;
     public string[] Alternatives = Array.Empty<string>();
@@ -154,18 +157,21 @@ public sealed class OutdoorRelocation
 {
     public readonly RelocationHistory History = new();
     public RelocationTrace? Trace { get; private set; }
-    public bool Active => Trace?.State is "planning" or "ready" or "throwing" or "moving";
+    public bool Holding => Trace?.State == "holding";
+    public bool Active => Trace?.State is "planning" or "ready" or "throwing" or "moving" or "holding";
     public DoorPoint Origin,
         Known,
         Goal;
     private double started,
         movingAt,
+        holdAt,
         progressAt,
         bestRemaining,
         lastTime,
         throwAt;
     private double releaseAt = -1;
     private double nextMoveOrder;
+    private Func<double>? holdRoll;
     private int episode;
 
     public static bool Valid(double v) => DoorPolicy.Finite(v) && v >= 0;
@@ -248,6 +254,7 @@ public sealed class OutdoorRelocation
             return false;
         }
         Trace.Reason = "relocate-searching-better-cover";
+        holdRoll = random;
         Trace.ValidFor = .3;
         return true;
     }
@@ -311,6 +318,8 @@ public sealed class OutdoorRelocation
         Goal = v.Position;
         var t = Trace;
         t.State = "ready";
+        t.HoldSeconds = 5 + 5 * holdRoll!();
+        holdRoll = null;
         t.Reason = "relocate-better-cover-selected";
         t.Destination = v.Id;
         t.DestinationX = Goal.X;
@@ -400,7 +409,7 @@ public sealed class OutdoorRelocation
 
     public void MoveRequested(double now, DoorPoint position)
     {
-        if (!Active)
+        if (Trace?.State is not ("ready" or "throwing"))
             return;
         Trace!.State = "moving";
         Trace.Action = "SeekCover";
@@ -442,7 +451,9 @@ public sealed class OutdoorRelocation
                 if (AtDestination(f.Position))
                 {
                     t.Arrived = f.NativeMoveStarted;
-                    why = t.Arrived ? "relocate-arrival-observed" : "relocate-already-at-destination";
+                    holdAt = f.Now;
+                    t.State = "holding";
+                    t.Reason = "relocate-holding-new-cover";
                 }
                 else if (f.Now - movingAt > c.MoveTimeout)
                     why = "relocate-move-timeout";
@@ -454,6 +465,13 @@ public sealed class OutdoorRelocation
             }
         }
         t.Elapsed = Math.Max(0, f.Now - started);
+        if (Holding)
+        {
+            t.HoldElapsed = Math.Max(0, f.Now - holdAt);
+            t.ValidFor = Math.Max(0, Math.Min(t.HoldSeconds - t.HoldElapsed, c.SessionTimeout - t.Elapsed));
+            if (why.Length == 0 && t.HoldElapsed > t.HoldSeconds)
+                why = "relocate-hold-complete";
+        }
         t.Speed = Valid(f.Speed) ? f.Speed : 0;
         t.ContactAge = Valid(f.ContactAge) ? f.ContactAge : 0;
         lastTime = f.Now;
@@ -467,6 +485,7 @@ public sealed class OutdoorRelocation
 
     public void End(string reason)
     {
+        holdRoll = null;
         if (Trace != null)
         {
             Trace.State = Trace.Arrived ? "arrived" : "ended";

@@ -194,6 +194,7 @@ static class Audit
                 ("Plugin", "SteerPostCombat"),
                 ("Plugin", "ChaseSteering"),
                 ("Plugin", "FeintSteering"),
+                ("Plugin", "SteerRelocationHold"),
             }
         )
         {
@@ -219,7 +220,7 @@ static class Audit
         )
             throw new Exception("Native tactical fire bindings absent");
         Console.WriteLine(
-            "Four shipped steering overrides preserve native multi-target firing; suppression bindings verified."
+            "Five shipped steering overrides preserve native multi-target firing; suppression bindings verified."
         );
         RuntimeHelpers.RunClassConstructor(
             client.GetType("Comet.Client.SourceCoverAccess", true)!.TypeHandle

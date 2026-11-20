@@ -23,6 +23,12 @@ the next path starts keeps the move pending. A different destination, a
 replacement action, or a refused move ends the relocation. Cleanup only
 cancels path generations created during COMET's own orders.
 
+On arrival within 0.7 m horizontally, the bot holds the selected cover for
+5 to 10 seconds. The duration is drawn once per destination and starts on
+arrival. The native action stops movement, sets pose to 0.8 and watches the
+last known contact. Threats, a change of action and the session timeout can
+interrupt the hold. M13 records arrival, applied hold and hold expiry separately.
+
 ### A05/H01 ordinary medical decisions (2026-11-20)
 
 With a known enemy, ordinary medical choices use the remix 7.6 `HealUtility`

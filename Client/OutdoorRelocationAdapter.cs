@@ -6,6 +6,7 @@ using EFT;
 using HarmonyLib;
 using Newtonsoft.Json;
 using SAIN.Components;
+using SAIN.Layers;
 using SAIN.Models.Enums;
 using SAIN.Preset.Shared.Enums;
 using SAIN.SAINComponent.Classes;
@@ -93,6 +94,68 @@ public sealed partial class Plugin
             AccessTools.Method(typeof(BotPathDataManual), "Initialize"),
             postfix: new HarmonyMethod(typeof(Plugin), nameof(RelocationPathInitialized))
         );
+        var seekCover = typeof(BotComponent).Assembly.GetType(SeekCoverType, true);
+        h.Patch(AccessTools.DeclaredMethod(seekCover, "Update"),
+            prefix: new HarmonyMethod(typeof(Plugin), nameof(UpdateRelocationHold)) { priority = Priority.First });
+        h.Patch(AccessTools.DeclaredMethod(seekCover, "OnSteeringTicked"),
+            prefix: new HarmonyMethod(typeof(Plugin), nameof(SteerRelocationHold)) { priority = Priority.First });
+    }
+
+    private bool OwnsRelocationHold(BotAction action, out BotState s)
+    {
+        var b = action.Bot;
+        return states.TryGetValue(b, out s!) && s.Relocation.Policy.Holding
+            && s.Relocation.Policy.Trace!.Accepted && ReferenceEquals(b.CurrentAction, action)
+            && RelocationControlsMovement(b) && RelocationScope(b, s);
+    }
+
+    private static bool UpdateRelocationHold(BotAction __instance, bool __runOriginal)
+    {
+        var p = Instance;
+        if (!__runOriginal || p == null || !p.OwnsRelocationHold(__instance, out var s))
+            return __runOriginal;
+        try
+        {
+            var b = __instance.Bot;
+            var policy = s.Relocation.Policy;
+            if (!policy.Observe(p.RelocationFrame(b, s), p.config!.OutdoorRelocation))
+            {
+                p.FinishRelocation(s);
+                return true;
+            }
+            b.Mover.Stop();
+            b.Mover.SetTargetPose(.8f);
+            if (!policy.Trace!.HoldApplied)
+            {
+                policy.Trace.HoldApplied = true;
+                p.RecordRelocation(s, true);
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            p.RelocationError(s, ex);
+            return true;
+        }
+    }
+
+    private static bool SteerRelocationHold(BotAction __instance, bool __runOriginal)
+    {
+        var p = Instance;
+        if (!__runOriginal || p == null || !p.OwnsRelocationHold(__instance, out var s))
+            return __runOriginal;
+        try
+        {
+            var b = __instance.Bot;
+            if (!TacticalSteeringFire.TryShoot(b, TacticalSteeringKind.OutdoorRelocation))
+                b.Steering.LookToPoint(VP(s.Relocation.Policy.Known) + Vector3.up * 1.3f);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            p.RelocationError(s, ex);
+            return true;
+        }
     }
 
     private static void RelocationPathInitialized(BotPathDataManual __instance, NavMeshPath path)
@@ -219,13 +282,15 @@ public sealed partial class Plugin
                 break;
             }
         }
+        if (f.Block.Length == 0
+            && (r.Policy.Holding && r.Policy.Trace!.Accepted || r.Policy.Trace?.State == "moving" && r.NativeMoveStarted)
+            && !RelocationControlsMovement(b))
+            f.Block = "relocate-native-priority";
         if (r.Policy.Trace?.State == "moving")
         {
             f.NativeMoveStarted = r.NativeMoveStarted;
             if (r.NativeMoveStarted)
             {
-                if (f.Block.Length == 0 && !RelocationControlsMovement(b))
-                    f.Block = "relocate-native-priority";
                 var cover = b.Cover.CoverPoint_MovingTo ?? b.Cover.CoverInUse;
                 var active = b.Mover.ActivePath;
                 if (active?.Moving != true || active is BotPathDataManual { CancelRequested: true })
@@ -315,7 +380,7 @@ public sealed partial class Plugin
             if (!r.Policy.Active)
                 return false;
             r.Expected =
-                r.Policy.Trace!.State == "moving" ? ECombatDecision.SeekCover
+                r.Policy.Trace!.State is "moving" or "holding" ? ECombatDecision.SeekCover
                 : r.Policy.Trace.State == "throwing" ? ECombatDecision.ThrowGrenade
                 : ECombatDecision.Freeze;
             r.RequestFrame = Time.frameCount;
@@ -737,7 +802,7 @@ public sealed partial class Plugin
                 FinishRelocation(s);
                 return false;
             }
-            if (!OrderRelocationMove(b, s, f))
+            if (!r.Policy.Holding && !OrderRelocationMove(b, s, f))
                 return false;
             result = r.Selected!;
             RecordRelocation(s);
@@ -913,6 +978,9 @@ public sealed partial class Plugin
         var r = s.Relocation;
         try
         {
+            if (r.Owner != null && !r.Owner.IsDead && r.Policy.Trace!.HoldApplied
+                && Math.Abs(r.Owner.Mover.Pose.PoseValue.TargetValue - .8f) < .01f)
+                r.Owner.Mover.SetTargetPose(1f);
             if (r.Owner != null && !r.Owner.IsDead && !r.Policy.Trace!.Arrived
                 && !(r.Policy.Trace.Reason == "relocate-native-priority"
                     && r.NativeMoveStarted && !RelocationControlsMovement(r.Owner)))
