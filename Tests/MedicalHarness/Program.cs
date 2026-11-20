@@ -68,6 +68,91 @@ Stimulator Stim(BotComponent b, bool useful = true)
     return item;
 }
 MedicalTrace T(Plugin p, BotComponent b) => p.states[b].Medical.Policy.Trace!;
+(Plugin, BotComponent) CloseCall()
+{
+    var (plugin, bot) = Setup();
+    Aid(bot, "first");
+    Aid(bot, "spare");
+    bot.Cover.CoverInUse = null;
+    var enemy = bot.EnemyController.KnownEnemies[0];
+    enemy.Path.PathLength = 25;
+    enemy.KnownPlaces.LastSeenPlace!.TimeSincePositionUpdated = 15;
+    return (plugin, bot);
+}
+bool originalBlock = Physics.Block;
+try
+{
+    Physics.Block = true;
+    UnityEngine.Random.value = 0;
+    var (plugin, bot) = CloseCall();
+    C(!plugin.Choose(bot).result && T(plugin, bot).NaturalChoice == "FirstAid"
+        && T(plugin, bot).Choice == "Wait" && T(plugin, bot).VerdictUntil == 15,
+        "room for hesitation reaches the real SAIN decision hook");
+    var jsonVerdict = JObject.Parse(plugin.diagnostics!.Lines.Last())["medicalChoice"]!;
+    C((string?)jsonVerdict["mistakeState"] == "mistake-selected" &&
+        (double?)jsonVerdict["verdictUntil"] == 15 && (bool?)jsonVerdict["started"] == false,
+        "H01 records the verdict separately from medicine use");
+    UnityEngine.Random.value = .99f;
+    Time.time = 11;
+    C(!plugin.Choose(bot).result && T(plugin, bot).MistakeRoll == null,
+        "next self-action evaluation reuses the wait verdict");
+    var stim = Stim(bot);
+    bot.Medical.TimeSinceShot = 1;
+    Time.time = 11.5f;
+    C(plugin.Choose(bot).decision == ESelfActionType.Stims && T(plugin, bot).Urgent,
+        "new urgent stim preempts a cached wait at the next evaluation");
+    plugin.Start(bot);
+    C(bot.Player.HandsController.Item == stim, "urgent stim uses the native hands");
+
+    (plugin, bot) = CloseCall();
+    UnityEngine.Random.value = 0;
+    bot.Medical.TimeSinceShot = 1;
+    C(plugin.Choose(bot).decision == ESelfActionType.FirstAid && T(plugin, bot).NaturalChoice == "Wait",
+        "ordinary treatment can be the close second");
+    UnityEngine.Random.value = .99f;
+    plugin.Start(bot);
+    C(T(plugin, bot).Started && bot.BotOwner.Medecine.FirstAid.Requests == 1,
+        "starting honors a selected second choice with the same kit and urgency");
+
+    (plugin, bot) = CloseCall();
+    plugin.Choose(bot);
+    bot.Player.HealthController.Effects.Add(new Heavy(EBodyPart.LeftArm));
+    plugin.Start(bot);
+    C(T(plugin, bot).Reason == "medical-new-urgent-need" && bot.BotOwner.Medecine.FirstAid.Requests == 0,
+        "new heavy bleed releases a pending ordinary treatment");
+    var dressing = new Meds { Id = "bleed-kit", AllowedPart = EBodyPart.LeftArm, MedKitComponent = null };
+    dressing.HealthEffectsComponent.DamageEffects[EDamageEffectType.HeavyBleeding] = new();
+    bot.Player.InventoryController.Items.Add(dressing);
+    C(plugin.Choose(bot).result && T(plugin, bot).Item == "bleed-kit" && T(plugin, bot).MistakeRoll == null,
+        "new emergency is assessed immediately without a mistake roll");
+
+    (plugin, bot) = CloseCall();
+    plugin.Choose(bot);
+    var kit = bot.BotOwner.Medecine.SurgicalKit;
+    kit.Bhf = true;
+    kit.CurUsingMeds = Surgery(bot);
+    kit._bodyPartToHeal = EBodyPart.LeftLeg;
+    kit.ApplyToCurrentPart();
+    var externalHands = bot.Player.HandsController;
+    plugin.Start(bot);
+    C(T(plugin, bot).Reason == "medical-already-in-use" && bot.BotOwner.Medecine.FirstAid.Requests == 0
+        && kit.Requests == 1 && ReferenceEquals(externalHands, bot.Player.HandsController),
+        "BHF can take ownership between ranking and native execution");
+
+    (plugin, bot) = CloseCall();
+    bot.Memory.Health.HealthStatus = ETagStatus.BadlyInjured;
+    C(plugin.Choose(bot).decision == ESelfActionType.FirstAid && T(plugin, bot).Urgent,
+        "urgent selection uses the natural best");
+    bot.EnemyController.KnownEnemies[0].IsVisible = true;
+    plugin.Start(bot);
+    C(T(plugin, bot).Reason == "medical-start-no-longer-safe" && bot.BotOwner.Medecine.FirstAid.Requests == 0,
+        "urgent care keeps its existing check when conditions change before execution");
+}
+finally
+{
+    Physics.Block = originalBlock;
+    UnityEngine.Random.value = .99f;
+}
 foreach (var kind in new[] { "bush", "moving", "bad", "spotted", "solid" })
 {
     var trial = Setup();

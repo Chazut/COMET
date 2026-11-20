@@ -593,6 +593,7 @@ namespace Comet.Core
 {
     public class CometConfig
     {
+        public TacticalMistakesConfig TacticalMistakes = new();
         public bool Enabled = true;
         public MedicalChoiceConfig MedicalChoice = new();
         public SurgeryInterruptionConfig SurgeryInterruption = new() { Enabled = false };
@@ -848,6 +849,7 @@ namespace UnityEngine
 {
     public static class Random
     {
+        public static float value = .99f;
         public static float Range(float min, float max) => min;
     }
 }

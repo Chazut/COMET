@@ -14,6 +14,18 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### A05/H01 ordinary medical decisions (2026-11-20)
+
+With a known enemy, ordinary medical choices use the remix 7.6 `HealUtility`
+personality roll. Each bot keeps a separate five-second medical verdict while
+the same option ranks first. The alternative must still be usable, score above
+zero and be within 35 points of the leader. Heavy bleeding, a critical head or
+chest injury, and the BadlyInjured or Dying health states bypass this roll.
+H01 records the natural first choice, the selected action and the verdict expiry.
+At execution, COMET checks the selected item, actual injury, native cooldowns
+and ownership of the hands. A new emergency returns the bot to medical selection.
+External surgery continues to use its native kit and callback.
+
 ### D07/D08 room entry choice (2026-11-20)
 
 Both clear modes use the remix 7.6 `BuildClear` weights and feint count when

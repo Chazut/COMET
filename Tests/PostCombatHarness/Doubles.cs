@@ -721,6 +721,7 @@ namespace Comet.Core
 {
     public class CometConfig
     {
+        public TacticalMistakesConfig TacticalMistakes = new();
         public PostCombatConfig PostCombat = new();
         public bool Enabled = true;
         public MedicalChoiceConfig MedicalChoice = new();
@@ -1382,6 +1383,7 @@ namespace UnityEngine
 {
     public static class Random
     {
+        public static float value = .99f;
         public static float Range(float min, float max) => min;
     }
 }

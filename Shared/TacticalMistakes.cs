@@ -30,23 +30,15 @@ public sealed class MistakeTrace
 public sealed class TacticalMistakes
 {
     private readonly TacticalMistakesConfig config;
-    private readonly Random random;
-
-    private sealed class Verdict
-    {
-        public string Best = "",
-            Picked = "";
-        public double Until;
-    }
-
-    private readonly Dictionary<bool, Verdict> verdicts = new();
+    private readonly Func<double> nextRoll;
+    private readonly UtilityMistakeVerdict hiddenVerdict = new(), visibleVerdict = new();
     private int draws,
         opportunities;
 
     public TacticalMistakes(TacticalMistakesConfig config, string stream)
     {
         this.config = config;
-        random = new Random(StableSeed.Of(stream + "|mistake"));
+        nextRoll = new Random(StableSeed.Of(stream + "|mistake")).NextDouble;
     }
 
     public Candidate? Select(
@@ -78,10 +70,7 @@ public sealed class TacticalMistakes
     )
     {
         var best = ranked.FirstOrDefault();
-        double chance = Math.Min(
-            1,
-            config.Multiplier * (config.Chances.TryGetValue(personality, out var p) ? p : .05)
-        );
+        double chance = config.ChanceFor(personality);
         var trace = new MistakeTrace
         {
             At = now,
@@ -105,46 +94,13 @@ public sealed class TacticalMistakes
             trace.State = "a04-already-varied";
         else
         {
-            if (
-                !verdicts.TryGetValue(visible, out var v)
-                || now >= v.Until
-                || v.Best != best.Decision
-            )
-            {
-                double roll = random.NextDouble();
-                draws++;
-                trace.Roll = roll;
-                string pick = "";
-                if (roll < chance)
-                {
-                    int i = 1;
-                    if (ranked.Count > 2 && ranked[2].Score > 0)
-                    {
-                        draws++;
-                        if (random.NextDouble() < .3)
-                            i = 2;
-                    }
-                    pick = ranked[i].Decision;
-                }
-                v = new Verdict
-                {
-                    Best = best.Decision,
-                    Picked = pick,
-                    Until = now + 5,
-                };
-                verdicts[visible] = v;
-            }
-            trace.NextAllowedAt = v.Until;
-            var alternative = ranked.Find(c => c.Decision == v.Picked && c.Score > 0);
-            if (alternative == null)
-                trace.State = "kept-best";
-            else if (best.Score - alternative.Score > 35)
-                trace.State = "score-loss-too-large";
-            else
-            {
-                chosen = alternative;
-                trace.State = "mistake-selected";
-            }
+            var verdict = (visible ? visibleVerdict : hiddenVerdict).Choose(ranked,
+                c => c.Decision, c => c.Score, now, chance, nextRoll);
+            draws += verdict.Draws;
+            trace.State = verdict.State;
+            trace.Roll = verdict.Roll;
+            trace.NextAllowedAt = verdict.Until;
+            chosen = ranked[verdict.Rank];
         }
         trace.Selected = chosen?.Decision ?? "";
         trace.SelectedScore = chosen?.Score ?? 0;

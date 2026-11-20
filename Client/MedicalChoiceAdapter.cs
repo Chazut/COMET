@@ -67,6 +67,7 @@ public sealed partial class Plugin
         EBodyPart.RightLeg,
     };
     private static readonly string[] medicalActions = { "FirstAid", "Stims", "Surgery" };
+    private static readonly Func<double> medicalRoll = () => UnityEngine.Random.value;
 
     private static void PatchMedicalChoice(Harmony h)
     {
@@ -269,7 +270,7 @@ public sealed partial class Plugin
                 var items = r.Chosen;
                 if (f.Priority.Length == 0)
                     p.MedicalSupplies(b, s, f, items);
-                var t = r.Policy.Evaluate(f, p.config.MedicalChoice);
+                var t = r.Policy.Evaluate(f, p.config.MedicalChoice, p.config.TacticalMistakes, medicalRoll);
                 if (t.Choice != "Wait" && items.TryGetValue(t.Choice, out var chosen))
                 {
                     r.Item = new(chosen.item);
@@ -299,34 +300,39 @@ public sealed partial class Plugin
         }
     }
 
+    private static bool VitalInjury(BotComponent b) =>
+        b.Player.HealthController.GetBodyPartHealth(EBodyPart.Head, false).Normalized <= .25
+        || b.Player.HealthController.GetBodyPartHealth(EBodyPart.Chest, false).Normalized <= .25;
+
+    private static double MedicalHealth(BotComponent b) => b.Memory.Health.HealthStatus switch
+    {
+        ETagStatus.Injured => .7,
+        ETagStatus.BadlyInjured => .35,
+        ETagStatus.Dying => .1,
+        _ => 1,
+    };
+
     private MedicalFrame MedicalFrame(BotComponent b, BotState s)
     {
         var health = b.Player.HealthController;
         var f = new MedicalFrame
         {
             Now = Time.time,
-            Health = health.GetBodyPartHealth(EBodyPart.Common, false).Normalized,
+            Health = MedicalHealth(b),
+            Vital = VitalInjury(b),
+            HasKnownEnemy = b.EnemyController.KnownEnemies.Count > 0,
+            Personality = b.Info.Personality.ToString(),
             SinceHit = Math.Max(0, b.Medical.TimeSinceShot),
             HeavyBleed = health.FindExistingEffect<IHeavyBleeding>() != null,
             LightBleed = health.FindExistingEffect<ILightBleeding>() != null,
             Priority = MedicalPriority(b, s),
             Moving = b.Player.Velocity.magnitude > .35f || b.Player.IsSprintEnabled,
         };
-        f.Vital =
-            health.GetBodyPartHealth(EBodyPart.Head, false).Normalized <= .25
-            || health.GetBodyPartHealth(EBodyPart.Chest, false).Normalized <= .25;
-        if (config!.Aggression.TryGetValue(b.Info.Personality.ToString(), out var aggression))
+        if (config!.Aggression.TryGetValue(f.Personality, out var aggression))
             f.Aggression = aggression;
         bool postCover = PostReachedCover(b, s);
         f.ReachedCover = b.Cover.CoverInUse?.BotInThisCover == true || postCover;
         f.ProtectiveCover = NativeCoverProtects(b) || postCover;
-        f.Health = b.Memory.Health.HealthStatus switch
-        {
-            ETagStatus.Injured => .7,
-            ETagStatus.BadlyInjured => .35,
-            ETagStatus.Dying => .1,
-            _ => 1,
-        };
         f.RunningToCover =
             !f.ReachedCover
             && b.Player.Velocity.magnitude > .5f
@@ -773,22 +779,33 @@ public sealed partial class Plugin
             EndMedical(s, "medical-need-resolved");
             return;
         }
-        var f = MedicalFrame(b, s);
-        var validation = new MedicalChoice();
-        f.Options.Add(
-            new MedicalOption
-            {
-                Action = t.Choice,
-                Item = t.Item,
-                Part = t.Part,
-                Need = t.Need,
-                Duration = t.Duration,
-                Usable = true,
-            }
-        );
-        if (validation.Evaluate(f, config!.MedicalChoice).Choice != t.Choice)
+        string priority = MedicalPriority(b, s);
+        if (priority.Length > 0 || r.ExternalSurgery)
         {
-            EndMedical(s, "medical-start-no-longer-safe");
+            EndMedical(s, priority.Length > 0 ? priority : "medical-external-surgery");
+            return;
+        }
+        if (!t.Urgent && MedicalChoice.IsUrgent(health.FindExistingEffect<IHeavyBleeding>() != null,
+            VitalInjury(b), MedicalHealth(b)))
+        {
+            EndMedical(s, "medical-new-urgent-need");
+            r.Next = Time.time;
+            return;
+        }
+        // Outside the ordinary combat verdict, keep the existing H01 start check.
+        if (t.Urgent || !t.HasKnownEnemy)
+        {
+            var frame = MedicalFrame(b, s);
+            frame.Options.Add(new MedicalOption { Action = t.Choice, Need = t.Need, Duration = t.Duration, Usable = true });
+            if (new MedicalChoice().Evaluate(frame, config!.MedicalChoice).Choice != t.Choice)
+            {
+                EndMedical(s, "medical-start-no-longer-safe");
+                return;
+            }
+        }
+        else if (t.Choice == "Surgery" && !SourceSurgeryAllowed(b, s))
+        {
+            EndMedical(s, "medical-surgery-no-longer-allowed");
             return;
         }
         var med = b.BotOwner.Medecine;
@@ -822,7 +839,7 @@ public sealed partial class Plugin
         else if (t.Choice == "Surgery")
         {
             r.SurgeryOwned = true;
-            if (config.SurgeryInterruption.Enabled)
+            if (config!.SurgeryInterruption.Enabled)
                 r.Interruption.Begin(Time.time, t.Item, t.Part);
             med.SurgicalKit.CurUsingMeds = item;
             med.SurgicalKit._bodyPartToHeal = r.Part;
@@ -958,7 +975,7 @@ public sealed partial class Plugin
         var t = r.Policy.Trace;
         if (t == null)
             return;
-        string key = t.State + ":" + t.Choice + ":" + t.Reason + ":" + t.Item;
+        string key = t.State + ":" + t.Choice + ":" + t.Reason + ":" + t.Item + ":" + t.MistakeState;
         if (!force && key == r.Key && Time.time < r.LogAt)
             return;
         r.Key = key;

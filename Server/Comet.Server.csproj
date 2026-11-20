@@ -38,6 +38,7 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <Compile Include="../Shared/CometConfig.cs" Link="Core/CometConfig.cs" />
+    <Compile Include="../Shared/TacticalMistakesConfig.cs" Link="Core/TacticalMistakesConfig.cs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Shared/QuietApproach.cs" Link="Core/QuietApproach.cs" />
@@ -222,6 +223,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Shared/MedicalChoice.cs" Link="Core/MedicalChoice.cs" />
+    <Compile Include="../Shared/UtilityMistakeVerdict.cs" Link="Core/UtilityMistakeVerdict.cs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Shared/SurgeryInterruption.cs" Link="Core/SurgeryInterruption.cs" />

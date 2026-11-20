@@ -10,6 +10,8 @@
     <Compile Include="../../Client/ExternalSurgeryAdapter.cs" Link="ExternalSurgeryAdapter.cs" />
     <Compile Include="../../Client/MedicalChoiceAdapter.cs" Link="MedicalChoiceAdapter.cs" />
     <Compile Include="../../Shared/MedicalChoice.cs" Link="MedicalChoice.cs" />
+    <Compile Include="../../Shared/UtilityMistakeVerdict.cs" Link="UtilityMistakeVerdict.cs" />
+    <Compile Include="../../Shared/TacticalMistakesConfig.cs" Link="TacticalMistakesConfig.cs" />
     <Compile
       Include="../../Client/SurgeryInterruptionAdapter.cs"
       Link="SurgeryInterruptionAdapter.cs"

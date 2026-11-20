@@ -71,6 +71,8 @@ public sealed class MedicalFrame
         CoverTowardHim;
     public string Contact = "",
         Priority = "";
+    public string Personality = "";
+    public bool HasKnownEnemy;
     public double? X,
         Y,
         Z;
@@ -81,6 +83,14 @@ public sealed class MedicalTrace
 {
     public string State { get; set; } = "evaluated";
     public string Choice { get; set; } = "Wait";
+    public string NaturalChoice { get; set; } = "Wait";
+    public string Personality { get; set; } = "";
+    public bool HasKnownEnemy { get; set; }
+    public bool Urgent { get; set; }
+    public string MistakeState { get; set; } = "disabled";
+    public double MistakeChance { get; set; }
+    public double? MistakeRoll { get; set; }
+    public double? VerdictUntil { get; set; }
     public string Reason { get; set; } = "medical-wait";
     public string Item { get; set; } = "";
     public string Part { get; set; } = "";
@@ -115,6 +125,7 @@ public sealed class MedicalTrace
 // Start selection only. Execution, resources and actual duration belong to native medicine.
 public sealed class MedicalChoice
 {
+    private readonly UtilityMistakeVerdict verdict = new();
     public MedicalTrace? Trace { get; private set; }
     public bool Active => Trace?.State is "selected" or "requested" or "started";
     public double SelectedAt { get; private set; }
@@ -122,13 +133,20 @@ public sealed class MedicalChoice
     public double StartedAt { get; private set; }
     public double RetryAt { get; private set; }
 
-    public MedicalTrace Evaluate(MedicalFrame f, MedicalChoiceConfig c)
+    public static bool IsUrgent(bool heavyBleed, bool vital, double health) =>
+        heavyBleed || vital || health <= .35;
+
+    public MedicalTrace Evaluate(MedicalFrame f, MedicalChoiceConfig c,
+        TacticalMistakesConfig? mistakes = null, Func<double>? nextRoll = null)
     {
         if (Active)
             return Trace!;
         var t = new MedicalTrace
         {
             Health = f.Health,
+            Urgent = IsUrgent(f.HeavyBleed, f.Vital, f.Health),
+            Personality = f.Personality,
+            HasKnownEnemy = f.HasKnownEnemy,
             HeavyBleed = f.HeavyBleed,
             LightBleed = f.LightBleed,
             Vital = f.Vital,
@@ -207,14 +225,29 @@ public sealed class MedicalChoice
             }
         );
         t.Alternatives = options.OrderByDescending(o => o.Score).ToArray();
-        var best = t.Alternatives[0];
-        t.Choice = best.Action;
-        t.Reason = best.Reason;
-        t.Item = best.Item;
-        t.Part = best.Part;
-        t.Need = best.Need;
-        t.Duration = best.Duration;
-        if (best.Action != "Wait")
+        t.NaturalChoice = t.Alternatives[0].Action;
+        int rank = 0;
+        if (f.Priority.Length > 0) t.MistakeState = f.Priority;
+        else if (t.Urgent) t.MistakeState = "urgent-medical-priority";
+        else if (!f.HasKnownEnemy) t.MistakeState = "no-known-enemy";
+        else if (mistakes?.Enabled == true && nextRoll != null)
+        {
+            t.MistakeChance = mistakes.ChanceFor(f.Personality);
+            var pick = verdict.Choose(t.Alternatives, o => o.Action, o => o.Score,
+                f.Now, t.MistakeChance, nextRoll);
+            rank = pick.Rank;
+            t.MistakeState = pick.State;
+            t.MistakeRoll = pick.Roll;
+            t.VerdictUntil = pick.Until;
+        }
+        var choice = t.Alternatives[rank];
+        t.Choice = choice.Action;
+        t.Reason = choice.Reason;
+        t.Item = choice.Item;
+        t.Part = choice.Part;
+        t.Need = choice.Need;
+        t.Duration = choice.Duration;
+        if (choice.Action != "Wait")
         {
             t.State = "selected";
             SelectedAt = f.Now;

@@ -239,6 +239,69 @@ internal static class MedicalChoiceTests
         f.Now = 30.01;
         f.Options.Add(Aid());
         C(p.Evaluate(f, c).Choice == "FirstAid", "no extra COMET treatment cooldown");
+        // Reproduce the parity report on the actual treatment scores, then reuse the
+        // same policy while the frame changes. A read of the clock cannot consume RNG.
+        var settings = new TacticalMistakesConfig();
+        int draws = 0;
+        double Roll() { draws++; return 0; }
+        f = new MedicalFrame { Now = 100, Health = .7, Quiet = 15, Nearest = 25, Meds = 2,
+            HasKnownEnemy = true, Personality = "Timmy" };
+        f.Options.Add(Aid());
+        var medical = new MedicalChoice();
+        var wait = medical.Evaluate(f, c, settings, Roll);
+        C(wait.NaturalChoice == "FirstAid" && wait.Choice == "Wait" && !medical.Active
+            && Math.Round(wait.Alternatives[0].Score, 2) == 49.83 && wait.Alternatives[1].Score == 37
+            && wait.MistakeState == "mistake-selected" && wait.MistakeChance == .12 && draws == 1,
+            "report: Timmy can hesitate at FirstAid 49.83 vs Wait 37");
+        f.Now = 104.99;
+        wait = medical.Evaluate(f, c, settings, Roll);
+        C(wait.Choice == "Wait" && wait.VerdictUntil == 105 && wait.MistakeRoll == null && draws == 1,
+            "wait persists without a redraw or a sliding expiry");
+        f.Health = .35;
+        f.SinceHit = 1;
+        f.Options.Add(Stim());
+        var urgent = medical.Evaluate(f, c, settings, Roll);
+        C(urgent.Choice == "Stims" && urgent.Urgent && urgent.MistakeState == "urgent-medical-priority"
+            && draws == 1, "cached hesitation cannot delay a badly injured bot's stim");
+        medical.End(f.Now, "test-finished", c);
+        f.Health = .7;
+        f.SinceHit = 999;
+        f.Options.RemoveAt(1);
+        f.Now = 105;
+        wait = medical.Evaluate(f, c, settings, () => { draws++; return .5; });
+        C(wait.Choice == "FirstAid" && wait.MistakeRoll == .5 && draws == 2, "fresh verdict exactly at five seconds");
+        medical.End(f.Now, "test-finished", c);
+        f.Now += .1;
+        f.SinceHit = 1;
+        var risky = medical.Evaluate(f, c, settings, Roll);
+        C(risky.NaturalChoice == "Wait" && risky.Choice == "FirstAid" && risky.Item == "aid"
+            && risky.Part == "Chest" && draws == 3, "a new best rerolls, and the alternative keeps its kit and part");
+        f.SinceHit = 999;
+        f.Options.Add(Surg());
+        var three = new MedicalChoice().Evaluate(f, c, settings, Roll);
+        C(three.Choice == three.Alternatives[2].Action && three.MistakeState == "mistake-selected",
+            "third positive treatment is eligible on the source third-place roll");
+        f.Options.RemoveAt(1);
+        f.ReachedCover = f.ProtectiveCover = true;
+        f.Quiet = f.Nearest = 100;
+        var far = new MedicalChoice().Evaluate(f, c, settings, Roll);
+        C(far.NaturalChoice == far.Choice && far.MistakeState == "score-loss-too-large",
+            "a gap above 35 points preserves the best treatment");
+        foreach (string mode in new[] { "disabled", "no-contact", "heavy", "vital", "in-use", "no-usable-item" })
+        {
+            var frame = Frame();
+            frame.HasKnownEnemy = mode != "no-contact";
+            frame.HeavyBleed = mode == "heavy";
+            frame.Vital = mode == "vital";
+            if (mode == "in-use") frame.Priority = "medical-already-in-use";
+            var item = Aid();
+            item.Usable = mode != "no-usable-item";
+            frame.Options.Add(item);
+            settings.Enabled = mode != "disabled";
+            var normal = new MedicalChoice().Evaluate(frame, c, settings,
+                () => throw new Exception("unexpected medical roll: " + mode));
+            C(normal.Choice == normal.NaturalChoice, "native priority, scope and global setting: " + mode);
+        }
         using var pe = new PEReader(
             File.OpenRead(
                 Path.GetFullPath(
