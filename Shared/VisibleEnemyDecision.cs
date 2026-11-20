@@ -14,6 +14,10 @@ public enum VisibleTactic
 public sealed class VisibleSituation
 {
     public Situation Contact = new Situation();
+    internal double EnemyDistance =>
+        Contact.RealDistance is double distance && double.IsFinite(distance)
+            ? distance
+            : Contact.KnownDistance;
     public bool WeaponReady,
         CanShoot,
         CoverReachable,
@@ -109,7 +113,7 @@ public sealed class VisibleEnemyDecision
             return "inactive-or-ghost";
         if (!s.Visible)
             return "enemy-not-visible";
-        if (!s.HasContact || s.Target.Length == 0 || !Finite(s.Now) || !Finite(s.KnownDistance))
+        if (!s.HasContact || s.Target.Length == 0 || !Finite(s.Now) || !Finite(v.EnemyDistance))
             return "invalid-contact";
         if (!v.WeaponReady)
             return "no-loaded-ammo";
@@ -178,7 +182,7 @@ public sealed class VisibleEnemyDecision
                 c.Decision == "Push"
                     ? (
                         !v.PushReachable ? v.PushReason
-                        : (v.Contact.RealDistance ?? v.Contact.KnownDistance) >= config.VisibleCombat.MaxPushPath
+                        : v.EnemyDistance >= config.VisibleCombat.MaxPushPath
                             ? "push-too-far"
                         : "available"
                     )

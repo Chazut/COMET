@@ -125,7 +125,7 @@ public static class ZzapUtility
         double h = s.Health,
             ammo = s.Ammo,
             weak = s.Weakness,
-            dist = s.KnownDistance,
+            dist = v.EnemyDistance,
             cover = v.CoverDistance;
         double cqb = s.Loadout?.Cqb ?? .5,
             longGun = s.Loadout?.Long ?? 0,

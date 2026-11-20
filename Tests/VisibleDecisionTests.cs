@@ -53,6 +53,54 @@ internal static class VisibleDecisionTests
             var f = Frame();
             Check(e.Evaluate(f).Decision == a, "source candidate can execute: " + a);
         }
+        {
+            var c = new CometConfig();
+            c.TacticalMistakes.Enabled = false;
+            var f = Frame();
+            f.Contact.Looking = true;
+            f.Contact.Loadout = new LoadoutTrace { Cqb = .5, IdealRange = 20 };
+            f.CurrentExposure = .6;
+            f.CoverDistance = 5;
+            VisibleChoice Rank(double? actual, double remembered)
+            {
+                f.Contact.RealDistance = actual;
+                f.Contact.KnownDistance = remembered;
+                return new VisibleEnemyDecision(c).Evaluate(f);
+            }
+            foreach (var (actual, remembered, expected) in new[]
+            {
+                (8d, 15d, VisibleTactic.Push),
+                (15d, 8d, VisibleTactic.Shoot),
+            })
+            {
+                var baseline = Rank(null, actual);
+                var seen = Rank(actual, remembered);
+                Check(
+                    baseline.Decision == expected && seen.Decision == expected,
+                    $"visible target at {actual}m, last known at {remembered}m: expected {expected}"
+                );
+                Check(
+                    seen.Candidates.Select(x => x.Score).SequenceEqual(baseline.Candidates.Select(x => x.Score)),
+                    "all three visible scores use the sighted distance"
+                );
+            }
+            Check(Rank(8, double.NaN).Decision == VisibleTactic.Push, "valid sighted distance is sufficient");
+            Check(Rank(double.NaN, 15).Decision == VisibleTactic.Shoot, "unavailable sighted distance uses memory");
+            Check(Rank(null, double.NaN).Reason == "invalid-contact", "no usable distance to score");
+
+            f.Contact.Visible = false;
+            double HiddenHold(double actual, double remembered)
+            {
+                f.Contact.RealDistance = actual;
+                f.Contact.KnownDistance = remembered;
+                return ZzapUtility.Hidden(f.Contact, .5, 0, false)[Tactic.Hold];
+            }
+            double farMemory = HiddenHold(8, 90);
+            Check(
+                farMemory == HiddenHold(15, 90) && farMemory < HiddenHold(15, 8),
+                "hidden hold responds to remembered distance even as the unseen target moves"
+            );
+        }
         foreach (
             Action<VisibleSituation> change in new Action<VisibleSituation>[]
             {

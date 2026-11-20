@@ -1530,6 +1530,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 visible = state.Feature == "A02"
                     ? new
                     {
+                        enemyDistance = state.VisibleSituation?.EnemyDistance,
                         currentExposure = state.VisibleSituation?.CurrentExposure,
                         coverExposure = state.VisibleSituation?.CoverExposure,
                         coverRouteRisk = state.VisibleSituation?.CoverRouteRisk,
