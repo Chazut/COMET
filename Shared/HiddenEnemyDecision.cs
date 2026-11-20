@@ -64,6 +64,10 @@ public sealed class Situation
     public EncounterTrace? Encounter;
     public FearTrace? Fear;
     public LoadoutTrace? Loadout;
+    internal bool MedicalItemFoundWithoutLoadout;
+    internal bool NeedsMedicalRetreatStock => !InCover && Health <= .35 && CanHeal;
+    internal bool MedicalRetreatBonus => NeedsMedicalRetreatStock
+        && (Loadout is { ResourcesKnown: true } stock ? stock.MedicalItems > 0 : MedicalItemFoundWithoutLoadout);
     public OpponentTrace? Opponent;
     public EnemyIdentity RecognizedEnemy,
         LocalGroupCue;
@@ -128,6 +132,7 @@ public sealed class HiddenEnemyDecision
     public Tactic? Current => current;
     public EnemyRoleAssessment? RankedEnemy { get; private set; }
     public HiddenGrenadeReadiness? RankedGrenadeReadiness { get; private set; }
+    public bool? RankedMedicalRetreatBonus { get; private set; }
     public double? RankedHoldSeconds { get; private set; }
     public bool RankedHoldCapped => banKnownAt >= 0;
 
@@ -211,6 +216,7 @@ public sealed class HiddenEnemyDecision
         var scores = ZzapUtility.Hidden(s, aggression, heldFor, banKnownAt >= 0);
         RankedEnemy = s.EnemyRole;
         RankedGrenadeReadiness = s.GrenadeReadiness;
+        RankedMedicalRetreatBonus = s.MedicalRetreatBonus;
         var candidates = new List<Candidate>();
         foreach (Tactic tactic in Enum.GetValues(typeof(Tactic)))
         {
@@ -364,6 +370,7 @@ public sealed class HiddenEnemyDecision
         preference.Clear();
         RankedEnemy = null;
         RankedGrenadeReadiness = null;
+        RankedMedicalRetreatBonus = null;
         RankedHoldSeconds = null;
         return new Choice { Changed = changed, Reason = reason };
     }

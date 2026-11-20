@@ -1478,6 +1478,8 @@ public sealed partial class Plugin : BaseUnityPlugin
                     : null,
                 hiddenGrenadeAtRank = (featureOverride ?? state.Feature) == "A01"
                     ? state.Engine.RankedGrenadeReadiness?.ToString() : null,
+                medicalRetreatBonusAtRank = (featureOverride ?? state.Feature) == "A01"
+                    ? state.Engine.RankedMedicalRetreatBonus : null,
                 mixing = state.Mixing,
                 tacticObservationVersion = 1,
                 squadGrenade = state.Feature == "S10" && state.SquadGrenade is { } pair

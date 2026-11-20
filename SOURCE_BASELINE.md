@@ -14,6 +14,14 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### A01 medical retreat score for a hidden contact (2026-11-20)
+
+A badly injured or dying bot outside cover gets 20 extra FallBack points when
+EFT reports first aid or surgery work and the bot carries a medical item.
+The hidden ranking reuses the equipment count. When the count is unavailable,
+it checks the carried equipment only if the other conditions apply and stops at
+the first medical item. The A01 decision log records `medicalRetreatBonusAtRank`.
+
 ### A01/G01 grenade score for a hidden contact (2026-11-20)
 
 On a fresh hidden ranking, COMET reads EFT's grenade availability and SAIN's

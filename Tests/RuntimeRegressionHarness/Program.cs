@@ -9,6 +9,24 @@ void Check(bool ok, string why)
 }
 var equipment = new InventoryEquipment();
 var bag = new Item();
+{
+    var bot = new BotComponent();
+    var inventory = bot.Player.Inventory;
+    inventory.Items = [new Item()];
+    Check(!Runtime.HasCarriedMedicalItem(bot), "ordinary equipment gives no medical retreat bonus");
+    inventory.Items = [new MedKit()];
+    Check(Runtime.HasCarriedMedicalItem(bot), "medical item class counts without inspecting charges");
+    static IEnumerable<Item> InterruptedStock(bool hasItem)
+    {
+        if (hasItem)
+            yield return new Item { Med = new() { HpResource = 0 } };
+        throw new InvalidOperationException("inventory no longer available");
+    }
+    inventory.Items = InterruptedStock(true);
+    Check(Runtime.HasCarriedMedicalItem(bot), "a medical component counts and ends the equipment scan immediately");
+    inventory.Items = InterruptedStock(false);
+    Check(!Runtime.HasCarriedMedicalItem(bot), "a failed stock read leaves other tactics available");
+}
 equipment.Slots[EquipmentSlot.Backpack] = new() { ContainedItem = bag };
 Check(
     Runtime.RootSlot(new Item(), equipment) == null,

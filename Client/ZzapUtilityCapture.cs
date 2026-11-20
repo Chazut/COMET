@@ -58,6 +58,8 @@ internal static class ZzapUtilityCapture
         s.CanHeal =
             (med?.FirstAid?.Damaged == true && med.FirstAid.HaveSmth2Use)
             || med?.SurgicalKit?.HaveWork == true;
+        if (!s.Visible && s.NeedsMedicalRetreatStock && s.Loadout?.ResourcesKnown != true)
+            s.MedicalItemFoundWithoutLoadout = LoadoutAdapter.HasCarriedMedicalItem(bot);
         FillNumbers(bot, enemy, s);
         s.OpenGround = false;
         if (!s.Visible && !s.InCover)

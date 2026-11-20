@@ -92,6 +92,52 @@ static class HiddenExecutionTests
             );
         }
         {
+            var s = Frame();
+            s.Health = .35;
+            s.CanHeal = true;
+            s.Loadout = new() { ResourcesKnown = true };
+            Dictionary<Tactic, double> ScoresNow() => ZzapUtility.Hidden(s, .5, 0, false);
+            var empty = ScoresNow();
+            Check(Math.Abs(empty[Tactic.FallBack] - 34.25) < 1e-8,
+                $"native treatment with no carried medical item should score 34.25, got {empty[Tactic.FallBack]}");
+            s.Loadout.MedicalItems = 1;
+            var stocked = ScoresNow();
+            Check(Math.Abs(stocked[Tactic.FallBack] - 54.25) < 1e-8
+                && empty.Where(kv => kv.Key != Tactic.FallBack).All(kv => kv.Value == stocked[kv.Key]),
+                "one medical item adds twenty points only to retreat, even without the open-ground raycast flag");
+            foreach (var (health, inCover, work, expected) in new[] {
+                (.1, false, true, 20d), (.35, true, true, 0d),
+                (.7, false, true, 0d), (.35, false, false, 0d) })
+            {
+                s.Health = health;
+                s.InCover = inCover;
+                s.CanHeal = work;
+                s.Loadout.MedicalItems = 0;
+                double baseScore = ScoresNow()[Tactic.FallBack];
+                s.Loadout.MedicalItems = 3;
+                Check(Math.Abs(ScoresNow()[Tactic.FallBack] - baseScore - expected) < 1e-8,
+                    $"medical retreat stock difference at health {health}, cover {inCover}, treatment {work}");
+            }
+            s.CanHeal = true;
+            s.Loadout = null;
+            var engine = new HiddenEnemyDecision(new CometConfig());
+            engine.Evaluate(s);
+            Check(engine.RankedMedicalRetreatBonus == false, "no stock evidence gives no bonus");
+            s.Now += .1;
+            s.MedicalItemFoundWithoutLoadout = true;
+            engine.Evaluate(s);
+            Check(engine.RankedMedicalRetreatBonus == false, "the diagnostic follows the cached score");
+            s.Now += 8;
+            engine.Evaluate(s);
+            Check(engine.RankedMedicalRetreatBonus == true, "a carried medical item counts with loadout disabled");
+            s.Loadout = new() { State = "refresh-pending" };
+            Check(s.MedicalRetreatBonus, "a pending loadout uses the directly observed item");
+            s.Loadout.ResourcesKnown = true;
+            Check(!s.MedicalRetreatBonus, "a known empty stock takes precedence over the alternate sample");
+            engine.Release("test");
+            Check(engine.RankedMedicalRetreatBonus == null, "release clears the medical retreat diagnostic");
+        }
+        {
             var s = Frame(100);
             s.ContactAge = 6;
             s.Indoor = true;

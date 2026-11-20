@@ -53,7 +53,6 @@ public static class ZzapUtility
         double fear = s.Fear?.Level ?? 0;
         bool busy = s.Busy && !s.GrenadeOut,
             justLost = age < 3 && !s.HoldsAngle && !s.BrokeOffToCover;
-        bool hurtOpen = !s.InCover && h <= .35 && s.CanHeal;
         double push =
             .15 * cqb
             - .3 * longGun
@@ -98,7 +97,7 @@ public static class ZzapUtility
             + .45 * (1 - h)
             + (ammo < .25 ? .3 : 0)
             + (s.Numbers < 0 ? .25 * -s.Numbers : 0)
-            + (hurtOpen ? .2 : 0);
+            + (s.MedicalRetreatBonus ? .2 : 0);
         if (s.GrenadeOut)
         {
             push -= .35;

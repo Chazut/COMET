@@ -27,6 +27,10 @@ class MedKitComponent
     public float HpResource = 100;
 }
 
+class MedKit : Item { }
+
+enum EPlayerItems { Equipment }
+
 class BotAbstractMedsToPart
 {
     public Item? CurUsingMeds;
@@ -36,6 +40,8 @@ class BotAbstractMedsToPart
 class Inventory
 {
     public InventoryEquipment Equipment = new();
+    public IEnumerable<Item> Items = [];
+    public IEnumerable<Item> GetPlayerItems(EPlayerItems scope) => Items;
 }
 
 class Health

@@ -132,6 +132,22 @@ public sealed partial class Plugin
 
 internal static class LoadoutAdapter
 {
+    private static bool IsMedicalItem(Item item) =>
+        item is MedKit || item.GetItemComponent<MedKitComponent>() != null;
+
+    internal static bool HasCarriedMedicalItem(BotComponent bot)
+    {
+        try
+        {
+            return bot.Player?.Inventory?.GetPlayerItems(EPlayerItems.Equipment).Any(IsMedicalItem) == true;
+        }
+        catch (Exception)
+        {
+            // An unreadable inventory gives no evidence for the bonus. Keep ranking the other tactics.
+            return false;
+        }
+    }
+
     internal static readonly EquipmentSlot[] Carried =
     {
         EquipmentSlot.Pockets,
@@ -179,7 +195,7 @@ internal static class LoadoutAdapter
             p.ItemsScanned++;
             if (item is ThrowWeap)
                 p.Grenades++;
-            if (item is MedKit || item.GetItemComponent<MedKitComponent>() != null)
+            if (IsMedicalItem(item))
                 p.MedicalItems++;
             var slot = RootSlot(item, equipment);
             if (slot == null)

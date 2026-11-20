@@ -26,6 +26,7 @@ movement = "\n".join(
 loadout = (root / "Client/LoadoutAdapter.cs").read_text(encoding="utf-8-sig")
 start = loadout.index("internal static readonly EquipmentSlot[] Carried")
 inventory = loadout[start : loadout.index(";", start) + 1]
+inventory += "\n" + loadout[loadout.index("    private static bool IsMedicalItem(") : start]
 inventory += "\n" + method(
     "Client/LoadoutAdapter.cs", "    internal static EquipmentSlot? RootSlot("
 )
