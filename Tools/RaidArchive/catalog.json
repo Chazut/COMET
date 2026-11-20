@@ -117,6 +117,15 @@
     "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
   },
   {
+    "id": "A14",
+    "name": "Boss, guard and faction recognition",
+    "status": "runtime",
+    "trace": "enemyRole",
+    "config": null,
+    "counting": "trace",
+    "note": "A decision snapshot records a recognized contact or nearby escort cue. Expected support is the PMC's estimate."
+  },
+  {
     "id": "C01",
     "name": "Door traversal",
     "status": "runtime",
@@ -241,6 +250,33 @@
     "config": null,
     "counting": "trace",
     "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "C15",
+    "name": "Autumn and winter bush cover",
+    "status": "runtime",
+    "trace": "seasonalCover",
+    "config": null,
+    "counting": "trace",
+    "note": "Records bare foliage rejected or a cached cover point removed. A missing record does not identify a solid trunk."
+  },
+  {
+    "id": "C16",
+    "name": "Exposed cover after taking fire",
+    "status": "runtime",
+    "trace": "coverExposure",
+    "config": null,
+    "counting": "trace",
+    "note": "A hit, a released cover point and a refused move are separate observations. Release alone does not establish arrival at new cover."
+  },
+  {
+    "id": "C17",
+    "name": "Native SAIN corrections and doorframe cover",
+    "status": "runtime",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Counts are increases in labeled runtime counters, including rejected doorframe cover and following a searching leader."
   },
   {
     "id": "D01",
@@ -657,6 +693,15 @@
     "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
   },
   {
+    "id": "L05",
+    "name": "Local lighting, shadow and contact memory",
+    "status": "runtime",
+    "trace": "",
+    "config": null,
+    "counting": "trace",
+    "note": "Summary checks are counted once per reporting interval. Sampled decisions are listed separately. AI shadow checks are a subset of all shadow checks."
+  },
+  {
     "id": "M01",
     "name": "Short combat steps",
     "status": "runtime",
@@ -954,6 +999,33 @@
     "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
   },
   {
+    "id": "S10",
+    "name": "Squad grenade suppression",
+    "status": "runtime",
+    "trace": "squadGrenade",
+    "config": "squadManeuver.grenadeSuppression",
+    "counting": "trace",
+    "note": "Counts each member's role per plan. A native decision acceptance does not confirm a grenade left the thrower's hand."
+  },
+  {
+    "id": "S11",
+    "name": "Squad siege - watch building exits",
+    "status": "runtime",
+    "trace": "siege",
+    "config": "secondaryEntrance.siege",
+    "counting": "trace",
+    "note": "Counts each assigned watcher per siege. Eligibility checks and a released watch do not establish a successful siege."
+  },
+  {
+    "id": "S12",
+    "name": "Squad storm - members staying back",
+    "status": "runtime",
+    "trace": "crossfire.storm",
+    "config": "squadStorm",
+    "counting": "trace",
+    "note": "Records a member declining the rush or a storm roster listing a member staying back. It does not establish that anyone left the squad."
+  },
+  {
     "id": "T01",
     "name": "Raid combat journal",
     "status": "runtime",
@@ -1186,5 +1258,14 @@
     "config": "handsRecovery",
     "counting": "trace",
     "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+  },
+  {
+    "id": "W11",
+    "name": "Discarded magazine recovery",
+    "status": "runtime",
+    "trace": "magazineRecovery",
+    "config": null,
+    "counting": "trace",
+    "note": "One recovery per dropped magazine and owner. Start means the bot returned for it. Completion requires the original magazine confirmed in inventory."
   }
 ]

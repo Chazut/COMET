@@ -8,7 +8,7 @@ Run `setup.ps1` once with Python 3.12 or newer installed. It creates a desktop s
 
 Defaults are `C:\Games\SPT-4.1` for the game and `C:\Users\<you>\Documents\COMET-RaidArchive` for the archive. `settings.json` is local and ignored by Git. No headless installation is accessed.
 
-- **All raids:** search, map/build/configuration filters, coverage across 132 feature cards, comparison between raids.
+- **All raids:** search, map/build/configuration filters, feature coverage and raid comparisons. Search for "siege", "grenade suppression" or "magazine recovery" to see their own evidence. Other cards cover PMC escort recognition, squad members staying back, seasonal and exposed cover, and lighting for player and AI targets.
 - **Coverage:** inspect a feature or filter by actor. Decisions, requests, acceptance, observed starts and reported completions are separate.
 - **Review:** evidence to investigate and observed versus expected choices from recorded random draws.
 - **Events:** filter by feature, actor or reason. Each record retains its source and line. Exact RR timestamps are preserved when available.

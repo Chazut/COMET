@@ -3,6 +3,7 @@
 from bisect import bisect_right
 from collections import defaultdict
 from common import at
+from recent_features import CARDS
 
 
 def sight_executing(e):
@@ -181,6 +182,8 @@ def feature_identity(e, t, spec):
 
 
 def evidence_note(feature):
+    if feature in CARDS:
+        return CARDS[feature][3]
     if feature == "A03":
         return "Start means the matching native combat action was observed. Completion means contact returned or the memory window expired after an observed start."
     if feature == "M13":

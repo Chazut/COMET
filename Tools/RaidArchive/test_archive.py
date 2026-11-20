@@ -308,12 +308,82 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(self.m("W09")["coverage"], "disabled")
         self.assertEqual(self.m("D02")["coverage"], "no-evidence")
 
-    def test_all_132_cards_present(self):
+    def test_catalog_has_legacy_and_recent_cards_without_duplicates(self):
         self.finish()
         analyze(self.c, "r")
-        self.assertEqual(len(CATALOG), 132)
+        ids = {card["id"] for card in CATALOG}
+        self.assertEqual(len(ids), len(CATALOG))
+        self.assertTrue({"S10", "S11", "W11", "C15", "C16", "C17", "A14", "S12", "L05"} <= ids)
+        self.assertTrue({"A01", "D01", "G01", "S01", "W04", "U01"} <= ids)
         self.assertEqual(self.m("C11")["coverage"], "excluded")
         self.assertEqual(self.m("E02")["coverage"], "deferred")
+
+    def test_discarded_magazine_cycles_and_original_item_confirmation(self):
+        def rec(n, stage, reason="", magazine="mag"):
+            return event(n, stage, "W04", decision="RecoverMagazine", reason=reason,
+                         magazineRecovery={"magazine": magazine})
+        self.add(event(1, "evaluated", "W04", decision="QuickReload"),
+                 rec(2, "queued"), rec(3, "started"), rec(4, "interrupted"), rec(5, "started"),
+                 rec(6, "arrived"), rec(7, "pickup-ready"),
+                 rec(8, "completed", "original magazine confirmed in inventory"),
+                 rec(9, "queued"), rec(10, "started"), rec(11, "failed"),
+                 rec(12, "queued", magazine="other"), rec(13, "completed", "callback only", "other"),
+                 rec(14, "started", magazine=None))
+        report = analyze(self.c, "r")
+        m = self.m("W11")
+        self.assertEqual((m["opportunities"], m["started"], m["completed"], m["refused"]), (3, 2, 1, 1))
+        self.assertEqual(m["effects"]["Reached magazine"], 1)
+        self.assertEqual(m["observationFacts"]["started"], 1)
+        self.assertEqual(self.m("W04")["events"], 1)
+        self.assertEqual(self.c.execute("SELECT count(*) FROM event_features WHERE feature='W11'").fetchone()[0], 13)
+        self.assertEqual(analyze(self.c, "r")["attempts"], report["attempts"])
+        self.assertEqual(self.m("W11"), m)
+
+    def test_squad_checks_roles_and_acceptance(self):
+        siege = {"target": "contact", "exit": "door", "until": 40.5}
+        pair = {"holder": "h", "thrower": "p", "contact": "c", "startFrame": 50}
+        self.add(event(1, "eligibility", "S11", reason="siege-unverified-exits"),
+                 event(2, "selected", "S11", siege=siege), event(3, "accepted", "S11", siege=siege),
+                 event(4, "released", "S11", siege=siege, reason="siege-watch-expired"),
+                 event(5, "selected", "S10", squadGrenade=pair),
+                 event(6, "accepted", "S10", squadGrenade=pair),
+                 dict(event(7, "selected", "S10", squadGrenade=pair), profileId="h"),
+                 event(8, "accepted", "A13", squadGrenade=pair, siege=siege),
+                 event(9, "selected", "S11"))
+        analyze(self.c, "r")
+        for f, selected, events in (("S11", 1, 5), ("S10", 2, 3)):
+            m = self.m(f)
+            self.assertEqual((m["events"], m["selected"], m["accepted"], m["started"], m["completed"]),
+                             (events, selected, 1, 0, 0))
+        self.assertEqual(self.m("S11")["observationFacts"]["Eligibility check"], 1)
+        self.assertEqual(self.m("S11")["released"], 1)
+
+    def test_recent_observation_channels_and_repeated_counters(self):
+        self.add(event(1, "evaluated", "C07", decision="CoverExposure", reason="hit-below-native-spotted-threshold",
+                       coverExposure={"hits": 12, "released": 9}),
+                 event(2, "evaluated", "C07", decision="CoverExposure", reason="hit-cover-released",
+                       coverExposure={"foliage": True, "released": 10}),
+                 event(3, "evaluated", "C07", decision="SeasonalCover", reason="seasonal-foliage-is-not-cover",
+                       seasonalCover={"rejected": 93}), event(4, "evaluated", "C07", decision="CoverScan"),
+                 event(5, "evaluated", "A02", enemyRole={"role": "Guard", "groupCue": "Guard", "expectedSupport": .75}),
+                 event(6, "evaluated", "A01", enemyRole={"role": "Scav", "groupCue": "Unknown"}),
+                 event(7, "eligibility", "S06", reason="storm-expected-support"),
+                 event(8, "summary", "local-exposure", shadow=12, aiShadow=4, recentSight=6),
+                 event(9, "summary", "local-exposure", shadow=3, aiShadow=1),
+                 event(10, "evaluated", "local-exposure", reason="Shadow"),
+                 event(11, "native-fix-summary", "C11", labels=["DoorCoverRejected"], counts=[5]),
+                 event(12, "native-fix-summary", "C11", labels=["DoorCoverRejected"], counts=[7]),
+                 event(13, "native-fix-summary", "C11", labels=["DoorCoverRejected"], counts=[7]))
+        analyze(self.c, "r")
+        self.assertEqual(self.m("C07")["events"], 1)
+        self.assertEqual(self.m("A14")["events"], 2)
+        self.assertEqual(self.m("S12")["events"], 1)
+        self.assertEqual(self.m("C15")["observationFacts"]["Foliage cover rejected"], 1)
+        self.assertEqual(self.m("C16")["observationFacts"]["Exposed foliage cover released"], 1)
+        self.assertEqual(self.m("L05")["observationFacts"], {"Shadow checks": 15, "AI shadow checks": 5,
+                         "Recent contact checks": 6, "Sampled decision: Shadow": 1})
+        self.assertEqual(self.m("C17")["observationFacts"]["Native fix: DoorCoverRejected"], 7)
+        self.assertEqual(self.m("L05")["started"], 0)
 
     def test_rr_duplicate_local_preferred(self):
         e = self.choice(1, "accepted")

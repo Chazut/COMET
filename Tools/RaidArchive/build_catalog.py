@@ -3,6 +3,7 @@ Not required on the player's machine. Inspect the generated diff when adding car
 """
 
 import pathlib, re, json
+from recent_features import CARDS
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
@@ -25,14 +26,14 @@ TRACE = {
     "P03": "gunfire",
     "P04": "floorHearing",
     "P05": "closeDetection",
-    "P07": "impactReaction",
+    "P07": "impact",
     "P08": "silentSearch",
     "P09": "searchAbandonment",
     "P10": "environmentContext",
     "D01": "doorApproach",
-    "D02": "doorJump",
-    "D03": "doorRun",
-    "D04": "doorStep",
+    "D02": "doorJumpPeek",
+    "D03": "doorRunBy",
+    "D04": "doorStepPeek",
     "D05": "doorFakeGrenade",
     "D06": "doorFakeMedical",
     "D07": "doorRoomClear",
@@ -203,7 +204,17 @@ def build():
                 note="Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success.",
             )
         )
-    (pathlib.Path(__file__).parent / "catalog.json").write_text(
+    catalog_path = pathlib.Path(__file__).parent / "catalog.json"
+    # Reference design cards are local maintainer files. Keep the tracked
+    # legacy entries when regenerating from a public checkout without them.
+    previous = json.loads(catalog_path.read_text(encoding="utf-8"))
+    entries = {entry["id"]: entry for entry in previous if entry["id"] not in CARDS}
+    entries.update({entry["id"]: entry for entry in result})
+    for feature, (name, trace, config_key, note) in CARDS.items():
+        entries[feature] = dict(id=feature, name=name, status="runtime", trace=trace,
+                                config=config_key, counting="trace", note=note)
+    result = [entries[key] for key in sorted(entries)]
+    catalog_path.write_text(
         json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     print(f"{len(result)} feature cards written.")

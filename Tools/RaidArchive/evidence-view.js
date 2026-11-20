@@ -9,9 +9,16 @@ function coverageSummary(f, raids) {
     if (f.effects?.["Angle held"] > 0) return "Angle reached and held";
     if (f.effects?.["Position reached"] > 0) return "Position reached";
   }
+  if ((f.id || f.feature) === "W11" && f.completed > 0) return "Magazine recovered";
   if (f.completed > 0) return "Completion recorded";
   if (f.started > 0) return "Execution observed";
   const id = f.id || f.feature;
+  if (["S10", "S11"].includes(id)) {
+    if (f.accepted || f.observationFacts?.accepted) return "Role accepted by SAIN";
+    if (f.selected || f.observationFacts?.selected) return "Role assigned";
+    if (f.observationFacts?.["Eligibility check"] && !f.refused && !f.observationFacts?.refused)
+      return "Eligibility checked";
+  }
   if (f.randomTrials > 0) return "Random draw recorded";
   const effects = Object.values(f.effects || {}).some((n) => n > 0);
   const facts = Object.entries(f.observationFacts || {}).some(
@@ -37,7 +44,15 @@ function coverageSummary(f, raids) {
     return "No door follow-up recorded";
   return "No feature trace recorded";
 }
+function observationUnit(feature, label) {
+  const id = feature.id || feature.feature;
+  if (id === "L05" && label.endsWith(" checks")) return "";
+  if (id === "C17" && label.startsWith("Native fix: ")) return " applications";
+  return " snapshots";
+}
 function lifecycleValue(f, key) {
+  if (["S10", "S11"].includes(f.id || f.feature) && ["started", "completed"].includes(key))
+    return null;
   if (
     ["draw"].includes(f.counting) ||
     (key === "completed" && ["A01", "A02"].includes(f.id || f.feature))
@@ -48,6 +63,10 @@ function lifecycleValue(f, key) {
 }
 function lifecycleSummary(f) {
   if (f.counting === "draw") return "Not applicable to draws";
+  if (["A14", "C15", "C16", "C17", "L05", "S12"].includes(f.id || f.feature))
+    return f.events ? "Observations only" : "No events";
+  if (["S10", "S11"].includes(f.id || f.feature))
+    return f.events ? "See role and eligibility evidence" : "No events";
   const started = lifecycleValue(f, "started");
   if (started === null) {
     if (f.status && f.status !== "runtime") return "-";
@@ -57,4 +76,4 @@ function lifecycleSummary(f) {
   return started.toLocaleString() + " / " + (completed === null ? "-" : completed.toLocaleString());
 }
 if (typeof module !== "undefined")
-  module.exports = { coverageSummary, lifecycleValue, lifecycleSummary };
+  module.exports = { coverageSummary, lifecycleValue, lifecycleSummary, observationUnit };

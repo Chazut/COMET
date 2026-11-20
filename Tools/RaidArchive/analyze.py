@@ -3,12 +3,13 @@
 from __future__ import annotations
 import collections, hashlib, json, logging
 from common import HERE, at, dumps, load, number, unpack, utc
+import recent_features as recent
 
 # A code/catalog change invalidates derived reports even when the originals did
 # not change. Archive/export schema VERSION is deliberately independent.
 ANALYZER_VERSION = hashlib.sha256(
     b"".join(
-        (HERE / p).read_bytes() for p in ("analyze.py", "catalog.json", "evidence.py")
+        (HERE / p).read_bytes() for p in ("analyze.py", "catalog.json", "evidence.py", "recent_features.py")
     )
 ).hexdigest()[:20]
 from evidence import EpisodeEvidence, effect_facts, extra_phases, feature_identity, evidence_note, sight_executing
@@ -90,7 +91,10 @@ CANDIDATES = {
 
 
 def payloads(e, catalog=CATALOG):
-    own = e.get("feature")
+    own = recent.channel(e)
+    if own in ("A01", "A02", "S06"):
+        for feature, trace in recent.additional(e):
+            yield CATALOG_BY_ID[feature], trace
     if own == "A13" and isinstance(e.get("continuity"), dict) and sight_executing(e):
         yield CATALOG_BY_ID["A03"], e["continuity"]
     specs = CANDIDATES.get(own, CANDIDATES[None]) if catalog is CATALOG else catalog
@@ -146,6 +150,8 @@ def identity(e, trace, mode):
 
 def phases(e, t, spec):
     """Explicit facts only; active/applied/accepted never imply observed execution."""
+    if spec["id"] in recent.CARDS:
+        return recent.phases(spec["id"], t, e)
     result = set()
     mode = spec["counting"]
     stage = e.get("stage", "")
@@ -214,6 +220,7 @@ def analyze(c, raid):
     metrics = collections.defaultdict(new_metrics)
     attempts = {}
     episodes = EpisodeEvidence()
+    recent_state = recent.RaidState()
     alerts = []
     summaries = []
     footer = None
@@ -250,11 +257,13 @@ def analyze(c, raid):
             configs[revision] = merge_config(configs.get(revision, {}), e["config"])
         if stage == "summary":
             summaries.append(e)
-            f = e.get("feature")
+            f = recent.channel(e)
             if f:
                 m = metrics[f, profile]
                 m["events"] += 1
                 m["states"]["summary"] += 1
+                if f == "L05":
+                    m["observationFacts"].update(recent.light_interval(e))
                 m["coverage"] = "events-only"
                 c.execute(
                     "INSERT OR IGNORE INTO event_features VALUES(?,?,?)",
@@ -304,12 +313,19 @@ def analyze(c, raid):
                 own_config.get("enabled"), bool
             ):
                 m["configEnabled"] = own_config["enabled"]
-            ident = feature_identity(e, t, spec) or identity(e, t, spec["counting"])
+            if f == "W11":
+                ident = recent_state.magazine(e, t, row["event_key"])
+            elif f in recent.CARDS:
+                ident = recent.squad_identity(f, t, e)
+            else:
+                ident = feature_identity(e, t, spec) or identity(e, t, spec["counting"])
             if f == "D01" and ident is None:
                 ident = episodes.legacy_door(e, t, row["event_key"])
             if f == "A03" and ident is None and t:
                 ident = episodes.legacy_sight(e, row["event_key"])
-            effects = effect_facts(f, t, e)
+            effects = recent.observations(f, t, e) if f in recent.CARDS else effect_facts(f, t, e)
+            if f == "C17":
+                m["observationFacts"].update(recent_state.native_changes(e))
             if ident is None:
                 m["unknownIdentityEvents"] += 1
                 m["observationFacts"].update(phases(e, t, spec))
@@ -493,6 +509,9 @@ def analyze(c, raid):
                 if isinstance(configured, bool)
                 else configured.get("enabled") if isinstance(configured, dict) else None
             )
+            parent = recent.PARENT_CONFIG.get(f)
+            if parent and at(snapshot, parent + ".enabled") is False:
+                enabled = False
             if snapshot.get("enabled") is False and spec["status"] == "runtime":
                 enabled = False
             if enabled is not None:

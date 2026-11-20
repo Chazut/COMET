@@ -483,6 +483,7 @@
         `<input id="find" type="search" placeholder="Find a feature, code or family">` +
         `<select id="scope">` +
         `<option value="runtime">Runtime features</option>` +
+        `<option value="recent">Recent COMET features</option>` +
         `<option value="all">All feature cards</option>` +
         `<option value="missing">Runtime, no evidence</option></select>` +
         `</div>` +
@@ -512,7 +513,7 @@
           .map(([k, v]) => pill(k + ": " + num(v) + " occurrences"))
           .join("")}${
           Object.entries(f.observationFacts || {})
-            .map(([k, v]) => pill(k + ": " + num(v) + " snapshots", "dim"))
+            .map(([k, v]) => pill(k + ": " + num(v) + observationUnit(f, k), "dim"))
             .join("") || ""
         }` + `</div>`
       );
@@ -524,6 +525,7 @@
         (f) =>
           `${f.id} ${f.name}`.toLowerCase().includes(q) &&
           (scope === "all" || f.status === "runtime") &&
+          (scope !== "recent" || f.recent) &&
           (scope !== "missing" || !f.events),
       );
       $("#coverage").innerHTML =
@@ -563,13 +565,14 @@
         .forEach((r) => (r.onclick = () => showFeature(r.dataset.feature)));
     }
 
-    async function openRaid(id) {
+    async function openRaid(id, feature = "") {
       selected = id;
       const loaded = await api("/api/raid/" + encodeURIComponent(id));
       if (selected !== id) return;
       current = loaded;
       offset = 0;
-      eventFeature = "";
+      eventFeature = feature;
+      if (feature) tab = "events";
       eventProfile = "";
       eventSearch = "";
       renderRail();
@@ -899,7 +902,7 @@
               ]
                 .map(
                   (k) =>
-                    `<td class="num">${f.coverage !== "identified-attempts" || f.counting === "draw" || (k === "completed" && ["A01", "A02"].includes(f.feature)) ? "-" : num(f[k])}` +
+                    `<td class="num">${lifecycleValue(f, k) === null ? "-" : num(f[k])}` +
                     `</td>`,
                 )
                 .join("")}` +
@@ -927,7 +930,7 @@
           (b) =>
             (b.onclick = () => {
               $("#modal").close();
-              openRaid(b.dataset.open);
+              openRaid(b.dataset.open, f);
             }),
         );
         return;

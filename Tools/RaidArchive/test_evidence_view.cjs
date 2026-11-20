@@ -1,5 +1,8 @@
 const { strict: assert } = require("node:assert");
-const { coverageSummary, lifecycleValue, lifecycleSummary } = require("./evidence-view.js");
+const { coverageSummary, lifecycleValue, lifecycleSummary, observationUnit } = require("./evidence-view.js");
+assert.equal(observationUnit({ id: "L05" }, "Shadow checks"), "");
+assert.equal(observationUnit({ feature: "C17" }, "Native fix: DoorCoverRejected"), " applications");
+assert.equal(lifecycleValue({ feature: "S11", coverage: "identified-attempts" }, "completed"), null);
 assert.equal(lifecycleSummary({ events: 3 }), "No distinct attempt ID");
 assert.equal(lifecycleSummary({ events: 0 }), "No events");
 assert.equal(lifecycleSummary({ counting: "draw", identifiedRaids: 1 }), "Not applicable to draws");
@@ -81,6 +84,10 @@ for (const [data, label] of [
   [{ id: "A11" }, "No separate trace"],
   [{ id: "D02" }, "No door follow-up recorded"],
   [{ id: "G08" }, "No gas exposure recorded"],
+  [{ id: "S11", events: 5, observationFacts: { "Eligibility check": 5 } }, "Eligibility checked"],
+  [{ id: "S10", selected: 2 }, "Role assigned"],
+  [{ id: "S10", accepted: 1 }, "Role accepted by SAIN"],
+  [{ id: "W11", completed: 1 }, "Magazine recovered"],
   [{ id: "C10" }, "No safety intervention recorded"],
   [{ events: 2, observationFacts: { interrupted: 1 } }, "Evaluation recorded"],
 ]) assert.equal(coverageSummary(data), label);

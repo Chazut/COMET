@@ -6,6 +6,7 @@ import shutil, sqlite3, tempfile, threading, time, urllib.parse, webbrowser, zip
 from common import *
 from analyze import analyze, CATALOG, ANALYZER_VERSION, stale_analyses
 from evidence import evidence_note
+from recent_features import CARDS as RECENT_CARDS
 from collector import collect, active_raid
 
 
@@ -170,6 +171,7 @@ def totals(c, filters):
     features = {
         s["id"]: dict(
             s,
+            recent=s["id"] in RECENT_CARDS,
             raids=0,
             raidIds=[],
             events=0,
