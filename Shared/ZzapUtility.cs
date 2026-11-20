@@ -13,6 +13,26 @@ public static class ZzapUtility
     public static double Clamp(double x, double low, double high) =>
         Math.Max(low, Math.Min(high, x));
 
+    internal static HiddenGrenadeReadiness AssessHiddenGrenade(
+        GrenadeJudgmentConfig settings,
+        bool hasGrenade,
+        double pathLength,
+        double lastKnownDistance,
+        double contactAge,
+        bool badlyInjuredOrDying
+    )
+    {
+        if (!hasGrenade)
+            return HiddenGrenadeReadiness.NoGrenade;
+        if (!(pathLength >= settings.MinRushDistance))
+            return HiddenGrenadeReadiness.PathTooShort;
+        if (!(lastKnownDistance > 8 && lastKnownDistance < 45))
+            return HiddenGrenadeReadiness.TargetOutOfRange;
+        if (!(contactAge <= settings.MaxInfoAge))
+            return HiddenGrenadeReadiness.StaleContact;
+        return badlyInjuredOrDying ? HiddenGrenadeReadiness.TooInjured : HiddenGrenadeReadiness.Ready;
+    }
+
     public static Dictionary<Tactic, double> Hidden(
         Situation s,
         double aggression,
@@ -49,15 +69,16 @@ public static class ZzapUtility
             - .35 * (1 - h)
             - (ammo < .5 ? .3 : 0)
             - .15 * dist;
-        double nade =
-            .3
-            + .05 * Math.Min(s.Loadout?.Grenades ?? 0, 3)
-            + ((s.Loadout?.Grenades ?? 0) >= 3 ? .1 : 0)
-            + .4 * quiet
-            + (busy ? .15 : 0)
-            + (s.Indoor ? .1 : 0)
-            + (s.HoldsAngle ? .1 : 0)
-            - .25 * info;
+        double nade = 0;
+        if (s.GrenadeReadiness == HiddenGrenadeReadiness.Ready)
+            nade = .3
+                + .05 * Math.Min(s.Loadout?.Grenades ?? 0, 3)
+                + ((s.Loadout?.Grenades ?? 0) >= 3 ? .1 : 0)
+                + .4 * quiet
+                + (busy ? .15 : 0)
+                + (s.Indoor ? .1 : 0)
+                + (s.HoldsAngle ? .1 : 0)
+                - .25 * info;
         double hold =
             .2 * longGun
             + .25

@@ -92,6 +92,66 @@ static class HiddenExecutionTests
             );
         }
         {
+            var s = Frame(100);
+            s.ContactAge = 6;
+            s.Indoor = true;
+            s.KnownDistance = s.PathLength = 20;
+            var config = new CometConfig();
+            var settings = config.GrenadeJudgment;
+            HiddenGrenadeReadiness Read(bool hasGrenade = true, double path = 20, double distance = 20,
+                double age = 6, bool wounded = false) =>
+                ZzapUtility.AssessHiddenGrenade(settings, hasGrenade, path, distance, age, wounded);
+            s.GrenadeReadiness = Read(hasGrenade: false);
+            s.Unavailable[Tactic.Grenade] = "no-grenade";
+            var engine = new HiddenEnemyDecision(config);
+            var choice = engine.Evaluate(s);
+            var grenade = choice.Candidates.Single(c => c.Decision == "Grenade");
+            Check(grenade.Score == 0 && choice.Mixing!.Options.Single(x => x.Decision == "Grenade").Probability == 0
+                && choice.Decision != Tactic.Grenade && engine.RankedGrenadeReadiness == HiddenGrenadeReadiness.NoGrenade,
+                $"empty inventory must give zero grenade utility; got {grenade.Score}");
+            Check(Read(path: 9.999) == HiddenGrenadeReadiness.PathTooShort
+                && Read(path: 10) == HiddenGrenadeReadiness.Ready, "path minimum includes ten metres");
+            Check(Read(distance: 8) == HiddenGrenadeReadiness.TargetOutOfRange
+                && Read(distance: 8.001) == HiddenGrenadeReadiness.Ready
+                && Read(distance: 44.999) == HiddenGrenadeReadiness.Ready
+                && Read(distance: 45) == HiddenGrenadeReadiness.TargetOutOfRange,
+                "last known distance uses the open interval (8, 45)");
+            Check(Read(age: 20) == HiddenGrenadeReadiness.Ready && Read(age: 20.001) == HiddenGrenadeReadiness.StaleContact,
+                "contact at twenty seconds is still fresh enough for scoring");
+            Check(Read(wounded: true) == HiddenGrenadeReadiness.TooInjured, "severe injury blocks the base score");
+            foreach (var readiness in Enum.GetValues<HiddenGrenadeReadiness>())
+            {
+                s.GrenadeReadiness = readiness;
+                double score = ZzapUtility.Hidden(s, .5, 0, false)[Tactic.Grenade];
+                Check(Math.Abs(score - (readiness == HiddenGrenadeReadiness.Ready ? 35 : 0)) < 1e-8,
+                    "readiness gates the original indoor score: " + readiness);
+            }
+            s.Loadout = new() { Grenades = 3 };
+            s.GrenadeReadiness = Read(hasGrenade: false);
+            Check(ZzapUtility.Hidden(s, .5, 0, false)[Tactic.Grenade] == 0,
+                "stock bonuses cannot replace native grenade availability");
+            s.GrenadeReadiness = Read();
+            s.Unavailable.Clear();
+            s.Now += .1;
+            choice = engine.Evaluate(s);
+            Check(engine.RankedGrenadeReadiness == HiddenGrenadeReadiness.NoGrenade
+                && choice.Candidates.Single(c => c.Decision == "Grenade").Score == 0,
+                "cached ranking retains the originally sampled inventory and diagnostic reason");
+            s.Now += 8;
+            s.Unavailable[Tactic.Grenade] = "no-ready-throw-trajectory";
+            choice = engine.Evaluate(s);
+            grenade = choice.Candidates.Single(c => c.Decision == "Grenade");
+            Check(engine.RankedGrenadeReadiness == HiddenGrenadeReadiness.Ready && grenade.Score == 60
+                && !grenade.Eligible && choice.Decision != Tactic.Grenade,
+                "fresh rank recovers the grenade and stock bonus while the native throw can still refuse it");
+            settings.MinRushDistance = 25;
+            settings.MaxInfoAge = 12;
+            Check(Read(path: 24.999, age: 12) == HiddenGrenadeReadiness.PathTooShort
+                && Read(path: 25, age: 12) == HiddenGrenadeReadiness.Ready
+                && Read(path: 25, age: 12.001) == HiddenGrenadeReadiness.StaleContact,
+                "custom rank thresholds independently override both source defaults");
+        }
+        {
             var config = new CometConfig();
             foreach (string key in config.Weights.Keys.ToArray())
                 config.Weights[key] = key == "Hold" ? 1 : 0;

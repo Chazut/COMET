@@ -7,6 +7,8 @@ namespace Comet.Core;
 public sealed class GrenadeJudgmentConfig
 {
     public bool Enabled { get; set; } = true;
+    public double MinRushDistance { get; set; } = 10;
+    public double MaxInfoAge { get; set; } = 20;
     public double BaseChance { get; set; } = 50;
     public double CampSeconds { get; set; } = 6;
     public double CampBonus { get; set; } = 30;
@@ -20,6 +22,8 @@ public sealed class GrenadeJudgmentConfig
 
     public void Validate(double contactLimit)
     {
+        CometConfig.Range(MinRushDistance, 0, 40, nameof(MinRushDistance));
+        CometConfig.Range(MaxInfoAge, 3, 120, nameof(MaxInfoAge));
         foreach (
             var v in new[] { BaseChance, CampBonus, RoomBonus, VulnerableBonus, LastGrenadePenalty }
         )

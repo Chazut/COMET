@@ -13,9 +13,15 @@ namespace Comet.Client;
 // not by every feature that takes a general contact snapshot.
 internal static class ZzapUtilityCapture
 {
-    internal static void Fill(BotComponent bot, Enemy enemy, Situation s)
+    internal static void Fill(
+        BotComponent bot,
+        Enemy enemy,
+        Situation s,
+        GrenadeJudgmentConfig? hiddenGrenadeSettings = null
+    )
     {
-        s.Health = bot.Memory.Health.HealthStatus switch
+        var healthStatus = bot.Memory.Health.HealthStatus;
+        s.Health = healthStatus switch
         {
             ETagStatus.Healthy => 1,
             ETagStatus.Injured => .7,
@@ -25,6 +31,15 @@ internal static class ZzapUtilityCapture
         s.Ammo = SAINBotSuppressClass.CalcAmmoRatio(bot.BotOwner, out _);
         s.Weakness = ZzapEnemyWeakness.Score(bot, enemy);
         s.PathLength = enemy.Path.PathLength;
+        if (hiddenGrenadeSettings != null)
+            s.GrenadeReadiness = ZzapUtility.AssessHiddenGrenade(
+                hiddenGrenadeSettings,
+                bot.BotOwner.WeaponManager?.Grenades?.HaveGrenade == true,
+                s.PathLength,
+                enemy.KnownPlaces.BotDistanceFromLastKnown,
+                s.ContactAge,
+                healthStatus is ETagStatus.BadlyInjured or ETagStatus.Dying
+            );
         s.Busy = enemy.Status.VulnerableAction != EEnemyAction.None;
         s.GrenadeOut = enemy.Status.VulnerableAction == EEnemyAction.HasGrenade;
         s.HoldsAngle =

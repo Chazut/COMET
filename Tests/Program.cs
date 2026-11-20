@@ -191,6 +191,7 @@ Situation Contact() =>
         HasContact = true,
         ContactAge = 2,
         KnownDistance = 12,
+        GrenadeReadiness = HiddenGrenadeReadiness.Ready,
         IsAi = true,
         IsSupportedBot = true,
         IsAuthority = true,
@@ -352,9 +353,10 @@ foreach (Tactic tactic in Enum.GetValues<Tactic>())
         "distance affects source utility; native route remains responsible for feasibility"
     );
     s.ContactAge = 9;
+    s.GrenadeReadiness = ZzapUtility.AssessHiddenGrenade(new(), true, 30, s.KnownDistance, s.ContactAge, false);
     Check(
         new HiddenEnemyDecision(Only(Tactic.Grenade)).Evaluate(s).Decision == Tactic.Grenade,
-        "no added short grenade contact lifetime"
+        "nine-second contact is eligible for the source grenade ranking"
     );
     s.ContactAge = 59;
     Check(

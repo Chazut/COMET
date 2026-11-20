@@ -188,10 +188,14 @@ internal static class DifficultyPresetTests
             );
             var oldDefaults = JsonSerializer.SerializeToNode(new CometConfig())!.AsObject();
             oldDefaults.Remove("BehaviorBaseline");
+            oldDefaults["GrenadeJudgment"]!.AsObject().Remove("MinRushDistance");
+            oldDefaults["GrenadeJudgment"]!.AsObject().Remove("MaxInfoAge");
             oldDefaults["CornerPeek"]!["Chance"] = 13;
             string legacy = oldDefaults.ToJsonString();
             File.WriteAllText(path, legacy);
             var migrated = store.Read();
+            Check(migrated.GrenadeJudgment.MinRushDistance == 10 && migrated.GrenadeJudgment.MaxInfoAge == 20,
+                "older presets inherit the fork's two hidden grenade scoring thresholds");
             Check(
                 migrated.DifficultyPreset == "Hard"
                     && !DifficultyPresets.Describe(migrated).Customized,

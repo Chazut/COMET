@@ -1114,7 +1114,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 return true;
             }
             if (state.Engine.NeedsEvidence(situation))
-                ZzapUtilityCapture.Fill(bot, enemy, situation);
+                ZzapUtilityCapture.Fill(bot, enemy, situation, plugin.config.GrenadeJudgment);
             NativeAdapter.Capabilities(bot, enemy, situation, state, plugin.config);
             if (
                 !situation.Visible && !situation.Unavailable.ContainsKey(Tactic.Grenade)
@@ -1476,6 +1476,8 @@ public sealed partial class Plugin : BaseUnityPlugin
                 hiddenHold = (featureOverride ?? state.Feature) == "A01" && state.Engine.RankedHoldSeconds is double held
                     ? new { secondsAtRank = held, cappedAtRank = state.Engine.RankedHoldCapped }
                     : null,
+                hiddenGrenadeAtRank = (featureOverride ?? state.Feature) == "A01"
+                    ? state.Engine.RankedGrenadeReadiness?.ToString() : null,
                 mixing = state.Mixing,
                 tacticObservationVersion = 1,
                 squadGrenade = state.Feature == "S10" && state.SquadGrenade is { } pair

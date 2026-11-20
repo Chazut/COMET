@@ -4,9 +4,21 @@ using System.Linq;
 
 namespace Comet.Core;
 
+public enum HiddenGrenadeReadiness
+{
+    NotSampled,
+    NoGrenade,
+    PathTooShort,
+    TargetOutOfRange,
+    StaleContact,
+    TooInjured,
+    Ready,
+}
+
 // Captured on the Unity thread. Contains no live enemy transform, inventory or health.
 public sealed class Situation
 {
+    public HiddenGrenadeReadiness GrenadeReadiness;
     public double? RealDistance;
     public double Now;
     public string Target = "";
@@ -115,6 +127,7 @@ public sealed class HiddenEnemyDecision
     private List<Candidate> preference = new();
     public Tactic? Current => current;
     public EnemyRoleAssessment? RankedEnemy { get; private set; }
+    public HiddenGrenadeReadiness? RankedGrenadeReadiness { get; private set; }
     public double? RankedHoldSeconds { get; private set; }
     public bool RankedHoldCapped => banKnownAt >= 0;
 
@@ -197,6 +210,7 @@ public sealed class HiddenEnemyDecision
         double aggression = config.Aggression.TryGetValue(s.Personality, out var a) ? a : .5;
         var scores = ZzapUtility.Hidden(s, aggression, heldFor, banKnownAt >= 0);
         RankedEnemy = s.EnemyRole;
+        RankedGrenadeReadiness = s.GrenadeReadiness;
         var candidates = new List<Candidate>();
         foreach (Tactic tactic in Enum.GetValues(typeof(Tactic)))
         {
@@ -349,6 +363,7 @@ public sealed class HiddenEnemyDecision
         ranked.Clear();
         preference.Clear();
         RankedEnemy = null;
+        RankedGrenadeReadiness = null;
         RankedHoldSeconds = null;
         return new Choice { Changed = changed, Reason = reason };
     }

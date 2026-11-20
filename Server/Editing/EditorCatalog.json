@@ -3256,6 +3256,26 @@
       "Section": "GrenadeJudgment",
       "Simple": false
     },
+    "GrenadeJudgment.MinRushDistance": {
+      "Label": "Minimum path for grenade scoring",
+      "Help": "Minimum path length to a hidden enemy for a bot to give a grenade a positive base score.",
+      "Min": 0.0,
+      "Max": 40.0,
+      "Scale": 1,
+      "Section": "GrenadeJudgment",
+      "Simple": false,
+      "Unit": "m"
+    },
+    "GrenadeJudgment.MaxInfoAge": {
+      "Label": "Maximum contact age for grenade scoring",
+      "Help": "How long a hidden enemy's last known position can contribute to the grenade score. The separate throw checks still apply.",
+      "Min": 3.0,
+      "Max": 120.0,
+      "Scale": 1,
+      "Section": "GrenadeJudgment",
+      "Simple": false,
+      "Unit": "s"
+    },
     "GrenadeJudgment.BaseChance": {
       "Label": "Base chance",
       "Help": "Starting chance for a worthwhile, safe grenade attempt. The bonuses and penalties below adjust it. Increasing this makes eligible throws more likely, without bypassing safety.",

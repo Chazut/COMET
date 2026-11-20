@@ -247,6 +247,11 @@ static class Audit
         );
         var roleAdapter = client.GetType("Comet.Client.EnemyRoleCapture", true)!;
         var flags = BindingFlags.Static | BindingFlags.NonPublic;
+        var capture = client.GetType("Comet.Client.ZzapUtilityCapture", true)!;
+        var rankInputs = Calls(capture.GetMethod("Fill", flags)!).Select(m => m.Name).ToHashSet();
+        if (!rankInputs.IsSupersetOf(new[] { "get_HaveGrenade", "get_PathLength", "get_BotDistanceFromLastKnown",
+            "get_HealthStatus", "AssessHiddenGrenade" }))
+            throw new Exception("The shipped client is missing native inputs for hidden grenade scoring.");
         var sightCalls = Calls(roleAdapter.GetMethod("Observe", flags)!)
             .Select(m => m.Name)
             .ToArray();

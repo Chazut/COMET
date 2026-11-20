@@ -14,6 +14,20 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### A01/G01 grenade score for a hidden contact (2026-11-20)
+
+On a fresh hidden ranking, COMET reads EFT's grenade availability and SAIN's
+path length, distance to the last known position, contact age and health status.
+The base score is zero unless a grenade is available, the path is at least
+10 m, the last known position is strictly between 8 and 45 m, the contact is at
+most 20 s old, and the bot is neither badly injured nor dying. The path and age
+thresholds use the remix 7.6 defaults and ranges in COMET's advanced grenade
+settings because official SAIN 4.5.1 lacks the fork's CloseCombat fields.
+
+A01 decision events retain `hiddenGrenadeAtRank` from the last scoring pass.
+Native execution checks still handle grenade permissions, a pending arc and
+throw safety when the bot tries the cached ranking.
+
 ### A04/A05 fallback after a deliberate mistake (2026-11-20)
 
 Visible combat, hidden combat and reload decisions swap the original best option
