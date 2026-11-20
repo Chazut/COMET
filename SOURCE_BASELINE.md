@@ -24,6 +24,14 @@ sampled point to the remembered enemy. A failed check reuses the first opening.
 The M14 trace records the first point, initial stance, side choice and last
 pose requested from SAIN. Only the first outing can use a jump.
 
+During each active action update in the exposed phase, M14 draws a fresh
+threshold (0.2 to 0.35 seconds by default). Between peeks it does the same
+with 0.8 to 2.2 seconds. Elapsed time must exceed the draw. Entering a phase
+starts its clock. Decision and telemetry callbacks do not sample either timer.
+If the pause expires before the opposite point is checked, the bot proceeds
+as soon as that check finishes. The existing M14 trace carries the latest
+threshold and the total checks for each phase.
+
 ### A02 visible combat scores (2026-11-20)
 
 A02 ranks Shoot, Cover and Push using the full weighted scores, including

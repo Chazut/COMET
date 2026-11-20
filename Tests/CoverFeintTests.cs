@@ -66,6 +66,71 @@ internal static class CoverFeintTests
             Check(policy.Begin(frame, c, () => draw++ == 0 ? .4 : .1), "both feints pass their own roll");
             return policy.Trace!;
         }
+        void CheckPeekTiming()
+        {
+            var thresholds = new Queue<float>(new[] { .35f, .25f, .2f, 2.2f, 1.5f, .8f, .5f });
+            var ranges = new List<(float Min, float Max)>();
+            var policy = new CoverFeintPolicy(new RepositionCooldown(), (min, max) =>
+            {
+                ranges.Add((min, max));
+                return thresholds.Dequeue();
+            });
+            var settings = new CoverFeintConfig();
+            var frame = F();
+            Check(policy.Begin(frame, settings, () => .1), "timed peek starts");
+            policy.Accepted(true);
+            policy.Plan(new(1, 0, 0), frame.Now);
+            policy.RequestMove(frame.Now);
+            var trace = policy.Trace!;
+            frame.Now = 11;
+            frame.AtGoal = true;
+            policy.Observe(frame, settings, actionTick: false);
+            Check(trace.State == "out", "a passive refresh cannot start the exposure clock");
+            policy.Observe(frame, settings);
+            Check(trace.State == "show" && ranges.Count == 0, "phase entry does not draw for the next phase");
+            frame.Now = 11.25;
+            policy.Observe(frame, settings);
+            Check(trace.State == "show" && trace.Exposure == .35f, "first exposure draw keeps the bot in place");
+            policy.Observe(frame, settings, actionTick: false);
+            policy.Observe(frame, settings);
+            Check(trace.State == "show" && trace.Exposure == .25f && trace.ExposureChecks == 2,
+                "each real execution draws, even at the same time, and equality stays exposed");
+            policy.Observe(frame, settings);
+            Check(trace.State == "back-pending" && trace.Exposure == .2f && trace.ExposureChecks == 3,
+                "a lower draw can end the exposure earlier than the first draw");
+            policy.RequestMove(frame.Now);
+            frame.Now = 12;
+            policy.Observe(frame, settings);
+            Check(trace.State == "pause" && trace.PauseChecks == 0, "arrival does not draw the between-peek pause");
+            frame.Now = 13.5;
+            policy.Observe(frame, settings);
+            policy.Observe(frame, settings, actionTick: false);
+            policy.Observe(frame, settings);
+            Check(!trace.PauseThresholdPassed && trace.Pause == 1.5f && trace.PauseChecks == 2,
+                "strict pause comparison and passive refresh use the same rules as exposure");
+            policy.Observe(frame, settings);
+            frame.Now = 14;
+            policy.Observe(frame, settings);
+            Check(trace.PauseThresholdPassed && trace.PauseChecks == 3 && trace.Pause == .8f,
+                "a completed pause is preserved while the geometry check is pending");
+            policy.ResolveOppositePeek(null, frame.Now);
+            Check(trace.State == "out-pending" && ranges.Count == 6,
+                "finishing the delayed probe releases the second peek without another draw");
+            policy.RequestMove(frame.Now);
+            policy.Observe(frame, settings);
+            settings.ExposureMin = .4;
+            settings.ExposureMax = .5;
+            frame.Now = 14.25;
+            policy.Observe(frame, settings);
+            Check(trace.State == "show" && trace.Exposure == .5f && thresholds.Count == 0
+                && ranges.Take(3).All(r => r == (.2f, .35f))
+                && ranges.Skip(3).Take(3).All(r => r == (.8f, 2.2f)) && ranges[6] == (.4f, .5f),
+                "both outings draw independently using the configured exposure range");
+            frame.Visible = true;
+            Check(!policy.Observe(frame, settings, actionTick: false) && trace.Reason == "feint-enemy-spotted",
+                "a passive refresh can report real sight and release the action without timing draws");
+        }
+        CheckPeekTiming();
         var neutral = ChooseAt25m();
         var step = ChooseAt25m(coming: true);
         Check(neutral.Kind == "peek" && neutral.MagazineWeight == 1 && !neutral.HeardApproach
@@ -104,7 +169,8 @@ internal static class CoverFeintTests
             "approved defaults"
         );
         var wire = new List<JsonElement>();
-        CoverFeintPolicy p = new();
+        static float LowThreshold(float min, float max) => min + .1f * (max - min);
+        CoverFeintPolicy p = new(new RepositionCooldown(), LowThreshold);
         void Save() =>
             wire.Add(
                 JsonSerializer.Deserialize<JsonElement>(
@@ -164,11 +230,11 @@ internal static class CoverFeintTests
         rolls = 0;
         Check(p.Begin(F(), c, Low) && p.Trace!.Kind == "peek", "peek selected once");
         Save();
-        Check(rolls == 6 && !p.Begin(F(10.1), c, Low) && rolls == 6, "active tactic never rerolls");
+        Check(rolls == 4 && !p.Begin(F(10.1), c, Low) && rolls == 4, "active tactic never rerolls");
         p.Accepted(true);
         Save();
         Check(p.Plan(new(1, 0, 0), 10.1) && p.TargetPeekPose == .55f
-            && p.Trace!.FirstPeekCrouched == true && rolls == 7, "one stance roll on the first usable point");
+            && p.Trace!.FirstPeekCrouched == true && rolls == 5, "one stance roll on the first usable point");
         Save();
         p.RequestMove(10.2);
         Save();
@@ -192,20 +258,20 @@ internal static class CoverFeintTests
         f.Speed = 0;
         f.Grounded = false;
         Check(
-            p.Observe(f, c) && p.Trace!.State == "show",
+            p.Observe(f, c, actionTick: false) && p.Trace!.State == "show",
             "no extra grounded confirmation after source arrival"
         );
         f.Grounded = true;
         Check(
-            p.Observe(f, c) && p.Trace!.State == "show" && p.Trace.ExposedObserved,
+            p.Observe(f, c, actionTick: false) && p.Trace!.State == "show" && p.Trace.ExposedObserved,
             "actual grounded arrival starts exposure"
         );
         Save();
         f.Now = 10.6;
         p.Observe(f, c);
         Check(
-            p.Trace!.State == "show",
-            "exposure duration is stable rather than rerolled each frame"
+            p.Trace!.State == "show" && p.Trace.ExposureChecks == 1,
+            "only the action samples an exposure threshold"
         );
         f.Now = 10.8;
         p.Observe(f, c);
@@ -238,7 +304,7 @@ internal static class CoverFeintTests
         f.Now = 12.1;
         p.Observe(f, c);
         Check(p.Trace.State == "out-pending" && p.Trace.UsedOppositePoint == true
-            && p.TargetPeekPose == 1f && rolls == 7, "second outward leg stands without another draw");
+            && p.TargetPeekPose == 1f && rolls == 5, "second outward leg stands without another draw");
         Save();
         Check(wire[^1].GetProperty("usedOppositePoint").GetBoolean()
             && wire[^1].GetProperty("firstPeekCrouched").GetBoolean()
@@ -264,6 +330,9 @@ internal static class CoverFeintTests
         f.Now = 15.5;
         Check(!p.Observe(f, c), "source final hold finishes after 2.5s");
         Save();
+        Check(wire[^1].GetProperty("exposureChecks").GetInt32() == 3
+            && wire[^1].GetProperty("pauseChecks").GetInt32() == 1,
+            "the final trace retains checks from both peeks and the single pause");
         Check(
             p.Begin(F(40), c, Low),
             "source permits same encounter after retry interval without new evidence"
@@ -349,13 +418,14 @@ internal static class CoverFeintTests
         p.NoPeekPoint(f, c);
         Check(ReferenceEquals(original, p.Trace) && original.Accepted && original.Kind == "magazine"
             && original.FallbackReason == "feint-no-peek-point" && original.SharedCooldownUntil == 0
-            && rolls == 6 && p.Plan(p.Home, 11),
+            && rolls == 4 && p.Plan(p.Home, 11),
             "no initial peek point uses the same episode, rolls and native action at exactly half ammo");
         p.NoPeekPoint(f, c);
         p.RequestMagazineCheck(corner);
         p.MagazineResult(true, true, f, c);
         Check(p.LookPoint.Equals(corner), "a magazine check chosen after a failed peek captures its own angle");
-        Check(original.State == "mag-check" && original.MagazineAccepted && original.AnimationObserved,
+        Check(original.State == "mag-check" && original.MagazineAccepted && original.AnimationObserved
+            && original.ExposureChecks == 0 && original.PauseChecks == 0,
             "alternate check executes once and ignores a stale peek result");
         Save();
 
@@ -368,7 +438,7 @@ internal static class CoverFeintTests
             if (failure == "no firearm") p.NoFirearm(F(11), c);
             else p.MagazineResult(false, false, F(11), c);
             Check(p.Trace!.Kind == "peek" && p.Trace.SharedCooldownUntil == (failure == "no firearm" ? 0 : 16)
-                && p.Plan(new(1, 0, 0), 11) && call == 7 && p.TargetPeekPose == .55f,
+                && p.Plan(new(1, 0, 0), 11) && call == 5 && p.TargetPeekPose == .55f,
                 "alternate peek can start immediately after " + failure);
             p.End("feint-native-priority", 12);
             Check(p.Trace.SharedCooldownUntil == 17, "real alternate peek starts its own cooldown on exit");
@@ -391,7 +461,7 @@ internal static class CoverFeintTests
             if (veto == "peek chance") settings.PeekChance = 10;
             if (peekFirst) p.NoPeekPoint(f, settings);
             else { p.Plan(p.Home, 10); p.NoFirearm(f, settings); }
-            Check(!p.Active && p.Trace!.FallbackReason == "" && call == 6,
+            Check(!p.Active && p.Trace!.FallbackReason == "" && call == 4,
                 "alternate respects its own eligibility and roll: " + veto);
         }
 
@@ -475,12 +545,12 @@ internal static class CoverFeintTests
         Check(!p.Active && !p.ShouldPullBack(12), "spotting during a fake reload ends it without scheduling retreat");
         foreach (int peeks in new[] { 1, 2 })
         {
-            p = new();
+            p = new(new RepositionCooldown(), LowThreshold);
             var settings = new CoverFeintConfig { Peeks = peeks };
             int draws = 0;
             f = F();
             f.Position = new(10, 2, 6);
-            p.Begin(f, settings, () => ++draws == 7 ? .4 : .1);
+            p.Begin(f, settings, () => ++draws == 5 ? .4 : .1);
             var first = new DoorPoint(11.5, 2.1, 6.5);
             p.Plan(first, 10);
             Check(p.TargetPeekPose == 1f && p.Trace!.FirstPeekCrouched == false,
@@ -498,7 +568,8 @@ internal static class CoverFeintTests
             if (peeks == 1)
             {
                 Check(p.Trace!.State == "final-hold" && p.TargetPeekPose == 1f
-                    && p.OppositePeekProbe == null, "one-peek preset never probes a second opening");
+                    && p.OppositePeekProbe == null && p.Trace.PauseChecks == 0,
+                    "one-peek preset never probes a second opening or samples the pause");
                 continue;
             }
             Check(p.OppositePeekProbe.Equals(new DoorPoint(8.5, 2 - (2.1 - 2), 5.5)),
@@ -508,7 +579,7 @@ internal static class CoverFeintTests
             Check(!p.WantsRoute && p.OppositePeekProbe.HasValue, "delayed probe retains its original opening");
             p.ResolveOppositePeek(null, f.Now);
             Check(p.WantsRoute && p.Goal.Equals(first) && p.Trace!.UsedOppositePoint == false
-                && p.TargetPeekPose == .55f && draws == 7 && p.Trace.FallbackReason == "",
+                && p.TargetPeekPose == .55f && draws == 5 && p.Trace.FallbackReason == "",
                 "a blocked or off-mesh mirror reuses the first opening immediately at the opposite height");
             p.End("test-interruption", f.Now);
             Check(p.TargetPeekPose == null && p.OppositePeekProbe == null, "no pose or probe after release");

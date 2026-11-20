@@ -102,7 +102,9 @@ public sealed class CoverFeintTrace
         JumpsAccepted,
         SoundEvents,
         PlaybackSubmissions,
-        SafetyDeferrals;
+        SafetyDeferrals,
+        ExposureChecks,
+        PauseChecks;
     public double ValidFor,
         Elapsed,
         ContactAge,
@@ -142,7 +144,8 @@ public sealed class CoverFeintTrace
         AnimationObserved,
         WeaponReady,
         DrewFire,
-        ApproachObserved;
+        ApproachObserved,
+        PauseThresholdPassed;
     public DoorPoint? FirstPeekPoint, MagazineVisiblePathPoint;
     public bool? FirstPeekCrouched, UsedOppositePoint;
     public float? AppliedPeekPose;
@@ -155,8 +158,18 @@ public sealed class CoverFeintPolicy
 {
     private readonly RepositionCooldown cooldown;
 
+    private readonly Func<float, float, float>? phaseRange;
+
     public CoverFeintPolicy() : this(new RepositionCooldown()) { }
-    public CoverFeintPolicy(RepositionCooldown cooldown) => this.cooldown = cooldown;
+    public CoverFeintPolicy(RepositionCooldown cooldown) : this(cooldown, null) { }
+    public CoverFeintPolicy(RepositionCooldown cooldown, Func<float, float, float>? phaseRange)
+    {
+        this.cooldown = cooldown;
+        this.phaseRange = phaseRange;
+    }
+
+    private float PhaseThreshold(float min, float max) =>
+        phaseRange != null ? phaseRange(min, max) : min + (max - min) * (float)unitRoll();
 
     public readonly PreparationWait Preparation = new();
 
@@ -170,7 +183,7 @@ public sealed class CoverFeintPolicy
 
     private double nextRoll;
     private bool alternatePending;
-    private Func<double> rollPeekPose = null!;
+    private Func<double> unitRoll = null!;
     private int episode;
     private double started,
         phaseAt,
@@ -256,10 +269,8 @@ public sealed class CoverFeintPolicy
         double order = random(),
             pr = random(),
             mr = random(),
-            ex = random(),
-            hold = random(),
-            pause = random();
-        foreach (double v in new[] { order, pr, mr, ex, hold, pause })
+            hold = random();
+        foreach (double v in new[] { order, pr, mr, hold })
             if (!DoorPolicy.Finite(v) || v < 0 || v >= 1)
                 return false;
         bool recentShotAtMe = f.Fire > 0 && f.Now - f.Fire < 10;
@@ -284,7 +295,7 @@ public sealed class CoverFeintPolicy
                 : ""
             );
         alternatePending = kind == (peekFirst ? "peek" : "magazine");
-        rollPeekPose = random;
+        unitRoll = random;
         Preparation.Clear();
         Home = Goal = f.Position;
         Known = f.Known;
@@ -307,9 +318,7 @@ public sealed class CoverFeintPolicy
             RecentShotAtMe = recentShotAtMe,
             SquadmateEngaging = f.Mates,
             HeardApproach = f.Coming,
-            Exposure = c.ExposureMin + ex * (c.ExposureMax - c.ExposureMin),
             Hold = c.HoldMin + hold * (c.HoldMax - c.HoldMin),
-            Pause = .8 + pause * 1.4,
             ContactAge = f.Age,
             WeaponReady = f.Ready,
             KnownX = Known.X,
@@ -385,7 +394,7 @@ public sealed class CoverFeintPolicy
         if (Trace.PeekPointSelected)
         {
             Trace.FirstPeekPoint = goal;
-            Trace.FirstPeekCrouched = rollPeekPose() < .4;
+            Trace.FirstPeekCrouched = unitRoll() < .4;
             alternatePending = false;
         }
         Set(Trace.Kind == "peek" ? "out-pending" : "mag-pending", "feint-plan-ready", now);
@@ -403,7 +412,7 @@ public sealed class CoverFeintPolicy
 
     private void AdvancePeekPause(double now)
     {
-        if (Trace is { State: "pause", UsedOppositePoint: bool opposite } t && now - phaseAt >= t.Pause)
+        if (Trace is { State: "pause", PauseThresholdPassed: true, UsedOppositePoint: bool opposite })
             Set("out-pending", opposite ? "feint-opposite-side" : "feint-reuse-opening", now);
     }
 
@@ -512,7 +521,9 @@ public sealed class CoverFeintPolicy
             Trace!.JumpsAccepted++;
     }
 
-    public bool Observe(CoverFeintFrame f, CoverFeintConfig c)
+    public bool Observe(CoverFeintFrame f, CoverFeintConfig c) => Observe(f, c, actionTick: true);
+
+    public bool Observe(CoverFeintFrame f, CoverFeintConfig c, bool actionTick)
     {
         if (!Active)
             return false;
@@ -552,6 +563,8 @@ public sealed class CoverFeintPolicy
         if (Moving)
         {
             t.MovementObserved |= t.DistanceMoved > .15;
+            if (!actionTick)
+                return true;
             if (t.State == "out" && (f.AtGoal || f.Now - phaseAt > .9))
             {
                 t.ExposedObserved |= f.Exposed;
@@ -568,10 +581,24 @@ public sealed class CoverFeintPolicy
                 );
             }
         }
-        if (t.State == "show" && f.Now - phaseAt >= t.Exposure)
-            Return(f.Now, "feint-short-exposure-complete");
-        if (t.State == "pause")
-            AdvancePeekPause(f.Now);
+        else if (actionTick && t.State == "show")
+        {
+            t.Exposure = PhaseThreshold((float)c.ExposureMin, (float)c.ExposureMax);
+            t.ExposureChecks++;
+            if ((float)f.Now - (float)phaseAt > t.Exposure)
+                Return(f.Now, "feint-short-exposure-complete");
+        }
+        else if (actionTick && t.State == "pause" && !t.PauseThresholdPassed)
+        {
+            t.Pause = PhaseThreshold(.8f, 2.2f);
+            t.PauseChecks++;
+            if ((float)f.Now - (float)phaseAt > t.Pause)
+            {
+                // The geometry check may be budgeted for a later update.
+                t.PauseThresholdPassed = true;
+                AdvancePeekPause(f.Now);
+            }
+        }
         if (t.State == "final-hold" && f.Now - phaseAt >= 2.5)
             End("feint-hold-finished");
         return Active;

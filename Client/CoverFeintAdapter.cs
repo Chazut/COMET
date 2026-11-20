@@ -18,7 +18,7 @@ namespace Comet.Client;
 
 internal sealed class CoverFeintRuntime(RepositionCooldown cooldown)
 {
-    internal readonly CoverFeintPolicy Policy = new(cooldown);
+    internal readonly CoverFeintPolicy Policy = new(cooldown, UnityEngine.Random.Range);
     internal readonly Dictionary<IBotPathData, NavMeshPath> Routes = new();
     internal BotComponent? Owner;
     internal Enemy? Enemy;
@@ -379,7 +379,8 @@ public sealed partial class Plugin
         }
         f.Protected = r.Protected;
         f.Exposed = r.Exposed;
-        if (!p.Observe(f, config.CoverFeint))
+        bool actionTick = execute && p.Trace!.Accepted && b.Decision.CurrentCombatDecision == ECombatDecision.Freeze;
+        if (!p.Observe(f, config.CoverFeint, actionTick))
         {
             FinishFeint(s);
             return;
@@ -392,11 +393,7 @@ public sealed partial class Plugin
             return;
         }
         // Native Freeze owns steering and shooting. Only its accepted action callback executes the tactic.
-        if (
-            execute
-            && p.Trace.Accepted
-            && b.Decision.CurrentCombatDecision == ECombatDecision.Freeze
-        )
+        if (actionTick)
         {
             var opposite = p.OppositePeekProbe;
             bool needsPoint = p.Trace.State == "planning" || opposite.HasValue;
