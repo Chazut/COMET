@@ -79,6 +79,19 @@ static class GrenadeJudgmentTests
                 X = 20,
             };
         var wire = new List<GrenadeJudgmentTrace>();
+        foreach (var (age, eligible, penalty) in new[] {
+            (10d, true, 0d), (10.001, true, 20d), (12d, true, 20d),
+            (20d, true, 20d), (20.001, false, 0d) })
+        {
+            var policy = new GrenadeJudgmentPolicy();
+            var frame = Frame(30);
+            frame.EvidenceAt = frame.Now - age;
+            bool accepted = policy.Evaluate(frame, c, new CometConfig().GrenadeContactLifetime, true, () => 0);
+            Check(accepted == eligible && policy.Trace!.LastPenalty == penalty,
+                $"default throw decision and stale-info penalty at {age} seconds");
+            if (eligible)
+                Check(policy.Trace!.Chance == c.BaseChance - penalty, "the stale penalty is in percentage points");
+        }
         void Snapshot(GrenadeJudgmentPolicy p) =>
             wire.Add(
                 JsonSerializer.Deserialize<GrenadeJudgmentTrace>(

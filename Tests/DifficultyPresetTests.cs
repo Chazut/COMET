@@ -187,6 +187,33 @@ internal static class DifficultyPresetTests
                 "fresh installation defaults to highest profile"
             );
             var oldDefaults = JsonSerializer.SerializeToNode(new CometConfig())!.AsObject();
+            foreach (var level in new[] { "Easy", "Normal", "Hard" })
+            {
+                var previous = DifficultyPresets.Create(level);
+                previous.BehaviorBaseline = "zzap-d8655293-1";
+                previous.GrenadeContactLifetime = 8;
+                previous.GrenadeTrajectory.Distance = 40;
+                string oldJson = JsonSerializer.Serialize(previous);
+                File.WriteAllText(path, oldJson);
+                var updated = JsonSerializer.Deserialize<CometConfig>(store.ForGame())!;
+                Check(updated.GrenadeContactLifetime == 20 && updated.GrenadeTrajectory.Distance == 45
+                    && updated.DifficultyPreset == level && !DifficultyPresets.Describe(updated).Customized,
+                    $"the stock {level} config reaches the client with the new grenade defaults");
+                int backupsBeforeRead = Directory.GetFiles(dir, "*.before-zzap-*.bak").Length;
+                Check(store.Read().BehaviorBaseline == CometConfig.SourceBaseline
+                    && Directory.GetFiles(dir, "*.before-zzap-*.bak").Length == backupsBeforeRead
+                    && Directory.GetFiles(dir, "*.before-zzap-*.bak").Any(p => File.ReadAllText(p) == oldJson),
+                    "stock upgrade is backed up once");
+                previous.QuietLogging = true;
+                File.WriteAllText(path, JsonSerializer.Serialize(previous));
+                var custom = store.Read();
+                Check(custom.QuietLogging && custom.GrenadeContactLifetime == 8 && custom.GrenadeTrajectory.Distance == 40,
+                    "a customized profile can intentionally retain the previous grenade values");
+            }
+            File.WriteAllText(path, """{"BehaviorBaseline":"zzap-d8655293-1","ContactLifetime":12,"GrenadeTrajectory":{"Distance":37}}""");
+            var shortMemory = store.Read();
+            Check(shortMemory.GrenadeContactLifetime == 8 && shortMemory.ContactLifetime == 12
+                && shortMemory.GrenadeTrajectory.Distance == 37, "legacy partial config with shorter memory stays valid");
             oldDefaults.Remove("BehaviorBaseline");
             oldDefaults["GrenadeJudgment"]!.AsObject().Remove("MinRushDistance");
             oldDefaults["GrenadeJudgment"]!.AsObject().Remove("MaxInfoAge");

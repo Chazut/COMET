@@ -129,6 +129,9 @@ public sealed class PresetLibrary
         if (!DifficultyPresets.IsKnown(level))
             throw new InvalidDataException("Unknown COMET base level.");
         var baseline = Settings(DifficultyPresets.Create(level));
+        if (!supplied.ContainsKey(nameof(CometConfig.GrenadeContactLifetime)))
+            baseline[nameof(CometConfig.GrenadeContactLifetime)] = SourceBaselineMigration.MissingGrenadeLifetime(
+                supplied[nameof(CometConfig.ContactLifetime)]?.Deserialize<double>());
         var missing = new List<string>();
         JsonObject Merge(JsonObject incoming, JsonObject defaults, string prefix)
         {
@@ -173,7 +176,7 @@ public sealed class PresetLibrary
         {
             if (supplied[nameof(CometConfig.BehaviorBaseline)] == null)
                 merged.Remove(nameof(CometConfig.BehaviorBaseline));
-            SourceBaselineMigration.Upgrade(merged);
+            SourceBaselineMigration.Upgrade(merged, supplied);
             if (!missing.Contains(nameof(CometConfig.BehaviorBaseline)))
                 missing.Add(nameof(CometConfig.BehaviorBaseline));
         }

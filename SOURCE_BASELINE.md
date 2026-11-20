@@ -9,10 +9,19 @@ Reference: R_F's SAIN zzap snapshot
 `fbb86b838e0fa692b759b2c0b11fc30158a53876`.
 The audited door, grenade, cover and squad changes also track remix 7.6
 (`d8655293f607161fa0c7c0cf9958af4ffcfbae8f`).
-Configuration marker: `zzap-d8655293-1`.
+Configuration marker: `zzap-d8655293-2`.
 The host remains official SAIN 4.5.1; the fork DLL is not distributed or installed.
 
 ## Behavioral changes
+
+### G01/G02 grenade contact age and throw range (2026-11-20)
+
+An ordinary throw can use a contact up to 20 s old and 45 m away by default.
+Information older than 10 s costs 20 percentage points. The range applies with
+COMET's arc search or with SAIN's search while grenade judgment is enabled.
+The G01 event records both effective limits alongside the observed age and penalty.
+Stock difficulty profiles adopt the new defaults. Personal presets and customized
+active profiles retain their saved grenade settings.
 
 ### A01 ambush radius for a hidden contact (2026-11-20)
 

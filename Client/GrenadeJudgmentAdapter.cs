@@ -196,6 +196,9 @@ public sealed partial class Plugin
             f.Block = "grenade-treatment-priority";
         else if (s.Fake.Policy.Active || s.Fake.CallbackPending || FakeGuarded(b))
             f.Block = "grenade-feint-owned";
+        else if (config!.GrenadeJudgment.Enabled && !config.GrenadeTrajectory.Enabled && k.HasValue
+            && Vector3.Distance(b.Position, k.Value) > config.GrenadeTrajectory.Distance)
+            f.Block = "grenade-target-too-far";
         else
             foreach (var other in b.EnemyController.VisibleEnemies)
                 if (!ReferenceEquals(other, e))
@@ -539,6 +542,8 @@ public sealed partial class Plugin
                 name = s.Name,
                 botInstance = s.Id,
                 grenadeJudgment = t,
+                maxContactAgeSeconds = config?.GrenadeContactLifetime,
+                maxTargetDistanceMeters = config?.GrenadeTrajectory.Distance,
                 grenadeJudgmentConfig = config?.GrenadeJudgment,
             }
         );

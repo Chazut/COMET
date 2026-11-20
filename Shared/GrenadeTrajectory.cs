@@ -5,10 +5,11 @@ namespace Comet.Core;
 
 public sealed class GrenadeTrajectoryConfig
 {
+    public const double DefaultDistance = 45;
     public bool Enabled { get; set; } = true;
     public bool Corners { get; set; } = true;
     public bool Doors { get; set; } = true;
-    public double Distance { get; set; } = 40;
+    public double Distance { get; set; } = DefaultDistance;
     public double CornerDistance { get; set; } = 5;
     public double DoorDepthFirst { get; set; } = 1.8;
     public double DoorDepthSecond { get; set; } = 1.2;

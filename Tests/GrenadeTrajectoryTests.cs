@@ -18,7 +18,7 @@ static class GrenadeTrajectoryTests
             c.Enabled
                 && c.Corners
                 && c.Doors
-                && c.Distance == 40
+                && c.Distance == 45
                 && c.CornerDistance == 5
                 && c.DoorDepthFirst == 1.8
                 && c.DoorDepthSecond == 1.2

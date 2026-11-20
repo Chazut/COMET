@@ -610,6 +610,7 @@ public sealed partial class Plugin
                 name = s.Name,
                 botInstance = s.Id,
                 grenadeTrajectory = t,
+                maxContactAgeSeconds = config?.GrenadeContactLifetime,
                 grenadeTrajectoryConfig = config?.GrenadeTrajectory,
             }
         );

@@ -511,7 +511,7 @@ namespace Comet.Core
     {
         public bool Enabled = true;
         public long Revision = 1;
-        public double GrenadeContactLifetime = 8;
+        public double GrenadeContactLifetime = GrenadeJudgmentConfig.DefaultMaxInfoAge;
         public GrenadeJudgmentConfig GrenadeJudgment = new();
         public DoorApproachConfig DoorApproach = new();
         public GrenadeTrajectoryConfig GrenadeTrajectory = new() { Enabled = true };

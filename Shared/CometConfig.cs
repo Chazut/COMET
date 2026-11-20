@@ -30,7 +30,7 @@ public sealed class MovementHearingConfig
 
 public sealed class CometConfig
 {
-    public const string SourceBaseline = "zzap-d8655293-1";
+    public const string SourceBaseline = "zzap-d8655293-2";
     public const double DefaultAmbushRadius = 45;
     public string BehaviorBaseline { get; set; } = SourceBaseline;
     public bool QuietLogging { get; set; } = false;
@@ -149,7 +149,7 @@ public sealed class CometConfig
     public double PlanLimit { get; set; } = 12;
     public double RetryDelay { get; set; } = 5;
     public double PushMaxDistance { get; set; } = 25;
-    public double GrenadeContactLifetime { get; set; } = 8;
+    public double GrenadeContactLifetime { get; set; } = GrenadeJudgmentConfig.DefaultMaxInfoAge;
     public Dictionary<string, double> Weights { get; set; } =
         new Dictionary<string, double>
         {

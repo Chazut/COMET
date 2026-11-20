@@ -3189,7 +3189,7 @@
     },
     "GrenadeTrajectory.Distance": {
       "Label": "Maximum target distance",
-      "Help": "",
+      "Help": "Maximum distance to the enemy's last known position. Grenade judgment also uses this limit when SAIN calculates the arc.",
       "Min": 10.0,
       "Max": 75.0,
       "Scale": 1,
@@ -9035,7 +9035,7 @@
     },
     "GrenadeContactLifetime": {
       "Label": "Maximum grenade contact age",
-      "Help": "",
+      "Help": "How long a known position can be used for a throw. Grenade judgment subtracts 20 percentage points once the information is older than 10 seconds.",
       "Min": 1.0,
       "Max": 120.0,
       "Scale": 1,

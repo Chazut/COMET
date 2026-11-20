@@ -31,6 +31,38 @@ bool Ready(Plugin p, BotComponent b)
     }
     return false;
 }
+foreach (bool useCometArcs in new[] { true, false })
+foreach (var (age, distance, allowed) in new[] {
+    (12d, 45f, true), (12d, 45.01f, false), (20.01d, 42f, false) })
+{
+    var (p, b) = Setup();
+    p.Settings.GrenadeTrajectory.Enabled = useCometArcs;
+    b.GoalEnemy!.KnownPlaces.LastKnownPlace!.Position = new(distance, 0, 0);
+    p.Tick(b, 10 + age);
+    bool ready = Ready(p, b);
+    Check(ready == allowed, $"throw preparation with COMET arcs {useCometArcs}, age {age}, distance {distance}");
+    if (allowed)
+    {
+        Check(p.State(b).GrenadeJudgment.Policy.Trace!.LastPenalty == 20 && p.Throw(b),
+            "the stale penalty applies and the prepared throw can start");
+        Check(p.Events.Any(json => json.Contains("\"maxContactAgeSeconds\":20") &&
+            json.Contains("\"maxTargetDistanceMeters\":45")), "G01 reports the active limits");
+    }
+    else
+        Check(AIGrenadeHelper.Calls == 0, "an expired or distant contact spends no trajectory probes");
+}
+foreach (bool useCometArcs in new[] { true, false })
+{
+    var (p, b) = Setup();
+    p.Settings.GrenadeTrajectory.Enabled = useCometArcs;
+    p.Settings.GrenadeContactLifetime = 25;
+    p.Settings.GrenadeTrajectory.Distance = 52;
+    b.GoalEnemy!.KnownPlaces.LastKnownPlace!.Position = new(51, 0, 0);
+    p.Tick(b, 32);
+    Check(Ready(p, b), "a longer custom age and range can prepare a throw");
+    b.GoalEnemy.KnownPlaces.LastKnownPlace.Position = new(53, 0, 0);
+    Check(!p.Throw(b), "both arc paths recheck the custom range before release");
+}
 foreach (
     var exclude in new Action<Plugin, BotComponent>[]
     {

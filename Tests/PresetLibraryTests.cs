@@ -234,6 +234,29 @@ internal static class PresetLibraryTests
             "import with existing name does not overwrite"
         );
         var previousDoorPreset = JsonNode.Parse(json)!.AsObject();
+        var previousGrenadePreset = JsonNode.Parse(json)!.AsObject();
+        var grenadeSettings = previousGrenadePreset["Settings"]!.AsObject();
+        grenadeSettings["BehaviorBaseline"] = "zzap-d8655293-1";
+        foreach (var (age, range) in new[] { (8, 40), (15, 32), (24, 55) })
+        {
+            grenadeSettings["GrenadeContactLifetime"] = age;
+            grenadeSettings["GrenadeTrajectory"]!["Distance"] = range;
+            var importedGrenades = PresetLibrary.PreviewImport(previousGrenadePreset.ToJsonString()).Config;
+            Check(importedGrenades.GrenadeContactLifetime == age && importedGrenades.GrenadeTrajectory.Distance == range,
+                "explicit values in a personal preset survive import, including old factory values");
+        }
+        grenadeSettings.Remove("GrenadeContactLifetime");
+        grenadeSettings["GrenadeTrajectory"]!.AsObject().Remove("Distance");
+        var partialGrenades = PresetLibrary.PreviewImport(previousGrenadePreset.ToJsonString()).Config;
+        Check(partialGrenades.GrenadeContactLifetime == 20 && partialGrenades.GrenadeTrajectory.Distance == 45,
+            "a partial personal preset inherits new defaults for omitted settings");
+        grenadeSettings["ContactLifetime"] = 12;
+        var shortPreset = PresetLibrary.PreviewImport(previousGrenadePreset.ToJsonString());
+        Check(shortPreset.Config.GrenadeContactLifetime == 8,
+            "old partial personal preset with a short contact memory can still be imported");
+        var shortExport = PresetLibrary.Export(new PersonalPreset(update.Id, shortPreset.Name, 1, shortPreset.Config, shortPreset.AddedSettings));
+        Check(PresetLibrary.PreviewImport(shortExport).Config.GrenadeContactLifetime == 8,
+            "short contact memory survives exporting a migrated preset with omitted fields");
         var settings = previousDoorPreset["Settings"]!;
         settings["BehaviorBaseline"] = "zzap-fbb86b83-2";
         settings["DifficultyPreset"] = "Normal";

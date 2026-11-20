@@ -6,9 +6,10 @@ namespace Comet.Core;
 
 public sealed class GrenadeJudgmentConfig
 {
+    public const double DefaultMaxInfoAge = 20;
     public bool Enabled { get; set; } = true;
     public double MinRushDistance { get; set; } = 10;
-    public double MaxInfoAge { get; set; } = 20;
+    public double MaxInfoAge { get; set; } = DefaultMaxInfoAge;
     public double BaseChance { get; set; } = 50;
     public double CampSeconds { get; set; } = 6;
     public double CampBonus { get; set; } = 30;
