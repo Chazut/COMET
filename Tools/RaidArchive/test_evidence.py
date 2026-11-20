@@ -16,6 +16,45 @@ class EvidenceRegression(unittest.TestCase):
     finish = fixtures.ArchiveTests.finish
     m = fixtures.ArchiveTests.m
 
+    def test_sight_matches_native_execution_to_one_selected_hold(self):
+        def sight(n, stage, feature="A03", reason="", target="enemy", phase=None, **trace):
+            return event(n, stage, feature, reason=reason, decision="KeepAngle",
+                         continuity={"previousAction": "Shoot", **trace}, contact={"target": target},
+                         execution={"phase": phase, "target": target, "action": "KeepAngle"})
+
+        self.add(sight(1, "selected"), sight(2, "accepted"),
+                 sight(3, "evaluated", "A13", phase="executing"),
+                 sight(4, "released", reason="sight-visible-fight", phase="executing"),
+                 sight(5, "selected"), sight(6, "accepted"),
+                 sight(7, "evaluated", "A13", target="other", phase="executing"),
+                 sight(8, "released", reason="sight-window-expired", phase="accepted"),
+                 sight(9, "selected", episode=1), sight(10, "accepted", episode=1),
+                 sight(11, "evaluated", "A13", phase="executing", episode=1),
+                 sight(12, "released", reason="sight-other-threat", phase="executing", episode=1),
+                 dict(sight(13, "released", reason="sight-window-expired"), decision=""))
+        self.finish()
+        analyze(self.c, "r")
+        m = self.m("A03")
+        self.assertEqual(tuple(m[k] for k in ("selected", "accepted", "started", "completed", "unconfirmed")),
+                         (3, 3, 2, 1, 1))
+        self.assertEqual(m["released"], 3)
+
+    def test_relocation_counts_arrival_once_and_keeps_planning_separate(self):
+        def trace(n, ep, **data):
+            return event(n, feature="M13", outdoorRelocation=dict(episode=ep, target="e", requested=True, **data))
+        self.add(trace(1, 1, accepted=True, state="planning", reason="relocate-searching-better-cover"),
+                 trace(2, 1, accepted=True, state="ended"),
+                 trace(3, 2, accepted=True, moveRequested=True, state="moving"),
+                 trace(4, 2, accepted=True, moveRequested=True, movementObserved=True),
+                 trace(5, 2, accepted=True, moveRequested=True, arrived=True, state="arrived"),
+                 trace(6, 2, accepted=True, moveRequested=True, arrived=True, state="arrived"),
+                 trace(7, 3, state="ended", reason="relocate-chose-to-stay"))
+        self.finish()
+        analyze(self.c, "r")
+        self.assertEqual(tuple(self.m("M13")[k] for k in ("requested", "accepted", "started", "completed")),
+                         (1, 1, 1, 1))
+        self.assertEqual((self.m("M13")["opportunities"], self.m("M13")["selected"]), (2, 1))
+
     def test_coverage_survives_anonymous_events_and_summaries(self):
         for feature, last_stage in (("D01", "evaluated"), ("G05", "summary")):
             offset = 0 if feature == "D01" else 10

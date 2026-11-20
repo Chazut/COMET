@@ -7,6 +7,7 @@
     <NoWarn>CS0649</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../Client/ObservedCombatAction.cs" />
     <Compile Include="../../Client/ControlIntegration.cs" />
     <Compile Include="../../Shared/ControlHandoff.cs" />
     <Compile Include="../../Shared/ControlJournal.cs" />

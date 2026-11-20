@@ -205,8 +205,10 @@ namespace Comet.Client
         internal static bool IsSupportedAi(BotComponent b) => b.Pmc && !b.Human;
     }
 
+    internal sealed class ObservedSight { public string Action = ""; }
     internal sealed class BotState(BotComponent b)
     {
+        internal ObservedSight? SightEvent;
         internal BotComponent Owner = b;
         internal string ProfileId = b.ProfileId,
             Id = Guid.NewGuid().ToString(),

@@ -49,14 +49,7 @@ public sealed partial class Plugin
                     ? b.CurrentAction?.GetType().Name ?? "unknown"
                     : "Layer action unobserved";
                 // Use T01's same execution evidence. Layer ownership and COMET attribution are separate.
-                string choice =
-                    s.Feature == "A03"
-                        ? s.Decision == "ContinuePush"
-                            ? "Push"
-                            : s.Decision == "KeepAngle"
-                                ? "Shoot"
-                                : ""
-                        : s.Decision;
+                string choice = ExecutionAction(s);
                 if (
                     s.ActiveLabel.Length > 0
                     && b.SAINLayersActive

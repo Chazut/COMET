@@ -11,7 +11,7 @@ ANALYZER_VERSION = hashlib.sha256(
         (HERE / p).read_bytes() for p in ("analyze.py", "catalog.json", "evidence.py")
     )
 ).hexdigest()[:20]
-from evidence import EpisodeEvidence, effect_facts, extra_phases, feature_identity, evidence_note
+from evidence import EpisodeEvidence, effect_facts, extra_phases, feature_identity, evidence_note, sight_executing
 
 CATALOG = load(HERE / "catalog.json", [])
 COUNTS = (
@@ -91,6 +91,8 @@ CANDIDATES = {
 
 def payloads(e, catalog=CATALOG):
     own = e.get("feature")
+    if own == "A13" and isinstance(e.get("continuity"), dict) and sight_executing(e):
+        yield CATALOG_BY_ID["A03"], e["continuity"]
     specs = CANDIDATES.get(own, CANDIDATES[None]) if catalog is CATALOG else catalog
     found = False
     for spec in specs:
@@ -199,7 +201,7 @@ def phases(e, t, spec):
             result.add("started")
         if stage == "rejected":
             result.add("refused")
-        if stage == "released":
+        if stage == "released" and (spec["id"] != "A03" or e.get("decision") in {"KeepAngle", "ContinuePush"}):
             result.add("released")
     return result
 
@@ -305,6 +307,8 @@ def analyze(c, raid):
             ident = feature_identity(e, t, spec) or identity(e, t, spec["counting"])
             if f == "D01" and ident is None:
                 ident = episodes.legacy_door(e, t, row["event_key"])
+            if f == "A03" and ident is None and t:
+                ident = episodes.legacy_sight(e, row["event_key"])
             effects = effect_facts(f, t, e)
             if ident is None:
                 m["unknownIdentityEvents"] += 1
@@ -330,6 +334,9 @@ def analyze(c, raid):
                 a["last"] = clock
                 a["reason"] = reason
                 facts = phases(e, t, spec)
+                if f == "A03" and stage == "released" and e.get("feature") == f:
+                    if reason in {"sight-visible-fight", "sight-reacquired", "sight-window-expired"} and "started" in (facts | a["seen"]):
+                        facts.add("completed")
                 for effect in effects - a["seen"]:
                     m["effects"][effect] += 1
                 a["seen"] |= effects

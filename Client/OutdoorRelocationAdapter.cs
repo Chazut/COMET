@@ -23,7 +23,6 @@ internal sealed class RelocationRuntime
 {
     internal readonly OutdoorRelocation Policy = new();
     internal BotComponent? Owner;
-    internal Enemy? Enemy;
     internal CoverPoint? BestCover,
         Selected;
     internal RelocationCandidate? Best;
@@ -35,14 +34,13 @@ internal sealed class RelocationRuntime
         NextProbe,
         LastSafety = -1000,
         RequestedAt,
-        LogAt = -1000,
         ReleaseAt = -1;
     internal int Candidate,
         RequestFrame = -1,
         ProbeFrame = -1;
     internal ECombatDecision Expected;
-    internal string LogKey = "",
-        GrenadeItem = "";
+    internal (int, string, string, bool, string, bool, bool) LogKey;
+    internal string GrenadeItem = "";
     internal bool Starting,
         Fault,
         ThrowCall,
@@ -57,7 +55,6 @@ internal sealed class RelocationRuntime
     internal void Drop()
     {
         Owner = null;
-        Enemy = null;
         BestCover = Selected = null;
         Best = null;
         Cached.Clear();
@@ -176,11 +173,9 @@ public sealed partial class Plugin
         if (e == null)
             return;
         string key = RelocationKey(e);
-        double seen = e.Seen ? e.Vision.TimeFirstSeen : -1;
-        // Local incoming-fire/impact timestamps, never the opponent's perception or current hidden transform.
-        s.Relocation.Policy.History.Observe(key, e.Status.TimeFirstShotAtMe, seen, Time.time);
-        s.Relocation.Policy.History.Observe(key, e.Status.TimeLastShotMe, seen, Time.time);
-        s.Relocation.Policy.History.Observe(key, e.Status.TimeLastShotAtMe, seen, Time.time);
+        s.Relocation.Policy.History.Observe(
+            key, e.Status.ShotAtMe || e.Status.ShotMe, e.Seen, e.TimeSinceSeen
+        );
     }
 
     private static string RelocationKey(Enemy e) => e.EnemyProfileId;
@@ -204,7 +199,8 @@ public sealed partial class Plugin
             InCover = b.Cover.CoverInUse != null,
             Speed = b.Player.Velocity.magnitude,
             HandsReady = VisibleAdapter.WeaponReady(b),
-            Distance = known.HasValue ? Vector3.Distance(b.Position, known.Value) : 0,
+            Distance = e?.IsVisible == true ? e.RealDistance
+                : known.HasValue ? Vector3.Distance(b.Position, known.Value) : 0,
             Hurt = b.Memory.Health.HealthStatus != ETagStatus.Healthy,
             HealthyPusher =
                 b.Memory.Health.HealthStatus == ETagStatus.Healthy
@@ -221,7 +217,6 @@ public sealed partial class Plugin
                 || weapon.WeaponClass.ToString() == "sniperRifle"
                 || weapon.HasOptic
             );
-        int mates = 0;
         if (b.Squad?.Members != null)
             foreach (var mate in b.Squad.Members.Values)
             {
@@ -242,36 +237,19 @@ public sealed partial class Plugin
             }
         if (!RelocationScope(b, s))
             f.Block = "relocate-ineligible";
-        else if (e == null || !known.HasValue || !e.EnemyKnown)
+        else if (e == null || !r.Policy.Active && !known.HasValue)
             f.Block = "relocate-contact-unavailable";
-        else if (r.Policy.Active && !SameTacticalContact(e, r.Enemy))
-            f.Block = "relocate-contact-instance-changed";
         else if (!r.Policy.Active && b.Decision.CurrentSelfDecision != ESelfActionType.None)
             f.Block = "relocate-native-self-action";
-        else if (
-            s.CoverFeint.Policy.Active
-            || s.Entry.Policy.Active
-            || s.Door.Policy.Active
-            || s.Jump.Policy.Active
-            || s.RunBy.Policy.Active
-            || s.StepPeek.Policy.Active
-            || s.Fake.Policy.Active
-            || s.RoomClear.Policy.Active
-            || s.Emergency.Policy.Active
-            || s.Support != null
-            || s.Reservation.Lease != null
-            || s.CornerPeek.Policy.Active
-            || s.CornerChase.Policy.Active
-            || s.CombatStep.Policy.Active
-            || s.HoldAngle.Policy.Active
-            || s.Ambush.Policy.Active
-        )
-            f.Block = "relocate-other-tactic";
         else if (!r.Policy.Active && b.BotOwner.WeaponManager.Grenades.ThrowindNow)
             f.Block = "relocate-hands-busy";
         else if (b.BotOwner.Memory.IsUnderFire && r.Policy.Trace?.State != "moving")
             f.Block = "relocate-under-immediate-fire";
-        int count = 0;
+        f.OtherTactic = s.CoverFeint.Policy.Active
+            || s.Entry.Policy.Active || s.Door.Policy.Active || s.Jump.Policy.Active
+            || s.RunBy.Policy.Active || s.StepPeek.Policy.Active || s.Fake.Policy.Active
+            || s.RoomClear.Policy.Active || s.Emergency.Policy.Active || s.Ambush.Policy.Active
+            || s.Support != null || s.Reservation.Lease != null;
         foreach (var other in b.EnemyController.KnownEnemies)
         {
             if (other != null && !SameTacticalContact(other, e) && other.IsVisible)
@@ -283,13 +261,10 @@ public sealed partial class Plugin
         if (r.Policy.Trace?.State == "moving")
         {
             var path = b.Mover.ActivePath;
-            var cover = b.Cover.CoverInUse;
-            f.Arrived =
-                ReferenceEquals(cover, r.Selected)
-                && Vector3.Distance(b.Position, VP(r.Policy.Goal)) <= .8f;
+            f.NativeMoveStarted = r.NativeMoveStarted;
             // WalkToPointByWay does not populate IBotPathData.PathStatus in official SAIN. Check its actual mesh.
             f.RouteOwned =
-                f.Arrived
+                r.Policy.AtDestination(f.Position)
                 || !r.NativeMoveStarted
                 || OwnRelocationRoute(r, path)
                     && path!.NavMeshPath.status == NavMeshPathStatus.PathComplete
@@ -339,7 +314,7 @@ public sealed partial class Plugin
             ObserveRelocationContact(b, s);
             if (!r.Policy.Active)
             {
-                if (Time.time < r.Next || s.Sight.Current != null)
+                if (Time.time < r.Next)
                     return false;
                 r.Next = Time.time + .4f;
                 var f = RelocationFrame(b, s);
@@ -361,7 +336,6 @@ public sealed partial class Plugin
                     r.Starting = false;
                 }
                 r.Owner = b;
-                r.Enemy = e;
                 r.Candidate = 0;
                 r.Best = null;
                 r.BestCover = null;
@@ -425,7 +399,7 @@ public sealed partial class Plugin
             return;
         if (!RelocationScope(b, s))
         {
-            EndRelocation(s, "relocate-ineligible", true);
+            EndRelocation(s, "relocate-ineligible", b == null || b.IsDead || b.GameEnding);
             return;
         }
         ObserveRelocationContact(b, s);
@@ -455,7 +429,12 @@ public sealed partial class Plugin
             var clock = System.Diagnostics.Stopwatch.StartNew();
             try
             {
-                PlanRelocation(b, s);
+                // Consume radial samples in order within the existing shared physics budget.
+                // A skipped radius or rejected sample need not cost a whole rendered frame.
+                do
+                {
+                    PlanRelocation(b, s);
+                } while (r.Policy.Trace?.State == "planning" && clock.Elapsed.TotalMilliseconds < .4);
             }
             finally
             {
@@ -541,6 +520,8 @@ public sealed partial class Plugin
         RecordRelocation(s);
     }
 
+    private static readonly float[] relocationRadii = { 5f, 8f, 12f, 17f, 23f };
+
     private void PlanRelocation(BotComponent b, BotState s)
     {
         var r = s.Relocation;
@@ -550,9 +531,10 @@ public sealed partial class Plugin
         if (r.Candidate < 60)
         {
             int i = r.Candidate++;
-            float radius = new[] { 5f, 8f, 12f, 17f, 23f }[i / 12];
+            float radius = relocationRadii[i / 12];
             if (radius < c.MinDistance || radius > c.MaxDistance)
                 return;
+            r.Policy.Trace!.Samples++;
             float angle = ((i % 12) * 30 + radius * 7) * Mathf.Deg2Rad;
             var origin = VP(r.Policy.Origin);
             var known = VP(r.Policy.Known);
@@ -582,6 +564,7 @@ public sealed partial class Plugin
             )
                 return;
             r.SourceCandidates.Add(hit.position);
+            r.Policy.Trace.ConcealedPoints++;
             return;
         }
         if (r.Candidate == 60)
@@ -642,16 +625,6 @@ public sealed partial class Plugin
         var goal = hit.position;
         v.Position = DP(goal);
         v.Distance = new Vector2(origin.x - goal.x, origin.z - goal.z).magnitude;
-        if (v.Distance < c.MinDistance || v.Distance > c.MaxDistance + .001)
-        {
-            v.Refusal = "relocate-distance";
-            return v;
-        }
-        if (Vector3.Distance(goal, known) < Math.Max(4, Vector3.Distance(origin, known) * .7f))
-        {
-            v.Refusal = "relocate-would-rush-threat";
-            return v;
-        }
         v.OriginalProtection = 0;
         v.Protection = 0;
         if (
@@ -779,7 +752,7 @@ public sealed partial class Plugin
         r.Routes.Clear();
         r.NativeMoveStarted = false;
         r.RequestedAt = Time.time;
-        r.Policy.MoveRequested(Time.time);
+        r.Policy.MoveRequested(Time.time, DP(b.Position));
     }
 
     private bool FindRelocationCover(SAINCoverClass cover, BotState s, ref CoverPoint result)
@@ -793,7 +766,7 @@ public sealed partial class Plugin
             if (
                 RelocationFrame(b, s).Block.Length > 0
                 || r.Selected == null
-                || !b.Mover.GoToCoverPoint(r.Selected, false, ESprintUrgency.High)
+                || !b.Mover.GoToCoverPoint(r.Selected, b.GoalEnemy?.IsVisible != true, ESprintUrgency.High)
             )
             {
                 EndRelocation(s, "relocate-native-cover-refused");
@@ -801,7 +774,7 @@ public sealed partial class Plugin
             }
             result = r.Selected;
             r.NativeMoveStarted = true;
-            RecordRelocation(s, true);
+            RecordRelocation(s);
             return true;
         }
         catch (Exception ex)
@@ -962,7 +935,7 @@ public sealed partial class Plugin
                 var active = r.Owner.Mover.ActivePath;
                 if (OwnRelocationRoute(r, active) && active is BotPathDataManual manual)
                     combatStopPath.Invoke(manual, new object[] { false, "COMET relocation ended" });
-                if (ReferenceEquals(r.Owner.Cover.CoverPoint_MovingTo, r.Selected))
+                if (r.Selected != null && ReferenceEquals(r.Owner.Cover.CoverPoint_MovingTo, r.Selected))
                     r.Owner.Cover.StopSeekingCover();
             }
             RecordRelocation(s, true);
@@ -988,12 +961,11 @@ public sealed partial class Plugin
         var t = r.Policy.Trace;
         if (t == null)
             return;
-        string key =
-            t.Episode + ":" + t.State + ":" + t.Reason + ":" + t.Accepted + ":" + t.GrenadeOutcome;
-        if (!force && key == r.LogKey && (!r.Policy.Active || Time.time - r.LogAt < .1f))
+        var key = (t.Episode, t.State, t.Reason, t.Accepted, t.GrenadeOutcome,
+            t.MovementObserved, r.NativeMoveStarted);
+        if (!force && key == r.LogKey)
             return;
         r.LogKey = key;
-        r.LogAt = Time.time;
         var json = Diagnostics.Serialize(
             new
             {
@@ -1011,6 +983,7 @@ public sealed partial class Plugin
                 name = s.Name,
                 botInstance = s.Id,
                 outdoorRelocation = t,
+                nativeMoveStarted = r.NativeMoveStarted,
                 outdoorRelocationConfig = config?.OutdoorRelocation,
             }
         );

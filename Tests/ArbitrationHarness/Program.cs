@@ -19,7 +19,6 @@ string[] methods =
     "NativeChoiceHasPriority",
     "ArbitrateSquad",
     "ArbitrationEvent",
-    "ExecutionAction",
     "SampleDecisionExecution",
 };
 string source =
@@ -28,6 +27,8 @@ string source =
     + Method("SourceCoverContinuation", "SourceContinueCover")
     + "\n"
     + Method("Plugin", "ContinueCover")
+    + "\n"
+    + Method("ObservedCombatAction", "ExecutionAction")
     + "\n"
     + Method("OutcomeAdapter", "OutcomeAction")
     + "\n"

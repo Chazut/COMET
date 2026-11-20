@@ -42,7 +42,7 @@ internal static class SightAdapter
         frame.Suppressed = bot.Suppression.IsSuppressed;
         frame.Panic = state.Fear.Current.Panic;
         frame.Observed = frame.PushPathValid = false;
-        frame.OtherThreat = bot.BotOwner.Memory.IsUnderFire && bot.Memory.LastUnderFireEnemy != e;
+        frame.OtherThreat = false;
         if (!frame.Eligible)
         {
             state.SightPath = null;

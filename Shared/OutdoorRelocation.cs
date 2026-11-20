@@ -33,67 +33,22 @@ public sealed class OutdoorRelocationConfig
     }
 }
 
-// IDs, numbers and copied positions only. A failed chance stays failed for this opportunity.
-// New attempts need BOTH the retry delay and fresh personal fire / a materially moved known contact.
+// First contact and the single relocation roll belong to this bot/enemy pair for the raid.
 public sealed class RelocationHistory
 {
-    private sealed class Entry
-    {
-        public bool EnemyFirst;
-        public double Fire = -1,
-            Attempt = -1000,
-            Cue = -1;
-        public DoorPoint Known;
-    }
+    private readonly Dictionary<string, bool> canRoll = new(StringComparer.Ordinal);
+    public int Count => canRoll.Count;
 
-    private readonly Dictionary<string, Entry> entries = new(StringComparer.Ordinal);
-    public int Count => entries.Count;
-
-    public void Observe(string id, double fire, double firstSeen, double now)
+    public void Observe(string id, bool incoming, bool seen, double seenAge)
     {
-        if (
-            id.Length == 0
-            || !OutdoorRelocation.Valid(now)
-            || !DoorPolicy.Finite(fire)
-            || fire < 0
-            || fire > now
-        )
+        if (id.Length == 0 || (!incoming && !seen) || canRoll.ContainsKey(id))
             return;
-        if (!entries.TryGetValue(id, out var e))
-        {
-            if (entries.Count >= 64)
-                return;
-            entries[id] = e = new Entry();
-        }
-        if (firstSeen < 0 || fire < firstSeen)
-            e.EnemyFirst = true;
-        e.Fire = Math.Max(e.Fire, fire);
+        canRoll.Add(id, incoming && !(seen && seenAge > .5));
     }
 
-    public bool Eligible(string id, double now, DoorPoint known, double delay)
-    {
-        if (
-            !entries.TryGetValue(id, out var e)
-            || !e.EnemyFirst
-            || !OutdoorRelocation.Valid(now)
-            || !known.Finite
-            || now < e.Attempt
-        )
-            return false;
-        return e.Attempt < 0; // zzap rolls relocation once per enemy.
-    }
-
-    public void Attempt(string id, double now, DoorPoint known)
-    {
-        if (entries.TryGetValue(id, out var e))
-        {
-            e.Attempt = now;
-            e.Cue = e.Fire;
-            e.Known = known;
-        }
-    }
-
-    public void Clear() => entries.Clear();
+    public bool Eligible(string id) => canRoll.TryGetValue(id, out bool eligible) && eligible;
+    public void Attempt(string id) => canRoll[id] = false;
+    public void Clear() => canRoll.Clear();
 }
 
 public sealed class RelocationFrame
@@ -116,9 +71,10 @@ public sealed class RelocationFrame
         LongWeapon,
         HealthyPusher,
         MatesEngaging,
+        OtherTactic,
+        NativeMoveStarted,
         HandsReady,
-        RouteOwned = true,
-        Arrived;
+        RouteOwned = true;
 }
 
 public sealed class RelocationCandidate
@@ -147,6 +103,8 @@ public sealed class RelocationTrace
         GrenadeOutcome = "not-tried",
         Action = "Freeze";
     public int Episode,
+        Samples,
+        ConcealedPoints,
         Candidates,
         Rejected,
         Protection,
@@ -216,8 +174,10 @@ public sealed class OutdoorRelocation
             || !Valid(f.Speed)
         )
             return "relocate-invalid-context";
-        if (f.Target.Length == 0 || f.Source.Length == 0 || !active && f.ContactAge > 30)
+        if (f.Target.Length == 0 || !active && (f.Source.Length == 0 || f.ContactAge > 30))
             return "relocate-no-fresh-known-contact";
+        if (!active && f.OtherTactic)
+            return "relocate-other-tactic";
         if (!active && !f.Outdoor)
             return "relocate-outdoor-context-required";
         if (f.Visible && !(active && f.Distance > 20))
@@ -242,13 +202,13 @@ public sealed class OutdoorRelocation
         if (
             Active
             || Gate(f, c).Length > 0
-            || !History.Eligible(f.Key.Length > 0 ? f.Key : f.Target, f.Now, f.Known, c.RetryDelay)
+            || !History.Eligible(f.Key.Length > 0 ? f.Key : f.Target)
         )
             return false;
         var roll = random();
         if (!Valid(roll) || roll >= 1)
             return false;
-        History.Attempt(f.Key.Length > 0 ? f.Key : f.Target, f.Now, f.Known);
+        History.Attempt(f.Key.Length > 0 ? f.Key : f.Target);
         Origin = f.Position;
         Known = f.Known;
         Goal = Origin;
@@ -299,7 +259,8 @@ public sealed class OutdoorRelocation
             || v.OriginalProtection > 3
         )
             return "relocate-invalid-candidate";
-        if (v.Distance < c.MinDistance || v.Distance > c.MaxDistance || v.PathLength > c.MaxPath)
+        // Radius limits apply to the search rings. NavMesh projection can shift a valid point.
+        if (v.PathLength > c.MaxPath)
             return "relocate-route-too-long-or-close";
         if (v.Angle < c.PreferredAngle)
             return "relocate-bearing-too-small";
@@ -389,13 +350,23 @@ public sealed class OutdoorRelocation
         || Trace?.State == "throwing"
             && (Trace.ProjectileObserved ? f.Now - releaseAt >= .2 : f.Now - throwAt > 4);
 
-    public void MoveRequested(double now)
+    private DoorPoint moveOrigin;
+
+    public bool AtDestination(DoorPoint position)
+    {
+        var offset = position - Goal;
+        return offset.X * offset.X + offset.Z * offset.Z < .7 * .7;
+    }
+
+    public void MoveRequested(double now, DoorPoint position)
     {
         if (!Active)
             return;
         Trace!.State = "moving";
         Trace.Action = "SeekCover";
         Trace.MoveRequested = true;
+        Trace.Accepted = false;
+        moveOrigin = position;
         Trace.Reason = "relocate-native-cover-move";
         movingAt = progressAt = now;
         bestRemaining = (Goal - Origin).Length;
@@ -406,6 +377,12 @@ public sealed class OutdoorRelocation
         if (!Active)
             return false;
         var t = Trace!;
+        // Capture the last movement sample even if this tick also reveals a threat.
+        if (t.State == "moving" && f.RouteOwned && f.Position.Finite)
+        {
+            t.DistanceMoved = (f.Position - moveOrigin).Length;
+            t.MovementObserved |= f.NativeMoveStarted && t.DistanceMoved > .5;
+        }
         string why = Gate(f, c, true);
         if (why.Length == 0 && f.Visible && t.State != "moving")
             why = "relocate-visible-threat";
@@ -417,18 +394,16 @@ public sealed class OutdoorRelocation
         if (why.Length == 0 && t.State == "moving")
         {
             double remaining = (f.Position - Goal).Length;
-            if (!f.RouteOwned)
+            if (!f.RouteOwned && !AtDestination(f.Position))
                 why = "relocate-native-route-replaced";
             else
             {
-                t.DistanceMoved = (f.Position - Origin).Length;
-                t.MovementObserved |= t.DistanceMoved > .5;
-                if (f.Arrived && remaining <= .8 && Math.Abs(f.Position.Y - Goal.Y) < .6)
+                if (AtDestination(f.Position))
                 {
-                    t.Arrived = true;
-                    why = "relocate-arrival-observed";
+                    t.Arrived = f.NativeMoveStarted;
+                    why = t.Arrived ? "relocate-arrival-observed" : "relocate-already-at-destination";
                 }
-                else if (f.Now - movingAt >= (f.Speed < .5 ? c.SessionTimeout : c.MoveTimeout))
+                else if (f.Now - movingAt > c.MoveTimeout)
                     why = "relocate-move-timeout";
                 else if (remaining < bestRemaining - .25)
                 {

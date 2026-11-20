@@ -665,21 +665,25 @@ public static class Cases
                 "Grenade",
                 "ContinuePush",
                 "KeepAngle",
+                "KeepJiggle",
             }
         )
         {
             var (p, b, s) = Setup(
-                action is "ContinuePush" or "KeepAngle" ? "A03"
+                action is "ContinuePush" or "KeepAngle" or "KeepJiggle" ? "A03"
                     : action is "Shoot" or "Cover" ? "A02"
                     : "A01",
-                action
+                action == "KeepJiggle" ? "KeepAngle" : action
             );
+            if (s.Feature == "A03")
+                s.SightEvent = new() { Action = action == "KeepJiggle" ? "DogFight" : action == "KeepAngle" ? "Shoot" : "Push" };
             s.Expected = b.Decision.CurrentCombatDecision = ECombatDecision.Freeze;
             s.Execution.Accept(10, s.Feature, action, "target");
             b.CurrentAction = action switch
             {
                 "Hold" => new FreezeAction(),
                 "Shoot" or "KeepAngle" => new StandAndShootAction(),
+                "KeepJiggle" => new DogFightAction(),
                 "Push" or "ContinuePush" => new RushEnemyAction(),
                 "Search" => new SearchAction(),
                 "Flank" => new ShiftCoverAction(),
@@ -1154,8 +1158,11 @@ class VisibleEngine
     public void NotifyNativeRefusal() => Refusals++;
 }
 
+class ObservedSight { public string Action = ""; }
+
 class BotState
 {
+    public ObservedSight SightEvent;
     public Vector3 Position;
     public string ProfileId = "pmc";
     public PlanServiceRuntime PlanService = new();
@@ -1246,6 +1253,8 @@ class Log
 }
 
 class FreezeAction { }
+
+class DogFightAction { }
 
 class StandAndShootAction { }
 

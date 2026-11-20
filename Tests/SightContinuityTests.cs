@@ -73,6 +73,20 @@ internal static class SightContinuityTests
         Check(q.Evaluate(a) != null, "jiggle has 1.2s continuity");
         a.OtherThreat = true;
         Check(q.Evaluate(a) == null, "source competing threat releases");
+        a.OtherThreat = false;
+        a.Visible = true;
+        a.Jiggling = false;
+        a.Action = "Push";
+        a.Now = 12;
+        a.SeenAge = 0;
+        a.X = 20;
+        Check(q.Evaluate(a) == null, "reacquisition closes the old hold");
+        a.Visible = false;
+        a.X = 100;
+        a.Now += .1;
+        a.SeenAge = .1;
+        var nextHold = q.Evaluate(a);
+        Check(nextHold?.Action == "Push" && nextHold.X == 20, "next occlusion preserves the new action and last visible position");
 
         return n;
     }

@@ -47,6 +47,7 @@ internal static class OutdoorRelocationTests
                 Outdoor = true,
                 InCover = true,
                 HandsReady = true,
+                NativeMoveStarted = true,
             };
         RelocationCandidate C() =>
             new()
@@ -64,7 +65,7 @@ internal static class OutdoorRelocationTests
         OutdoorRelocation P()
         {
             var p = new OutdoorRelocation();
-            p.History.Observe("known-contact:1", 5, 6, 10);
+            p.History.Observe("known-contact:1", true, false, 0);
             return p;
         }
         Check(
@@ -99,15 +100,15 @@ internal static class OutdoorRelocationTests
         Check(p.Select(C(), c), "useful equally protective new angle selected");
         p.NativeAccepted(true);
         Check(p.CanMove(F()), "grenade not required");
-        p.MoveRequested(10.1);
+        p.MoveRequested(10.1, p.Origin);
         var f = F(10.3);
         f.Position = new(1, 0, 0);
         f.Speed = 3;
         Check(p.Observe(f, c) && p.Trace.MovementObserved, "actual position change recorded");
         f = F(11);
-        f.Position = new(10, 0, 0);
-        Check(p.Observe(f, c) && !p.Trace.Arrived, "position alone does not prove native arrival");
-        f.Arrived = true;
+        f.Position = new(9.29, 0, 0);
+        Check(p.Observe(f, c) && !p.Trace.Arrived, "outside the source arrival radius");
+        f.Position = new(9.31, .1, 0);
         Check(
             !p.Observe(f, c)
                 && p.Trace.Arrived
@@ -115,18 +116,40 @@ internal static class OutdoorRelocationTests
                 && p.Trace.ValidFor == 0,
             "native arrival at matching floor completes"
         );
+        p = P();
+        f = F();
+        f.OtherTactic = true;
+        Check(!p.Begin(f, c, Low), "door or squad tactic owns the initial decision");
+        f.OtherTactic = false;
+        Check(p.Begin(f, c, Low), "can enter once the competing tactic ends");
+        f.OtherTactic = true;
+        Check(p.Observe(f, c) && p.Active, "a later tactic flag cannot cancel an active relocation");
+        p.Select(C(), c);
+        p.NativeAccepted(true);
+        p.MoveRequested(10.1, new(4, 0, 0));
+        f = F(10.2);
+        f.Position = new(4.1, 0, 0);
+        Check(p.Observe(f,c) && !p.Trace!.MovementObserved && !p.Trace.Accepted, "planning displacement and Freeze acceptance cannot prove SeekCover");
+        f.NativeMoveStarted = false;
+        f.Position = new(5, 0, 0);
+        Check(p.Observe(f,c) && !p.Trace!.MovementObserved, "unrelated motion cannot prove relocation");
+        f.NativeMoveStarted = true;
+        f.Visible = true;
+        f.Distance = 12;
+        Check(!p.Observe(f, c) && p.Trace!.MovementObserved && !p.Trace.Arrived,
+            "nearby visible contact ends the move and preserves its final displacement");
         var history = p.History;
         Check(
-            !history.Eligible("known-contact:1", 35, F().Known, 20),
+            !history.Eligible("known-contact:1"),
             "elapsed delay alone cannot reroll"
         );
-        history.Observe("known-contact:1", 34, 6, 35);
+        history.Observe("known-contact:1", true, false, 0);
         Check(
-            !history.Eligible("known-contact:1", 35, F().Known, 20),
+            !history.Eligible("known-contact:1"),
             "source roll is once per enemy"
         );
         Check(
-            !history.Eligible("known-contact:1", 20, F().Known, 20),
+            !history.Eligible("known-contact:1"),
             "fresh fire cannot bypass cooldown"
         );
         p = P();
@@ -198,8 +221,6 @@ internal static class OutdoorRelocationTests
             var change in new Action<RelocationCandidate>[]
             {
                 v => v.Safe = false,
-                v => v.Distance = 4.9,
-                v => v.Distance = 17.1,
                 v => v.PathLength = 26.1,
                 v => v.Angle = double.NaN,
                 v => v.PathLength = double.PositiveInfinity,
@@ -216,6 +237,9 @@ internal static class OutdoorRelocationTests
                 "unsafe or unhelpful destinations refused"
             );
         }
+        var projected = C();
+        projected.Distance = 4.9;
+        Check(OutdoorRelocation.Reject(projected, c) == "", "a five-metre ring may snap slightly inward");
         var nearAngle = C();
         nearAngle.Angle = 15;
         nearAngle.Exposure = 0;
@@ -289,7 +313,7 @@ internal static class OutdoorRelocationTests
             if (scenario != "origin" && scenario != "session")
             {
                 p.Select(C(), c);
-                p.MoveRequested(10.1);
+                p.MoveRequested(10.1, p.Origin);
             }
             switch (scenario)
             {
@@ -322,8 +346,8 @@ internal static class OutdoorRelocationTests
                     break;
                 case "floor":
                     f.Position = new(10, 2, 0);
-                    f.Arrived = true;
-                    Check(p.Observe(f, c) && !p.Trace!.Arrived, "different floor is not arrival");
+                    f.NativeMoveStarted = false;
+                    Check(!p.Observe(f, c) && !p.Trace!.Arrived, "horizontal arrival ends the plan without inventing a native move");
                     continue;
             }
             if (scenario is "contact" or "visible" or "stuck" or "origin")
@@ -335,20 +359,20 @@ internal static class OutdoorRelocationTests
                 );
         }
         var h = new RelocationHistory();
-        h.Observe("bot-first", 8, 5, 10);
+        h.Observe("bot-first", false, true, 0);
+        h.Observe("bot-first", true, true, .1);
         Check(
-            !h.Eligible("bot-first", 10, new(), 20),
+            !h.Eligible("bot-first"),
             "own first sight does not trigger the tactic"
         );
-        h.Observe("never-seen", 8, -1, 10);
-        Check(h.Eligible("never-seen", 10, new(), 20), "heard personal fire can precede vision");
+        h.Observe("never-seen", true, false, 0);
+        Check(h.Eligible("never-seen"), "heard personal fire can precede vision");
+        h.Observe("same-moment", true, true, .5);
+        h.Observe("late", true, true, .51);
+        Check(h.Eligible("same-moment") && !h.Eligible("late"), "source first-contact half-second boundary");
         for (int i = 0; i < 100; i++)
-            h.Observe("id-" + i, 5, 6, 10);
-        Check(h.Count == 64, "history has bounded IDs only");
-        Check(
-            !h.Eligible("id-99", 50, new(), 20),
-            "overflow fails closed rather than evicting old rolls"
-        );
+            h.Observe("id-" + i, true, false, 0);
+        Check(h.Eligible("id-99"), "a later contact gets its own roll");
         h.Clear();
         Check(h.Count == 0, "raid history cleanup");
         p = P();
@@ -525,7 +549,7 @@ internal static class OutdoorRelocationTests
         Save();
         p.Projectile(10.3);
         Save();
-        p.MoveRequested(10.6);
+        p.MoveRequested(10.6, p.Origin);
         f = F(10.8);
         f.Position = new(1, 0, 0);
         f.Speed = 3;
@@ -533,7 +557,6 @@ internal static class OutdoorRelocationTests
         Save();
         f = F(12);
         f.Position = new(10, 0, 0);
-        f.Arrived = true;
         p.Observe(f, c);
         Save();
         Directory.CreateDirectory("artifacts");
@@ -554,7 +577,7 @@ internal static class OutdoorRelocationTests
             p = P();
             p.Begin(F(), c, Low);
             p.Select(C(), c);
-            p.MoveRequested(10.1);
+            p.MoveRequested(10.1, p.Origin);
             f = F(10.2);
             f.Block = "priority-" + i;
             Check(

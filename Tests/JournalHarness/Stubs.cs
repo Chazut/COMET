@@ -438,6 +438,7 @@ namespace Comet.Client
 
     internal class BotState
     {
+        internal Comet.Core.SightHold? SightEvent;
         internal readonly BotComponent Owner;
         internal string ProfileId => Owner.ProfileId;
         internal string Name = "PMC",

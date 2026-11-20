@@ -12,6 +12,24 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### Brief sight loss and outdoor relocation (2026-11-20)
+
+Across 47 recorded raids, A03 had 443 accepted decisions. SAIN's execution
+observer records the native action even during a brief occlusion. The archive
+links that observation to the same bot, contact and selection. A normal end
+requires reacquisition or expiry after an observed start. The jiggle case
+observes DogFight, and another threat must be identified by the known-enemy
+check in `EnemyDecisionClass.KeepCloseFight`.
+
+Of 72 M13 episodes, 39 ended on a competing tactic flag. In the pinned
+`RepositionClass.ShallUse`, the door and squad flags apply before a session
+begins. The active session still yields to a different goal, another visible
+enemy, incoming fire while stationary, or a visible goal within 20 m while
+moving. First contact uses the source's half-second rule and one roll per
+enemy. The radial search uses the shared frame budget and retains the source
+sample and path order. Planning displacement and an accepted Freeze cannot
+confirm movement. The mover and arrival have separate diagnostic evidence.
+
 ### Squad siege (S11)
 
 S11 adds a collective watch to COMET. S02 still follows its original secondary

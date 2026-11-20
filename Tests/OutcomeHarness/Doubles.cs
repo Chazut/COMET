@@ -298,6 +298,7 @@ namespace Comet.Client
 
     internal class BotState
     {
+        internal Comet.Core.SightHold? SightEvent;
         public FlankRuntime Flank = new();
         public OutcomeRuntime Outcomes = new();
         public string ProfileId = "observer",

@@ -72,6 +72,7 @@ public sealed partial class Plugin
             "Hold" => "FreezeAction",
             "Shoot" => "StandAndShootAction",
             "Push" => "RushEnemyAction",
+            "DogFight" => "DogFightAction",
             "Search" => "SearchAction",
             "Flank" => "ShiftCoverAction",
             "Cover" or "FallBack" => "SeekCoverAction",
@@ -85,14 +86,7 @@ public sealed partial class Plugin
     {
         var e = b.GoalEnemy;
         var known = e?.KnownPlaces.LastKnownPosition;
-        string action =
-            s.Feature == "A03"
-                ? s.Decision == "ContinuePush"
-                    ? "Push"
-                    : s.Decision == "KeepAngle"
-                        ? "Shoot"
-                        : ""
-                : s.Decision;
+        string action = ExecutionAction(s);
         var d = b.Decision;
         var f = new OutcomeFrame
         {

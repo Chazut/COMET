@@ -176,14 +176,7 @@ public sealed partial class Plugin
         var e = b.GoalEnemy;
         var known = e?.KnownPlaces.LastKnownPosition;
         s.Journal.Personality = b.Info.Personality.ToString();
-        string action =
-            s.Feature == "A03"
-                ? s.Decision == "ContinuePush"
-                    ? "Push"
-                    : s.Decision == "KeepAngle"
-                        ? "Shoot"
-                        : ""
-                : s.Decision;
+        string action = ExecutionAction(s);
         bool active =
             s.ActiveLabel.Length > 0
             && b.SAINLayersActive

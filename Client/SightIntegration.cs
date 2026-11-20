@@ -44,15 +44,9 @@ public sealed partial class Plugin
             }
             if (state.Feature == "A03" && state.Sight.Current == null && state.Decision.Length > 0)
             {
-                string reason =
-                    state.Sight.Reason == "sight-armed"
-                    || state.Sight.Reason == "sight-waiting-stable-view"
-                        ? "sight-reacquired"
-                        : state.Sight.Reason;
-                // Reacquisition is a COMET-to-COMET transition at the next decision commit.
-                // Keep the current native action until then. Invalid/expired memory still releases immediately.
-                if (reason != "sight-reacquired")
-                    Release(state, reason, false);
+                string reason = state.Sight.Reason == "sight-visible-fight"
+                    ? "sight-reacquired" : state.Sight.Reason;
+                Release(state, reason, false);
             }
         }
         catch (Exception ex)

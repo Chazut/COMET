@@ -5,6 +5,17 @@ from collections import defaultdict
 from common import at
 
 
+def sight_executing(e):
+    execution = e.get("execution") or {}
+    return (
+        execution.get("phase") == "executing"
+        and e.get("decision") in {"KeepAngle", "ContinuePush"}
+        and execution.get("action") == e["decision"]
+        and bool(execution.get("target"))
+        and execution["target"] == at(e, "contact.target")
+    )
+
+
 def extra_phases(feature, t, event=None):
     result = set()
     if feature == "G01":
@@ -20,8 +31,20 @@ def extra_phases(feature, t, event=None):
         t.get("tiltObserved") is True or t.get("headMotionObserved") is True
     ):
         result.add("started")
-    if feature == "A03" and (event or {}).get("feature") == feature and event.get("stage") == "accepted":
-        result.update(("requested", "accepted"))
+    if feature == "A03" and event:
+        if event.get("feature") == feature and event.get("stage") == "selected":
+            result.add("selected")
+        if event.get("feature") == feature and event.get("stage") == "accepted":
+            result.update(("requested", "accepted"))
+        if sight_executing(event):
+            result.add("started")
+    if feature == "M13":
+        if t.get("reason") in {"relocate-searching-better-cover", "relocate-chose-to-stay"}:
+            result.add("opportunities")
+        if t.get("reason") == "relocate-searching-better-cover":
+            result.add("selected")
+        if t.get("moveRequested") is True and t.get("arrived") is True:
+            result.update(("started", "completed"))
     if feature == "D05" and t.get("reason") == "fake-roll-declined":
         result.add("refused")
     if feature == "D01":
@@ -87,6 +110,8 @@ STATE_FACTS = {
 }
 
 REASON_FACTS = {
+    ("M13", "relocate-chose-to-stay"): "Rolled to stay in cover",
+    ("M13", "relocate-better-cover-selected"): "Relocation destination selected",
     ("C06", "recovery-movement-observed"): "Recovered movement observed",
     ("S06", "storm-native-rush"): "Native rush recorded",
     ("C01", "transit-passage-clear"): "Passage clear",
@@ -156,6 +181,10 @@ def feature_identity(e, t, spec):
 
 
 def evidence_note(feature):
+    if feature == "A03":
+        return "Start means the matching native combat action was observed. Completion means contact returned or the memory window expired after an observed start."
+    if feature == "M13":
+        return "A relocation roll and a cover search precede the movement order. Start records displacement; completion records arrival at the destination."
     if feature in {"S01", "S03"}:
         return "Position reached and Angle held record arrival and holding separately from Enemy engaged from new angle. Completion records the latter outcome, not hits or a won firefight. Counts are per identified tactic, not per snapshot."
     if feature in {
@@ -198,6 +227,7 @@ class EpisodeEvidence:
     """Per raid. A later request supersedes the previous one for that actor/weapon."""
 
     def __init__(self):
+        self.sight = {}
         self.doors = {}
         self.requests = defaultdict(dict)
         self.observations = defaultdict(list)
@@ -205,6 +235,21 @@ class EpisodeEvidence:
     @staticmethod
     def actor(e):
         return (e.get("session"), e.get("profileId"), e.get("botInstance"))
+
+    def legacy_sight(self, e, event_key):
+        actor = self.actor(e)
+        target = at(e, "contact.target")
+        action = e.get("decision")
+        if not all(actor) or not target or action not in {"KeepAngle", "ContinuePush"}:
+            return None
+        if e.get("feature") == "A03" and e.get("stage") == "selected":
+            self.sight[actor] = (target, action, ("legacy-sight-selection", event_key))
+        current = self.sight.get(actor)
+        if not current or current[:2] != (target, action):
+            return None
+        if e.get("feature") == "A03" and e.get("stage") in {"released", "rejected"}:
+            self.sight.pop(actor)
+        return current[2]
 
     def legacy_door(self, e, t, event_key):
         actor = self.actor(e)

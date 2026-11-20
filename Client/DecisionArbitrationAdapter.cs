@@ -135,15 +135,6 @@ public sealed partial class Plugin
         Emit(s, "evaluated", reason, "A13");
     }
 
-    private static string ExecutionAction(BotState s) =>
-        s.Feature == "A03"
-            ? s.Decision == "ContinuePush"
-                ? "Push"
-                : s.Decision == "KeepAngle"
-                    ? "Shoot"
-                    : ""
-            : s.Decision;
-
     private void SampleDecisionExecution(BotComponent b, BotState s)
     {
         if ((!s.Execution.Active && !s.PlanService.Active) || Time.time < s.ExecutionSampleAt)

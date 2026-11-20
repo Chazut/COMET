@@ -920,10 +920,12 @@ public sealed partial class Plugin : BaseUnityPlugin
             {
                 // A brief visible sample can release A03 between two native decision ticks.
                 // The next occlusion still needs a fresh selection/acceptance, even if the feature name has not changed.
-                if (state.Feature != "A03" || state.Decision.Length == 0)
+                if (state.Feature != "A03" || state.Decision.Length == 0
+                    || state.SightEvent?.Target != sight.Target || state.SightEvent.Action != sight.Action)
                 {
                     plugin.Release(state, "brief-sight-loss", false, true);
                     state.Feature = "A03";
+                    state.SightEpisode++;
                     state.Decision = sight.Action == "Push" ? "ContinuePush" : "KeepAngle";
                     state.SightEvent = sight;
                     state.FearAtSelection = state.Fear.Current;
@@ -1497,6 +1499,8 @@ public sealed partial class Plugin : BaseUnityPlugin
                 continuity = state.Feature == "A03" && state.SightEvent != null
                     ? new
                     {
+                        episode = state.SightEpisode,
+                        target = state.SightEvent.Target,
                         previousAction = state.SightEvent.Action,
                         remaining = Math.Max(0, state.SightEvent.Until - Time.time),
                         windowEnd = state.SightEvent.Until,
@@ -1629,16 +1633,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 EndChase(state, reason);
                 state.CornerChase.Memory.Clear();
             }
-            EndRelocation(
-                state,
-                reason,
-                reason.Contains("ghost")
-                    || reason.Contains("inactive")
-                    || reason.Contains("authority")
-                    || reason.Contains("bot-ended")
-                    || reason.Contains("raid-ended")
-                    || reason.Contains("error")
-            );
+            EndRelocation(state, reason, reason.Contains("bot-ended") || reason.Contains("raid-ended"));
             if (
                 reason.Contains("ghost")
                 || reason.Contains("inactive")
@@ -1779,6 +1774,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 state.Mixing = null;
             }
             state.Decision = "";
+            state.SightEvent = null;
             if (
                 reason.IndexOf("ghost", StringComparison.Ordinal) >= 0
                 || reason.IndexOf("inactive", StringComparison.Ordinal) >= 0
@@ -2009,6 +2005,7 @@ internal sealed class BotState
         ProgressUnavailable;
     internal float NextFearSample;
     internal readonly SightFrame SightFrame = new SightFrame();
+    internal int SightEpisode;
     internal SightHold? SightEvent;
     internal SAIN.SAINComponent.Classes.Mover.IBotPathData? SightPath;
     internal Vector3 SightDestination;
