@@ -279,13 +279,22 @@ internal static class ConfigEditorTests
             );
             Check(b.PendingCount == 1 && !b.Snapshot().Enabled, "conflict preserves draft");
             a.Set(a.Catalog.Fields["SquadVoice.Mode"], "Normal");
+            var radius = a.Catalog.Fields["AmbushRadius"];
+            Check(radius.Section == "LostContact" && !radius.Simple && radius.Unit == "m",
+                "ambush radius is available in advanced lost-contact settings");
+            Check(a.Set(radius, "10") && !a.Set(radius, "9") && a.Set(radius, "100")
+                && !a.Set(radius, "101") && a.Set(radius, "70"),
+                "the editor accepts both source limits and a custom radius");
             a.AcceptSaved(store.Save(a.Snapshot(), a.Revision));
+            Check(store.Read().AmbushRadius == 70 && JsonSerializer.Deserialize<CometConfig>(store.ForGame())!.AmbushRadius == 70,
+                "custom ambush radius persists and reaches the raid config");
             Check(
                 File.Exists(path + ".bak") && store.Read().SquadVoice.Mode == "Normal",
                 "normal atomic backup and persistence preserved"
             );
             var legacy = System.Text.Json.Nodes.JsonNode.Parse(before)!.AsObject();
             legacy.Remove("DifficultyPreset");
+            legacy.Remove("AmbushRadius");
             legacy["Enabled"] = false;
             File.WriteAllText(path, legacy.ToJsonString());
             string legacyText = File.ReadAllText(path);
@@ -294,7 +303,8 @@ internal static class ConfigEditorTests
                 old.Profile == "Hard"
                     && old.Customized
                     && !old.HasPending
-                    && !old.Snapshot().Enabled,
+                    && !old.Snapshot().Enabled
+                    && old.Snapshot().AmbushRadius == 45,
                 "legacy custom file opens without resetting values"
             );
             Check(File.ReadAllText(path) == legacyText, "opening old config does not rewrite it");

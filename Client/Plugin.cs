@@ -1474,7 +1474,12 @@ public sealed partial class Plugin : BaseUnityPlugin
                 decision = state.Decision,
                 candidates = state.Candidates,
                 hiddenHold = (featureOverride ?? state.Feature) == "A01" && state.Engine.RankedHoldSeconds is double held
-                    ? new { secondsAtRank = held, cappedAtRank = state.Engine.RankedHoldCapped }
+                    ? new
+                    {
+                        secondsAtRank = held,
+                        cappedAtRank = state.Engine.RankedHoldCapped,
+                        ambushRadiusAtRank = state.Engine.RankedAmbushRadius,
+                    }
                     : null,
                 hiddenGrenadeAtRank = (featureOverride ?? state.Feature) == "A01"
                     ? state.Engine.RankedGrenadeReadiness?.ToString() : null,

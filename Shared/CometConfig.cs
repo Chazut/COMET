@@ -31,6 +31,7 @@ public sealed class MovementHearingConfig
 public sealed class CometConfig
 {
     public const string SourceBaseline = "zzap-d8655293-1";
+    public const double DefaultAmbushRadius = 45;
     public string BehaviorBaseline { get; set; } = SourceBaseline;
     public bool QuietLogging { get; set; } = false;
     public PerformanceConfig Performance { get; set; } = new();
@@ -144,6 +145,7 @@ public sealed class CometConfig
     public double Commitment { get; set; } = 2;
     public double SwitchMargin { get; set; } = 15;
     public double HoldLimit { get; set; } = 5;
+    public double AmbushRadius { get; set; } = DefaultAmbushRadius;
     public double PlanLimit { get; set; } = 12;
     public double RetryDelay { get; set; } = 5;
     public double PushMaxDistance { get; set; } = 25;
@@ -458,6 +460,7 @@ public sealed class CometConfig
         Range(Commitment, .25, 10, nameof(Commitment));
         Range(SwitchMargin, 0, 100, nameof(SwitchMargin));
         Range(HoldLimit, Commitment, 30, nameof(HoldLimit));
+        Range(AmbushRadius, 10, 100, nameof(AmbushRadius));
         Range(PlanLimit, HoldLimit, 60, nameof(PlanLimit));
         Range(RetryDelay, 1, 30, nameof(RetryDelay));
         Range(PushMaxDistance, 3, 50, nameof(PushMaxDistance));

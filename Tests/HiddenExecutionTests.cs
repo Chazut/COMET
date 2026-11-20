@@ -57,6 +57,42 @@ static class HiddenExecutionTests
                     Reason = "available",
                 })
                 .ToList();
+        {
+            var s = Frame();
+            s.ContactAge = 6;
+            s.RealDistance = 11;
+            s.KnownDistance = 70;
+            List<Candidate> Rank(CometConfig config) =>
+                new HiddenEnemyDecision(config).Evaluate(s).Candidates;
+            static double Hold(List<Candidate> ranking) => ranking.Single(c => c.Decision == "Hold").Score;
+
+            var stock = Rank(new CometConfig());
+            var custom = new CometConfig { AmbushRadius = 70 };
+            var adjusted = Rank(custom);
+            Check(Hold(stock) == 13.06 && Hold(adjusted) == 32.50,
+                $"Hold at a last known distance of 70 m scored {Hold(stock)} / {Hold(adjusted)} for 45 / 70 m radii");
+            foreach (var other in stock.Where(c => c.Decision != "Hold"))
+                Check(adjusted.Single(c => c.Decision == other.Decision).Score == other.Score,
+                    "the ambush radius only affects Hold: " + other.Decision);
+            foreach (var (distance, expected) in new[] { (35, 32.50), (105, 15.00), (140, -2.50), (210, -2.50) })
+            {
+                s.KnownDistance = distance;
+                Check(Math.Abs(Hold(Rank(custom)) - expected) < 1e-8, $"Hold falloff at {distance} m");
+            }
+            s.Loadout = new() { Long = 1 };
+            Check(Hold(Rank(custom)) == 38.50, "a long gun incurs a maximum penalty of 14 rather than 35 points");
+            var engine = new HiddenEnemyDecision(custom);
+            engine.Evaluate(s);
+            custom.AmbushRadius = 100;
+            s.Now += .1;
+            engine.Evaluate(s);
+            Check(engine.RankedAmbushRadius == 70, "a cached ranking keeps its sampled radius");
+            s.Now += 8;
+            engine.Evaluate(s);
+            Check(engine.RankedAmbushRadius == 100, "a fresh ranking records the new radius");
+            engine.Release("test");
+            Check(engine.RankedAmbushRadius == null, "release clears the radius diagnostic");
+        }
         using (
             var fixture = JsonDocument.Parse(
                 File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "back4streetz-hidden.json"))

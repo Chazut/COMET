@@ -39,7 +39,7 @@ public sealed class Situation
         PathLength,
         Numbers,
         VisibleMates,
-        FreezeDistance = 45;
+        FreezeDistance = CometConfig.DefaultAmbushRadius;
     public bool Busy,
         GrenadeOut,
         HoldsAngle,
@@ -134,6 +134,7 @@ public sealed class HiddenEnemyDecision
     public HiddenGrenadeReadiness? RankedGrenadeReadiness { get; private set; }
     public bool? RankedMedicalRetreatBonus { get; private set; }
     public double? RankedHoldSeconds { get; private set; }
+    public double? RankedAmbushRadius { get; private set; }
     public bool RankedHoldCapped => banKnownAt >= 0;
 
     public HiddenEnemyDecision(
@@ -213,6 +214,7 @@ public sealed class HiddenEnemyDecision
         if (banKnownAt < 0 && heldFor >= 40)
             banKnownAt = knownAt;
         double aggression = config.Aggression.TryGetValue(s.Personality, out var a) ? a : .5;
+        s.FreezeDistance = config.AmbushRadius;
         var scores = ZzapUtility.Hidden(s, aggression, heldFor, banKnownAt >= 0);
         RankedEnemy = s.EnemyRole;
         RankedGrenadeReadiness = s.GrenadeReadiness;
@@ -263,6 +265,7 @@ public sealed class HiddenEnemyDecision
         else if (heldFor <= 0)
             holdSince = s.Now;
         RankedHoldSeconds = heldFor;
+        RankedAmbushRadius = s.FreezeDistance;
         ranked = candidates;
         preference = order;
         until =
@@ -372,6 +375,7 @@ public sealed class HiddenEnemyDecision
         RankedGrenadeReadiness = null;
         RankedMedicalRetreatBonus = null;
         RankedHoldSeconds = null;
+        RankedAmbushRadius = null;
         return new Choice { Changed = changed, Reason = reason };
     }
 

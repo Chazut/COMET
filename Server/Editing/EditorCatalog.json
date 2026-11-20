@@ -8983,6 +8983,16 @@
       "Simple": false,
       "Unit": "points"
     },
+    "AmbushRadius": {
+      "Label": "Ambush radius",
+      "Help": "How far a PMC will comfortably hold an angle after losing contact. Beyond this distance from the enemy's last known position, holding becomes less attractive. The penalty peaks at twice the radius and is smaller with a long-range weapon.",
+      "Min": 10,
+      "Max": 100,
+      "Scale": 1,
+      "Section": "LostContact",
+      "Simple": false,
+      "Unit": "m"
+    },
     "HoldLimit": {
       "Label": "Maximum hold",
       "Help": "Related limits are checked together before saving.",

@@ -14,6 +14,14 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### A01 ambush radius for a hidden contact (2026-11-20)
+
+The advanced Lost contact setting `AmbushRadius` uses the remix 7.6 default
+of 45 m and accepts 10 to 100 m. The Hold score begins to fall beyond this
+distance from the last known enemy position. The penalty reaches its maximum
+at twice the radius and is smaller for long-range weapons. Each fresh A01
+ranking records the radius in `hiddenHold.ambushRadiusAtRank`.
+
 ### A01 medical retreat score for a hidden contact (2026-11-20)
 
 A badly injured or dying bot outside cover gets 20 extra FallBack points when
