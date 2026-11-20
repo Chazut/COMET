@@ -33,11 +33,11 @@ internal static class ConfigEditorTests
         var editor = new ConfigEditor(original);
         EditorField Field(string path) => editor.Catalog.Fields[path];
         var editablePaths = DifficultyPresets.Values(original).Keys
-            .Except(new[] { "Schema", "OutdoorRelocation.RetryDelay" })
+            .Except(new[] { "Schema", "OutdoorRelocation.RetryDelay", "SquadStorm.MinimumAttackers" })
             .Select(path => path.Replace('[', '.').Replace("]", ""));
         Check(
             editor.Catalog.Fields.Keys.ToHashSet().SetEquals(editablePaths),
-            "each editable setting has a control; the legacy M13 delay stays in the preset format"
+            "each editable setting has a control while legacy M13 and S06 values stay in the preset format"
         );
         Check(
             editor.Catalog.Fields.Keys.All(p =>

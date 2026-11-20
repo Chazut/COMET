@@ -52,6 +52,9 @@ internal static class PresetLibraryTests
         const string oldDelayPath = "OutdoorRelocation.RetryDelay";
         const double oldDelay = 63.5;
         config.OutdoorRelocation.RetryDelay = oldDelay;
+        const string oldAttackersPath = "SquadStorm.MinimumAttackers";
+        const int oldAttackers = 4;
+        config.SquadStorm.MinimumAttackers = oldAttackers;
         var saved = library.Create("My setup", config, 0);
         Check(
             saved.Revision == 1
@@ -86,6 +89,10 @@ internal static class PresetLibraryTests
             && preview.Changes.All(change => change.Path != oldDelayPath)
             && editor.Catalog.Fields.ContainsKey("CoverFeint.RetryDelay"),
             "M13 legacy delay stays hidden in preview; M14 still exposes its own delay");
+        Check(!editor.Catalog.Fields.ContainsKey(oldAttackersPath)
+            && preview.Changes.All(change => change.Path != oldAttackersPath)
+            && editor.Catalog.Fields.ContainsKey("SquadStorm.SquadDistance"),
+            "the retired attacker count stays hidden and the proximity control remains available");
         editor.Apply(preview);
         Check(
             editor.HasPending
@@ -113,6 +120,8 @@ internal static class PresetLibraryTests
         );
         Check(store.Read().OutdoorRelocation.RetryDelay == oldDelay,
             "saving another visible setting preserves the exact stored M13 delay");
+        Check(store.Read().SquadStorm.MinimumAttackers == oldAttackers,
+            "saving a visible edit preserves the legacy S06 count in the active config");
         var update = library.Update(saved.Id, editor.Snapshot(), library.Read().Revision);
         editor.AttachPreset(update.Config.PresetSource!);
         Check(
@@ -246,6 +255,9 @@ internal static class PresetLibraryTests
             && JsonNode.Parse(json)!["Settings"]!["OutdoorRelocation"]!["RetryDelay"]!.GetValue<double>() == oldDelay,
             "loading, editing and re-exporting a personal preset retains its legacy delay");
         var omitted = JsonNode.Parse(json)!.AsObject();
+        Check(imported.Config.SquadStorm.MinimumAttackers == oldAttackers
+            && omitted["Settings"]!["SquadStorm"]!["MinimumAttackers"]!.GetValue<int>() == oldAttackers,
+            "import and re-export preserve a personal preset's non-default S06 attacker count");
         omitted["Settings"]!["OutdoorRelocation"]!.AsObject().Remove("RetryDelay");
         var oldImport = PresetLibrary.PreviewImport(omitted.ToJsonString());
         Check(oldImport.AddedSettings.SequenceEqual(new[] { oldDelayPath })
@@ -256,6 +268,15 @@ internal static class PresetLibraryTests
         Check(editor.Catalog.ShowsAddedDefault("OutdoorRelocation.Chance")
             && editor.Catalog.ShowsAddedDefault("BehaviorBaseline"),
             "import review retains active defaults and migration metadata");
+        var squadSettings = omitted["Settings"]!["SquadStorm"]!.AsObject();
+        squadSettings.Remove("MinimumAttackers");
+        squadSettings.Remove("SquadDistance");
+        var squadImport = PresetLibrary.PreviewImport(omitted.ToJsonString());
+        Check(squadImport.Config.SquadStorm.MinimumAttackers == 2
+            && squadImport.AddedSettings.Contains(oldAttackersPath)
+            && squadImport.AddedSettings.Where(editor.Catalog.ShowsAddedDefault)
+                .SequenceEqual(new[] { "SquadStorm.SquadDistance" }),
+            "an omitted S06 count loads its default and only the live proximity setting needs review");
         var previousDoorPreset = JsonNode.Parse(json)!.AsObject();
         var previousGrenadePreset = JsonNode.Parse(json)!.AsObject();
         var grenadeSettings = previousGrenadePreset["Settings"]!.AsObject();

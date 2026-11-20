@@ -98,9 +98,9 @@
     },
     "SquadStorm": {
       "Title": "Rush a vulnerable enemy together - S06",
-      "Description": "Nearby PMCs can approach together using observed equipment or personally heard openings. At least two willing attackers need a safe route and must be ready before departure. Unknown gear is neutral. Grenades and urgent threats cancel the plan; native combat resumes when the enemy is visible. Others keep their own action. Uses the observation limits from A09 and the estimated sound windows from A10, even when their individual score bonuses are disabled. A retry also requires newer evidence.",
+      "Description": "A PMC with at least one living squadmate nearby can consider rushing a known enemy. If the enemy looks vulnerable enough, each member decides whether to join based on their personality. One PMC can push while the other stays back.",
       "Category": "Squad",
-      "Summary": "Let nearby, willing squadmates coordinate a push against a vulnerable known opponent."
+      "Summary": "A duo can consider rushing a vulnerable enemy. Each member decides whether to join."
     },
     "SquadTrade": {
       "Title": "React to a teammate death - S05",
@@ -1839,7 +1839,7 @@
     },
     "SquadStorm.Enabled": {
       "Label": "Enable coordinated assaults",
-      "Help": "Let nearby squadmates prepare an assault together when personally observed weakness or a heard opening justifies it. Each attacker still needs a safe route and must be ready.",
+      "Help": "Let a PMC consider an assault when a living squadmate is nearby and the enemy looks vulnerable.",
       "Min": null,
       "Max": null,
       "Scale": 1,
@@ -1858,7 +1858,7 @@
     },
     "SquadStorm.SquadDistance": {
       "Label": "Maximum teammate distance",
-      "Help": "",
+      "Help": "How close a living squadmate must be for the PMC to consider starting an assault.",
       "Min": 5.0,
       "Max": 80.0,
       "Scale": 1,
@@ -1885,16 +1885,6 @@
       "Section": "SquadStorm",
       "Simple": false,
       "Unit": "s"
-    },
-    "SquadStorm.MinimumAttackers": {
-      "Label": "Minimum ready attackers",
-      "Help": "",
-      "Min": 2.0,
-      "Max": 16.0,
-      "Scale": 1,
-      "Section": "SquadStorm",
-      "Simple": false,
-      "Unit": "PMCs"
     },
     "SquadStorm.PrepareTimeout": {
       "Label": "Maximum preparation time",
