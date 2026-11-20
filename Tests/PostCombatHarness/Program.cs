@@ -4,6 +4,7 @@ using EFT.Ballistics;
 using EFT.HealthSystem;
 using EFT.InventoryLogic;
 using SAIN.Components;
+using SAIN.Models.Enums;
 using SAIN.Preset.Shared.Enums;
 using SAIN.SAINComponent.Classes.EnemyClasses;
 using SAIN.SAINComponent.Classes.Mover;
@@ -19,7 +20,7 @@ void C(bool ok, string why)
 }
 (Plugin p, BotComponent b, PostCombatLayer layer, PostCombatAction action) Setup(bool fight = true)
 {
-    Time.time = Time.realtimeSinceStartup = 10;
+    Time.time = Time.realtimeSinceStartup = fight ? 8.5f : 10f;
     Time.frameCount++;
     var p = new Plugin();
     var b = new BotComponent();
@@ -30,9 +31,12 @@ void C(bool ok, string why)
     b.GoalEnemy = new(b) { IsVisible = fight };
     b.GoalEnemy.KnownPlaces.LastSeenPlace!.Position = new(20, 0, 0);
     b.GoalEnemy.KnownPlaces.LastSeenPlace.TimeSincePositionUpdated = 0;
+    b.ActiveLayer = fight ? ESAINLayer.Combat : ESAINLayer.None;
     p.Observe(b);
     if (fight)
     {
+        Step(1.5f);
+        p.Observe(b);
         b.GoalEnemy.IsVisible = false;
         b.GoalEnemy.EnemyKnown = false;
     }
@@ -63,6 +67,85 @@ foreach (var kind in new[] { "bush", "moving", "bad", "spotted", "solid" })
 {
     var (p, b, l, a) = Setup(false);
     C(!l.IsActive() && p.states.Count == 0, "no fight no state or recovery scan");
+}
+foreach (var layer in new[] { ESAINLayer.Combat, ESAINLayer.AvoidThreat, ESAINLayer.Flashed })
+{
+    var (p, b, l, _) = Setup(false);
+    b.GoalEnemy = null;
+    b.ActiveLayer = layer;
+    p.Observe(b);
+    Step(1.499f);
+    p.Observe(b);
+    C(!l.IsActive(), "just below the minimum combat-layer duration: " + layer);
+    Time.time = 11.5f;
+    p.Observe(b);
+    C(l.IsActive() && p.states[b].PostCombat.Policy.Trace!.CombatLayerSeconds == 1.5,
+        "exactly 1.5 seconds qualifies without a visible enemy, a shot or incoming fire: " + layer);
+}
+foreach (var layer in new[] { ESAINLayer.None, ESAINLayer.Squad, ESAINLayer.Run, ESAINLayer.Extract })
+{
+    var (p, b, l, _) = Setup(false);
+    b.ActiveLayer = layer;
+    b.GoalEnemy!.IsVisible = b.BotOwner.ShootData.Shooting = b.BotOwner.Memory.IsUnderFire = true;
+    p.Observe(b);
+    Step(2);
+    p.Observe(b);
+    b.GoalEnemy.IsVisible = b.BotOwner.ShootData.Shooting = b.BotOwner.Memory.IsUnderFire = false;
+    C(!l.IsActive() && p.states.Count == 0, "contact signals alone cannot arm recovery: " + layer);
+}
+{
+    var (p, b, l, _) = Setup(false);
+    b.ActiveLayer = ESAINLayer.Combat;
+    p.Observe(b);
+    Step(.75f);
+    b.ActiveLayer = ESAINLayer.AvoidThreat;
+    p.Observe(b);
+    Step(2);
+    b.ActiveLayer = ESAINLayer.Squad;
+    p.Observe(b);
+    var policy = p.states[b].PostCombat.Policy;
+    C(!policy.WantsRecovery(Time.time) && policy.LastFight == 10.75,
+        "time on Squad alone cannot finish an incomplete combat window");
+    b.ActiveLayer = ESAINLayer.Flashed;
+    p.Observe(b);
+    Step(.25f);
+    b.ActiveLayer = ESAINLayer.Squad;
+    p.Observe(b);
+    C(l.IsActive() && policy.Trace!.CombatLayerSeconds == 2.75,
+        "Squad preserves the first and last qualifying timestamps for the handoff");
+}
+foreach (var interruption in new[] { ESAINLayer.None, ESAINLayer.Run, ESAINLayer.Extract })
+{
+    var (p, b, l, _) = Setup();
+    b.ActiveLayer = interruption;
+    p.Observe(b);
+    C(!l.IsActive(), "leaving the combat and squad layers discards unused eligibility: " + interruption);
+    b.ActiveLayer = ESAINLayer.Combat;
+    p.Observe(b);
+    Step(.75f);
+    p.Observe(b);
+    C(!l.IsActive(), "a new fight starts its own clock after " + interruption);
+    Step(.75f);
+    p.Observe(b);
+    C(l.IsActive(), "the new fight qualifies at its own boundary after " + interruption);
+}
+{
+    var (p, b, l, _) = Setup(false);
+    b.ActiveLayer = ESAINLayer.Combat;
+    p.Observe(b);
+    Step(1);
+    p.Authority = false;
+    p.Observe(b);
+    Step(2);
+    p.Authority = true;
+    p.Observe(b);
+    C(!l.IsActive(), "time on a Fika replica does not carry over into a new authoritative window");
+    Step(1.5f);
+    p.Observe(b);
+    C(l.IsActive(), "authoritative combat qualifies again after 1.5 seconds");
+    var json = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last());
+    C((double?)json["postCombat"]?["combatLayerSeconds"] == 1.5,
+        "the existing H04 event includes the qualifying combat duration");
 }
 {
     var (p, b, l, a) = Setup();
@@ -341,11 +424,16 @@ foreach (bool regroup in new[] { false, true })
     r.MedicalUrgent = true;
     r.MedicalNext = 1000;
     b.Position = new(10, 0, 0);
+    b.ActiveLayer = ESAINLayer.None;
+    p.Observe(b);
     b.GoalEnemy!.IsVisible = true;
     b.GoalEnemy.EnemyKnown = true;
+    b.ActiveLayer = ESAINLayer.Combat;
     p.Observe(b);
     a.Stop();
     C(!l.IsActive(), "renewed fight owns bot between episodes");
+    Step(1.5f);
+    p.Observe(b);
     b.GoalEnemy.IsVisible = false;
     b.GoalEnemy.EnemyKnown = false;
     p.Protection = 0;

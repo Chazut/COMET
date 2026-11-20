@@ -14,6 +14,13 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### H04 recovery after combat (2026-11-20)
+
+H04 samples SAIN's active layer at the start of each decision update. It can
+start once the first and last Combat, AvoidThreat or Flashed samples span at
+least 1.5 seconds. Squad preserves those timestamps during handoff. Other
+layers reset eligibility. The H04 event records this span as `combatLayerSeconds`.
+
 ### Door recovery at Ground Zero (2026-11-20)
 
 In raid 485 a PMC held the same doorway for 37 seconds. C04 selected a reversed

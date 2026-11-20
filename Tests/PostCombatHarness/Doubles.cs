@@ -513,6 +513,7 @@ namespace SAIN.Components
 
     public class BotComponent
     {
+        public SAIN.Models.Enums.ESAINLayer ActiveLayer;
         public Shooter Shoot = new();
         public Suppression Suppression = new();
         public SelfActions SelfActions;
@@ -1176,6 +1177,10 @@ namespace SAIN.Models.Enums
         None,
         Combat,
         Squad,
+        Extract,
+        Run,
+        AvoidThreat,
+        Flashed,
     }
 }
 
@@ -1201,6 +1206,7 @@ namespace SAIN.Layers
         protected BotOwner BotOwner;
         protected BotComponent Bot = null!;
         private readonly string name;
+        private readonly SAIN.Models.Enums.ESAINLayer layer;
 
         public SAINLayer(
             BotOwner owner,
@@ -1211,6 +1217,7 @@ namespace SAIN.Layers
         {
             BotOwner = owner;
             this.name = name;
+            this.layer = layer;
         }
 
         protected bool GetBotComponent()
@@ -1222,8 +1229,13 @@ namespace SAIN.Layers
 
         protected void CheckActiveChanged(bool v)
         {
-            if (Bot != null)
-                Bot.SAINLayersActive = v;
+            if (Bot == null)
+                return;
+            if (v)
+                Bot.ActiveLayer = layer;
+            else if (Bot.ActiveLayer == layer)
+                Bot.ActiveLayer = SAIN.Models.Enums.ESAINLayer.None;
+            Bot.SAINLayersActive = Bot.ActiveLayer != SAIN.Models.Enums.ESAINLayer.None;
         }
 
         public string GetName() => name;

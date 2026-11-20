@@ -17,6 +17,12 @@ internal static class PostCombatTests
 
         var c = new PostCombatConfig();
         var p = new PostCombat();
+        p.ObserveFight(0);
+        p.ObserveFight(0);
+        Check(!p.WantsRecovery(30) && !p.Tick(new() { Now = 30 }, c, 0, 0),
+            "a single combat frame cannot arm recovery, even when evaluated much later");
+        p.Clear("new-raid");
+        p.ObserveFight(7.5);
         p.ObserveFight(9);
         var f = new PostCombatFrame
         {
@@ -29,6 +35,7 @@ internal static class PostCombatTests
             p.Tick(f, c, 0, 0) && p.Trace!.State == "reload",
             "source attempts one reload while seeking protection"
         );
+        Check(p.Trace!.CombatLayerSeconds == 1.5, "eligibility records first-to-last combat time");
         p.Complete("reload", "requested");
         f.Now = 10.25;
         p.Tick(f, c, 0, 0);
@@ -60,6 +67,8 @@ internal static class PostCombatTests
         f.Coming = false;
         f.Now = 84;
         Check(!p.Tick(f, c, 0, 0), "finish when recovery work and sound watch are done");
+        p.ResetCombatWindow();
+        p.ObserveFight(88.5);
         p.ObserveFight(90);
         f.Now = 91;
         f.Regroup = false;

@@ -93,6 +93,7 @@ public sealed class PostCombatTrace
     public bool Applied { get; set; }
     public double ValidFor { get; set; }
     public double Elapsed { get; set; }
+    public double CombatLayerSeconds { get; set; }
     public double Remaining { get; set; }
     public double WatchRemaining { get; set; }
     public double AmmoPercent { get; set; }
@@ -124,6 +125,7 @@ public sealed class PostCombat
     private double start,
         watchUntil,
         watchDuration,
+        combatLayerSince = -1,
         lastNow = -1;
     private int episode;
 
@@ -132,11 +134,18 @@ public sealed class PostCombat
 
     public void ObserveFight(double now)
     {
-        if (MedicalChoice.Finite(now))
-        {
-            LastFight = now;
-            armed = true;
-        }
+        if (!MedicalChoice.Finite(now))
+            return;
+        if (combatLayerSince < 0 || now < LastFight)
+            combatLayerSince = now;
+        LastFight = now;
+        armed = now - combatLayerSince >= 1.5;
+    }
+
+    public void ResetCombatWindow()
+    {
+        combatLayerSince = -1;
+        armed = false;
     }
 
     public bool Tick(PostCombatFrame f, PostCombatConfig c, double watchRoll, double advanceRoll)
@@ -179,6 +188,7 @@ public sealed class PostCombat
             Trace = new()
             {
                 Episode = ++episode,
+                CombatLayerSeconds = LastFight - combatLayerSince,
                 AdvanceChance = chance,
                 AdvanceRoll = Clamp(advanceRoll) * 100,
                 AdvanceSelected = f.CanAdvance && Clamp(advanceRoll) * 100 < chance,
@@ -284,7 +294,7 @@ public sealed class PostCombat
     public void Clear(string why)
     {
         End(why);
-        armed = false;
+        ResetCombatWindow();
         LastFight = -1000;
         lastNow = -1;
     }

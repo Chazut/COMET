@@ -7,6 +7,7 @@ using HarmonyLib;
 using Newtonsoft.Json;
 using SAIN;
 using SAIN.Components;
+using SAIN.Models.Enums;
 using SAIN.Preset.Shared.Enums;
 using SAIN.SAINComponent.Classes.Decision;
 using SAIN.SAINComponent.Classes.Mover;
@@ -57,7 +58,7 @@ public sealed partial class Plugin
     {
         h.Patch(
             AccessTools.Method(typeof(BotDecisionManager), nameof(BotDecisionManager.ManualUpdate)),
-            postfix: new HarmonyMethod(typeof(Plugin), nameof(ObservePostCombat))
+            prefix: new HarmonyMethod(typeof(Plugin), nameof(ObservePostCombat))
         );
         h.Patch(
             AccessTools.Method(typeof(SAIN.Components.BotManagerComponent), "Activate"),
@@ -157,46 +158,38 @@ public sealed partial class Plugin
                     p.EndPostCombat(b, old, "post-combat-out-of-scope", true);
                 return;
             }
-            var e = b.GoalEnemy;
-            // Personal visible contact / actually shooting / taking fire, not merely a search layer.
-            bool fight =
-                b.BotOwner.Memory.IsUnderFire
-                || b.BotOwner.ShootData.Shooting
-                || e?.IsVisible == true;
+            var layer = b.ActiveLayer;
+            bool combatLayer = layer is ESAINLayer.Combat or ESAINLayer.AvoidThreat or ESAINLayer.Flashed;
             if (!p.states.TryGetValue(b, out var s))
             {
-                if (!fight || p.states.Count >= 512)
+                if (!combatLayer || p.states.Count >= 512)
                     return;
                 s = new BotState(b, p.config!, p.session);
                 p.states.Add(b, s);
             }
             if (s.PostCombat.Fault)
                 return;
-            if (fight)
+            var e = b.GoalEnemy;
+            if (s.PostCombat.Policy.Active && (combatLayer || b.BotOwner.Memory.IsUnderFire
+                || b.BotOwner.ShootData.Shooting || e?.IsVisible == true))
+                p.EndPostCombat(b, s, "post-combat-fight-resumed", false);
+            if (!combatLayer)
             {
-                if (s.PostCombat.Policy.Active)
-                    p.EndPostCombat(b, s, "post-combat-fight-resumed", false);
-                s.PostCombat.Policy.ObserveFight(Time.time);
-                var place = e?.KnownPlaces.LastSeenPlace;
-                var heard = e?.KnownPlaces.LastHeardPlace;
-                if (
-                    heard != null
-                    && (
-                        place == null
-                        || heard.TimeSincePositionUpdated < place.TimeSincePositionUpdated
-                    )
-                )
-                    place = heard;
-                if (
-                    place != null
-                    && ValidPoint(place.Position)
-                    && place.TimeSincePositionUpdated >= 0
-                )
-                {
-                    s.PostCombat.Threat = place.Position;
-                    s.PostCombat.Contact = e!.EnemyProfileId;
-                    s.PostCombat.ContactAt = Time.time - place.TimeSincePositionUpdated;
-                }
+                // Squad keeps the previous timestamps while SAIN hands the bot to recovery.
+                if (layer != ESAINLayer.Squad)
+                    s.PostCombat.Policy.ResetCombatWindow();
+                return;
+            }
+            s.PostCombat.Policy.ObserveFight(Time.time);
+            var place = e?.KnownPlaces.LastSeenPlace;
+            var heard = e?.KnownPlaces.LastHeardPlace;
+            if (heard != null && (place == null || heard.TimeSincePositionUpdated < place.TimeSincePositionUpdated))
+                place = heard;
+            if (place != null && ValidPoint(place.Position) && place.TimeSincePositionUpdated >= 0)
+            {
+                s.PostCombat.Threat = place.Position;
+                s.PostCombat.Contact = e!.EnemyProfileId;
+                s.PostCombat.ContactAt = Time.time - place.TimeSincePositionUpdated;
             }
         }
         catch (Exception ex)
