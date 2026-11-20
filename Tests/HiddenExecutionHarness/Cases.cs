@@ -63,6 +63,7 @@ namespace SAIN.Preset.Shared.Enums
         SeekCover,
         ThrowGrenade,
         ShootDistantEnemy,
+        StandAndShoot,
     }
 }
 
@@ -395,17 +396,26 @@ namespace Comet.Client
 
     class TestDoor
     {
-        public bool NativeFallback, NativeSelected, Fault;
-        public string SessionPlan = "";
+        public bool NativeFallback, NativeSelected, Fault, Entered, FromSearch;
+        public string SessionPlan = "", SessionDoor = "", SessionEnemy = "", Feint = "";
+        public float SessionAt;
+        public DoorSessionCooldowns Cooldowns = new();
     }
     class TestHandoff
     {
         public bool Cleared;
         public void Clear() => Cleared = true;
     }
-    class TestLog { public void LogWarning(string message) => throw new Exception(message); }
+    class TestLog
+    {
+        public void LogDebug(string message) { }
+        public void LogWarning(string message) => throw new Exception(message);
+    }
+    class TestAmbush { public TestAmbush Policy => this; public bool Active; }
     class BotState
     {
+        public BotComponent Owner;
+        public TestAmbush Ambush = new();
         public TestDoor Door = new();
         public TestHandoff Handoff = new();
         public ECombatDecision Expected;
@@ -458,6 +468,15 @@ namespace Comet.Client
     {
         TestLog Logger = new();
         internal bool SelectedDoor, NearbyDoor;
+        bool HasDoorAction(BotState s) => false;
+        internal bool KeepSession(BotComponent b, BotState s)
+        {
+            var decision = ECombatDecision.None;
+            bool result = false;
+            return KeepCombatDoor(b, b.GoalEnemy, s, ref decision, ref result);
+        }
+        internal void ReleaseSession(BotState s, string reason) =>
+            CloseDoorSession(s, DoorSessionReleaseReason(s, reason));
         internal bool CanResume(BotComponent b, VisibleChoice visible = null) =>
             HiddenSightMayTakeOver(b, b.GoalEnemy, visible);
         internal ECombatDecision NativeFallback(BotComponent b, bool rush)
@@ -587,13 +606,50 @@ namespace Comet.Client
             var p = Plugin.Instance = new Plugin();
             Plugin.Bind();
             var b = new BotComponent();
-            var s = new BotState();
+            var s = new BotState { Owner = b };
             p.states[b] = s;
             return (p, b, s);
         }
 
         public static void Run()
         {
+            foreach (var plan in new[] { "peek", "clear", "trap" })
+            {
+                var (p, b, s) = Setup();
+                s.Door.SessionAt = 9;
+                s.Door.SessionDoor = "314";
+                s.Door.SessionPlan = plan;
+                s.Door.SessionEnemy = b.GoalEnemy.EnemyProfileId;
+                Check(p.KeepSession(b, s), "same goal keeps each door plan");
+                b.GoalEnemy = new Enemy { EnemyProfileId = "other" };
+                Check(!p.KeepSession(b, s) && s.Door.SessionPlan.Length == 0,
+                    "new goal ends the combat door session");
+                Time.time = 11;
+                p.ReleaseSession(s, "adapter-error");
+                Check(!s.Door.Cooldowns.CanUse("314", 17.999) && s.Door.Cooldowns.CanUse("314", 18)
+                    && s.Door.Cooldowns.CanUse("next", 13), "later cleanup cannot reset early timers");
+            }
+            foreach (var (why, next, underFire, shortRetry) in new[] {
+                ("sain-request-not-applied", ECombatDecision.StandAndShoot, true, true),
+                ("sain-priority:ShiftCover/None/None", ECombatDecision.ShiftCover, false, true),
+                ("sain-priority:ShiftCover/None/None", ECombatDecision.ShiftCover, true, false),
+                ("sain-request-not-applied", ECombatDecision.Search, false, false),
+                ("handoff-native-priority", ECombatDecision.Search, false, false),
+                ("storm-native-rush", ECombatDecision.Search, false, true),
+                ("door-enemy-visible", ECombatDecision.Search, false, true),
+                ("inactive-ghost-or-non-authority", ECombatDecision.StandAndShoot, false, false),
+            })
+            {
+                var (p, b, s) = Setup();
+                s.Door.SessionAt = 9;
+                s.Door.SessionPlan = "clear";
+                s.Door.SessionDoor = "314";
+                b.Decision.CurrentCombatDecision = next;
+                b.BotOwner.Memory.IsUnderFire = underFire;
+                p.ReleaseSession(s, why);
+                Check(s.Door.Cooldowns.CanUse("314", 18) == shortRetry
+                    && s.Door.Cooldowns.CanUse("other", 13) == shortRetry, "actual release cause: " + why);
+            }
             {
                 var (p, b, _) = Setup();
                 Check(p.CanResume(b), "hidden memory may take over an unclaimed visible contact");

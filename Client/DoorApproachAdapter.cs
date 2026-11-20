@@ -177,7 +177,8 @@ public sealed partial class Plugin
                 : s.Jump.Policy.Active ? p.StepDoorJump(b, enemy, s)
                 : p.StepDoor(b, enemy, s);
             if (s.Door.Entered && !p.HasDoorAction(s))
-                p.CloseDoorSession(s);
+                p.CloseDoorSession(s, b.GoalEnemy != null && b.GoalEnemy.EnemyProfileId != s.Door.SessionEnemy
+                    ? DoorSessionEnd.GoalEnemyChanged : DoorSessionEnd.Ordinary);
             return p.CompleteDoorReservationStep(b, s, fallback);
         }
         catch (Exception ex)

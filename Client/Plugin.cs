@@ -1651,7 +1651,7 @@ public sealed partial class Plugin : BaseUnityPlugin
         if (state.ActiveLabel.Length > 0 && !suspendPlan)
             ObserveControlRelease(state, reason);
         if (state.Door.SessionPlan.Length > 0)
-            CloseDoorSession(state);
+            CloseDoorSession(state, DoorSessionReleaseReason(state, reason));
         EndDoorSpatial(state, reason);
         EndDoorRecovery(state, reason);
         EndDoorTransit(state, reason);

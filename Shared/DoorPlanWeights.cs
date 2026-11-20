@@ -2,6 +2,16 @@ using System.Collections.Generic;
 
 namespace Comet.Core;
 
+public enum DoorSessionEnd
+{
+    Ordinary,
+    GoalEnemyChanged,
+    EnemySpotted,
+    RushInstead,
+    Interrupted,
+    ResumableGoalChange,
+}
+
 // Kept on one bot for the raid. A declined door must not block its neighbours.
 public sealed class DoorSessionCooldowns
 {
@@ -11,8 +21,24 @@ public sealed class DoorSessionCooldowns
     public bool CanUse(string door, double now) => CanProbe(now) && (!doors.TryGetValue(door, out var until) || now >= until);
     public void Finish(string door, double now, bool declined)
     {
-        nextBot = now + 8;
-        doors[door] = now + (declined ? 25 : 60);
+        Set(door, now, declined ? 25 : 60, 8);
+    }
+
+    public (double SameDoor, double OtherDoor) FinishSession(string door, double started, double now, DoorSessionEnd reason)
+    {
+        if (reason == DoorSessionEnd.ResumableGoalChange)
+            return Set(door, now, 5, 3);
+        if (now - started < 1.5 && reason is DoorSessionEnd.GoalEnemyChanged
+            or DoorSessionEnd.EnemySpotted or DoorSessionEnd.RushInstead or DoorSessionEnd.Interrupted)
+            return Set(door, now, 8, 3);
+        return Set(door, now, 60, 8);
+    }
+
+    private (double SameDoor, double OtherDoor) Set(string door, double now, double sameDoor, double otherDoor)
+    {
+        nextBot = now + otherDoor;
+        doors[door] = now + sameDoor;
+        return (sameDoor, otherDoor);
     }
 }
 

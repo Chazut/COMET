@@ -309,6 +309,8 @@ public sealed partial class Plugin
         EndDoorRun(s, "door-third-party");
         EndDoorJump(s, "door-third-party");
         // Existing native cleanup performs weapon recovery. No item is recreated, no animation replayed.
+        if (cause == "target-selection-changed" && s.Door.SessionPlan.Length > 0)
+            CloseDoorSession(s, keep ? DoorSessionEnd.ResumableGoalChange : DoorSessionEnd.GoalEnemyChanged);
         Release(s, "door-threat-interruption");
         RecordDoorInterruption(s, true);
     }

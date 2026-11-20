@@ -18,13 +18,37 @@ public sealed partial class Plugin
         || s.RunBy.Policy.Active || s.StepPeek.Policy.Active || s.RoomClear.Policy.Active
         || s.Entry.Policy.Active || s.Fake.Policy.Active || s.Interruption.Policy.Pending;
 
-    private void CloseDoorSession(BotState s)
+    private static DoorSessionEnd DoorSessionReleaseReason(BotState s, string reason)
+    {
+        if (reason == "door-enemy-visible")
+            return DoorSessionEnd.EnemySpotted;
+        if (reason == "storm-native-rush")
+            return DoorSessionEnd.RushInstead;
+        // These paths run after SAIN committed its decision. A pre-decision priority check
+        // (including the door opener's own interaction) does not establish an action change.
+        if (reason != "sain-request-not-applied" && reason != "native-decision-cleared"
+            && !reason.StartsWith("sain-priority:", StringComparison.Ordinal))
+            return DoorSessionEnd.Ordinary;
+        var next = s.Owner.Decision.CurrentCombatDecision;
+        if (next == (s.Door.SessionPlan == "trap" ? ECombatDecision.Freeze : ECombatDecision.Search))
+            return DoorSessionEnd.Ordinary;
+        if (next == ECombatDecision.StandAndShoot)
+            return DoorSessionEnd.EnemySpotted;
+        return s.Owner.BotOwner.Memory.IsUnderFire ? DoorSessionEnd.Ordinary : DoorSessionEnd.Interrupted;
+    }
+
+    private void CloseDoorSession(BotState s, DoorSessionEnd reason)
     {
         var r = s.Door;
-        if (r.SessionDoor.Length != 0)
-            r.Cooldowns.Finish(r.SessionDoor, Time.time, declined: false);
+        if (r.SessionDoor.Length == 0)
+            return;
+        float now = Time.time;
+        string door = r.SessionDoor, plan = r.SessionPlan, target = r.SessionEnemy;
+        var cooldown = r.Cooldowns.FinishSession(door, r.SessionAt, now, reason);
         r.SessionDoor = r.SessionPlan = r.SessionEnemy = r.Feint = "";
         r.FromSearch = r.Entered = false;
+        Logger.LogDebug($"D01 {s.ProfileId} ended {plan} at {door} target={target} reason={reason} "
+            + $"age={now - r.SessionAt:F3}s retrySame={cooldown.SameDoor}s retryOther={cooldown.OtherDoor}s");
     }
 
     private bool KeepCombatDoor(BotComponent b, Enemy enemy, BotState s, ref ECombatDecision decision, ref bool result)
@@ -33,10 +57,15 @@ public sealed partial class Plugin
         if (r.SessionPlan.Length == 0)
             return false;
         bool trap = r.SessionPlan == "trap";
-        if (enemy.EnemyProfileId != r.SessionEnemy || Time.time - r.SessionAt > 150
-            || b.BotOwner.Memory.IsUnderFire || (r.Entered && !HasDoorAction(s) && !s.Ambush.Policy.Active))
+        if (enemy.EnemyProfileId != r.SessionEnemy)
         {
-            CloseDoorSession(s);
+            CloseDoorSession(s, DoorSessionEnd.GoalEnemyChanged);
+            return false;
+        }
+        if (Time.time - r.SessionAt > 150 || b.BotOwner.Memory.IsUnderFire
+            || (r.Entered && !HasDoorAction(s) && !s.Ambush.Policy.Active))
+        {
+            CloseDoorSession(s, DoorSessionEnd.Ordinary);
             return false;
         }
         decision = s.Expected = trap ? ECombatDecision.Freeze : ECombatDecision.Search;
@@ -49,7 +78,13 @@ public sealed partial class Plugin
     {
         var r = s.Door;
         if (r.SessionPlan.Length != 0)
-            return r.SessionEnemy == e.EnemyProfileId;
+        {
+            if (r.SessionEnemy == e.EnemyProfileId)
+                return true;
+            if (b.GoalEnemy?.EnemyProfileId == e.EnemyProfileId)
+                CloseDoorSession(s, DoorSessionEnd.GoalEnemyChanged);
+            return false;
+        }
         var c = config!;
         if (!c.Enabled || !Authority || !b.BotActive || b.GameEnding || Ghost(b.ProfileId) || !NativeAdapter.IsSupportedAi(b)
             || !c.DoorApproach.Enabled || r.Fault || e.IsVisible || !e.EnemyKnown

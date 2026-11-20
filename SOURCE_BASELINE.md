@@ -27,7 +27,11 @@ route. A confirmed leaf enters the existing repath and route-release sequence.
 
 Combat door selection follows a refused rush. Search has its own room-clear roll.
 A decline blocks another door for eight seconds and the same door for 25 seconds.
-Ending a session blocks that door for 60 seconds. Conditional peeks, clears and
+An ordinary session end blocks that door for 60 seconds and other doors for eight.
+If the target changes, the enemy is spotted, a rush takes over or SAIN interrupts
+the action before 1.5 seconds, the delays are eight and three seconds. An armed
+third-party resume on a target change takes precedence (five and three seconds).
+Conditional peeks, clears and
 traps share the selection. Existing installations migrate the previous default
 personality chances while retaining individually tuned values.
 

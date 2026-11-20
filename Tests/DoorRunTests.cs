@@ -76,6 +76,24 @@ internal static class DoorRunTests
         Check(!gates.CanUse("314", 124.9) && gates.CanUse("314", 125), "decline is local to the door for 25 seconds");
         gates.Finish("203", 130, declined: false);
         Check(gates.CanUse("314", 138) && !gates.CanUse("203", 189.9) && gates.CanUse("203", 190), "completed session cools only its door for one minute");
+        foreach (var reason in Enum.GetValues<DoorSessionEnd>())
+        foreach (var age in new[] { 0d, 1.499, 1.5, 2 })
+        {
+            var cooldowns = new DoorSessionCooldowns();
+            cooldowns.Finish("previous", 95, declined: false);
+            const double end = 120;
+            cooldowns.FinishSession("314", end - age, end, reason);
+            bool early = age < 1.5 && reason is DoorSessionEnd.GoalEnemyChanged
+                or DoorSessionEnd.EnemySpotted or DoorSessionEnd.RushInstead or DoorSessionEnd.Interrupted;
+            bool resume = reason == DoorSessionEnd.ResumableGoalChange;
+            double same = end + (resume ? 5 : early ? 8 : 60);
+            double other = end + (early || resume ? 3 : 8);
+            Check(!cooldowns.CanProbe(other - .001) && cooldowns.CanUse("203", other),
+                $"global retry boundary for {reason} at {age}");
+            Check(!cooldowns.CanUse("314", same - .001) && cooldowns.CanUse("314", same),
+                $"same door retry boundary for {reason} at {age}");
+            Check(!cooldowns.CanUse("previous", other), "shortening one door preserves other door timers");
+        }
         var phase = new DoorMovePhase();
         string Move(string state, double x, double time) => phase.Check(state, new(x, 0, 0), false, time, out _);
         Check(Move("out", 0, 0) == "" && Move("out", .2, 2.51) == "move-stalled", "wedged bot exits after 2.5s");
