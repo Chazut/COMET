@@ -62,6 +62,8 @@ public sealed partial class Plugin
         var plan = maneuverBoard.Get(group);
         if (plan?.Active != true)
         {
+            if (NativeStormActive(b))
+                return DeclineSquad(s, "S03", "maneuver-squad-storm-active");
             var candidates = new List<ManeuverMember>();
             foreach (var mate in b.Squad.Members.Values)
             {

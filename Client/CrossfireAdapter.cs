@@ -300,8 +300,6 @@ public sealed partial class Plugin
         var r = s.Crossfire;
         if (r.Fault)
             return false;
-        if (NativeStormActive(b))
-            return false; // zzap SquadStorm.IsStorming: maneuver stays out of an ongoing storm.
         if (!r.Policy.Active && mayStart)
         {
             // All variants share these safety gates. Do not rebuild several squad

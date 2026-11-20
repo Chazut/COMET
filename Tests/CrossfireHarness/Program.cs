@@ -87,13 +87,27 @@ CrossfireAction Start(Plugin p, BotComponent b)
     return a;
 }
 void Save(Plugin p) => events.AddRange(p.diagnostics!.Lines);
-foreach (var (chance, contactAge, maneuverRange, crossfireOn, healing, expectManeuver) in new[]
+void IssueStormOrder(Plugin p, BotComponent leader, BotComponent stayingBack)
 {
-    (100, 1, 80, true, false, true),   // Both a flank and cover for a reload are available.
-    (100, 1, 80, false, true, true),   // A patient is nearby, with plain crossfire disabled.
-    (0, 1, 80, true, false, false),    // The squad declines its roll, then covers the reload.
-    (100, 15, 80, false, true, false), // Cover can still start on an older contact.
-    (100, 1, 20, true, true, false),   // Outside the maneuver range, within the cover range.
+    var cfg = p.config!;
+    cfg.SquadStorm.Enabled = true;
+    cfg.SquadStorm.Chad = 100;
+    cfg.SquadStorm.Normal = 0;
+    leader.Info.Personality = Personality.Chad;
+    stayingBack.Info.Personality = Personality.Normal;
+    foreach (var bot in new[] { leader, stayingBack })
+        if (!p.states.ContainsKey(bot))
+            p.states.Add(bot, new BotState(bot, cfg, p.session));
+    C(p.ChooseStorm(leader) && !p.ChooseStorm(stayingBack), "one squad member joins S06 and one declines");
+}
+foreach (var (chance, contactAge, maneuverRange, crossfireOn, healing, storm, expectManeuver) in new[]
+{
+    (100, 1, 80, true, false, false, true),   // Both a flank and cover for a reload are available.
+    (100, 1, 80, false, true, false, true),   // A patient is nearby, with plain crossfire disabled.
+    (0, 1, 80, true, false, false, false),    // The squad declines its roll, then covers the reload.
+    (100, 15, 80, false, true, false, false), // Cover can still start on an older contact.
+    (100, 1, 20, true, true, false, false),   // Outside the maneuver range, within the cover range.
+    (100, 1, 80, false, true, true, false),   // During an assault, cover the teammate who is healing.
 })
 {
     var (p, b, anchor) = Setup();
@@ -113,13 +127,15 @@ foreach (var (chance, contactAge, maneuverRange, crossfireOn, healing, expectMan
     b.Squad.Members.Add(patient.ProfileId, patient);
     SAINEnableClass.Bots[patient.ProfileId] = patient;
 
+    if (storm)
+        IssueStormOrder(p, anchor, b);
     p.Observe(b);
     var runtime = p.states[b].Crossfire;
     var trace = runtime.Policy.Trace;
     C(runtime.Policy.Active && (expectManeuver
             ? runtime.Maneuver?.Support == anchor.ProfileId && trace?.CoverMate == null
             : runtime.Maneuver == null && trace?.CoverMate?.Mate == patient.ProfileId),
-        $"maneuver before covering a busy teammate: chance={chance}, age={contactAge}, range={maneuverRange}");
+        $"maneuver before covering a busy teammate: chance={chance}, age={contactAge}, range={maneuverRange}, storm={storm}");
     if (!expectManeuver)
     {
         cfg.SquadManeuver.Chance = 100;
@@ -131,6 +147,77 @@ foreach (var (chance, contactAge, maneuverRange, crossfireOn, healing, expectMan
             && runtime.Policy.Trace?.CoverMate?.Mate == patient.ProfileId,
             "a fresh flank opportunity does not interrupt active teammate cover");
     }
+    p.EndAll();
+}
+{
+    var (p, b, mate) = Setup();
+    p.config!.SquadManeuver.Chance = 100;
+    mate.GoalEnemy!.IsVisible = false;
+    b.GoalEnemy!.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    mate.GoalEnemy.KnownPlaces.LastKnownPosition = b.GoalEnemy.KnownPlaces.LastKnownPosition;
+    IssueStormOrder(p, mate, b);
+    p.Observe(b);
+    C(p.states[b].Crossfire.Maneuver == null
+        && p.diagnostics!.Lines.Any(line => line.Contains("maneuver-squad-storm-active")),
+        "a fresh S03 is declined with a diagnostic for the active assault");
+    Step((float)p.config.SquadStorm.Retry + .1f);
+    b.GoalEnemy.TimeSinceLastKnownUpdated = mate.GoalEnemy.TimeSinceLastKnownUpdated = 0;
+    p.Observe(b);
+    C(p.states[b].Crossfire.Maneuver != null, "S03 can start once the assault verdict expires");
+    p.EndAll();
+}
+{
+    var (p, b, leader) = Setup();
+    var casualty = new BotComponent { Squad = b.Squad };
+    b.Squad.Members.Add(casualty.ProfileId, casualty);
+    IssueStormOrder(p, leader, b);
+    casualty.IsDead = true;
+    casualty.Player.HealthController.IsAlive = false;
+    p.Death(casualty, b, b.GoalEnemy!.EnemyPlayer);
+    Step(.81f);
+    p.Observe(b);
+    C(p.states[b].Crossfire.Policy.Trace?.Trade?.Mate == casualty.ProfileId && p.Choose(b),
+        "an eligible trade can start and continue during the assault");
+    p.EndAll();
+}
+foreach (bool indoors in new[] { false, true })
+{
+    var (p, b, mate) = Setup();
+    p.config!.SquadManeuver.Chance = 100;
+    b.Player.Environment = indoors ? EnvironmentType.Indoor : EnvironmentType.Outdoor;
+    if (indoors)
+        NavMesh.Route = (start, end) => [start, new Vector3(4, 0, 8), end];
+    b.GoalEnemy!.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    mate.GoalEnemy!.KnownPlaces.LastKnownPosition = b.GoalEnemy.KnownPlaces.LastKnownPosition;
+    IssueStormOrder(p, mate, b);
+    p.Observe(b);
+    NavMesh.Route = null;
+    var r = p.states[b].Crossfire;
+    C(r.Policy.Active && r.Maneuver == null && (r.Policy.Trace?.Entrance != null) == indoors,
+        "staying back during S06 allows " + (indoors ? "a secondary entrance" : "ordinary crossfire"));
+    p.EndAll();
+}
+{
+    var (p, flanker, support) = Setup();
+    p.config!.SquadManeuver.Chance = 100;
+    support.Info.Personality = Personality.Rat;
+    support.GoalEnemy!.IsVisible = false;
+    flanker.GoalEnemy!.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    support.GoalEnemy.KnownPlaces.LastKnownPosition = flanker.GoalEnemy.KnownPlaces.LastKnownPosition;
+    var leader = new BotComponent { Squad = flanker.Squad };
+    leader.GoalEnemy!.EnemyProfileId = "other-enemy";
+    flanker.Squad.Members.Add(leader.ProfileId, leader);
+    p.Observe(flanker);
+    var assigned = p.states[flanker].Crossfire.Maneuver;
+    C(assigned?.Support == support.ProfileId, "S03 has assigned support before the assault");
+    leader.GoalEnemy.EnemyProfileId = flanker.GoalEnemy.EnemyProfileId;
+    IssueStormOrder(p, leader, support);
+    p.Observe(support);
+    C(p.states[support].Crossfire.Maneuver == assigned && p.Choose(support),
+        "a member who declined S06 can take its existing S03 role");
+    Plan(p, flanker);
+    C(p.states[flanker].Crossfire.Maneuver == assigned && p.Choose(flanker),
+        "an existing flank keeps progressing during the squad assault");
     p.EndAll();
 }
 foreach (bool crossfireOn in new[] { false, true })
