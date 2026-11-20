@@ -374,7 +374,7 @@ public sealed partial class Plugin
             return true;
         if (TacticalSteeringFire.TryShoot(b, TacticalSteeringKind.CoverFeint))
             return false;
-        b.Steering.LookToPoint(VP(s.CoverFeint.Policy.Known) + Vector3.up * 1.3f);
+        b.Steering.LookToPoint(VP(s.CoverFeint.Policy.LookPoint) + Vector3.up * 1.3f);
         return false;
     }
 
@@ -470,7 +470,7 @@ public sealed partial class Plugin
                 else
                 {
                     // The source session starts immediately before the firearm request, even if it refuses.
-                    p.Trace.MagazineRequested = true;
+                    p.RequestMagazineCheck(b.GoalEnemy?.VisiblePathPoint is Vector3 point ? DP(point) : null);
                     bool accepted = r.Firearm.CheckAmmo();
                     p.MagazineResult(accepted, MagazineOperation(r.Firearm), f, config.CoverFeint);
                 }

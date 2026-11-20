@@ -143,6 +143,7 @@ public sealed class CoverFeintTrace
         WeaponReady,
         DrewFire,
         ApproachObserved;
+    public DoorPoint? MagazineVisiblePathPoint;
     public string[] Alternatives = Array.Empty<string>();
 }
 
@@ -177,6 +178,8 @@ public sealed class CoverFeintPolicy
     public DoorPoint Home,
         Known,
         Goal;
+    public DoorPoint LookPoint => Trace is { Kind: "magazine", MagazineVisiblePathPoint: { } point }
+        ? point : Known;
     public bool Active => Trace != null && Trace.State != "ended";
     public bool Moving => Trace?.State is "out" or "back";
     public bool WantsRoute => Trace?.State is "out-pending" or "back-pending";
@@ -407,6 +410,15 @@ public sealed class CoverFeintPolicy
         Alternative(why + " -> " + t.Kind);
         Home = Goal = f.Position;
         Set("planning", "feint-trying-alternate", f.Now);
+    }
+
+    public void RequestMagazineCheck(DoorPoint? visiblePathPoint)
+    {
+        if (Trace is { State: "mag-pending", MagazineRequested: false } t)
+        {
+            t.MagazineVisiblePathPoint = visiblePathPoint;
+            t.MagazineRequested = true;
+        }
     }
 
     public void MagazineResult(bool accepted, bool operation, CoverFeintFrame f, CoverFeintConfig c)

@@ -51,6 +51,12 @@ a refused check can lead to a peek. The alternate uses its own eligibility
 and the roll from the same decision. An accepted variant consumes the choice.
 The trace keeps the episode ID and records the switch in `fallbackReason`.
 
+At the native magazine-check request, M14 saves SAIN's visible path point
+for the current enemy in `magazineVisiblePathPoint`. The bot watches that
+point through the check and hold, falling back to the encounter's last known
+position if none was available. A bait peek uses the last known position.
+Both look 1.3 metres above their point and give native firing priority.
+
 ### A05/H01 ordinary medical decisions (2026-11-20)
 
 With a known enemy, ordinary medical choices use the remix 7.6 `HealUtility`

@@ -216,6 +216,15 @@ static class Audit
             if (!Calls(callback).Any(m => Equals(m, fire)))
                 throw new Exception("Steering override omitted native firing: " + pair);
         }
+        var feintUpdate = plugin.GetMethod("RefreshFeint", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var feintSteering = plugin.GetMethod("FeintSteering", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var magazineCalls = Calls(feintUpdate).Select(m => m.Name)
+            .Where(n => n is "get_VisiblePathPoint" or "RequestMagazineCheck" or "CheckAmmo");
+        var steeringCalls = Calls(feintSteering).Select(m => m.Name)
+            .Where(n => n is "TryShoot" or "get_VisiblePathPoint" or "get_LookPoint" or "LookToPoint");
+        if (!magazineCalls.SequenceEqual(new[] { "get_VisiblePathPoint", "RequestMagazineCheck", "CheckAmmo" })
+            || !steeringCalls.SequenceEqual(new[] { "TryShoot", "get_LookPoint", "LookToPoint" }))
+            throw new Exception("M14 must capture the SAIN path point before CheckAmmo and try native fire before watching it.");
         var postSteering = client.GetType("Comet.Client.PostCombatAction", true)!.GetMethod("OnSteeringTicked")!;
         if (!Calls(postSteering).Contains(plugin.GetMethod("SteerPostCombat", BindingFlags.Static | BindingFlags.NonPublic)))
             throw new Exception("Post-combat steering does not use the timed H04 owner.");

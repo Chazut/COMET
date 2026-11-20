@@ -268,7 +268,14 @@ internal static class CoverFeintTests
         );
         p.Accepted(true);
         p.Plan(p.Home, 10.1);
+        var corner = new DoorPoint(4, 2, 7);
+        p.RequestMagazineCheck(corner);
+        p.RequestMagazineCheck(new(8, 3, 10));
+        Check(p.LookPoint.Equals(corner) && p.Known.Equals(F().Known) && p.Goal.Equals(p.Home),
+            "magazine start snapshots the visible path point once and preserves contact and movement goals");
         Save();
+        Check(wire[^1].GetProperty("magazineVisiblePathPoint").GetProperty("x").GetDouble() == corner.X,
+            "the actual magazine snapshot is recorded in the M14 trace");
         p.MagazineResult(true, false, F(10.2), c);
         Check(!p.Trace!.AnimationObserved, "accepted check does not prove animation");
         Save();
@@ -286,6 +293,10 @@ internal static class CoverFeintTests
         Save();
         p.MagazineObserved(false, true, 12.1);
         Check(p.Trace.State == "hold" && p.Trace.WeaponReady, "ready weapon begins 4-7 s hold");
+        var updatedContact = F(12.2);
+        updatedContact.Known = new(9, 4, 14);
+        p.Observe(updatedContact, c);
+        Check(p.LookPoint.Equals(corner), "a later contact update cannot move the saved hold angle");
         Save();
         f = F(16.2);
         Check(p.Observe(f, c), "hold measured from readiness");
@@ -295,15 +306,20 @@ internal static class CoverFeintTests
             "bounded ready hold ends"
         );
         Save();
+        call = 0;
+        Check(p.Begin(F(40), c, MagRoll) && p.LookPoint.Equals(F().Known)
+            && p.Trace!.MagazineVisiblePathPoint == null, "a new feint cannot inherit the previous angle");
         p = new();
         call = 0;
         p.Begin(F(), c, MagRoll);
         p.Plan(p.Home, 10);
+        p.RequestMagazineCheck(corner);
         p.MagazineResult(false, false, F(10), c);
         Check(p.Active && p.Trace!.State == "planning" && p.Trace.Kind == "peek"
             && p.Trace.FallbackReason == "feint-magazine-refused" && !p.Trace.AnimationObserved
             && p.Trace.MagazineRequested && !p.Trace.MagazineAccepted && p.Trace.SharedCooldownUntil == 15,
             "native refusal leaves one peek attempt within the original choice");
+        Check(p.LookPoint.Equals(p.Known), "the fallback peek watches the known enemy position");
         Save();
         p.NoPeekPoint(F(12), c);
         Check(!p.Active && p.Trace!.Reason == "feint-no-peek-point" && p.Trace.SharedCooldownUntil == 15,
@@ -323,7 +339,9 @@ internal static class CoverFeintTests
             && rolls == 6 && p.Plan(p.Home, 11),
             "no initial peek point uses the same episode, rolls and native action at exactly half ammo");
         p.NoPeekPoint(f, c);
+        p.RequestMagazineCheck(corner);
         p.MagazineResult(true, true, f, c);
+        Check(p.LookPoint.Equals(corner), "a magazine check chosen after a failed peek captures its own angle");
         Check(original.State == "mag-check" && original.MagazineAccepted && original.AnimationObserved,
             "alternate check executes once and ignores a stale peek result");
         Save();
@@ -399,8 +417,11 @@ internal static class CoverFeintTests
         call = 0;
         p.Begin(F(), c, MagRoll);
         p.Plan(p.Home, 10);
+        p.RequestMagazineCheck(null);
         p.MagazineResult(true, false, F(10), c);
         p.MagazineObserved(false, false, 14.1);
+        Check(p.LookPoint.Equals(F().Known) && p.Trace!.MagazineVisiblePathPoint == null,
+            "without a visible path point the hold watches the known position");
         Check(
             p.Active && p.Trace!.State == "hold",
             "source uses timed magazine hold without an added animation proof gate"
