@@ -226,7 +226,7 @@ public sealed partial class Plugin
                         EndDoorStep(s, "step-movement-refused");
                         return true;
                     }
-                    r.OwnedPath = b.Mover.ActivePath;
+                    r.OwnedPath = IssuedDoorPath(b, path);
                     if (back)
                     {
                         r.PreviousEye = b.Transform.EyePosition;
@@ -235,7 +235,7 @@ public sealed partial class Plugin
                     }
                     else
                         r.Policy.Start(DP(b.Position), Time.time);
-                    if (!OwnsStepPath(r))
+                    if (!OwnsStepPath(r) && Vector3.Distance(b.Position, back ? r.Stack : r.Point) > .5f)
                     {
                         EndDoorStep(s, "step-path-not-observed");
                         return true;
@@ -344,7 +344,7 @@ public sealed partial class Plugin
     private static bool OwnsStepPath(DoorStepRuntime r) =>
         r.Owner != null
         && r.OwnedPath != null
-        && ReferenceEquals(r.Owner.Mover.ActivePath, r.OwnedPath)
+        && CurrentDoorPath(r.Owner, r.OwnedPath)
         && Vector3.Distance(
             r.OwnedPath.Destination,
             r.Policy.Trace?.ReturnAccepted == true ? r.Stack : r.Point

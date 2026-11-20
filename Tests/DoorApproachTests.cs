@@ -62,6 +62,10 @@ internal static class DoorApproachTests
             DoorPolicy.Placement(g, b, point, point, path, false) != "",
             "real incomplete path rejected"
         );
+        Check(
+            DoorPolicy.Placement(g, point, point, point, Array.Empty<DoorPoint>(), false, approachStack: true) == "",
+            "an already reachable stack needs no two-corner navigation path"
+        );
         var p = new DoorApproach();
         p.Begin("e", "heard", enemy, 3, 10);
         var candidate = new DoorCandidate
@@ -75,13 +79,27 @@ internal static class DoorApproachTests
         p.Request(candidate, b, 10);
         p.Accept(true, 10);
         Check(
-            p.Observe("e", new(4, 0, -1), b, 3, 11, 12, true, false),
+            p.Observe("e", new(4, 0, -1), b, 3, 11, 12),
             "updated known position does not cancel route"
         );
         Check(
-            !p.Observe("e", enemy, point, 3, 12, 12, true, true) && p.Trace!.Arrived,
+            !p.Observe("e", enemy, point, 3, 12, 12) && p.Trace!.Arrived,
             "arrival recorded"
         );
+        Check(p.Trace!.Episode == 1 && p.Trace.MovementAccepted, "issued episode and native acceptance");
+        Check(DoorApproach.AtStack(new(.59, .3, 0), new(0, 0, 0)), "horizontal arrival without an active or completed path");
+        Check(DoorApproach.NearStack(new(.8, 0, 0), new(0, 0, 0)) && !DoorApproach.NearStack(new(.91, 0, 0), new(0, 0, 0)), "source stack reachability shortcut");
+        Check(!DoorApproach.AtStack(new(.6, 0, 0), new(0, 0, 0)), "source arrival boundary");
+        p.Begin("e", "resume", enemy, 3, 20);
+        p.Request(candidate, point, 20);
+        p.Accept(true, 20);
+        Check(!p.Observe("e", enemy, point, 3, 20, 12) && p.Trace!.Arrived && !p.Trace.Moved && p.Trace.Episode == 2,
+            "already at the stack: arrival is distinct from movement on a new episode");
+        p.Begin("e", "heard", enemy, 3, 30);
+        p.Request(candidate, b, 30);
+        p.Accept(false, 30);
+        Check(!p.Active && p.Trace!.Reason == "door-mover-refused" && !p.Trace.Arrived,
+            "an actual native refusal ends the request without reporting arrival");
         p.Clear();
         Check(p.Trace == null, "raid lifecycle reset");
 

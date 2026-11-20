@@ -1,7 +1,7 @@
 """Conservative, versioned evidence reducer. No inferred physical success."""
 
 from __future__ import annotations
-import collections, hashlib, json
+import collections, hashlib, json, logging
 from common import HERE, at, dumps, load, number, unpack, utc
 
 # A code/catalog change invalidates derived reports even when the originals did
@@ -11,7 +11,7 @@ ANALYZER_VERSION = hashlib.sha256(
         (HERE / p).read_bytes() for p in ("analyze.py", "catalog.json", "evidence.py")
     )
 ).hexdigest()[:20]
-from evidence import effect_facts, extra_phases, feature_identity, evidence_note
+from evidence import EpisodeEvidence, effect_facts, extra_phases, feature_identity, evidence_note
 
 CATALOG = load(HERE / "catalog.json", [])
 COUNTS = (
@@ -78,38 +78,30 @@ def stale_analyses(c):
     ]
 
 
+# Only these nested traces are independent evidence for a second feature.
+CONTEXT = {"A04", "A05", "A06", "A08", "A09", "A10", "A11", "A12", "E03", "E04"}
+SQUAD = {"S01", "S02", "S04", "S05", "S06"}
+CATALOG_BY_ID = {s["id"]: s for s in CATALOG}
+CANDIDATES = {
+    own: [s for s in CATALOG if s["id"] == own or s["id"] in CONTEXT
+          or own in SQUAD and s["id"] in {"S02", "S04", "S05"}]
+    for own in (*CATALOG_BY_ID, None)
+}
+
+
 def payloads(e, catalog=CATALOG):
     own = e.get("feature")
-    yielded = set()
-    for spec in catalog:
+    specs = CANDIDATES.get(own, CANDIDATES[None]) if catalog is CATALOG else catalog
+    found = False
+    for spec in specs:
         f = spec["id"]
+        if f != own and f not in CONTEXT and not (own in SQUAD and f in {"S02", "S04", "S05"}):
+            continue
         trace = at(e, spec["trace"]) if spec["trace"] else None
         if f == own or isinstance(trace, dict):
-            # Shared trace names are only attributed to their owning feature, except
-            # known contexts carried on A01-A03 and crossfire's separate policies.
-            if f != own and not (
-                f
-                in {
-                    "A04",
-                    "A05",
-                    "A06",
-                    "A08",
-                    "A09",
-                    "A10",
-                    "A11",
-                    "A12",
-                    "E03",
-                    "E04",
-                }
-                or (
-                    f in {"S02", "S04", "S05"}
-                    and own in {"S01", "S02", "S04", "S05", "S06"}
-                )
-            ):
-                continue
-            yielded.add(f)
+            found |= f == own
             yield spec, trace if isinstance(trace, dict) else {}
-    if own and own not in yielded:
+    if own and not found:
         yield {"id": own, "status": "unknown", "counting": "trace", "trace": ""}, {}
 
 
@@ -193,6 +185,8 @@ def phases(e, t, spec):
         # W01 ends observation with state=ended, including unsuccessful reloads.
         if t.get("finished") is True and t.get("improved") is True:
             result.add("completed")
+    if spec["id"] == "M13" and t.get("moveRequested") is not True:
+        result.difference_update(("requested", "accepted"))
     result.update(extra_phases(spec["id"], t, e))
     if state == "completed":
         result.add("completed")
@@ -217,6 +211,7 @@ def analyze(c, raid):
     meta = json.loads(row[0])
     metrics = collections.defaultdict(new_metrics)
     attempts = {}
+    episodes = EpisodeEvidence()
     alerts = []
     summaries = []
     footer = None
@@ -285,6 +280,8 @@ def analyze(c, raid):
             if e.get("personality"):
                 actor["personalities"].add(e["personality"])
         sources[row["source"]] += 1
+        if e.get("feature") == "T03":
+            episodes.weapon_observation(e, clock)
         for spec, t in payloads(e):
             f = spec["id"]
             m = metrics[f, profile]
@@ -306,13 +303,15 @@ def analyze(c, raid):
             ):
                 m["configEnabled"] = own_config["enabled"]
             ident = feature_identity(e, t, spec) or identity(e, t, spec["counting"])
+            if f == "D01" and ident is None:
+                ident = episodes.legacy_door(e, t, row["event_key"])
             effects = effect_facts(f, t, e)
             if ident is None:
                 m["unknownIdentityEvents"] += 1
                 m["observationFacts"].update(phases(e, t, spec))
                 m["observationFacts"].update(effects)
             else:
-                key = (f, profile, bot, *ident)
+                key = (f, profile, bot, e.get("session"), *ident)
                 a = attempts.setdefault(
                     key,
                     {
@@ -326,6 +325,8 @@ def analyze(c, raid):
                         "reason": reason,
                     },
                 )
+                if f == "W05" and t.get("accepted") is True:
+                    episodes.weapon_request(e, t, clock, key)
                 a["last"] = clock
                 a["reason"] = reason
                 m["coverage"] = "identified-attempts"
@@ -424,6 +425,15 @@ def analyze(c, raid):
     draws = collections.defaultdict(
         lambda: {"trials": 0, "expected": 0.0, "observed": 0}
     )
+    for key, facts in episodes.weapon_results():
+        a = attempts[key]
+        m = metrics[a["feature"], a["profile"]]
+        for fact in facts - a["seen"]:
+            if fact in COUNTS:
+                m[fact] += 1
+            else:
+                m["effects"][fact] += 1
+        a["seen"] |= facts
     for a in attempts.values():
         seen = a["seen"]
         m = metrics[a["feature"], a["profile"]]
@@ -568,4 +578,8 @@ def analyze(c, raid):
         "UPDATE raids SET report=?,updated=? WHERE id=?", (dumps(report), utc(), raid)
     )
     c.commit()
+    door = [m for (f, p), m in metrics.items() if f == "D01" and p]
+    logging.info("Evidence %s raid=%s attempts=%d D01 requested=%d accepted=%d moved=%d arrived=%d",
+                 ANALYZER_VERSION, raid, len(attempts),
+                 *(sum(m[k] for m in door) for k in ("requested", "accepted", "started", "completed")))
     return report

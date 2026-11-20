@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 using SAIN.Classes.Bot.Search;
 using SAIN.Components;
 using SAIN.Preset.Shared.Enums;
+using SAIN.Models.Enums;
 using SAIN.SAINComponent.Classes.EnemyClasses;
 using SAIN.SAINComponent.Classes.Mover;
 using UnityEngine;
@@ -30,6 +31,8 @@ internal sealed class DoorRuntime
     internal readonly List<DoorWork> Work = new();
     internal DoorWork? Chosen;
     internal IBotPathData? OwnedPath;
+    internal NavMeshPath? IssuedRoute;
+    internal float NextMoveOrder;
     internal BotComponent? Owner;
     internal double EvidenceAt;
     internal float NextCheck,
@@ -47,6 +50,7 @@ internal sealed class DoorRuntime
         Work.Clear();
         Chosen = null;
         OwnedPath = null;
+        IssuedRoute = null;
         Owner = null;
     }
 }
@@ -213,15 +217,8 @@ public sealed partial class Plugin
                 return true;
             }
             var t = r.Policy.Trace!;
-            bool owns =
-                OwnsDoorPath(r)
-                || (
-                    b.Mover.ActivePath == null
-                    && r.OwnedPath?.Status == SAIN.Models.Enums.EBotMoveStatus.Complete
-                    && Vector3.Distance(b.Position, new Vector3((float)t.X, (float)t.Y, (float)t.Z))
-                        <= .6f
-                );
-            bool arrived = owns && r.OwnedPath!.Status == SAIN.Models.Enums.EBotMoveStatus.Complete;
+            var stack = new Vector3((float)t.X, (float)t.Y, (float)t.Z);
+            t.NativeRoute = DoorApproach.AtStack(DP(b.Position), DP(stack)) ? "at-stack" : DoorRouteState(b, r.OwnedPath, r.IssuedRoute);
             if (
                 !r.Policy.Observe(
                     e.EnemyProfileId,
@@ -229,9 +226,7 @@ public sealed partial class Plugin
                     DP(b.Position),
                     e.TimeSinceLastKnownUpdated,
                     Time.time,
-                    c.ApproachLimit,
-                    owns,
-                    arrived
+                    c.ApproachLimit
                 )
             )
             {
@@ -250,6 +245,20 @@ public sealed partial class Plugin
                     && !s.Jump.Policy.Active
                     && !s.RunBy.Policy.Active;
             }
+            // The source refreshes the move order every 0.75 s while approaching.
+            if (Time.time >= r.NextMoveOrder)
+            {
+                r.NextMoveOrder = Time.time + .75f;
+                if (!ReferenceEquals(r.OwnedPath?.NavMeshPath, r.IssuedRoute))
+                    r.OwnedPath = null;
+                if (!OrderDoorPoint(b, stack, .42f, false, ref r.OwnedPath))
+                {
+                    EndDoor(s, "door-mover-refused");
+                    return true;
+                }
+                r.IssuedRoute = r.OwnedPath?.NavMeshPath;
+            }
+            b.Mover.SetTargetMoveSpeed(.75f);
             if (Time.time >= r.NextCheck)
             {
                 if (!doorBudget.TryBegin(Time.frameCount, b))
@@ -268,7 +277,8 @@ public sealed partial class Plugin
                             new DoorPoint(t.X, t.Y, t.Z),
                             false,
                             out _,
-                            out _
+                            out _,
+                            stationary: true
                         );
                     }
                     finally
@@ -321,7 +331,7 @@ public sealed partial class Plugin
                     return true;
                 }
                 var raw = DoorPolicy.Stack(work.Geometry, DP(b.Position), work.Side, work.Variant);
-                string why = ValidateDoor(b, work, raw, true, out var path, out var point);
+                string why = ValidateDoor(b, work, raw, true, out var path, out var point, approachStack: true);
                 var candidate = new DoorCandidate
                 {
                     Door = work.Geometry.Id,
@@ -334,7 +344,7 @@ public sealed partial class Plugin
                 };
                 if (candidate.Eligible)
                 {
-                    candidate.PathLength = Length(path!.corners);
+                    candidate.PathLength = path == null ? SupportHorizontal(b.Position, point) : Length(path.corners);
                     candidate.Score = Math.Round(
                         candidate.PathLength + Math.Abs(point.y - b.Position.y) * 2,
                         3
@@ -363,7 +373,8 @@ public sealed partial class Plugin
                 selected.Point,
                 true,
                 out var finalPath,
-                out var finalPoint
+                out var finalPoint,
+                approachStack: true
             );
             if (refusal.Length > 0)
             {
@@ -373,7 +384,7 @@ public sealed partial class Plugin
             selected.X = finalPoint.x;
             selected.Y = finalPoint.y;
             selected.Z = finalPoint.z;
-            selected.PathLength = Length(finalPath!.corners);
+            selected.PathLength = finalPath == null ? SupportHorizontal(b.Position, finalPoint) : Length(finalPath.corners);
             if (!AcquireDoorReservation(b, s, r.Chosen, "approach", ReservationDeadline(b, s)))
             {
                 EndDoor(s, "reservation-unavailable");
@@ -383,7 +394,7 @@ public sealed partial class Plugin
             RecordDoor(s, true);
             // Reset search's corner/wait bookkeeping before temporarily supplying our verified route.
             b.Search.Reset();
-            bool accepted = b.Mover.WalkToPointByWay(finalPath, true, .5f, false);
+            bool accepted = RequestDoorApproach(b, r, finalPoint, finalPath);
             r.Policy.Accept(accepted, Time.time);
             if (!accepted)
             {
@@ -391,14 +402,8 @@ public sealed partial class Plugin
                 return true;
             }
             r.Owner = b;
-            r.OwnedPath = b.Mover.ActivePath;
             r.NextCheck = Time.time + .25f;
             r.Started = Time.time;
-            if (!OwnsDoorPath(r))
-            {
-                EndDoor(s, "door-native-route-not-observed");
-                return true;
-            }
             RecordDoor(s, true);
             return false;
         }
@@ -504,7 +509,8 @@ public sealed partial class Plugin
         out NavMeshPath? path,
         out Vector3 point,
         DoorApproachConfig? approach = null,
-        bool stationary = false
+        bool stationary = false,
+        bool approachStack = false
     )
     {
         path = null;
@@ -540,15 +546,17 @@ public sealed partial class Plugin
             if (!NavMesh.SamplePosition(point, out var sample, .7f, NavMesh.AllAreas))
                 return "door-no-local-navmesh";
             point = sample.position;
-            if (!b.Mover.CanGoToPoint(point, out path, true, .1f))
+            bool nearStack = approachStack && DoorApproach.NearStack(DP(b.Position), DP(point));
+            if (!nearStack && !b.Mover.CanGoToPoint(point, out path, true, .1f))
                 return "door-incomplete-stack-route";
             string placement = DoorPolicy.Placement(
                 g,
                 DP(b.Position),
                 raw,
                 DP(point),
-                path.corners.Select(DP).ToArray(),
-                path.status == NavMeshPathStatus.PathComplete
+                path?.corners.Select(DP).ToArray() ?? Array.Empty<DoorPoint>(),
+                path?.status == NavMeshPathStatus.PathComplete,
+                approachStack
             );
             if (placement.Length > 0)
                 return placement;
@@ -570,19 +578,72 @@ public sealed partial class Plugin
         return d;
     }
 
-    private static bool OwnsDoorPath(DoorRuntime r)
+    private static IBotPathData? QueuedDoorPath(BotComponent bot) =>
+        combatPathOne != null && combatPathTwo != null ? CrossfireQueuedPath(bot) : null;
+
+    // Point-based SAIN calls may reuse an order or create one in either buffer.
+    // Retain only our previous route or a new native NavMeshPath created by this call.
+    private static bool OrderDoorPoint(BotComponent bot, Vector3 point, float reach, bool sprint, ref IBotPathData? owned)
     {
-        var t = r.Policy.Trace;
-        var b = r.Owner;
-        return t != null
-            && b != null
-            && r.OwnedPath != null
-            && ReferenceEquals(b.Mover.ActivePath, r.OwnedPath)
-            && Vector3.Distance(
-                r.OwnedPath.Destination,
-                new Vector3((float)t.X, (float)t.Y, (float)t.Z)
-            ) <= .3f;
+        var previous = owned?.NavMeshPath;
+        var activeBefore = bot.Mover.ActivePath?.NavMeshPath;
+        var queuedBefore = QueuedDoorPath(bot)?.NavMeshPath;
+        bool accepted = sprint ? bot.Mover.RunToPoint(point, true, reach, ESprintUrgency.High)
+            : bot.Mover.WalkToPoint(point, true, reach);
+        bool Matches(IBotPathData? leg) => leg?.NavMeshPath != null
+            && (leg.Destination - point).sqrMagnitude < .09f
+            && (ReferenceEquals(leg.NavMeshPath, previous)
+                || !ReferenceEquals(leg.NavMeshPath, activeBefore) && !ReferenceEquals(leg.NavMeshPath, queuedBefore));
+        var queued = QueuedDoorPath(bot);
+        var active = bot.Mover.ActivePath;
+        owned = !accepted ? null : Matches(queued) ? queued : Matches(active) ? active : null;
+        return accepted;
     }
+
+    private static IBotPathData? IssuedDoorPath(BotComponent bot, NavMeshPath route)
+    {
+        return SelectDoorLeg(QueuedDoorPath(bot), bot.Mover.ActivePath, route);
+    }
+
+    private static IBotPathData? SelectDoorLeg(IBotPathData? queued, IBotPathData? active, NavMeshPath route)
+    {
+        if (queued != null && ReferenceEquals(queued.NavMeshPath, route))
+            return queued;
+        return active != null && ReferenceEquals(active.NavMeshPath, route) ? active : null;
+    }
+
+    private static bool CurrentDoorPath(BotComponent bot, IBotPathData? path) =>
+        path != null && (ReferenceEquals(bot.Mover.ActivePath, path)
+            || ReferenceEquals(QueuedDoorPath(bot), path));
+
+    private static string DoorRouteState(BotComponent bot, IBotPathData? path, NavMeshPath? route)
+    {
+        if (path == null || !ReferenceEquals(path.NavMeshPath, route))
+            return "unobserved";
+        if (ReferenceEquals(bot.Mover.ActivePath, path))
+            return "active";
+        return CurrentDoorPath(bot, path) ? "queued" : "released";
+    }
+
+    private static bool RequestDoorApproach(BotComponent bot, DoorRuntime r, Vector3 stack, NavMeshPath? route)
+    {
+        bool atStack = DoorApproach.AtStack(DP(bot.Position), DP(stack));
+        r.OwnedPath = null;
+        bool accepted = atStack || (route == null
+            ? OrderDoorPoint(bot, stack, .42f, false, ref r.OwnedPath)
+            : bot.Mover.WalkToPointByWay(route, true, .42f, false));
+        if (accepted && !atStack && route != null)
+            r.OwnedPath = IssuedDoorPath(bot, route);
+        r.IssuedRoute = r.OwnedPath?.NavMeshPath;
+        r.NextMoveOrder = Time.time + .75f;
+        r.Policy.Trace!.NativeRoute = atStack ? "at-stack" : DoorRouteState(bot, r.OwnedPath, r.IssuedRoute);
+        return accepted;
+    }
+
+    private static bool OwnsDoorPath(DoorRuntime r) =>
+        r.Owner != null && r.OwnedPath != null && r.IssuedRoute != null
+        && ReferenceEquals(r.OwnedPath.NavMeshPath, r.IssuedRoute)
+        && CurrentDoorPath(r.Owner, r.OwnedPath);
 
     private void FinishDoor(BotState s)
     {
@@ -635,7 +696,7 @@ public sealed partial class Plugin
         var t = r.Policy.Trace;
         if (t == null)
             return;
-        string key = t.State + ":" + t.Reason;
+        string key = t.State + ":" + t.Reason + ":" + t.NativeRoute;
         if (!force && key == r.LogKey && Time.time - r.LogAt < 1)
             return;
         r.LogAt = Time.time;

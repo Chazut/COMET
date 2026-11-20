@@ -32,6 +32,27 @@ static class Audit
         Comet.IntegrationProbe.Plugin.Run(probe);
         if (probe.Errors.Count > 0)
             throw new Exception(string.Join("\n", probe.Errors.Distinct()));
+        var selectDoorLeg = typeof(Comet.Client.Plugin).GetMethod("SelectDoorLeg", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var pathType = selectDoorLeg.GetParameters()[2].ParameterType;
+        var manual = selectDoorLeg.GetParameters()[0].ParameterType.Assembly.GetType(
+            selectDoorLeg.GetParameters()[0].ParameterType.Namespace + ".BotPathDataManual", true)!;
+        var goal = RuntimeHelpers.GetUninitializedObject(pathType);
+        var old = RuntimeHelpers.GetUninitializedObject(pathType);
+        // NavMeshPath has a Unity native finalizer; these are managed identity tokens only.
+        GC.SuppressFinalize(goal);
+        GC.SuppressFinalize(old);
+        var active = RuntimeHelpers.GetUninitializedObject(manual);
+        var queued = RuntimeHelpers.GetUninitializedObject(manual);
+        var route = manual.GetProperty("NavMeshPath")!;
+        route.SetValue(active, old);
+        route.SetValue(queued, goal);
+        object? Pick(object? pending, object? moving) => selectDoorLeg.Invoke(null, new[] { pending, moving, goal });
+        if (!ReferenceEquals(Pick(queued, active), queued) || !ReferenceEquals(Pick(null, queued), queued)
+            || Pick(null, active) != null || Pick(null, null) != null)
+            throw new Exception("Door route ownership must follow the issued SAIN route across queue promotion.");
+        route.SetValue(queued, old);
+        if (Pick(queued, active) != null)
+            throw new Exception("A recycled door buffer may no longer be claimed.");
         using var manifest = JsonDocument.Parse(
             File.ReadAllText(root + "Client/obj/fault-boundaries/integration-manifest.json")
         );

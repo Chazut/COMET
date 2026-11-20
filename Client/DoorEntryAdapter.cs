@@ -579,8 +579,8 @@ public sealed partial class Plugin
             bool accepted = sprint
                 ? b.Mover.RunToPointByWay(path, true, .3f, ESprintUrgency.High, false)
                 : b.Mover.WalkToPointByWay(path, true, .3f, false);
-            r.OwnedPath = b.Mover.ActivePath;
-            return accepted && r.OwnedPath != null;
+            r.OwnedPath = accepted ? IssuedDoorPath(b, path) : null;
+            return accepted;
         }
         finally
         {
@@ -612,14 +612,13 @@ public sealed partial class Plugin
             var t = r.Policy.Trace!;
             t.ContactAge = b.GoalEnemy!.TimeSinceLastKnownUpdated;
             var door = r.Door!.Data.Door;
+            bool crossingRoute = t.State == "crossing";
+            var routeEnd = crossingRoute ? r.Exit : r.InteractionPoint;
             if (
                 t.State != "interacting"
-                && (
-                    r.OwnedPath == null
-                    || b.Mover.ActivePath != null
-                        && !ReferenceEquals(b.Mover.ActivePath, r.OwnedPath)
-                    || b.Mover.ActivePath == null && r.OwnedPath.Status != EBotMoveStatus.Complete
-                )
+                && Vector3.Distance(b.Position, routeEnd) > (crossingRoute ? .5f : .4f)
+                && !CurrentDoorPath(b, r.OwnedPath)
+                && !(b.Mover.ActivePath == null && r.OwnedPath?.Status == EBotMoveStatus.Complete)
             )
             {
                 EndDoorEntry(s, "entry-route-replaced");
@@ -680,8 +679,11 @@ public sealed partial class Plugin
                     EndDoorEntry(s, "entry-native-request-refused");
                     return;
                 }
-                r.OwnedPath?.RequestEndSprint(ESprintUrgency.None, "COMET native door interaction");
-                r.OwnedPath?.Cancel();
+                if (r.OwnedPath != null && CurrentDoorPath(b, r.OwnedPath) && ReferenceEquals(r.OwnedPath.NavMeshPath, r.Approach))
+                {
+                    r.OwnedPath.RequestEndSprint(ESprintUrgency.None, "COMET native door interaction");
+                    r.OwnedPath.Cancel();
+                }
                 r.OwnedPath = null;
                 RecordDoorEntry(s, true);
                 // Same native branch as official SAIN. Fika overrides StartInteraction and sends

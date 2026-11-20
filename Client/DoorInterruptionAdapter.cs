@@ -503,10 +503,10 @@ public sealed partial class Plugin
             }
             var known = b.GoalEnemy!.KnownPlaces.LastKnownPosition!.Value;
             var raw = DoorPolicy.Stack(w.Geometry, DP(b.Position), w.Side, w.Variant);
-            string invalid = ValidateDoor(b, w, raw, true, out var path, out var dest);
-            if (invalid.Length > 0 || path?.status != NavMeshPathStatus.PathComplete)
+            string invalid = ValidateDoor(b, w, raw, true, out var path, out var dest, approachStack: true);
+            if (invalid.Length > 0)
             {
-                AbandonDoorResume(s, invalid.Length > 0 ? invalid : "resume-no-path");
+                AbandonDoorResume(s, invalid);
                 return true;
             }
             if (!AcquireDoorReservation(b, s, w, "resume:approach", Time.time + 150))
@@ -540,14 +540,13 @@ public sealed partial class Plugin
                     X = dest.x,
                     Y = dest.y,
                     Z = dest.z,
-                    PathLength = Length(path.corners),
+                    PathLength = path == null ? SupportHorizontal(b.Position, dest) : Length(path.corners),
                 },
                 DP(b.Position),
                 Time.time
             );
             b.Search.Reset();
-            bool accepted = b.Mover.WalkToPointByWay(path, true, .5f, false);
-            d.OwnedPath = b.Mover.ActivePath;
+            bool accepted = RequestDoorApproach(b, d, dest, path);
             d.Policy.Accept(accepted, Time.time);
             d.NextCheck = Time.time + .25f;
             if (!accepted)

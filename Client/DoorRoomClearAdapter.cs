@@ -512,12 +512,7 @@ public sealed partial class Plugin
         if (t.State == "entering")
         {
             bool near = Vector3.Distance(b.Position, r.Destination) <= .5f;
-            bool owns =
-                OwnsClearPath(r)
-                || b.Mover.ActivePath == null
-                    && r.OwnedPath?.Status == EBotMoveStatus.Complete
-                    && near;
-            if (!owns)
+            if (!near && !FollowingClearRoute(b, r))
             {
                 EndDoorClear(s, "clear-route-replaced");
                 return true;
@@ -525,7 +520,7 @@ public sealed partial class Plugin
             r.Policy.Movement(
                 DP(b.Position),
                 DoorClearGeometry.Depth(r.Door!.Geometry, DP(r.Stack), DP(b.Position)) > .4,
-                r.OwnedPath?.Status == EBotMoveStatus.Complete,
+                near || r.OwnedPath?.Status == EBotMoveStatus.Complete,
                 FakeWeaponReady(b),
                 Time.time
             );
@@ -692,10 +687,9 @@ public sealed partial class Plugin
                 r.Policy.MoveRequest(DP(b.Position), Time.time);
                 b.Mover.SetTargetPose(1f);
                 b.Mover.SetTargetMoveSpeed(1f);
-                bool accepted = b.Mover.RunToPoint(r.Destination, true, .5f, ESprintUrgency.High);
+                bool accepted = OrderDoorPoint(b, r.Destination, .5f, true, ref r.OwnedPath);
                 r.Policy.MoveResult(accepted);
-                r.OwnedPath = accepted ? b.Mover.ActivePath : null;
-                if (accepted && !OwnsClearPath(r))
+                if (accepted && !FollowingClearRoute(b, r) && Vector3.Distance(b.Position, r.Destination) > .5f)
                 {
                     EndDoorClear(s, "clear-native-path-not-observed");
                     return true;
@@ -872,10 +866,17 @@ public sealed partial class Plugin
         return false;
     }
 
+    private static bool FollowingClearRoute(BotComponent bot, DoorClearRuntime r)
+    {
+        // SAIN can reuse a pre-existing route to this point. Follow it without claiming it for cleanup.
+        var leg = QueuedDoorPath(bot) ?? bot.Mover.ActivePath;
+        return leg != null && Vector3.Distance(leg.Destination, r.Destination) < .3f;
+    }
+
     private static bool OwnsClearPath(DoorClearRuntime r) =>
         r.Owner != null
         && r.OwnedPath != null
-        && ReferenceEquals(r.Owner.Mover.ActivePath, r.OwnedPath)
+        && CurrentDoorPath(r.Owner, r.OwnedPath)
         && Vector3.Distance(r.OwnedPath.Destination, r.Destination) < .3f;
 
     private void EndDoorClear(BotState s, string reason)

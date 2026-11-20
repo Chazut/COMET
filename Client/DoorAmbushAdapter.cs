@@ -315,13 +315,14 @@ public sealed partial class Plugin
             return PlanAmbushStep(b, s);
         if (t.State == "approaching")
         {
-            if (r.Path?.NavMeshPath.status != NavMeshPathStatus.PathComplete)
+            bool near = DoorApproach.AtStack(DP(b.Position), new(t.X, t.Y, t.Z));
+            if (!near && r.Path?.PathStatus != NavMeshPathStatus.PathComplete)
             {
                 EndDoorAmbush(s, "ambush-route-invalidated");
                 return true;
             }
             bool complete = r.Path?.Status == EBotMoveStatus.Complete;
-            bool owns = OwnAmbushPath(r) || (b.Mover.ActivePath == null && complete);
+            bool owns = near || OwnAmbushPath(r) || (b.Mover.ActivePath == null && complete);
             r.Policy.Movement(DP(b.Position), complete, owns, Time.time);
             if (!r.Policy.Active)
             {
@@ -652,10 +653,10 @@ public sealed partial class Plugin
             StopQuiet(b, s, "quiet-door-ambush");
             bool accepted = b.Mover.WalkToPointByWay(final!, true, .4f, false);
             r.Policy.Request(DP(b.Position), accepted);
-            r.Path = b.Mover.ActivePath;
-            if (!accepted || !OwnAmbushPath(r))
+            r.Path = accepted ? IssuedDoorPath(b, final!) : null;
+            if (!accepted)
             {
-                EndDoorAmbush(s, "ambush-native-route-not-observed");
+                EndDoorAmbush(s, "ambush-mover-refused");
                 return true;
             }
             r.NextCheck = Time.time + .25f;
@@ -717,7 +718,7 @@ public sealed partial class Plugin
     private static bool OwnAmbushPath(DoorAmbushRuntime r) =>
         r.Owner != null
         && r.Path != null
-        && ReferenceEquals(r.Owner.Mover.ActivePath, r.Path)
+        && CurrentDoorPath(r.Owner, r.Path)
         && r.Policy.Trace is DoorAmbushTrace t
         && Vector3.Distance(r.Path.Destination, new((float)t.X, (float)t.Y, (float)t.Z)) <= .3f;
 

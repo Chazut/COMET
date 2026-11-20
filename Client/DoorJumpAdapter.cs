@@ -121,6 +121,7 @@ public sealed partial class Plugin
         if (
             t.MovementAccepted
             && t.State != "return-pending"
+            && !arrived
             && !OwnsJumpPath(r)
             && !(
                 b.Mover.ActivePath == null
@@ -207,8 +208,8 @@ public sealed partial class Plugin
                 }
                 // A verified walking route supplies momentum. No teleport, speed multiplier or forced jump animation.
                 bool accepted = b.Mover.WalkToPointByWay(r.Outward!, true, .2f, false);
-                r.OwnedPath = b.Mover.ActivePath;
-                if (!accepted || !OwnsJumpPath(r))
+                r.OwnedPath = IssuedDoorPath(b, r.Outward!);
+                if (!accepted || (!OwnsJumpPath(r) && Vector3.Distance(b.Position, r.Landing) > .4f))
                 {
                     EndDoorJump(s, "peek-native-movement-refused");
                     return true;
@@ -319,8 +320,8 @@ public sealed partial class Plugin
                     return true;
                 }
                 r.Policy.ReturnStarted(Time.time);
-                r.OwnedPath = b.Mover.ActivePath;
-                if (!OwnsJumpPath(r))
+                r.OwnedPath = IssuedDoorPath(b, path);
+                if (!OwnsJumpPath(r) && Vector3.Distance(b.Position, r.Stack) > .4f)
                 {
                     EndDoorJump(s, "peek-return-path-not-observed");
                     return true;
@@ -490,7 +491,7 @@ public sealed partial class Plugin
         if (
             r.Owner == null
             || r.OwnedPath == null
-            || !ReferenceEquals(r.Owner.Mover.ActivePath, r.OwnedPath)
+            || !CurrentDoorPath(r.Owner, r.OwnedPath)
         )
             return false;
         bool back = r.Policy.Trace?.State.StartsWith("return", StringComparison.Ordinal) == true;
@@ -516,7 +517,7 @@ public sealed partial class Plugin
         if (
             r.Owner != null
             && r.OwnedPath != null
-            && ReferenceEquals(r.Owner.Mover.ActivePath, r.OwnedPath)
+            && CurrentDoorPath(r.Owner, r.OwnedPath)
             && !(s.MedicalPosture.Policy.Blocking && !r.Owner.Player.MovementContext.IsGrounded)
         )
         {

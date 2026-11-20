@@ -16,6 +16,58 @@ class EvidenceRegression(unittest.TestCase):
     finish = fixtures.ArchiveTests.finish
     m = fixtures.ArchiveTests.m
 
+    def test_legacy_door_requires_an_explicit_request_for_the_same_target_and_door(self):
+        def step(n, reason, **fields):
+            trace = dict(door="d", target="enemy", requested=True, reason=reason)
+            trace.update(fields)
+            return event(n, feature="D01", doorApproach=trace)
+        self.add(step(1, "door-move-requested"), step(2, "door-native-route-not-observed", state="ended", movementAccepted=True),
+                 step(3, "other", state="ended", movementAccepted=True),
+                 step(4, "door-move-requested"), step(5, "changed", door="other", moved=True),
+                 step(6, "accepted", episode=7, movementAccepted=True), step(7, "arrived", episode=7, moved=True, arrived=True))
+        self.finish()
+        analyze(self.c, "r")
+        d = self.m("D01")
+        self.assertEqual((d["requested"], d["accepted"], d["started"], d["completed"], d["unconfirmed"]), (3, 2, 1, 1, 2))
+
+    def test_observed_feature_fields_are_distinct_from_intent(self):
+        from analyze import phases, CATALOG_BY_ID
+        from evidence import effect_facts
+        def facts(f, **fields):
+            return phases({"feature": f}, fields, CATALOG_BY_ID[f])
+        self.assertIn("started", facts("M07", aligned=True))
+        self.assertNotIn("started", facts("M07", requested=True))
+        self.assertNotIn("started", facts("W07", accepted=True, actualShots=0))
+        self.assertIn("started", facts("W07", actualShots=1))
+        self.assertIn("started", facts("M03", openObserved=True))
+        self.assertNotIn("completed", facts("L03", observedOff=True))
+        self.assertIn("completed", facts("L03", requested=True, observedOff=True))
+        self.assertFalse({"requested", "accepted"} & facts("M13", requested=True, accepted=True))
+        self.assertIn("requested", facts("M13", moveRequested=True, requested=True))
+        self.assertFalse(effect_facts("S04", {}, {"feature": "S01", "reason": "crossfire-angle-reached"}))
+
+    def test_weapon_journal_matches_actor_weapon_time_and_latest_request_once(self):
+        from evidence import EpisodeEvidence
+        e = EpisodeEvidence()
+        actor = dict(session="a", profileId="p", botInstance="b")
+        def observe(time, weapon="gun", reason="requested-weapon-observed", **overrides):
+            row = {**actor, **overrides, "weaponJournal": {"change": {"to": weapon, "reason": reason}}}
+            e.weapon_observation(row, time)
+        for key, time in [("first", 1), ("second", 20), ("third", 21), ("unseen", 55)]:
+            e.weapon_request(actor, {"to": "gun"}, time, key)
+        observe(.98)
+        observe(19.9)
+        observe(20.98)  # Between two plausible commands; it cannot confirm either.
+        observe(21.3)
+        observe(22, reason="requested-weapon-ready")
+        observe(22.2, reason="requested-weapon-ready")
+        observe(56, weapon="another")
+        observe(56, botInstance="other")
+        observe(56, session="other")
+        observe(65.1)
+        self.assertEqual(dict(e.weapon_results()), {"first": {"started", "Requested weapon in hands"},
+            "third": {"started", "completed", "Requested weapon in hands", "Requested weapon ready"}})
+
     def test_crossfire_positioning_outcome_is_explicit_and_deduplicated(self):
         for n in range(1, 4):
             self.add(

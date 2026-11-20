@@ -252,7 +252,7 @@ public sealed class DoorAmbush
         }
         var t = Trace;
         t.MovementObserved |= (position - origin).Length >= .15;
-        if ((position - new DoorPoint(t.X, t.Y, t.Z)).Length <= .6)
+        if (DoorApproach.AtStack(position, new DoorPoint(t.X, t.Y, t.Z)))
         {
             t.Arrived = true;
             t.State = "settling";

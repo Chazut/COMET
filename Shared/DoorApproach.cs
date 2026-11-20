@@ -81,6 +81,8 @@ public sealed class DoorCandidate
 
 public sealed class DoorApproachTrace
 {
+    public long Episode { get; set; }
+    public string NativeRoute { get; set; } = "";
     public string State { get; set; } = "planning";
     public string Reason { get; set; } = "door-evaluating";
     public string Target { get; set; } = "";
@@ -221,7 +223,8 @@ public static class DoorPolicy
         DoorPoint raw,
         DoorPoint sampled,
         IReadOnlyList<DoorPoint> path,
-        bool complete
+        bool complete,
+        bool approachStack = false
     )
     {
         if (!sampled.Finite)
@@ -232,6 +235,8 @@ public static class DoorPolicy
             || Math.Abs((sampled - g.Center).Dot(g.Axis)) < g.HalfWidth * .9
         )
             return "door-point-in-opening";
+        if (approachStack && DoorApproach.NearStack(bot, sampled))
+            return "";
         if (!complete || path.Count < 2)
             return "door-incomplete-stack-route";
         double length = 0;
@@ -277,6 +282,7 @@ public sealed class DoorApproach
     private string consumedTarget = "";
     private DoorPoint consumedPoint;
     private double consumedAt;
+    private long episode;
 
     public bool PlanningExpired(double now) =>
         Planning && (!DoorPolicy.Finite(now) || now < started || now - started > 150);
@@ -310,6 +316,7 @@ public sealed class DoorApproach
         if (!Planning || !c.Eligible)
             throw new InvalidOperationException("No verified door preparation");
         var t = Trace!;
+        t.Episode = ++episode;
         t.Door = c.Door;
         t.Side = c.Side;
         t.X = c.X;
@@ -344,9 +351,7 @@ public sealed class DoorApproach
         DoorPoint bot,
         double age,
         double now,
-        double limit,
-        bool ownPath,
-        bool arrived
+        double limit
     )
     {
         if (!Active)
@@ -366,13 +371,8 @@ public sealed class DoorApproach
             End("door-contact-changed", now);
             return false;
         }
-        if (!ownPath)
-        {
-            End("door-path-replaced", now);
-            return false;
-        }
         t.Moved |= (bot - origin).Length >= .35;
-        if (arrived && (bot - new DoorPoint(t.X, t.Y, t.Z)).Length <= .6)
+        if (AtStack(bot, new DoorPoint(t.X, t.Y, t.Z)))
         {
             t.Arrived = true;
             t.State = "arrived";
@@ -400,6 +400,16 @@ public sealed class DoorApproach
             Trace.Remaining = 0;
         }
         blockedUntil = DoorPolicy.Finite(now) ? now + 8 : 0;
+    }
+
+    public static bool NearStack(DoorPoint bot, DoorPoint goal) => HorizontalSquared(bot, goal) < .9 * .9;
+
+    public static bool AtStack(DoorPoint bot, DoorPoint goal) => HorizontalSquared(bot, goal) < .6 * .6;
+
+    private static double HorizontalSquared(DoorPoint bot, DoorPoint goal)
+    {
+        double dx = bot.X - goal.X, dz = bot.Z - goal.Z;
+        return dx * dx + dz * dz;
     }
 
     public double Deadline(double limit) => started + limit;

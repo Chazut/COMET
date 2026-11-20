@@ -202,12 +202,7 @@ public sealed partial class Plugin
         if (t.MovementAccepted)
         {
             if (
-                !OwnsRunPath(r)
-                && !(
-                    b.Mover.ActivePath == null
-                    && r.OwnedPath?.Status == EBotMoveStatus.Complete
-                    && arrived
-                )
+                !OwnsRunPath(r) && !arrived
             )
             {
                 EndDoorRun(s, "run-by-path-replaced");
@@ -334,9 +329,9 @@ public sealed partial class Plugin
                     }
                     r.ReturnFrom = b.Position;
                     r.Return = path;
-                    r.OwnedPath = b.Mover.ActivePath;
+                    r.OwnedPath = IssuedDoorPath(b, path);
                     r.Policy.ReturnStarted(DP(b.Position), Time.time);
-                    if (!OwnsRunPath(r))
+                    if (!OwnsRunPath(r) && Vector3.Distance(b.Position, r.Angle) > .35f)
                     {
                         EndDoorRun(s, "run-by-return-path-not-observed");
                         return true;
@@ -462,9 +457,9 @@ public sealed partial class Plugin
                     EndDoorRun(s, "run-by-native-movement-refused");
                     return true;
                 }
-                r.OwnedPath = b.Mover.ActivePath;
+                r.OwnedPath = IssuedDoorPath(b, r.Outward!);
                 r.Policy.Start(DP(b.Position), Time.time);
-                if (!OwnsRunPath(r))
+                if (!OwnsRunPath(r) && Vector3.Distance(b.Position, r.Far) > .35f)
                 {
                     EndDoorRun(s, "run-by-path-not-observed");
                     return true;
@@ -606,7 +601,7 @@ public sealed partial class Plugin
     private static bool OwnsRunPath(DoorRunRuntime r) =>
         r.Owner != null
         && r.OwnedPath != null
-        && ReferenceEquals(r.Owner.Mover.ActivePath, r.OwnedPath)
+        && CurrentDoorPath(r.Owner, r.OwnedPath)
         && Vector3.Distance(
             r.OwnedPath.Destination,
             r.Policy.Trace?.ReturnAccepted == true ? r.Angle : r.Far
@@ -630,7 +625,7 @@ public sealed partial class Plugin
         if (
             r.Owner != null
             && r.OwnedPath != null
-            && ReferenceEquals(r.Owner.Mover.ActivePath, r.OwnedPath)
+            && CurrentDoorPath(r.Owner, r.OwnedPath)
         )
         {
             r.OwnedPath.RequestEndSprint(ESprintUrgency.None, "COMET run-by released");

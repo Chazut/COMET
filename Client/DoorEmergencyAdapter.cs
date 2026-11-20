@@ -630,14 +630,14 @@ public sealed partial class Plugin
                 close = Vector3.Distance(b.Position, r.Destination) <= .6f;
             if (
                 r.Path != null
-                && !ReferenceEquals(r.Path, b.Mover.ActivePath)
+                && !CurrentDoorPath(b, r.Path)
                 && !(complete && close)
             )
             {
                 EndDoorEmergency(s, "emergency-path-ownership-lost");
                 return true;
             }
-            if (!complete && (r.Path == null || Time.time >= r.NextCheck))
+            if (!close && !complete && (!t.MoveAccepted || Time.time >= r.NextCheck))
             {
                 if (!doorBudget.TryBegin(Time.frameCount, b))
                 {
@@ -665,13 +665,13 @@ public sealed partial class Plugin
                 }
                 r.NextCheck = Time.time + .25f;
             }
-            if (r.Path == null)
+            if (!t.MoveAccepted)
             {
                 r.Start = b.Position;
                 r.StartDistance = Vector3.Distance(b.Position, r.Destination);
                 t.MoveAccepted = b.Mover.WalkToPointByWay(r.Route, true, .4f, false);
-                r.Path = b.Mover.ActivePath;
-                if (!t.MoveAccepted || r.Path == null)
+                r.Path = t.MoveAccepted && r.Route != null ? IssuedDoorPath(b, r.Route) : null;
+                if (!t.MoveAccepted || r.Path == null && !close)
                 {
                     EndDoorEmergency(s, "emergency-native-move-refused");
                     return true;

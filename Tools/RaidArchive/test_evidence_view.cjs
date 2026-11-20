@@ -6,7 +6,7 @@ assert.equal(
 );
 assert.equal(
   coverageSummary({ disabledRaids: 0 }, 0),
-  "No recorded opportunity",
+  "No feature trace recorded",
 );
 assert.equal(
   coverageSummary({ events: 10, observationFacts: { "Speed cap applied": 9 } }),
@@ -14,7 +14,7 @@ assert.equal(
 );
 assert.equal(
   coverageSummary({ events: 10, observationFacts: { accepted: 9 } }),
-  "Evaluated; execution unconfirmed",
+  "Command recorded; execution unconfirmed",
 );
 assert.equal(
   lifecycleValue({ counting: "trace", coverage: "events-only" }, "started"),
@@ -66,4 +66,17 @@ assert.equal(
   coverageSummary({ id: "S03", events: 20, started: 1 }),
   "Execution observed",
 );
-console.log("Evidence view: 11 regressions passed");
+for (const [data, label] of [
+  [{ id: "T03", events: 10 }, "Journal recorded"],
+  [{ id: "A04", events: 2, randomTrials: 1 }, "Random draw recorded"],
+  [{ id: "P10", events: 10 }, "Decision context recorded"],
+  [{ id: "U01", events: 10 }, "Configuration recorded"],
+  [{ id: "D05", events: 1, observationFacts: { refused: 1 } }, "Refusal recorded"],
+  [{ id: "M06", events: 1 }, "Evaluation recorded"],
+  [{ id: "A11" }, "No separate trace"],
+  [{ id: "D02" }, "No door follow-up recorded"],
+  [{ id: "G08" }, "No gas exposure recorded"],
+  [{ id: "C10" }, "No safety intervention recorded"],
+  [{ events: 2, observationFacts: { interrupted: 1 } }, "Evaluation recorded"],
+]) assert.equal(coverageSummary(data), label);
+console.log("Evidence view regressions passed");

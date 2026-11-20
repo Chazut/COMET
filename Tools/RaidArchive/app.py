@@ -176,6 +176,10 @@ def totals(c, filters):
             started=0,
             completed=0,
             unconfirmed=0,
+            requested=0,
+            accepted=0,
+            randomTrials=0,
+            refused=0,
             selected=0,
             identifiedRaids=0,
             disabledRaids=0,
@@ -204,6 +208,10 @@ def totals(c, filters):
                 started=0,
                 completed=0,
                 unconfirmed=0,
+                requested=0,
+                accepted=0,
+                randomTrials=0,
+                refused=0,
                 selected=0,
                 identifiedRaids=0,
                 disabledRaids=0,
@@ -215,7 +223,7 @@ def totals(c, filters):
                 evidenceNote=evidence_note(row["feature"]),
             )
             features[row["feature"]] = f
-        for key in ("events", "started", "completed", "unconfirmed", "selected"):
+        for key in ("events", "started", "completed", "unconfirmed", "selected", "requested", "accepted", "randomTrials", "refused"):
             f[key] += m.get(key, 0)
         f["raids"] += bool(m["events"])
         f["identifiedRaids"] += m.get("coverage") == "identified-attempts"

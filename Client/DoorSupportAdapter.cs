@@ -548,8 +548,7 @@ public sealed partial class Plugin
         if (Time.time > r.NextMove)
         {
             r.NextMove = Time.time + .75f;
-            bool accepted = b.Mover.WalkToPoint(point, true, .42f);
-            r.Path = b.Mover.ActivePath;
+            bool accepted = OrderDoorPoint(b, point, .42f, false, ref r.Path);
             supportBoard.RequestMove(s.ProfileId, accepted);
             if (!accepted)
             {
