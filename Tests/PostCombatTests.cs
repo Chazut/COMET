@@ -46,18 +46,18 @@ internal static class PostCombatTests
         p.Tick(f, c, 0, 0);
         Check(p.Trace!.State == "medical", "then heal");
         f.MedicalBusy = true;
-        f.Now = 80;
+        f.Now = 60;
         p.Tick(f, c, 0, 0);
         Check(
             p.Active && p.Trace!.State == "medical",
-            "native animation may outlast nominal recovery window"
+            "native medicine may outlast the ordinary recovery budget within the combat window"
         );
         f.MedicalBusy = false;
         f.MedicalUseful = false;
         f.Heard = true;
         f.Coming = true;
         f.Regroup = true;
-        f.Now = 80.25;
+        f.Now = 60.25;
         p.Tick(f, c, 0, 0);
         Check(
             p.Active && p.Trace!.State == "watch" && !p.Trace.AdvanceSelected,
@@ -65,8 +65,52 @@ internal static class PostCombatTests
         );
         f.Heard = false;
         f.Coming = false;
-        f.Now = 84;
+        f.Now = 64;
         Check(!p.Tick(f, c, 0, 0), "finish when recovery work and sound watch are done");
+        foreach (var work in new[] { "sound", "medical-busy", "medical-useful", "reload" })
+        {
+            var policy = new PostCombat();
+            policy.ObserveFight(40);
+            policy.ObserveFight(42);
+            var frame = new PostCombatFrame {
+                Heard = work == "sound", MedicalBusy = work == "medical-busy",
+                MedicalUseful = work == "medical-useful", Reloading = work == "reload",
+            };
+            // Start recovery late. The absolute deadline still falls at 102.
+            for (int time = 52; time < 102; time++)
+            {
+                frame.Now = time;
+                Check(policy.Tick(frame, c, 0, 0), "work can keep recovery until the combat deadline: " + work);
+                Check(policy.Trace!.Remaining > 0 && policy.Trace.Remaining <= 102 - time,
+                    "the active budget includes the extension and never exceeds the deadline: " + work);
+            }
+            frame.Now = 101.999;
+            Check(policy.Tick(frame, c, 0, 0) && policy.WantsRecovery(frame.Now),
+                "work is still eligible just below sixty seconds: " + work);
+            Check(policy.Trace!.WatchRemaining <= 102 - frame.Now, "watch is clamped to the combat deadline");
+            frame.Now = 102;
+            Check(!policy.WantsRecovery(frame.Now) && !policy.Tick(frame, c, 0, 0)
+                && policy.Trace.Reason == PostCombat.WindowExpired && policy.Trace.SecondsSinceCombat == 60
+                && policy.Trace.Remaining == 0 && policy.Trace.WatchRemaining == 0 && !policy.Trace.Applied,
+                "the first tick at sixty seconds releases even busy hands or repeated sound: " + work);
+            frame.Now = 107;
+            Check(!policy.Tick(frame, c, 0, 0), "the same fight cannot restart at 65 seconds: " + work);
+            policy.ResetCombatWindow();
+            policy.ObserveFight(108);
+            policy.ObserveFight(109.5);
+            frame.Now = 110;
+            Check(policy.Tick(frame, c, 0, 0) && policy.Trace!.Episode == 2, "a new fight gets its own window");
+        }
+        var late = new PostCombat();
+        late.ObserveFight(0);
+        late.ObserveFight(2);
+        Check(!late.Tick(new() { Now = 62, Heard = true }, c, 0, 0) && late.Trace == null,
+            "late first evaluation cannot start an episode at the deadline");
+        var shorter = new PostCombat();
+        shorter.ObserveFight(0);
+        shorter.ObserveFight(2);
+        Check(shorter.Tick(new() { Now = 3, MedicalBusy = true }, new() { MedicalDuration = 22 }, 0, 0)
+            && shorter.Trace!.Remaining == 22, "a shorter configured medical budget is retained in diagnostics");
         p.ResetCombatWindow();
         p.ObserveFight(88.5);
         p.ObserveFight(90);

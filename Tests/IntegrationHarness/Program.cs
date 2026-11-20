@@ -175,7 +175,7 @@ static class Audit
             var pair in new[]
             {
                 ("CrossfireAction", "OnSteeringTicked"),
-                ("PostCombatAction", "OnSteeringTicked"),
+                ("Plugin", "SteerPostCombat"),
                 ("Plugin", "ChaseSteering"),
                 ("Plugin", "FeintSteering"),
             }
@@ -193,6 +193,9 @@ static class Audit
             if (!Calls(callback).Any(m => Equals(m, fire)))
                 throw new Exception("Steering override omitted native firing: " + pair);
         }
+        var postSteering = client.GetType("Comet.Client.PostCombatAction", true)!.GetMethod("OnSteeringTicked")!;
+        if (!Calls(postSteering).Contains(plugin.GetMethod("SteerPostCombat", BindingFlags.Static | BindingFlags.NonPublic)))
+            throw new Exception("Post-combat steering does not use the timed H04 owner.");
         var fireCalls = Calls(fire).Select(m => m.Name).ToArray();
         if (
             !fireCalls.Contains("ShootAnyVisibleEnemies")

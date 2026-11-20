@@ -132,7 +132,7 @@ public sealed partial class Plugin
     private bool PostCombatMedicalScope(BotComponent b) =>
         states.TryGetValue(b, out var s)
         && (
-            s.PostCombat.Layer && s.PostCombat.Policy.Active
+            s.PostCombat.Layer && s.PostCombat.Policy.WantsRecovery(Time.time)
             || s.PostCombat.MedicalOwner
                 && (s.Medical.Policy.Active || s.Medical.Interruption.Active)
         );
@@ -141,6 +141,7 @@ public sealed partial class Plugin
 
     private bool PostReachedCover(BotComponent b, BotState s) =>
         s.PostCombat.Layer
+        && s.PostCombat.Policy.WantsRecovery(Time.time)
         && s.PostCombat.Protected
         && Vector3.Distance(b.Position, s.PostCombat.ProtectedAt) < 1.5f;
 
@@ -239,6 +240,16 @@ public sealed partial class Plugin
         }
     }
 
+    private bool PostCombatWindowOpen(BotComponent b, BotState s)
+    {
+        var policy = s.PostCombat.Policy;
+        if (policy.WantsRecovery(Time.time))
+            return true;
+        if (policy.Active)
+            EndPostCombat(b, s, PostCombat.WindowExpired, false);
+        return false;
+    }
+
     private bool RefreshPostCombat(BotComponent b, BotState s)
     {
         var r = s.PostCombat;
@@ -247,7 +258,7 @@ public sealed partial class Plugin
             EndPostCombat(b, s, "post-combat-out-of-scope", true);
             return false;
         }
-        if (!r.Policy.WantsRecovery(Time.time))
+        if (!PostCombatWindowOpen(b, s))
             return false;
         bool danger = PostDanger(b);
         bool priority =
@@ -364,7 +375,9 @@ public sealed partial class Plugin
             var r = s.PostCombat;
             if (!active)
             {
-                p.EndPostCombat(b, s, "post-combat-layer-released", false);
+                string reason = r.Policy.Active && !r.Policy.WantsRecovery(Time.time)
+                    ? PostCombat.WindowExpired : "post-combat-layer-released";
+                p.EndPostCombat(b, s, reason, false);
                 return;
             }
             if (!p.RefreshPostCombat(b, s))
@@ -402,7 +415,11 @@ public sealed partial class Plugin
             return false;
         try
         {
-            if (!p.PostScope(b) || p.PostDanger(b))
+            if (!p.PostScope(b) || !p.PostCombatWindowOpen(b, s))
+                return false;
+            if (TacticalSteeringFire.TryShoot(b, TacticalSteeringKind.PostCombat))
+                return true;
+            if (p.PostDanger(b))
                 return false;
             if (s.PostCombat.Path != null)
                 b.Steering.LookToMovingDirection();
@@ -430,7 +447,7 @@ public sealed partial class Plugin
         if (clear)
             r.Policy.Clear(why);
         else if (active)
-            r.Policy.End(why);
+            r.Policy.End(why, Time.time);
         r.Layer = false;
         if (active)
         {

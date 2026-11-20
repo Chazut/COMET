@@ -94,6 +94,7 @@ public sealed class PostCombatTrace
     public double ValidFor { get; set; }
     public double Elapsed { get; set; }
     public double CombatLayerSeconds { get; set; }
+    public double SecondsSinceCombat { get; set; }
     public double Remaining { get; set; }
     public double WatchRemaining { get; set; }
     public double AmmoPercent { get; set; }
@@ -114,6 +115,8 @@ public sealed class PostCombatTrace
 // A single bounded episode. Failed optional work is not retried every update.
 public sealed class PostCombat
 {
+    public const string WindowExpired = "post-combat-window-expired";
+    private const double MaxSecondsSinceCombat = 60;
     public PostCombatTrace? Trace { get; private set; }
     public bool Active { get; private set; }
     public double LastFight { get; private set; } = -1000;
@@ -124,13 +127,12 @@ public sealed class PostCombat
         advanceDone;
     private double start,
         watchUntil,
-        watchDuration,
         combatLayerSince = -1,
         lastNow = -1;
     private int episode;
 
     public bool WantsRecovery(double now) =>
-        Active || armed && now >= LastFight && now - LastFight <= 60;
+        (Active || armed && now >= LastFight) && now < LastFight + MaxSecondsSinceCombat;
 
     public void ObserveFight(double now)
     {
@@ -163,6 +165,8 @@ public sealed class PostCombat
             return false;
         }
         lastNow = f.Now;
+        if (!WantsRecovery(f.Now))
+            return Active ? End(WindowExpired) : false;
         if (f.Threat || f.NativePriority)
         {
             if (Active)
@@ -174,12 +178,10 @@ public sealed class PostCombat
         }
         if (!Active)
         {
-            if (!armed || f.Now - LastFight > 60)
-                return false;
             armed = false;
             Active = true;
             start = f.Now;
-            watchDuration = c.WatchMin + Clamp(watchRoll) * (c.WatchMax - c.WatchMin);
+            double watchDuration = c.WatchMin + Clamp(watchRoll) * (c.WatchMax - c.WatchMin);
             watchUntil = f.Now + watchDuration;
             coverDone = reloadDone = regroupDone = advanceDone = false;
             double chance = c.AdvanceChances.TryGetValue(f.Personality, out var v) ? v : 40;
@@ -196,19 +198,23 @@ public sealed class PostCombat
         }
         var t = Trace!;
         t.Elapsed = Math.Max(0, f.Now - start);
-        t.WatchRemaining = watchUntil < 0 ? watchDuration : Math.Max(0, watchUntil - f.Now);
+        t.SecondsSinceCombat = f.Now - LastFight;
         t.MedicalBusy = f.MedicalBusy;
         t.MedicalUseful = f.MedicalUseful;
         t.AmmoPercent = f.AmmoPercent;
-        t.Remaining = Math.Max(
-            0,
-            (f.MedicalUseful || f.MedicalBusy ? c.MedicalDuration : c.Duration) - t.Elapsed
-        );
         if (f.Heard)
         {
             t.AdvanceSelected = false;
             watchUntil = Math.Max(watchUntil, f.Now + 3);
         }
+        double windowLeft = LastFight + MaxSecondsSinceCombat - f.Now;
+        t.WatchRemaining = Math.Min(windowLeft, Math.Max(0, watchUntil - f.Now));
+        double budget = (f.MedicalUseful || f.MedicalBusy ? c.MedicalDuration : c.Duration) - t.Elapsed;
+        if (f.Reloading)
+            budget = windowLeft;
+        if (f.Heard)
+            budget = Math.Max(budget, t.WatchRemaining);
+        t.Remaining = Math.Min(windowLeft, Math.Max(0, budget));
         if (f.MedicalBusy)
             return Stage("medical", "post-combat-native-treatment-active");
         if (f.Reloading)
@@ -226,9 +232,6 @@ public sealed class PostCombat
         if (!reloadDone && f.AmmoPercent < c.ReloadBelow)
             return Stage("reload", "post-combat-top-up-magazine");
         reloadDone = true;
-        if (watchUntil < 0)
-            watchUntil = f.Now + watchDuration;
-        t.WatchRemaining = Math.Max(0, watchUntil - f.Now);
         if (!f.Heard && !regroupDone && f.Regroup)
             return Stage("regroup", "post-combat-rejoin-leader");
         regroupDone = true;
@@ -278,16 +281,24 @@ public sealed class PostCombat
         return true;
     }
 
-    public bool End(string why)
+    public bool End(string why) => End(why, lastNow);
+
+    public bool End(string why, double now)
     {
-        Active = false;
         if (Trace != null)
         {
+            if (Active)
+            {
+                Trace.Elapsed = Math.Max(0, now - start);
+                Trace.SecondsSinceCombat = Math.Max(0, now - LastFight);
+            }
             Trace.State = "ended";
             Trace.Reason = why;
             Trace.Applied = false;
             Trace.ValidFor = 0;
+            Trace.Remaining = Trace.WatchRemaining = 0;
         }
+        Active = false;
         return false;
     }
 

@@ -45,8 +45,6 @@ public sealed class PostCombatAction : BotAction
 
     public override void OnSteeringTicked()
     {
-        if (TacticalSteeringFire.TryShoot(Bot, TacticalSteeringKind.PostCombat))
-            return;
         if (!Plugin.SteerPostCombat(BotOwner))
             Bot.Steering.SteerByPriority(Bot.GoalEnemy);
     }

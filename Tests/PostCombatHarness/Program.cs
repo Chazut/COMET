@@ -306,7 +306,8 @@ foreach (bool available in new[] { true, false })
     Step(61);
     p.Sample(b);
     a.Update(new());
-    C(b.BotOwner.Medecine.FirstAid.Cancels == 0, "budget cannot cancel medicine");
+    C(!l.IsActive() && b.BotOwner.Medecine.FirstAid.Using
+        && b.BotOwner.Medecine.FirstAid.Cancels == 0, "H04 releases while the original medicine is still in use");
     b.BotOwner.Medecine.FirstAid.Finish();
     b.BotOwner.Medecine.FirstAid.CurUsingMeds = null;
     b.Player.HandsController = new Player.FirearmController();
@@ -314,6 +315,79 @@ foreach (bool available in new[] { true, false })
     Step();
     C(!l.IsActive(), "after long medicine routine yields");
     Save(p);
+}
+{
+    var (_, b, layer, action) = Setup();
+    var reload = b.BotOwner.WeaponManager.Reload;
+    reload.Reloading = true;
+    Step(59.5f);
+    C(layer.IsActive(), "pending native reload can keep recovery up to the combat deadline");
+    action.Start();
+    Step(.5f);
+    action.Stop();
+    C(!layer.IsActive() && reload.Reloading && reload.Requests == 0,
+        "release at the deadline leaves the pending native reload alone");
+}
+foreach (bool bhf in new[] { false, true })
+{
+    var (p, b, layer, action) = Setup();
+    var surgery = b.BotOwner.Medecine.SurgicalKit;
+    surgery.CurUsingMeds = new Meds { Id = "external-cms", AllowedPart = EBodyPart.LeftLeg };
+    surgery.Bhf = bhf;
+    int callbacks = 0;
+    surgery.ApplyToCurrentPart(callback: () => callbacks++);
+    var hands = b.Player.HandsController;
+    Step(59.875f);
+    C(layer.IsActive(), "an external surgery can hold the final fraction of the combat window");
+    action.Start();
+    var r = p.states[b].PostCombat;
+    C(layer.IsActive() && r.Next > 70 && r.Policy.Trace!.State == "medical",
+        "the next scheduled work tick is after the deadline");
+    Step(.125f);
+    action.Update(new());
+    C(!r.Layer && !r.Policy.Active && surgery.Using && ReferenceEquals(hands, b.Player.HandsController)
+        && surgery.Cancels == 0 && surgery.Requests == 1 && callbacks == 0,
+        "expiration before polling leaves the original surgery and callback intact, BHF=" + bhf);
+    action.Stop();
+    surgery.Finish();
+    C(callbacks == 1 && !surgery.Using && !layer.IsActive(), "native surgery completion after H04 exits, BHF=" + bhf);
+}
+{
+    var (p, b, layer, action) = Setup();
+    var hearing = new SAIN.Components.BotControllerSpace.Classes.BotHearingClass();
+    var stranger = new SAIN.Components.PlayerComponentSpace.PlayerComponent { ProfileId = "noisy-neighbour" };
+    SourceSoundWatch.Attach(hearing);
+    try
+    {
+        Step(20);
+        for (int age = 20; age < 60; age++)
+        {
+            hearing.Emit(SAINSoundType.FootStep, b.Position, stranger);
+            C(layer.IsActive(), "repeated noise extends the delayed H04 episode at age " + age);
+            if (age == 20) action.Start();
+            else action.Update(new());
+            Step(1);
+        }
+        hearing.Emit(SAINSoundType.FootStep, b.Position, stranger);
+        b.Shoot.Result = true;
+        int previous = b.Shoot.Calls;
+        action.OnSteeringTicked();
+        var r = p.states[b].PostCombat;
+        C(b.Shoot.Calls == previous && !r.Layer && !r.Policy.Active
+            && !Api.Decisions.Recovery.ContainsKey(b.ProfileId), "a stale steering callback releases ownership at 60 seconds");
+        int records = p.diagnostics!.Lines.Count;
+        var end = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics.Lines.Last());
+        C((string?)end["reason"] == Comet.Core.PostCombat.WindowExpired
+            && (double?)end["postCombat"]?["secondsSinceCombat"] == 60
+            && (double?)end["postCombat"]?["elapsed"] == 40
+            && (double?)end["postCombat"]?["remaining"] == 0, "end event distinguishes combat age from episode duration");
+        action.Update(new());
+        action.Stop();
+        Step(5);
+        C(!layer.IsActive() && p.diagnostics.Lines.Count == records,
+            "later callbacks neither restart H04 at 65 seconds nor duplicate its end event");
+    }
+    finally { SourceSoundWatch.Detach(hearing); }
 }
 {
     var (p, b, l, a) = Setup();
