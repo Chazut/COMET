@@ -24,8 +24,7 @@ internal sealed class CoverFeintRuntime(RepositionCooldown cooldown)
     internal Enemy? Enemy;
     internal Player.FirearmController? Firearm;
     internal NavMeshPath? Requesting;
-    internal Vector3 Out,
-        From;
+    internal Vector3 From;
     internal float Next,
         LastSafety = -1000,
         NextSafety,
@@ -399,8 +398,10 @@ public sealed partial class Plugin
             && b.Decision.CurrentCombatDecision == ECombatDecision.Freeze
         )
         {
+            var opposite = p.OppositePeekProbe;
+            bool needsPoint = p.Trace.State == "planning" || opposite.HasValue;
             if (
-                p.Trace.State == "planning"
+                needsPoint
                 && r.ProbeFrame != Time.frameCount
                 && doorBudget.TryBegin(Time.frameCount, b)
             )
@@ -409,7 +410,10 @@ public sealed partial class Plugin
                 doorClock.Restart();
                 try
                 {
-                    PlanFeint(b, s, f, config.CoverFeint);
+                    if (opposite is DoorPoint mirror)
+                        p.ResolveOppositePeek(SampleOppositePeek(mirror, p.Known), f.Now);
+                    else
+                        PlanFeint(b, s, f, config.CoverFeint);
                 }
                 finally
                 {
@@ -417,12 +421,17 @@ public sealed partial class Plugin
                     doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);
                 }
             }
-            else if (p.Trace.State == "planning")
+            else if (needsPoint)
                 p.Preparation.Defer(Time.time, Time.deltaTime);
             if (!p.Active)
             {
                 FinishFeint(s);
                 return;
+            }
+            if (p.TargetPeekPose is float pose)
+            {
+                b.Mover.SetTargetPose(pose);
+                p.Trace.AppliedPeekPose = pose;
             }
             if (p.WantsRoute && doorBudget.TryBegin(Time.frameCount, b))
             {
@@ -529,6 +538,15 @@ public sealed partial class Plugin
         p.Plan(p.Home, f.Now);
     }
 
+    private static DoorPoint? SampleOppositePeek(DoorPoint mirror, DoorPoint known)
+    {
+        if (!NavMesh.SamplePosition(VP(mirror), out var hit, .6f, NavMesh.AllAreas)
+            || Physics.Linecast(hit.position + Vector3.up * 1.4f, VP(known) + Vector3.up * 1.3f,
+                LayersMaskController.HighPolyWithTerrainMask))
+            return null;
+        return DP(hit.position);
+    }
+
     private bool TryPlanFeintPoint(BotComponent b, CoverFeintRuntime r)
     {
         var p = r.Policy;
@@ -572,9 +590,8 @@ public sealed partial class Plugin
                 )
             )
                 continue;
-            r.Out = nav.position;
             r.Candidate = 0;
-            return p.Plan(DP(r.Out), Time.time);
+            return p.Plan(DP(nav.position), Time.time);
         }
         return false;
     }
@@ -731,6 +748,9 @@ public sealed partial class Plugin
                 )
             )
                 StopFeintRoutes(r);
+            if (r.Owner != null && !r.Owner.IsDead && r.Policy.Trace?.AppliedPeekPose == .55f
+                && Math.Abs(r.Owner.Mover.Pose.PoseValue.TargetValue - .55f) < .01f)
+                r.Owner.Mover.SetTargetPose(1f);
             if (
                 r.OwnSpeed
                 && r.Owner != null

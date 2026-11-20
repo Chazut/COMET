@@ -14,6 +14,16 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### M14 second bait peek (2026-11-21)
+
+Once the first peek has a point, the bot has a 40% chance to lower its stance
+to 0.55. On the second outward leg it uses the opposite stance. At the first
+return, it tries the reflection of the first opening across its starting cover.
+The check samples within 0.6 m on the NavMesh and tests the sightline from the
+sampled point to the remembered enemy. A failed check reuses the first opening.
+The M14 trace records the first point, initial stance, side choice and last
+pose requested from SAIN. Only the first outing can use a jump.
+
 ### A02 visible combat scores (2026-11-20)
 
 A02 ranks Shoot, Cover and Push using the full weighted scores, including

@@ -109,6 +109,23 @@ public static class Cases
             state.SelectedCover == null,
             "unrelated plan is not attributed a native cover decision"
         );
+        var mirror = new DoorPoint(8.5, 2, 5.5);
+        var known = new DoorPoint(10, 2, 18);
+        NavMesh.Sample = new Vector3(8.25f, 2.25f, 5.5f);
+        Physics.Exposed.Add((float)known.X);
+        Check(Plugin.Opposite(mirror, known) == new DoorPoint(8.25, 2.25, 5.5),
+            "M14 selects the sampled opening when it can see the remembered contact");
+        Check(NavMesh.Query == (new Vector3(8.5f, 2, 5.5f), .6f, NavMesh.AllAreas)
+            && Physics.LastEye == NavMesh.Sample.Value + Vector3.up * 1.4f
+            && Physics.LastTarget == new Vector3(10, 2 + 1.3f, 18)
+            && Physics.LastMask == LayersMaskController.HighPolyWithTerrainMask,
+            "M14 uses the native sample radius, eye heights and terrain mask");
+        Physics.Exposed.Clear();
+        Check(Plugin.Opposite(mirror, known) == null, "blocked sightline falls back to the first opening");
+        NavMesh.Sample = null;
+        int rays = Physics.Linecasts;
+        Check(Plugin.Opposite(mirror, known) == null && Physics.Linecasts == rays,
+            "missing NavMesh falls back without a sightline query");
         Console.WriteLine($"{checks} production cover selection and handoff checks passed.");
     }
 }
@@ -128,14 +145,35 @@ readonly record struct Vector3(float x, float y, float z)
         );
 }
 
+readonly record struct DoorPoint(double X, double Y, double Z);
+
+static class NavMesh
+{
+    public const int AllAreas = -1;
+    public static Vector3? Sample;
+    public static (Vector3, float, int) Query;
+    public readonly record struct Hit(Vector3 position);
+
+    public static bool SamplePosition(Vector3 point, out Hit hit, float radius, int areas)
+    {
+        Query = (point, radius, areas);
+        hit = new(Sample.GetValueOrDefault());
+        return Sample.HasValue;
+    }
+}
+
 static class Physics
 {
     internal static HashSet<float> Exposed = new();
-    internal static Vector3 LastEye;
+    internal static Vector3 LastEye, LastTarget;
+    internal static int Linecasts, LastMask;
 
     public static bool Linecast(Vector3 from, Vector3 to, int mask)
     {
         LastEye = from;
+        LastTarget = to;
+        LastMask = mask;
+        Linecasts++;
         return !Exposed.Contains(to.x);
     }
 }
@@ -197,6 +235,7 @@ static class ContactSafety
 partial class Plugin
 {
     public static Plugin Instance;
+    public static DoorPoint? Opposite(DoorPoint mirror, DoorPoint known) => SampleOppositePeek(mirror, known);
     public Dictionary<BotComponent, BotState> states = new();
     public List<string> Events = new();
     public CoverPoint Relocation;

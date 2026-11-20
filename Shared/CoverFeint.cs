@@ -143,7 +143,9 @@ public sealed class CoverFeintTrace
         WeaponReady,
         DrewFire,
         ApproachObserved;
-    public DoorPoint? MagazineVisiblePathPoint;
+    public DoorPoint? FirstPeekPoint, MagazineVisiblePathPoint;
+    public bool? FirstPeekCrouched, UsedOppositePoint;
+    public float? AppliedPeekPose;
     public float PullBackFrom, PullBackUntil;
     public bool PullBackRequested;
     public string[] Alternatives = Array.Empty<string>();
@@ -168,6 +170,7 @@ public sealed class CoverFeintPolicy
 
     private double nextRoll;
     private bool alternatePending;
+    private Func<double> rollPeekPose = null!;
     private int episode;
     private double started,
         phaseAt,
@@ -185,6 +188,16 @@ public sealed class CoverFeintPolicy
     public bool Active => Trace != null && Trace.State != "ended";
     public bool Moving => Trace?.State is "out" or "back";
     public bool WantsRoute => Trace?.State is "out-pending" or "back-pending";
+    public DoorPoint? OppositePeekProbe =>
+        Trace is { State: "pause", UsedOppositePoint: null, FirstPeekPoint: { } first }
+            ? Home + (Home - first) : null;
+    public float? TargetPeekPose => Trace switch
+    {
+        { State: "out" or "out-pending", FirstPeekCrouched: bool low, CompletedPeeks: var count } =>
+            (count == 0 ? low : !low) ? .55f : 1f,
+        { State: "final-hold" } => 1f,
+        _ => null,
+    };
     public int HistoryCount => 0;
 
     public static string Gate(CoverFeintFrame f, CoverFeintConfig c)
@@ -271,6 +284,7 @@ public sealed class CoverFeintPolicy
                 : ""
             );
         alternatePending = kind == (peekFirst ? "peek" : "magazine");
+        rollPeekPose = random;
         Preparation.Clear();
         Home = Goal = f.Position;
         Known = f.Known;
@@ -366,15 +380,39 @@ public sealed class CoverFeintPolicy
     {
         if (!Active || Trace!.State != "planning" || !goal.Finite)
             return false;
-        Goal = goal;
+        SetGoal(goal);
         Trace.PeekPointSelected = Trace.Kind == "peek";
         if (Trace.PeekPointSelected)
+        {
+            Trace.FirstPeekPoint = goal;
+            Trace.FirstPeekCrouched = rollPeekPose() < .4;
             alternatePending = false;
-        Trace.GoalX = goal.X;
-        Trace.GoalY = goal.Y;
-        Trace.GoalZ = goal.Z;
+        }
         Set(Trace.Kind == "peek" ? "out-pending" : "mag-pending", "feint-plan-ready", now);
         return true;
+    }
+
+    public void ResolveOppositePeek(DoorPoint? sampled, double now)
+    {
+        if (Trace is not { State: "pause", UsedOppositePoint: null, FirstPeekPoint: { } first } t)
+            return;
+        t.UsedOppositePoint = sampled.HasValue;
+        SetGoal(sampled ?? first);
+        AdvancePeekPause(now);
+    }
+
+    private void AdvancePeekPause(double now)
+    {
+        if (Trace is { State: "pause", UsedOppositePoint: bool opposite } t && now - phaseAt >= t.Pause)
+            Set("out-pending", opposite ? "feint-opposite-side" : "feint-reuse-opening", now);
+    }
+
+    private void SetGoal(DoorPoint goal)
+    {
+        Goal = goal;
+        Trace!.GoalX = goal.X;
+        Trace.GoalY = goal.Y;
+        Trace.GoalZ = goal.Z;
     }
 
     public void RequestMove(double now)
@@ -532,8 +570,8 @@ public sealed class CoverFeintPolicy
         }
         if (t.State == "show" && f.Now - phaseAt >= t.Exposure)
             Return(f.Now, "feint-short-exposure-complete");
-        if (t.State == "pause" && f.Now - phaseAt >= t.Pause)
-            Set("planning", "feint-compare-other-side", f.Now);
+        if (t.State == "pause")
+            AdvancePeekPause(f.Now);
         if (t.State == "final-hold" && f.Now - phaseAt >= 2.5)
             End("feint-hold-finished");
         return Active;
@@ -541,10 +579,7 @@ public sealed class CoverFeintPolicy
 
     private void Return(double now, string why)
     {
-        Goal = Home;
-        Trace!.GoalX = Goal.X;
-        Trace.GoalY = Goal.Y;
-        Trace.GoalZ = Goal.Z;
+        SetGoal(Home);
         Set("back-pending", why, now);
     }
 

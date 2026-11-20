@@ -17,6 +17,8 @@ string source =
     "using System; namespace Comet.Client; partial class Plugin {"
     + Method("Plugin", "FindCover")
     + Method("Plugin", "ObserveNativeCover")
+    + Method("DoorApproachAdapter", "VP") + Method("DoorApproachAdapter", "DP")
+    + Method("CoverFeintAdapter", "SampleOppositePeek")
     + "} static class VisibleAdapter {"
     + Method("VisibleAdapter", "SelectCover")
     + "}";

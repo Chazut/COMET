@@ -167,7 +167,8 @@ internal static class CoverFeintTests
         Check(rolls == 6 && !p.Begin(F(10.1), c, Low) && rolls == 6, "active tactic never rerolls");
         p.Accepted(true);
         Save();
-        Check(p.Plan(new(1, 0, 0), 10.1), "short peek plan");
+        Check(p.Plan(new(1, 0, 0), 10.1) && p.TargetPeekPose == .55f
+            && p.Trace!.FirstPeekCrouched == true && rolls == 7, "one stance roll on the first usable point");
         Save();
         p.RequestMove(10.2);
         Save();
@@ -227,10 +228,22 @@ internal static class CoverFeintTests
             "actual protected return counted"
         );
         Save();
+        Check(p.OppositePeekProbe.Equals(new DoorPoint(-1, 0, 0)) && p.TargetPeekPose == null,
+            "the first return offers the mirrored point before the pause expires");
+        var oppositeHit = new DoorPoint(-1.1, .12, .05);
+        p.ResolveOppositePeek(oppositeHit, f.Now);
+        p.ResolveOppositePeek(null, f.Now);
+        Check(p.Trace.State == "pause" && !p.WantsRoute && p.OppositePeekProbe == null
+            && p.Goal.Equals(oppositeHit), "probe once, use the sampled point, wait for the pause");
         f.Now = 12.1;
         p.Observe(f, c);
-        Check(p.Trace.State == "planning", "stable pause opens second peek");
-        p.Plan(new(-1, 0, 0), 12.1);
+        Check(p.Trace.State == "out-pending" && p.Trace.UsedOppositePoint == true
+            && p.TargetPeekPose == 1f && rolls == 7, "second outward leg stands without another draw");
+        Save();
+        Check(wire[^1].GetProperty("usedOppositePoint").GetBoolean()
+            && wire[^1].GetProperty("firstPeekCrouched").GetBoolean()
+            && wire[^1].GetProperty("firstPeekPoint").GetProperty("x").GetDouble() == 1,
+            "M14 records the first opening, stance and opposite-side result");
         p.RequestMove(12.1);
         f = F(12.3);
         f.Position = new(-1, 0, 0);
@@ -355,7 +368,7 @@ internal static class CoverFeintTests
             if (failure == "no firearm") p.NoFirearm(F(11), c);
             else p.MagazineResult(false, false, F(11), c);
             Check(p.Trace!.Kind == "peek" && p.Trace.SharedCooldownUntil == (failure == "no firearm" ? 0 : 16)
-                && p.Plan(new(1, 0, 0), 11) && call == 6,
+                && p.Plan(new(1, 0, 0), 11) && call == 7 && p.TargetPeekPose == .55f,
                 "alternate peek can start immediately after " + failure);
             p.End("feint-native-priority", 12);
             Check(p.Trace.SharedCooldownUntil == 17, "real alternate peek starts its own cooldown on exit");
@@ -460,22 +473,49 @@ internal static class CoverFeintTests
         f.Visible = true;
         p.Observe(f, c);
         Check(!p.Active && !p.ShouldPullBack(12), "spotting during a fake reload ends it without scheduling retreat");
-        p = new();
-        p.Begin(F(), c, Low);
-        p.Plan(new(1, 0, 0), 10);
-        p.RequestMove(10);
-        f = F(11);
-        f.AtGoal = true;
-        p.Observe(f, c);
-        p.Observe(F(12), c);
-        p.RequestMove(12);
-        f.Now = 13;
-        p.Observe(f, c);
-        p.Observe(F(15), c);
-        Check(p.Trace!.State == "planning" && p.Trace.CompletedPeeks == 1, "second peek needs a point");
-        p.NoPeekPoint(F(15), c);
-        Check(!p.Active && p.Trace.FallbackReason == "" && p.Trace.SharedCooldownUntil == 20,
-            "failure on a later peek ends the started session without switching variants");
+        foreach (int peeks in new[] { 1, 2 })
+        {
+            p = new();
+            var settings = new CoverFeintConfig { Peeks = peeks };
+            int draws = 0;
+            f = F();
+            f.Position = new(10, 2, 6);
+            p.Begin(f, settings, () => ++draws == 7 ? .4 : .1);
+            var first = new DoorPoint(11.5, 2.1, 6.5);
+            p.Plan(first, 10);
+            Check(p.TargetPeekPose == 1f && p.Trace!.FirstPeekCrouched == false,
+                "at exactly 40 percent the first peek stands");
+            p.RequestMove(10);
+            f.Now = 11;
+            f.AtGoal = true;
+            p.Observe(f, settings);
+            Check(p.TargetPeekPose == null, "show does not issue an outbound stance");
+            f.Now = 12;
+            p.Observe(f, settings);
+            p.RequestMove(12);
+            f.Now = 13;
+            p.Observe(f, settings);
+            if (peeks == 1)
+            {
+                Check(p.Trace!.State == "final-hold" && p.TargetPeekPose == 1f
+                    && p.OppositePeekProbe == null, "one-peek preset never probes a second opening");
+                continue;
+            }
+            Check(p.OppositePeekProbe.Equals(new DoorPoint(8.5, 2 - (2.1 - 2), 5.5)),
+                "the mirror includes forward offset and elevation around the original cover");
+            f.Now = 15;
+            p.Observe(f, settings);
+            Check(!p.WantsRoute && p.OppositePeekProbe.HasValue, "delayed probe retains its original opening");
+            p.ResolveOppositePeek(null, f.Now);
+            Check(p.WantsRoute && p.Goal.Equals(first) && p.Trace!.UsedOppositePoint == false
+                && p.TargetPeekPose == .55f && draws == 7 && p.Trace.FallbackReason == "",
+                "a blocked or off-mesh mirror reuses the first opening immediately at the opposite height");
+            p.End("test-interruption", f.Now);
+            Check(p.TargetPeekPose == null && p.OppositePeekProbe == null, "no pose or probe after release");
+            p.Begin(F(50), settings, Low);
+            Check(p.Trace!.FirstPeekCrouched == null && p.Trace.FirstPeekPoint == null
+                && p.Trace.UsedOppositePoint == null, "a new session starts with a fresh opening and pose");
+        }
         p = new();
         call = 0;
         p.Begin(F(), c, MagRoll);
@@ -753,6 +793,16 @@ internal static class CoverFeintTests
                     && Calls(pe, md, Method("MagazineOperation"), "get_CurrentHandsOperation") == 1,
                 "native virtual magazine check and observed operation"
             );
+            Check(Calls(pe, md, Method("RefreshFeint"), "SampleOppositePeek") == 1
+                && Calls(pe, md, Method("RefreshFeint"), "ResolveOppositePeek") == 1
+                && Calls(pe, md, Method("SampleOppositePeek"), "SamplePosition") == 1
+                && Calls(pe, md, Method("SampleOppositePeek"), "Linecast") == 1
+                && Calls(pe, md, Method("SampleOppositePeek"), "Raycast") == 0
+                && Calls(pe, md, Method("SampleOppositePeek"), "TryPlanFeintPoint") == 0,
+                "the mirror uses a single native NavMesh sample and direct sightline");
+            Check(Calls(pe, md, Method("RefreshFeint"), "SetTargetPose") == 1
+                && Calls(pe, md, Method("FinishFeint"), "SetTargetPose") == 1,
+                "accepted action applies the native pose and releases its lowered stance on exit");
             Check(
                 Calls(pe, md, Method("RefreshFeint"), "ControlledJump") == 1,
                 "running jumps use M12 authority and physics"
