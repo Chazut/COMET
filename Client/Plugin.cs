@@ -237,6 +237,7 @@ public sealed partial class Plugin : BaseUnityPlugin
 
             RunIntegration("PatchOutdoorRelocation", () => PatchOutdoorRelocation(harmony));
 
+            RunIntegration("PatchContactHearing", () => PatchContactHearing(harmony));
             RunIntegration("PatchCoverFeint", () => PatchCoverFeint(harmony));
 
             RunIntegration("PatchReloadTiming", () => PatchReloadTiming(harmony));

@@ -69,6 +69,7 @@ public sealed class MedicalFrame
         LegsHold,
         InHisView,
         CoverTowardHim;
+    public string FootstepContact = "";
     public string Contact = "",
         Priority = "";
     public string Personality = "";
@@ -104,6 +105,7 @@ public sealed class MedicalTrace
     public bool ReachedCover { get; set; }
     public bool Visible { get; set; }
     public bool Footsteps { get; set; }
+    public string FootstepContact { get; set; } = "";
     public bool ThreatsIncomplete { get; set; }
     public int Contacts { get; set; }
     public string Contact { get; set; } = "";
@@ -154,6 +156,7 @@ public sealed class MedicalChoice
             ReachedCover = f.ReachedCover,
             Visible = f.Visible,
             Footsteps = f.Footsteps,
+            FootstepContact = f.FootstepContact,
             Contacts = f.Contacts,
             Contact = f.Contact,
             X = f.X,

@@ -8,6 +8,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Client/ExternalSurgeryAdapter.cs" Link="ExternalSurgeryAdapter.cs" />
+    <Compile Include="../../Client/ContactHearing.cs" Link="ContactHearing.cs" />
+    <Compile Include="../Support/ContactHearingDoubles.cs" Link="ContactHearingDoubles.cs" />
     <Compile Include="../../Client/MedicalChoiceAdapter.cs" Link="MedicalChoiceAdapter.cs" />
     <Compile Include="../../Shared/MedicalChoice.cs" Link="MedicalChoice.cs" />
     <Compile Include="../../Shared/UtilityMistakeVerdict.cs" Link="UtilityMistakeVerdict.cs" />

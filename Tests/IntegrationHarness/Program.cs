@@ -84,8 +84,8 @@ static class Audit
         // Metadata preparation runs against the actual built client, without JITing Unity
         // callbacks on the .NET test host or executing any game action.
         var client = typeof(Comet.Client.Plugin).Assembly;
-        if (!probe.Hooks.Any(h => h.Callback == "ObserveFeintSound" && h.Target.Contains("EnemyHearing.UpdateHeardPosition")))
-            throw new Exception("M14 must sample the accepted native hearing position.");
+        if (probe.Hooks.Count(h => h.Callback == "ObserveContactSound" && h.Target.Contains("EnemyHearing.UpdateHeardPosition")) != 1)
+            throw new Exception("H01 and M14 must share one native hearing registration.");
         VerifyFeintHearing(client);
         VerifySiegeRoomLookup(client);
         VerifyDoorStateEvent();
@@ -391,7 +391,7 @@ static class Audit
 
     private static void VerifyFeintHearing(Assembly client)
     {
-        var type = client.GetType("Comet.Client.FeintHeardSound", true)!;
+        var type = client.GetType("Comet.Client.ContactHeardSound", true)!;
         var sample = Activator.CreateInstance(type)!;
         const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
         var record = type.GetMethod("Record", flags)!.CreateDelegate<Action<SAINHearingReport, float>>(sample);

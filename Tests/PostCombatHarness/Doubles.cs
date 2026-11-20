@@ -30,6 +30,7 @@ namespace UnityEngine
         public float x = x,
             y = y,
             z = z;
+        public float sqrMagnitude => x * x + y * y + z * z;
         public float magnitude => (float)Math.Sqrt(x * x + y * y + z * z);
 
         public static float Distance(Vector3 a, Vector3 b) =>
@@ -685,6 +686,7 @@ namespace SAIN.SAINComponent.Classes.EnemyClasses
 {
     public class Enemy(BotComponent b)
     {
+        public SAIN.Components.BotComponentSpace.Classes.EnemyClasses.EnemyHearing Hearing = new(b);
         public BotComponent Bot = b;
         public bool Seen;
         public float TimeSinceSeen = 100;
@@ -724,6 +726,7 @@ namespace Comet.Core
         public TacticalMistakesConfig TacticalMistakes = new();
         public PostCombatConfig PostCombat = new();
         public bool Enabled = true;
+        public HearingConsumerToggle CoverFeint = new();
         public MedicalChoiceConfig MedicalChoice = new();
         public SurgeryInterruptionConfig SurgeryInterruption = new() { Enabled = false };
         public long Revision = 1;
@@ -819,7 +822,7 @@ namespace Comet.Client
 
     internal class Logger
     {
-        public static void LogWarning(string m) { }
+        public void LogWarning(string m) { }
     }
 
     internal static class Api
@@ -847,6 +850,7 @@ namespace Comet.Client
             UnityEngine.Vector3 original
         ) => original;
 
+        internal Logger Logger { get; } = new();
         internal static Plugin? Instance;
         internal object? world = new();
         internal CometConfig? config = new();
@@ -897,9 +901,6 @@ namespace Comet.Client
         internal void End(BotComponent b) => EndMedical(states[b], "medical-raid-ended");
 
         internal MedicalFrame Frame(BotComponent b) => MedicalFrame(b, states[b]);
-
-        internal void Hear(Enemy e, SAINSoundType sound, EnemyPlace place) =>
-            MedicalFootstep(e, sound, place);
 
         internal bool Continue(BotComponent b)
         {

@@ -14,6 +14,15 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### H01 hearing during medical decisions (2026-11-20)
+
+Ordinary medical choices use the last sound SAIN accepted for each known
+enemy with a known position updated within 120 seconds. A footstep or sprint
+counts for less than 5 seconds and strictly within 30 m by default, including
+elevation. A subsequent sound replaces the cue for that enemy alone. H01
+and M14 read the same per-contact report. Medical traces identify a contact
+that contributed footsteps in `footstepContact`.
+
 ### M13 outdoor relocation route renewal (2026-11-20)
 
 Once SAIN accepts the relocation and starts its cover action, COMET reissues

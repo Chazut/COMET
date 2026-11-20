@@ -12,7 +12,6 @@ using Newtonsoft.Json;
 using SAIN.Components;
 using SAIN.Preset.Shared.Enums;
 using SAIN.SAINComponent.Classes.Decision;
-using SAIN.SAINComponent.Classes.EnemyClasses;
 using UnityEngine;
 
 namespace Comet.Client;
@@ -34,7 +33,6 @@ internal sealed class MedicalRuntime
         bool,
         bool
     )[7];
-    internal readonly Queue<(float at, Vector3 position)> Steps = new();
     internal WeakReference<Meds>? Item;
     internal EBodyPart Part;
     internal int Token;
@@ -84,14 +82,6 @@ public sealed partial class Plugin
                 AccessTools.Method(typeof(SAINSelfActionClass), name),
                 prefix: new HarmonyMethod(typeof(Plugin), nameof(ExecuteMedical))
             );
-        h.Patch(
-            AccessTools.Method(
-                typeof(EnemyEvents),
-                nameof(EnemyEvents.EnemyHeard),
-                new[] { typeof(SAINSoundType), typeof(bool), typeof(EnemyPlace) }
-            ),
-            postfix: new HarmonyMethod(typeof(Plugin), nameof(MedicalFootstep))
-        );
         var surgery = typeof(SAINSelfActionClass).Assembly.GetType(
             "SAIN.Layers.Combat.Solo.Cover.DoSurgeryAction",
             true
@@ -108,40 +98,6 @@ public sealed partial class Plugin
             transpiler: new HarmonyMethod(typeof(Plugin), nameof(SurgeryStopTranspiler)),
             postfix: new HarmonyMethod(typeof(Plugin), nameof(SurgeryStopped))
         );
-    }
-
-    private static void MedicalFootstep(Enemy ___Enemy, SAINSoundType __0, EnemyPlace __2)
-    {
-        var p = Instance;
-        var b = ___Enemy.Bot;
-        try
-        {
-            if (
-                p == null
-                || __0 is not (SAINSoundType.FootStep or SAINSoundType.Sprint)
-                || !p.MedicalScope(b)
-                || __2 == null
-                || !ReferenceEquals(__2, ___Enemy.KnownPlaces.LastHeardPlace)
-                || !ValidPoint(__2.Position)
-            )
-                return;
-            if (!p.states.TryGetValue(b, out var s))
-            {
-                if (p.states.Count >= 512)
-                    return;
-                s = new BotState(b, p.config!, p.session);
-                p.states.Add(b, s);
-            }
-            var steps = s.Medical.Steps;
-            while (steps.Count > 0 && (steps.Count >= 16 || Time.time - steps.Peek().at > 15))
-                steps.Dequeue();
-            steps.Enqueue((Time.time, __2.Position));
-        }
-        catch (Exception ex)
-        {
-            if (p != null && p.states.TryGetValue(b, out var state))
-                p.MedicalError(state, ex);
-        }
     }
 
     private static IEnumerable<CodeInstruction> SurgeryStopTranspiler(
@@ -354,6 +310,14 @@ public sealed partial class Plugin
                 continue;
             double age = e.TimeSinceLastKnownUpdated;
             double distance = Math.Min(e.Path.PathLength, Vector3.Distance(b.Position, pos) * 1.3);
+            if (!f.Footsteps && e.Hearing != null
+                && contactSounds.TryGetValue(e.Hearing, out var sound)
+                && sound.IsNearbyStep(Time.time, b.Position,
+                    config.MedicalChoice.FootstepAge, config.MedicalChoice.FootstepDistance))
+            {
+                f.Footsteps = true;
+                f.FootstepContact = e.EnemyProfileId;
+            }
             f.Contacts++;
             f.Visible |= e.IsVisible || e.InLineOfSight;
             if (distance < f.Nearest)
@@ -396,14 +360,6 @@ public sealed partial class Plugin
                 && Vector3.Distance(cover.Position, point)
                     < Vector3.Distance(b.Position, point) - 1.5f;
         }
-        foreach (var step in s.Medical.Steps)
-            if (
-                Time.time >= step.at
-                && Time.time - step.at <= config.MedicalChoice.FootstepAge
-                && Vector3.Distance(b.Position, step.position)
-                    <= config.MedicalChoice.FootstepDistance
-            )
-                f.Footsteps = true;
         if (!MedicalChoice.Finite(f.Health) || !MedicalChoice.Finite(f.SinceHit))
             f.Priority = "medical-invalid-state";
         return f;
@@ -862,7 +818,6 @@ public sealed partial class Plugin
         var r = s.Medical;
         if (!MedicalScope(b))
         {
-            r.Steps.Clear();
             EndSurgeryInterruption(s, "surgery-out-of-scope");
             EndMedical(s, "medical-out-of-scope");
             return;

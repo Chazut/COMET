@@ -1,15 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using Comet.Core;
 using EFT;
 using HarmonyLib;
 using Newtonsoft.Json;
 using SAIN.Components;
-using SAIN.Components.BotComponentSpace.Classes.EnemyClasses;
 using SAIN.Models.Enums;
-using SAIN.Models.Structs;
 using SAIN.Preset.Shared.Enums;
 using SAIN.SAINComponent.Classes.Decision;
 using SAIN.SAINComponent.Classes.EnemyClasses;
@@ -18,25 +15,6 @@ using UnityEngine;
 using UnityEngine.AI;
 
 namespace Comet.Client;
-
-internal sealed class FeintHeardSound
-{
-    internal float At { get; private set; }
-    private SAINSoundType type;
-    private Vector3 position;
-
-    internal void Record(SAINHearingReport report, float now)
-    {
-        At = now;
-        type = report.soundType;
-        position = report.position;
-    }
-
-    internal bool IsCloserStep(float now, Vector3 listener, Vector3 known) =>
-        type is SAINSoundType.FootStep or SAINSoundType.Sprint
-        && now - At < 5f
-        && Vector3.Distance(position, listener) < Vector3.Distance(known, listener);
-}
 
 internal sealed class CoverFeintRuntime(RepositionCooldown cooldown)
 {
@@ -81,19 +59,11 @@ internal sealed class CoverFeintRuntime(RepositionCooldown cooldown)
 
 public sealed partial class Plugin
 {
-    private readonly ConditionalWeakTable<EnemyHearing, FeintHeardSound> feintSounds = new();
-    private bool feintSoundWarned;
     private static System.Reflection.FieldInfo feintBridge = null!,
         feintClipRelease = null!;
 
     private static void PatchCoverFeint(Harmony h)
     {
-        // SetHeard calls this after its ignore gate and visible-position adjustment, before squad sharing.
-        h.Patch(
-            AccessTools.Method(typeof(EnemyHearing), nameof(EnemyHearing.UpdateHeardPosition),
-                new[] { typeof(SAINHearingReport), typeof(float) }),
-            prefix: new HarmonyMethod(typeof(Plugin), nameof(ObserveFeintSound))
-        );
         var freeze = typeof(BotComponent).Assembly.GetType(
             "SAIN.Layers.Combat.Solo.FreezeAction",
             true
@@ -140,28 +110,6 @@ public sealed partial class Plugin
         && !Ghost(s.ProfileId)
         && b.SAINLayersActive;
 
-    private static void ObserveFeintSound(EnemyHearing __instance, SAINHearingReport report)
-    {
-        var p = Instance;
-        if (p?.config?.Enabled != true || !p.config.CoverFeint.Enabled)
-            return;
-        try
-        {
-            if (!p.Authority || !NativeAdapter.IsSupportedAi(__instance.Bot))
-                return;
-            var sound = p.feintSounds.GetValue(__instance, static _ => new FeintHeardSound());
-            sound.Record(report, Time.time);
-        }
-        catch (Exception ex)
-        {
-            if (!p.feintSoundWarned)
-            {
-                p.feintSoundWarned = true;
-                p.Logger.LogWarning("M14 could not record a hearing report: " + ex.Message);
-            }
-        }
-    }
-
     private static bool MagazineOperation(Player.FirearmController? f) =>
         f?.CurrentHandsOperation is Player.FirearmController.UtilityOperation op
         && op._utilityOperationType
@@ -204,7 +152,7 @@ public sealed partial class Plugin
         f.MagazineAudible = true;
         f.Outdoor =
             b.Player.Environment == EnvironmentType.Outdoor && b.Player.AIData?.EnvironmentId == 0;
-        if (e?.Hearing != null && feintSounds.TryGetValue(e.Hearing, out var sound))
+        if (e?.Hearing != null && contactSounds.TryGetValue(e.Hearing, out var sound))
         {
             f.Heard = sound.At;
             f.Coming = sound.IsCloserStep((float)f.Now, b.Position, known);

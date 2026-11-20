@@ -79,10 +79,70 @@ MedicalTrace T(Plugin p, BotComponent b) => p.states[b].Medical.Policy.Trace!;
     enemy.KnownPlaces.LastSeenPlace!.TimeSincePositionUpdated = 15;
     return (plugin, bot);
 }
+void CheckMedicalHearing()
+{
+    var (plugin, bot) = CloseCall();
+    plugin.config!.TacticalMistakes.Enabled = false;
+    var a = bot.EnemyController.KnownEnemies[0];
+    a.EnemyProfileId = "A";
+    var near = new Vector3(0, 29.99f, 0);
+    plugin.Hear(a, SAINSoundType.FootStep, near);
+    C(!plugin.Choose(bot).result && T(plugin, bot).Choice == "Wait"
+        && T(plugin, bot).FootstepContact == "A", "hearing a nearby step makes the wounded bot wait");
+    var trace = JObject.Parse(plugin.diagnostics!.Lines.Last())["medicalChoice"]!;
+    C((string?)trace["footstepContact"] == "A", "medical trace names the contact heard");
+
+    var b = new Enemy(bot) { EnemyProfileId = "B" };
+    bot.EnemyController.KnownEnemies.Add(b);
+    plugin.Hear(b, SAINSoundType.Sprint, near);
+    plugin.Hear(a, SAINSoundType.Shot, near);
+    C(plugin.Frame(bot).FootstepContact == "B", "a shot from A preserves B's sprint");
+    var otherBot = new BotComponent();
+    plugin.Hear(new Enemy(otherBot) { EnemyProfileId = "B" }, SAINSoundType.Shot, near);
+    C(plugin.Frame(bot).FootstepContact == "B", "another observer has separate hearing for B");
+    for (int i = 0; i < 20; i++)
+        plugin.Hear(new Enemy(bot), SAINSoundType.FootStep, near);
+    C(plugin.Frame(bot).FootstepContact == "B", "other contact reports cannot evict B's sprint");
+    b.KnownPlaces.LastSeenPlace!.TimeSincePositionUpdated = 120;
+    C(plugin.Frame(bot).Footsteps, "a contact exactly 120 seconds old still counts");
+    b.KnownPlaces.LastSeenPlace.TimeSincePositionUpdated = 120.01f;
+    C(!plugin.Frame(bot).Footsteps, "an expired contact cannot delay healing");
+    b.KnownPlaces.LastSeenPlace = null;
+    C(!plugin.Frame(bot).Footsteps, "a contact without a known position cannot delay healing");
+    b.KnownPlaces.LastSeenPlace = new();
+    bot.EnemyController.KnownEnemies.Remove(b);
+    C(!plugin.Frame(bot).Footsteps, "removing a contact removes its influence immediately");
+    bot.EnemyController.KnownEnemies.Add(b);
+    Time.time = 14.999f;
+    C(plugin.Frame(bot).Footsteps, "a sprint younger than five seconds counts");
+    Time.time = 15;
+    C(!plugin.Frame(bot).Footsteps, "a five-second-old sprint has expired");
+    plugin.Hear(b, SAINSoundType.FootStep, new(0, 30, 0));
+    C(!plugin.Frame(bot).Footsteps, "exactly 30 metres vertically is outside the radius");
+    plugin.config.MedicalChoice.FootstepDistance = 31;
+    plugin.config.MedicalChoice.FootstepAge = 8;
+    Time.time = 21;
+    C(plugin.Frame(bot).Footsteps, "custom age and radius continue to apply");
+    plugin.Hear(b, SAINSoundType.Shot, near);
+    C(!plugin.Frame(bot).Footsteps && plugin.Choose(bot).decision == ESelfActionType.FirstAid,
+        "once both contacts have fired the same injury permits first aid");
+
+    plugin.Authority = false;
+    plugin.Hear(a, SAINSoundType.FootStep, near);
+    C(!plugin.Frame(bot).Footsteps, "a non-authoritative Fika peer cannot populate hearing");
+    plugin.Authority = true;
+    plugin.config.MedicalChoice.Enabled = false;
+    plugin.Hear(a, SAINSoundType.Sprint, near);
+    C(!plugin.Frame(bot).Footsteps, "no report collected while both consumers are disabled");
+    plugin.config.CoverFeint.Enabled = true;
+    plugin.Hear(a, SAINSoundType.Sprint, near);
+    C(plugin.Frame(bot).FootstepContact == "A", "M14 alone still collects the last sound");
+}
 bool originalBlock = Physics.Block;
 try
 {
     Physics.Block = true;
+    CheckMedicalHearing();
     UnityEngine.Random.value = 0;
     var (plugin, bot) = CloseCall();
     C(!plugin.Choose(bot).result && T(plugin, bot).NaturalChoice == "FirstAid"
@@ -413,7 +473,7 @@ foreach (var mode in new[] { "new", "near", "no-cover", "not-protective", "incom
                 Position = new(20, 0, 0),
                 TimeSincePositionUpdated = 0,
             };
-            p.Hear(e, SAINSoundType.FootStep, e.KnownPlaces.LastHeardPlace);
+            p.Hear(e, SAINSoundType.FootStep, e.KnownPlaces.LastHeardPlace.Position);
             break;
     }
     bool selected = p.Choose(b).result;
