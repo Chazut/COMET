@@ -150,6 +150,7 @@ namespace UnityEngine.AI
     {
         PathComplete,
         PathPartial,
+        PathInvalid,
     }
 
     public class NavMeshPath
@@ -521,9 +522,16 @@ namespace SAIN.Components
 
     public class Decision
     {
+        public SelfActionDecisions SelfActionDecisions = new();
         public SAIN.Preset.Shared.Enums.ECombatDecision CurrentCombatDecision;
         public SAIN.Preset.Shared.Enums.ESelfActionType CurrentSelfDecision;
         public SAIN.Preset.Shared.Enums.ESquadDecision CurrentSquadDecision;
+    }
+
+    public class SelfActionDecisions
+    {
+        public float AmmoRatio = 1;
+        public bool LowOnAmmo(float threshold) => AmmoRatio < threshold;
     }
 
     public class Suppression
@@ -1168,6 +1176,14 @@ namespace Comet.Client
                 && succeeded
                 && d == SAIN.Preset.Shared.Enums.ECombatDecision.Freeze;
         }
+
+        internal bool ChooseStorm(BotComponent b)
+        {
+            var decision = SAIN.Preset.Shared.Enums.ECombatDecision.None;
+            bool succeeded = false;
+            return ChooseNativeStorm(b, states[b], ref decision, ref succeeded)
+                && succeeded && decision == SAIN.Preset.Shared.Enums.ECombatDecision.RushEnemy;
+        }
     }
 }
 
@@ -1264,6 +1280,7 @@ namespace SAIN.SAINComponent.Classes.EnemyClasses
     public class PathData
     {
         public float PathLength = 20;
+        public UnityEngine.AI.NavMeshPathStatus PathToEnemyStatus = UnityEngine.AI.NavMeshPathStatus.PathComplete;
     }
 }
 

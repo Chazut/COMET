@@ -14,6 +14,13 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### S06 squad assault admission
+
+In remix 7.6, `shallRushEnemy` checks for a complete path to the enemy and
+calls SAIN's `LowOnAmmo(0.5f)` before asking the squad to storm. COMET applies
+both checks to each member, including when reusing a cached join decision.
+The squad's own ammo setting and individual participation roll still apply.
+
 ### M14 second bait peek (2026-11-21)
 
 Once the first peek has a point, the bot has a 40% chance to lower its stance

@@ -7,6 +7,7 @@ using SAIN.Components;
 using SAIN.Preset.Shared.Enums;
 using SAIN.SAINComponent.Classes.EnemyClasses;
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace Comet.Client;
 
@@ -42,6 +43,11 @@ public sealed partial class Plugin
         var c = config.SquadStorm;
         if (e?.EnemyPlayer == null || !e.Seen)
             return "storm-unseen-enemy";
+        // S06 is called directly here. In zzap, shallRushEnemy checks both before it asks the squad.
+        if (e.Path.PathToEnemyStatus != NavMeshPathStatus.PathComplete)
+            return "storm-rush-path-incomplete";
+        if (b.Decision.SelfActionDecisions.LowOnAmmo(.5f))
+            return "storm-rush-low-ammo";
         if (e.TimeSinceLastKnownUpdated > c.ContactAge)
             return "storm-stale-contact";
         if (e.Path.PathLength > c.MaxPath)

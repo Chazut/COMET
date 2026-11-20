@@ -9,6 +9,57 @@ using UnityEngine.AI;
 
 internal static class SquadStormHarness
 {
+    public static void CheckRushAdmission()
+    {
+        Time.time = 10;
+        var p = new Plugin();
+        var settings = p.config!;
+        settings.SquadStorm.Enabled = true;
+        settings.SquadStorm.Chad = 100;
+        settings.SquadStorm.Coward = 0;
+        var first = new BotComponent();
+        var second = new BotComponent();
+        var members = new[] { first, second }.ToDictionary(b => b.ProfileId);
+        foreach (var b in members.Values)
+        {
+            b.Squad.Members = members;
+            p.states[b] = new BotState(b, settings, p.session);
+        }
+        void Expect(BotComponent bot, bool rush, string scenario)
+        {
+            if (p.ChooseStorm(bot) != rush)
+                throw new Exception("S06 native rush admission: " + scenario);
+        }
+
+        var path = first.GoalEnemy!.Path;
+        path.PathLength = 5;
+        foreach (var status in new[] { NavMeshPathStatus.PathPartial, NavMeshPathStatus.PathInvalid })
+        {
+            path.PathToEnemyStatus = status;
+            Expect(first, false, "a short " + status + " path");
+        }
+        path.PathToEnemyStatus = NavMeshPathStatus.PathComplete;
+        var magazine = first.BotOwner.WeaponManager.CurrentWeapon.Mag;
+        magazine.Count = 13;
+        first.Decision.SelfActionDecisions.AmmoRatio = 13f / 30;
+        Expect(first, false, "13/30 is above the squad setting but below the native rush threshold");
+        magazine.Count = 14;
+        first.Decision.SelfActionDecisions.AmmoRatio = (14f + 1) / 30;
+        Expect(first, true, "exactly 50 percent including the chamber");
+
+        path.PathToEnemyStatus = NavMeshPathStatus.PathPartial;
+        Expect(first, false, "a cached join still needs a complete path");
+        path.PathToEnemyStatus = NavMeshPathStatus.PathComplete;
+        first.Decision.SelfActionDecisions.AmmoRatio = 14f / 30;
+        Expect(first, false, "a cached join still needs enough native ammo");
+        first.Decision.SelfActionDecisions.AmmoRatio = 1;
+        magazine.Count = 30;
+        Expect(first, true, "the same bot can rush again once eligible");
+        second.Info.Personality = SAIN.Components.Personality.Coward;
+        Expect(second, false, "an eligible teammate can decline the shared plan");
+        Console.WriteLine("S06 native rush admission: 8 checks passed.");
+    }
+
     public static void Run()
     {
         int n = 0;
