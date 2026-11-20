@@ -28,6 +28,8 @@ internal sealed class DoorRunRuntime
         Angle,
         ReturnFrom,
         Look;
+    internal readonly DoorMovePhase SpecialMove = new();
+    internal float SpecialAt, NextOrder;
     internal int TargetInstance,
         ValidationStep;
     internal float LastCallback,
@@ -74,10 +76,11 @@ public sealed partial class Plugin
             DP(known),
             e.TimeSinceLastKnownUpdated,
             Time.time,
-            jumpRandom.NextDouble(),
+            s.Door.SelectionRoll / 100,
             jumpRandom.NextDouble(),
             config!.DoorJumpPeek,
-            config.DoorRunBy
+            config.DoorRunBy,
+            s.Door.SelectionChance
         );
         if (t == null)
             return;
@@ -89,6 +92,7 @@ public sealed partial class Plugin
             r.Stack = b.Position;
             r.Look = VP(w.Geometry.Center) + Vector3.up * 1.3f;
             r.TargetInstance = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e);
+            r.SpecialMove.Reset();
             r.ValidationStep = 0;
             r.LastCallback = Time.time;
             r.JumpCandidate = new()
@@ -130,14 +134,10 @@ public sealed partial class Plugin
             || !e.EnemyKnown
             || e.KnownPlaces.LastKnownPosition is not Vector3 known
             || !r.Policy.SameContact(e.EnemyProfileId, DP(known))
-            || e.TimeSinceLastKnownUpdated > config.DoorApproach.ContactLifetime
         )
             return "run-by-contact-changed-or-expired";
         if (e.IsVisible)
-        {
             t.VisualAcquired = true;
-            return "run-by-native-visual-acquired";
-        }
         if (!TacticalDoorSearch(b, s))
             return "run-by-search-not-owned";
         if (
@@ -148,29 +148,64 @@ public sealed partial class Plugin
             return "run-by-native-priority";
         if ((b.DoorOpener.Interacting || b.BotOwner.DoorOpener.Interacting) && t.State != "opening")
             return "run-by-other-door-interaction";
-        // Only personally perceived, dated places. Never inspect an unseen enemy's live transform.
-        int count = 0;
-        foreach (var other in b.EnemyController.KnownEnemies)
-        {
-            var place = other?.KnownPlaces.LastHeardPlace;
-            if (place == null)
-                continue;
-            double age = Time.time - silentHeardAt(place);
-            if (age < 0 || age > 1.2)
-                continue;
-            if (
-                place.SoundType
-                    is SAINSoundType.FootStep
-                        or SAINSoundType.Sprint
-                        or SAINSoundType.Jump
-                        or SAINSoundType.Land
-                        or SAINSoundType.Door
-                        or SAINSoundType.DoorBreach
-                && Vector3.Distance(place.Position, VP(r.Door!.Geometry.Center)) <= 4
-            )
-                return "run-by-heard-threat-at-door";
-        }
         return "";
+    }
+
+    private static bool HearRoomEnemyAtDoor(Enemy e, DoorRunRuntime r)
+    {
+        var heard = e.KnownPlaces.LastHeardPlace;
+        return heard != null && heard.SoundType == SAINSoundType.FootStep
+            && Time.time - silentHeardAt(heard) <= 1f && SupportHorizontal(heard.Position, VP(r.Door!.Geometry.Center)) <= 4;
+    }
+
+    private bool StepGroundOrSettle(BotComponent b, BotState s)
+    {
+        var r = s.RunBy;
+        var t = r.Policy.Trace!;
+        bool settle = t.State == "heard-settle", outward = t.State == "ground-out";
+        var target = settle ? r.Angle : outward ? r.Far : r.Stack;
+        bool arrived = SupportHorizontal(b.Position, target) < .6f || settle && Time.time - r.SpecialAt > 1.5f;
+        b.Steering.LookToPoint(r.Look);
+        string why = r.SpecialMove.Check(t.State, DP(b.Position), arrived, Time.time, out double remaining);
+        t.Remaining = remaining;
+        t.ActualX = b.Position.x; t.ActualY = b.Position.y; t.ActualZ = b.Position.z;
+        if (why.Length > 0) { EndDoorRun(s, why); return true; }
+        if (!outward && !settle && Time.time - r.SpecialAt < .15f) return false;
+        if (arrived)
+        {
+            if (outward)
+            {
+                t.FarArrived = true;
+                r.NextOrder = 0;
+                r.SpecialAt = Time.time;
+                r.Policy.Special("ground-back", "ground-peek-return", Time.time);
+            }
+            else if (settle)
+            {
+                t.Returned = true;
+                r.SpecialAt = Time.time;
+                s.Door.Feint = "";
+                r.Policy.Special("heard-watch", "run-by-heard-angle-reached", Time.time);
+            }
+            else
+            {
+                t.Returned = true;
+                r.Policy.Special("completed", "ground-peek-returned", Time.time);
+                FinishDoorRun(s);
+            }
+            return false;
+        }
+        if (Time.time >= r.NextOrder)
+        {
+            r.NextOrder = Time.time + .75f;
+            if (!OrderDoorPoint(b, target, .42f, !settle, ref r.OwnedPath))
+            {
+                EndDoorRun(s, "recon-native-movement-refused");
+                return true;
+            }
+            t.MovementAccepted = true;
+        }
+        return false;
     }
 
     private static bool RunOwnOpening(BotComponent b, BotState s) =>
@@ -192,6 +227,33 @@ public sealed partial class Plugin
         }
         var t = r.Policy.Trace!;
         var c = config!.DoorRunBy;
+        if (t.State is "ground-out" or "ground-back" or "heard-settle")
+            return StepGroundOrSettle(b, s);
+        if (t.State == "heard-watch")
+        {
+            b.Steering.LookToPoint(r.Look);
+            t.WatchElapsed = Time.time - r.SpecialAt;
+            if (t.WatchElapsed >= c.Watch)
+            {
+                r.Policy.Special("completed", "run-by-held-exit", Time.time);
+                FinishDoorRun(s);
+            }
+            return false;
+        }
+        if (t.State is "across" or "turning" or "returning" && HearRoomEnemyAtDoor(e, r))
+        {
+            var g = r.Door!.Geometry;
+            bool inOpening = Math.Abs(Vector3.Dot(b.Position - VP(g.Center), VP(g.Axis))) < g.HalfWidth + .35;
+            r.Angle = inOpening ? SupportHorizontal(b.Position, r.Stack) <= SupportHorizontal(b.Position, r.Far)
+                ? r.Stack : r.Far : b.Position;
+            r.Look = VP(g.Center) + Vector3.up * 1.3f;
+            b.Player.EnableSprint(false);
+            b.Mover.Stop();
+            r.NextOrder = 0;
+            r.SpecialAt = Time.time;
+            r.Policy.Special("heard-settle", "run-by-heard-room-enemy", Time.time);
+            return StepGroundOrSettle(b, s);
+        }
         bool back = t.State is "returning" or "watching";
         Vector3 destination = back ? r.Angle : r.Far;
         var direction = destination - b.Position;
@@ -386,7 +448,7 @@ public sealed partial class Plugin
         switch (r.ValidationStep++)
         {
             case 0:
-                t.JumpReason = !j.Enabled
+                t.JumpReason = !j.Enabled || !b.Info.Profile.IsPMC
                     ? "jump-disabled"
                     : PrepareJumpRoutes(b, r.JumpCandidate!);
                 return false;
@@ -417,12 +479,31 @@ public sealed partial class Plugin
                 {
                     "Jump: " + (t.JumpEligible ? "eligible" : t.JumpReason),
                     "Run-by: " + (t.RunEligible ? "eligible" : t.RunReason),
-                    "Normal SAIN search if neither is safe; no second maneuver in this opportunity.",
+                    "Ground peek when neither special movement is available.",
                 };
                 if (t.Style == "none")
                 {
                     EndDoorRun(s, "recon-no-eligible-style");
                     return true;
+                }
+                if (t.Style == "ground")
+                {
+                    var center = VP(g.Center);
+                    var normal = VP(g.Normal);
+                    var point = center + normal * Mathf.Sign(Vector3.Dot(r.Stack - center, normal)) * 1.25f;
+                    if (!NavMesh.SamplePosition(point, out var sample, .7f, NavMesh.AllAreas)
+                        || Vector3.Dot(sample.position - center, normal) * Mathf.Sign(Vector3.Dot(r.Stack - center, normal)) <= .3f)
+                    {
+                        EndDoorRun(s, "ground-peek-no-point");
+                        return true;
+                    }
+                    r.Far = sample.position;
+                    r.Look = VP(new(t.KnownX, t.KnownY, t.KnownZ)) + Vector3.up * 1.2f;
+                    r.NextOrder = 0;
+                    r.SpecialAt = Time.time;
+                    r.Policy.Special("ground-out", "ground-peek-selected", Time.time);
+                    RecordDoorRun(s, true);
+                    return StepGroundOrSettle(b, s);
                 }
                 if (t.Style == "jump")
                 {
@@ -634,6 +715,24 @@ public sealed partial class Plugin
                 r.Owner.Search.Reset();
         }
         RecordDoorRun(s, true);
+        if (r.Policy.Trace is { State: "completed" } t)
+        {
+            if (t.Returned && t.Reason != "run-by-held-exit" && r.Owner != null
+                && SupportHorizontal(r.Owner.Position, r.Stack) <= .9f)
+            {
+                // The continuation consumes only the observation from the preceding peek.
+                var peek = new DoorJumpTrace
+                {
+                    State = t.State, Returned = true, VisualAcquired = t.VisualAcquired,
+                    Door = t.Door, Target = t.Target, Source = t.Source, Personality = t.Personality,
+                    KnownX = t.KnownX, KnownY = t.KnownY, KnownZ = t.KnownZ, ContactAge = t.ContactAge,
+                    ActualX = r.Owner.Position.x, ActualY = r.Owner.Position.y, ActualZ = r.Owner.Position.z,
+                };
+                TryStartDoorStep(s, r.Owner, r.Door, r.TargetInstance, peek);
+            }
+            if (!s.StepPeek.Policy.Active)
+                FinishPeekFeint(s, r.Owner, r.Door);
+        }
         r.DropReferences();
     }
 

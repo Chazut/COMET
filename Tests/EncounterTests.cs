@@ -254,8 +254,8 @@ internal static class EncounterTests
         var selection = new HiddenEnemyDecision(cfg).Evaluate(S());
         var hold = selection.Candidates.Single(x => x.Decision == "Hold");
         Check(
-            hold.EncounterDelta == 0,
-            "bounded preference does not force Hold over better alternatives"
+            hold.EncounterDelta == Math.Min(cfg.Encounter.ScoreCap, ready.Bonus) && hold.EncounterDelta > 0,
+            "same-contact evidence reaches the ranked Hold candidate"
         );
         foreach (
             var edit in new Action<Situation>[]
@@ -291,8 +291,8 @@ internal static class EncounterTests
             new HiddenEnemyDecision(cfg)
                 .Evaluate(S())
                 .Candidates.Single(x => x.Decision == "Hold")
-                .EncounterDelta == 0,
-            "source utility has no COMET encounter bonus"
+                .EncounterDelta == hold.EncounterDelta,
+            "personality weighting does not multiply the encounter bonus"
         );
         cfg.Encounter.Enabled = false;
         Check(

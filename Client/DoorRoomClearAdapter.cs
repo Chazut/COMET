@@ -256,39 +256,13 @@ public sealed partial class Plugin
             || e.KnownPlaces.LastKnownPosition is not Vector3 known
         )
             return false;
-        if (Vector3.Distance(b.Position, VP(door.Geometry.Center)) > 3)
-            return false;
-        bool searching =
-            config.DoorSearchClear.Enabled
-            && b.Decision.CurrentCombatDecision == ECombatDecision.Search;
+        bool searching = s.Door.FromSearch;
         var old = r.Policy.Trace;
-        // Exactly one variant gets a roll. A declined D07 attempt cannot fall through into D08.
-        bool selected = searching
-            ? r.Policy.BeginSearch(
-                door.Geometry.Id,
-                e.EnemyProfileId,
-                s.Situation?.ContactSource ?? "sain-last-known",
-                b.Info.Personality.ToString(),
-                DP(known),
-                e.TimeSinceLastKnownUpdated,
-                Time.time,
-                jumpRandom.NextDouble(),
-                config.DoorRoomClear,
-                config.DoorSearchClear,
-                config.ContactLifetime,
-                config.DoorApproach.ContactLifetime
-            )
-            : r.Policy.Begin(
-                door.Geometry.Id,
-                e.EnemyProfileId,
-                s.Situation?.ContactSource ?? "sain-last-known",
-                b.Info.Personality.ToString(),
-                DP(known),
-                e.TimeSinceLastKnownUpdated,
-                Time.time,
-                jumpRandom.NextDouble(),
-                config.DoorRoomClear
-            );
+        bool selected = r.Policy.BeginSelected(door.Geometry.Id, e.EnemyProfileId,
+            s.Situation?.ContactSource ?? "sain-last-known", b.Info.Personality.ToString(), DP(known),
+            e.TimeSinceLastKnownUpdated, Time.time, s.Door.SelectionChance, s.Door.SelectionRoll,
+            searching ? config.DoorSearchClear.ContactLifetime : config.DoorRoomClear.ContactLifetime,
+            config.DoorRoomClear, searching);
         if (ReferenceEquals(old, r.Policy.Trace))
             return false;
         if (!selected)

@@ -127,21 +127,17 @@ public sealed class Crossfire
         lastNow = -1;
     private int episode;
 
-    public bool Begin(double now, CrossfireConfig c, double roll)
+    public bool Begin(double now, CrossfireConfig c, double roll = 0)
     {
         if (!c.Enabled || !MedicalChoice.Finite(now) || now < 0 || Active || now < RetryAt)
             return false;
-        roll = MedicalChoice.Finite(roll) ? Math.Max(0, Math.Min(1, roll)) : 1;
         Trace = new()
         {
             Episode = ++episode,
-            Chance = c.Participation,
-            Roll = roll * 100,
+            Chance = 100,
             Remaining = c.MoveTimeout,
         };
         started = lastNow = now;
-        if (roll * 100 >= c.Participation)
-            return End(now, c, "crossfire-keep-current-plan");
         return true;
     }
 

@@ -94,6 +94,17 @@ static class QuietLoggingTests
                 "behavior migration preserves logging preference"
             );
 
+            var prior = JsonNode.Parse("""
+                {"BehaviorBaseline":"zzap-fbb86b83-2","DifficultyPreset":"Easy",
+                 "DoorJumpPeek":{"Chances":{"Rat":0,"Normal":12,"Chad":12.5}},"QuietLogging":true}
+                """)!.AsObject();
+            Check(SourceBaselineMigration.Upgrade(prior)
+                && prior["DoorJumpPeek"]!["Chances"]!["Rat"]!.GetValue<double>() == 25
+                && prior["DoorJumpPeek"]!["Chances"]!["Normal"]!.GetValue<double>() == 12
+                && prior["DoorJumpPeek"]!["Chances"]!["Chad"]!.GetValue<double>() == 17.5
+                && prior["DifficultyPreset"]!.GetValue<string>() == "Easy"
+                && prior["QuietLogging"]!.GetValue<bool>() && !SourceBaselineMigration.Upgrade(prior),
+                "only the previous default door rates migrate; custom values and unrelated settings survive a second load");
             var events = new List<string>();
             long sequence = 0;
             foreach (var stage in new[] { "selected", "accepted", "started", "released" })

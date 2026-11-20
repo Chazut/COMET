@@ -52,24 +52,23 @@ internal sealed class DoorStepRuntime
 
 public sealed partial class Plugin
 {
-    private void TryStartDoorStep(BotState s, DoorJumpRuntime parent)
+    private void TryStartDoorStep(BotState s, BotComponent? b, DoorWork? door, int targetInstance, DoorJumpTrace? peek)
     {
         var r = s.StepPeek;
-        var b = parent.Owner;
         var e = b?.GoalEnemy;
         if (
             config == null
             || r.Fault
             || b == null
             || e == null
-            || parent.Door == null
-            || parent.Policy.Trace == null
+            || door == null
+            || peek == null
         )
             return;
         // Consume exactly one continuation roll. D02/D03's opportunity and cooldown are untouched.
         if (
             !r.Policy.Begin(
-                parent.Policy.Trace,
+                peek,
                 Time.time,
                 jumpRandom.NextDouble(),
                 config.DoorStepPeek
@@ -81,9 +80,9 @@ public sealed partial class Plugin
             return;
         }
         r.Owner = b;
-        r.Door = parent.Door;
+        r.Door = door;
         r.Stack = b.Position;
-        r.TargetInstance = parent.TargetInstance;
+        r.TargetInstance = targetInstance;
         r.OriginalPose = b.Mover.Pose.PoseValue.TargetValue;
         r.PreparedPeek = 0;
         r.Candidate = 0;
@@ -126,14 +125,10 @@ public sealed partial class Plugin
             || !e.EnemyKnown
             || e.KnownPlaces.LastKnownPosition is not Vector3 known
             || !r.Policy.SameContact(e.EnemyProfileId, DP(known))
-            || e.TimeSinceLastKnownUpdated > config.DoorApproach.ContactLifetime
         )
             return "step-contact-changed-or-expired";
         if (e.IsVisible)
-        {
             t.VisualAcquired = true;
-            return "step-native-visual-acquired";
-        }
         if (!TacticalDoorSearch(b, s))
             return "step-search-not-owned";
         if (b.BotOwner.Memory.IsUnderFire || b.BotOwner.Medecine?.Using == true)
@@ -383,6 +378,7 @@ public sealed partial class Plugin
         )
             b.Mover.SetTargetPose(r.OriginalPose);
         RecordDoorStep(s, true);
+        if (r.Policy.Trace?.State == "completed") FinishPeekFeint(s, b, r.Door);
         r.DropReferences();
     }
 

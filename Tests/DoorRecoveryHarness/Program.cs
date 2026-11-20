@@ -43,6 +43,19 @@ void Run(Plugin p, BotComponent b, float until)
     for (float t = .25f; t <= until + .001f; t += .25f)
         p.RecoverTick(b, t);
 }
+{
+    var (p, bot, _, _) = Setup();
+    bot.DoorOpener.Interacting = true;
+    Plugin.Layer(bot, true, true);
+    Check(bot.DoorOpener.Interacting, "active layer keeps ongoing opening");
+    Plugin.Layer(bot, true, false);
+    Check(!bot.DoorOpener.Interacting && bot.DoorOpener.ClearCount == 1, "dropping layer clears collision immediately");
+    Plugin.Deactivate(bot);
+    Check(bot.DoorOpener.ClearCount == 1, "overlapping deactivation does not clear twice");
+    bot.DoorOpener.Interacting = true;
+    Plugin.Deactivate(bot);
+    Check(!bot.DoorOpener.Interacting && bot.DoorOpener.ClearCount == 2, "standby also clears collision without a path update");
+}
 var x = Setup();
 x.p.Start(x.b, x.d);
 Finish(x.d.Door);

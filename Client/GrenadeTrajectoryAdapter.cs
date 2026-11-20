@@ -15,7 +15,7 @@ namespace Comet.Client;
 internal sealed class GrenadeAim
 {
     internal string Kind = "last-known";
-    internal Vector3 Point;
+    internal Vector3 Point, Nominal;
     internal DoorWork? Door;
     internal int[] Angles = Array.Empty<int>();
     internal bool Checked;
@@ -200,7 +200,7 @@ public sealed partial class Plugin
                     b.BotOwner.WeaponManager.Grenades.MaxPower * .9f,
                     (AIGreandeAng)Enum.Parse(typeof(AIGreandeAng), "ang" + angle),
                     -1f,
-                    .66f
+                    0f
                 );
                 alt.Reason = !ValidGrenadeArc(native) ? "native-arc-blocked-or-out-of-range" : "";
                 if (alt.Reason.Length == 0)
@@ -217,20 +217,22 @@ public sealed partial class Plugin
                             Aim = aim,
                         }
                     );
-                    aim.Next = aim.Angles.Length;
                 }
             }
             if (aim.Next >= aim.Angles.Length)
             {
                 if (r.Arcs.Count > 0)
                 {
-                    double best = 0;
-                    foreach (var a in r.Arcs)
-                        best = Math.Max(best, a.Alternative.Clearance);
-                    var good = r.Arcs.FindAll(a => a.Alternative.Clearance >= best - .02);
-                    var chosen = good[
-                        Math.Min(good.Count - 1, (int)(jumpRandom.NextDouble() * good.Count))
-                    ];
+                    int chosenIndex = 0;
+                    if (jumpRandom.NextDouble() < Mathf.Lerp(.4f, .8f, b.Info.Profile.DifficultyModifier))
+                    {
+                        for (int i = 1; i < r.Arcs.Count; i++)
+                            if (r.Arcs[i].Data.Force < r.Arcs[chosenIndex].Data.Force)
+                                chosenIndex = i;
+                    }
+                    else
+                        chosenIndex = (int)(jumpRandom.NextDouble() * r.Arcs.Count);
+                    var chosen = r.Arcs[chosenIndex];
                     // Selection can span frames. Execution recomputes this aim from the current origin.
                     r.Selected = chosen;
                     r.Pending = false;
@@ -331,68 +333,45 @@ public sealed partial class Plugin
             KnownY = f.Y,
             KnownZ = f.Z,
         };
-        RefreshEnvironment(b, s, true);
-        var p = b.Position;
-        var env = s.Environment.Read(
-            f.Now,
-            p.x,
-            p.y,
-            p.z,
-            config.EnvironmentContext,
-            "grenade-angles"
-        );
-        bool low = env.Ceiling == "detected" && env.CeilingHeight < 3;
-        AddGrenadeAim(r, r.Known, "last-known", null, low);
-        var corner = e.VisiblePathPoint;
-        if (
-            c.Corners
-            && corner.HasValue
-            && Vector3.Distance(corner.Value, r.Known) <= c.CornerDistance
-            && Vector3.Distance(corner.Value, r.Known) > .5f
-        )
-            AddGrenadeAim(r, corner.Value, "blind-corner", null, low);
+        if (!NativeAdapter.GrenadeFriendsClear(b, r.Known))
+        {
+            FailGrenadeTrajectory(s, "sain-friendly-distance");
+            return;
+        }
+        float range = Vector3.Distance(b.Position, r.Known);
+        AddGrenadeAim(b, r, r.Known, range, "last-known", null);
+        if (c.Corners && e.VisiblePathPoint is Vector3 corner)
+        {
+            float separation = Vector3.Distance(corner, r.Known);
+            if (separation <= c.CornerDistance && NativeAdapter.GrenadeFriendsClear(b, corner))
+                AddGrenadeAim(b, r, corner, separation, "blind-corner", null);
+        }
         if (c.Doors)
         {
             // Inspect only the current navigation voxel, just like the door tactics. No scene/global scan.
             var links = b.BotOwner.VoxelesPersonalData.CurVoxel?.DoorLinks;
             DoorWork? best = null;
             float distance = float.MaxValue;
-            int n = 0;
             if (links != null)
                 foreach (var link in links)
                 {
                     if (link?.Door == null)
                         continue;
                     var w = new DoorWork { Data = new DoorDataStruct(link) };
-                    if (!TryDoorGeometry(w.Data, out var g) || g.State != "Open")
+                    if (!TryDoorGeometry(w.Data, out var g))
                         continue;
                     w.Geometry = g;
-                    var center = VP(g.Center);
-                    var normal = VP(g.Normal);
-                    var axis = VP(g.Axis);
-                    float fromSide = Vector3.Dot(b.Position - center, normal),
-                        toSide = Vector3.Dot(r.Known - center, normal);
-                    if (
-                        fromSide * toSide >= 0
-                        || Math.Abs(fromSide) < .5
-                        || Math.Abs(toSide) < .5
-                        || Math.Abs(r.Known.y - center.y) > 1.5
-                    )
+                    if (DoorPolicy.Geometry(g, DP(b.Position), DP(r.Known), Array.Empty<DoorPoint>(), config!.DoorApproach).Length != 0)
                         continue;
-                    var intersection =
-                        b.Position + (r.Known - b.Position) * (fromSide / (fromSide - toSide));
-                    if (
-                        Math.Abs(Vector3.Dot(intersection - center, axis)) > g.HalfWidth + .5
-                        || Vector3.Distance(r.Known, center) > 10
-                    )
-                        continue;
-                    float d = Vector3.Distance(b.Position, center);
-                    if (d > 15 || d >= distance)
+                    var offset = VP(g.Center) - b.Position;
+                    offset.y = 0;
+                    float d = offset.sqrMagnitude;
+                    if (d >= distance)
                         continue;
                     best = w;
                     distance = d;
                 }
-            if (best != null)
+            if (best?.Geometry.State == "Open")
             {
                 var center = VP(best.Geometry.Center);
                 var normal = VP(best.Geometry.Normal);
@@ -401,7 +380,7 @@ public sealed partial class Plugin
                 foreach (
                     double depth in new[] { c.DoorDepthFirst, c.DoorDepthSecond, c.DoorDepthThird }
                 )
-                    AddGrenadeAim(r, center + normal * (float)depth, "open-door", best, low);
+                    AddGrenadeAim(b, r, center + normal * (float)depth, 0f, "open-door", best);
             }
         }
         r.Pending = true;
@@ -409,33 +388,39 @@ public sealed partial class Plugin
     }
 
     private void AddGrenadeAim(
+        BotComponent b,
         GrenadeTrajectoryRuntime r,
         Vector3 raw,
+        float distance,
         string kind,
-        DoorWork? door,
-        bool low
+        DoorWork? door
     )
     {
-        float spread = (float)GrenadeTrajectoryRules.Dispersion(Vector3.Distance(r.Origin, raw));
-        // One offset per target for this search. Refresh and angle retries retain it verbatim.
-        var along = raw - r.Origin;
-        along.y = 0;
-        along = along.normalized;
-        var side = Vector3.Cross(along, Vector3.up);
-        raw +=
-            along * (float)((jumpRandom.NextDouble() * 2 - 1) * spread)
-            + side * (float)((jumpRandom.NextDouble() - .5) * spread);
+        bool indoors = b.Memory.Location.IsIndoors || b.Player.Environment == EnvironmentType.Indoor;
+        Vector3 nominal = raw;
         raw.y += .25f;
+        if (door == null)
+        {
+            var along = (raw - b.Position).normalized;
+            var side = Vector3.Cross(along, Vector3.up).normalized;
+            float spread = (float)GrenadeTrajectoryRules.Dispersion(distance);
+            float jitter = Mathf.Lerp(.05f, .4f, Mathf.InverseLerp(5f, 30f, distance))
+                * (indoors ? .5f : 1f) * Mathf.Lerp(1.1f, .85f, b.Info.Profile.DifficultyModifier);
+            raw += along * (float)((2 * jumpRandom.NextDouble() - 1) * spread)
+                + side * (float)((jumpRandom.NextDouble() - .5) * spread)
+                + Vector3.up * (float)((2 * jumpRandom.NextDouble() - 1) * jitter);
+        }
         r.Targets.Add(
             new()
             {
                 Kind = kind,
                 Point = raw,
+                Nominal = nominal,
                 Door = door,
                 Angles =
                     kind == "blind-corner"
                         ? new[] { 15, 5 }
-                        : GrenadeTrajectoryRules.Angles(kind != "last-known", low),
+                        : GrenadeTrajectoryRules.Angles(door != null, indoors, distance),
             }
         );
     }
@@ -448,18 +433,10 @@ public sealed partial class Plugin
 
     private string UsefulGrenadeAim(BotComponent b, GrenadeTrajectoryRuntime r, GrenadeAim a)
     {
-        if (
-            !DP(a.Point).Finite
-            || Vector3.Distance(b.Position, a.Point) > config!.GrenadeTrajectory.Distance
-        )
-            return "trajectory-aim-out-of-range";
+        if (!DP(a.Point).Finite)
+            return "trajectory-invalid-aim";
         if (!NativeAdapter.GrenadeFriendsClear(b, a.Point))
             return "sain-friendly-distance";
-        if (
-            a.Kind == "blind-corner"
-            && Vector3.Distance(a.Point, r.Known) > config.GrenadeTrajectory.CornerDistance
-        )
-            return "trajectory-corner-too-far";
         if (a.Door != null)
         {
             if (!CurrentGrenadeDoor(a.Door))
@@ -472,9 +449,9 @@ public sealed partial class Plugin
         // No NavMesh landing, path-to-target, or extra swept-volume veto in zzap.
         if (
             a.Door != null
-            && Vector3.Distance(b.Position, a.Point) < 8f
+            && Vector3.Distance(b.Position, a.Nominal) < 6f
             && !Physics.Linecast(
-                a.Point + Vector3.up * .3f,
+                a.Nominal + Vector3.up * .3f,
                 b.Position + Vector3.up * 1.2f,
                 LayersMaskController.HighPolyWithTerrainMask
             )
@@ -545,7 +522,7 @@ public sealed partial class Plugin
                     (AIGreandeAng)
                         Enum.Parse(typeof(AIGreandeAng), "ang" + r.Selected.Alternative.Angle),
                     -1f,
-                    .66f
+                    0f
                 );
                 if (!ValidGrenadeArc(fresh))
                     why = "trajectory-execution-native-refused";

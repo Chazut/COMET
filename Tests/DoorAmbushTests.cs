@@ -39,6 +39,12 @@ internal static class DoorAmbushTests
             Check(!p.Active, "clear");
         }
 
+        foreach (var (personality, seconds) in new[] { ("Rat", 90d), ("SnappingTurtle", 67.5d), ("GigaChad", 30d) })
+        {
+            var trap = new DoorAmbush();
+            Check(trap.Begin("e", "heard", personality, default, 5, 100, .5, 60, 0, 150, c, selectedCombatTrap: true)
+                && trap.Trace!.WaitDuration == seconds, "selected combat trap duration for " + personality);
+        }
         return n;
     }
 }

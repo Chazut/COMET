@@ -27,7 +27,7 @@ public static class EncounterScoring
             t.HoldRefusal = "encounter-ineligible-or-urgent";
             return;
         }
-        if (hold?.Eligible != true)
+        if (hold?.Eligible != true || s.Unavailable.ContainsKey(Tactic.Hold))
         {
             t.HoldRefusal = hold?.Reason ?? "hold-unavailable";
             return;

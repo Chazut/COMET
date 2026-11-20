@@ -93,7 +93,8 @@ public sealed class DoorReconOpportunity
         double roll,
         double styleRoll,
         DoorJumpPeekConfig shared,
-        DoorRunByConfig run
+        DoorRunByConfig run,
+        double? selectedChance = null
     )
     {
         if (
@@ -103,19 +104,20 @@ public sealed class DoorReconOpportunity
             || age < 0
             || age > 120
             || !DoorPolicy.Finite(now)
-            || now < blockedUntil
+            || !selectedChance.HasValue && (now < blockedUntil || evidence.TryGetValue(door, out var until) && now < until)
             || !ValidRoll(roll)
             || !ValidRoll(styleRoll)
             || string.IsNullOrEmpty(door)
             || string.IsNullOrEmpty(target)
         )
             return null;
-        string key = door + "\n" + target;
-        double stamp = now - age;
-        evidence[key] = stamp;
-        blockedUntil = now + shared.Cooldown;
-        double chance = shared.Chances.TryGetValue(personality, out var c) ? c : 0;
-        bool selected = roll * 100 < chance;
+        double chance = selectedChance ?? (shared.Chances.TryGetValue(personality, out var c) ? c : 0);
+        bool selected = selectedChance.HasValue || chance > 0 && roll * 100 <= chance;
+        if (!selectedChance.HasValue)
+        {
+            blockedUntil = now + 8;
+            evidence[door] = now + (selected ? 60 : 25);
+        }
         return new()
         {
             Door = door,
@@ -153,7 +155,7 @@ public sealed class DoorReconOpportunity
             return roll * 100 < r.Preference ? "run-by" : "jump";
         if (jump)
             return "jump";
-        return run && (!j.Enabled || r.Fallback) ? "run-by" : "none";
+        return run && (!j.Enabled || r.Fallback) ? "run-by" : "ground";
     }
 
     public void Clear()
@@ -166,6 +168,7 @@ public sealed class DoorReconOpportunity
 // Observations, not move requests, establish success. No native game references.
 public sealed class DoorRunBy
 {
+    private readonly DoorMovePhase movement = new();
     public DoorRunTrace? Trace { get; private set; }
     public bool Active =>
         Trace != null
@@ -174,14 +177,13 @@ public sealed class DoorRunBy
         && Trace.State != "delegated";
     private double last,
         phaseAt,
-        started = double.NaN,
-        progressAt;
-    private DoorPoint origin,
-        progress;
+        started = double.NaN;
+    private DoorPoint origin;
 
     public void Begin(DoorRunTrace trace, double now)
     {
         Trace = trace;
+        movement.Reset();
         last = phaseAt = now;
         started = double.NaN;
     }
@@ -205,6 +207,8 @@ public sealed class DoorRunBy
         Phase("validating", "recon-door-open-observed", now);
     }
 
+    public void Special(string state, string reason, double now) => Phase(state, reason, now);
+
     public void Delegate(double now)
     {
         Trace!.Style = "jump";
@@ -215,16 +219,14 @@ public sealed class DoorRunBy
     {
         Trace!.Style = "run-by";
         Trace.MovementAccepted = true;
-        origin = progress = position;
-        started = progressAt = now;
+        origin = position;
+        started = now;
         Phase("across", "run-by-movement-accepted", now);
     }
 
     public void ReturnStarted(DoorPoint position, double now)
     {
         Trace!.ReturnAccepted = true;
-        progress = position;
-        progressAt = now;
         Phase("returning", "run-by-walk-return-accepted", now);
     }
 
@@ -269,18 +271,19 @@ public sealed class DoorRunBy
         t.Stamina = stamina;
         t.ContactAge = age;
         t.VisualAcquired |= visible;
-        if (visible)
+        t.Elapsed = DoorPolicy.Finite(started) ? Math.Max(0, now - started) : 0;
+        if (t.State is "across" or "returning")
         {
-            End("run-by-native-visual-acquired", now);
-            return false;
+            string failure = movement.Check(t.State, position, arrived, now, out double remaining);
+            t.Remaining = remaining;
+            if (failure.Length > 0)
+            {
+                End("run-by-" + failure, now);
+                return false;
+            }
         }
-        t.Elapsed = DoorPolicy.Finite(started) ? now - started : 0;
-        t.Remaining = Math.Max(0, c.Limit - t.Elapsed);
-        if (t.MovementAccepted && t.State != "watching" && t.Elapsed >= c.Limit)
-        {
-            End("run-by-time-budget-ended", now);
-            return false;
-        }
+        else
+            movement.Reset();
         double phaseTime = now - phaseAt;
         switch (t.State)
         {

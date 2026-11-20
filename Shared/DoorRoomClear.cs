@@ -6,6 +6,7 @@ namespace Comet.Core;
 public sealed class DoorRoomClearConfig
 {
     public bool Enabled { get; set; } = true;
+    public double RoomClearChance { get; set; } = 45;
     public Dictionary<string, double> Chances { get; set; } =
         new()
         {
@@ -31,6 +32,7 @@ public sealed class DoorRoomClearConfig
 
     public void Validate()
     {
+        CometConfig.Range(RoomClearChance, 0, 100, nameof(RoomClearChance));
         if (Chances == null || Chances.Count != 8)
             throw new ArgumentException("Missing room entry personality chances.");
         foreach (
@@ -157,6 +159,14 @@ public sealed class DoorRoomClear
         return true;
     }
 
+    // The door session owns the admission roll and both cooldowns for all its variants.
+    public bool BeginSelected(string door, string target, string source, string personality,
+        DoorPoint known, double age, double now, double chance, double roll, double limit,
+        DoorRoomClearConfig config, bool search) =>
+        !Active && config.Enabled && known.Finite && BeginCore(door, target, source, personality,
+            known, age, now, roll / 100, config, chance, search ? "search" : "recent", 1, limit,
+            config.ContactLifetime, limit, true);
+
     public bool Begin(
         string door,
         string target,
@@ -261,11 +271,12 @@ public sealed class DoorRoomClear
         double factor,
         double limit,
         double fadeFrom,
-        double fadeUntil
+        double fadeUntil,
+        bool selected = false
     )
     {
         double evidence = now - age;
-        if (history.TryGetValue(target, out var h) && now - h.at < c.TargetCooldown)
+        if (!selected && history.TryGetValue(target, out var h) && now - h.at < c.TargetCooldown)
             return false;
         history[target] = (now, evidence);
         started = phase = last = now;
@@ -292,7 +303,7 @@ public sealed class DoorRoomClear
             Roll = roll * 100,
             Reason = mode == "search" ? "search-clear-selected" : "clear-selected",
         };
-        if (roll * 100 >= chance)
+        if (!selected && roll * 100 >= chance)
             End(mode == "search" ? "search-clear-roll-declined" : "clear-roll-declined");
         return Active;
     }

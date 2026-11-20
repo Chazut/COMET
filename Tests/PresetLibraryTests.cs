@@ -233,6 +233,16 @@ internal static class PresetLibraryTests
             () => library.Create(imported.Name, imported.Config, library.Read().Revision),
             "import with existing name does not overwrite"
         );
+        var previousDoorPreset = JsonNode.Parse(json)!.AsObject();
+        var settings = previousDoorPreset["Settings"]!;
+        settings["BehaviorBaseline"] = "zzap-fbb86b83-2";
+        settings["DifficultyPreset"] = "Normal";
+        settings["DoorJumpPeek"]!["Chances"]!["Rat"] = 0;
+        settings["DoorJumpPeek"]!["Chances"]!["Chad"] = 7;
+        settings["CoverFeint"]!["PeekChance"] = 18.25;
+        var previousImport = PresetLibrary.PreviewImport(previousDoorPreset.ToJsonString()).Config;
+        Check(previousImport.DoorJumpPeek.Chances["Rat"] == 37.5 && previousImport.DoorJumpPeek.Chances["Chad"] == 7
+            && previousImport.CoverFeint.PeekChance == 18.25, "imported prior-baseline preset keeps custom values");
         var old = JsonNode.Parse(json)!.AsObject();
         old["Settings"]!["CoverFeint"]!.AsObject().Remove("PeekChance");
         var migration = PresetLibrary.PreviewImport(old.ToJsonString());

@@ -27,8 +27,19 @@ class Decision
     public Combat CurrentCombatDecision;
 }
 
+class SearchDouble
+{
+    public string CurrentState = "Searching";
+    public Enemy? SearchTarget;
+    public bool SearchActive;
+    public PathFinderDouble PathFinder = new();
+}
+class PathFinderDouble { public object? TargetPlace; }
+class EnemyPathDouble { public RouteDouble? PathToEnemy; }
+class RouteDouble { public string status = "PathComplete"; }
 class BotComponent
 {
+    public SearchDouble Search = new();
     public int Reads;
     public Decision Data = new();
     public Decision Decision
@@ -46,6 +57,7 @@ class Enemy
 {
     public BotComponent Bot = new();
     public string EnemyProfileId = "target";
+    public EnemyPathDouble Path = new();
 }
 
 class EnemyKnownChecker
@@ -79,6 +91,7 @@ partial class DoorTransitRuntime
 
 class BotState
 {
+    public BotComponent Owner = null!;
     public ContactDiagnosticGate AbandonLogs = new();
     public SilentSearchTrace SilentTrace = new();
     public float SilentLogAt = -100;
@@ -146,7 +159,7 @@ partial class Probe
         var p = new Probe();
         Instance = p;
         var s = new BotState();
-        var b = new BotComponent();
+        var b = s.Owner = new BotComponent();
         s.Transit.Policy.Trace.Door = "door";
         s.Transit.Policy.Trace.State = "moving";
         void Record()

@@ -149,6 +149,7 @@ public sealed class VisibleEnemyDecision
         Add(VisibleTactic.Shoot, c.ShootWeight);
         Add(VisibleTactic.Cover, c.CoverWeight);
         Add(VisibleTactic.Push, c.PushWeight);
+        OutcomeScoring.Adjust(candidates, s, config, v.RecentHit);
         var best = mixer.Select(
             candidates,
             s.Target,
@@ -177,7 +178,7 @@ public sealed class VisibleEnemyDecision
                 c.Decision == "Push"
                     ? (
                         !v.PushReachable ? v.PushReason
-                        : v.Contact.KnownDistance >= config.VisibleCombat.MaxPushPath
+                        : (v.Contact.RealDistance ?? v.Contact.KnownDistance) >= config.VisibleCombat.MaxPushPath
                             ? "push-too-far"
                         : "available"
                     )

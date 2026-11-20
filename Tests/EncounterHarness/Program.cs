@@ -64,7 +64,8 @@ Situation Situation() =>
     s.Candidates = result.Candidates;
     p.Choice(s, sit);
     Check(
-        sit.Encounter!.AppliedBonus == 0 && sit.Encounter.Alternatives.Length > 0,
+        sit.Encounter!.AppliedBonus > 0 && result.Candidates.Single(x => x.Decision == "Hold").EncounterDelta == sit.Encounter.AppliedBonus
+            && sit.Encounter.Alternatives.Length > 0,
         "actual chooser contribution and alternatives attached"
     );
     Check(s.Encounter.Trace!.Choice == s.Decision, "choice snapshot detached from sampler");

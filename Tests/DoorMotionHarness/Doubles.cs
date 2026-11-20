@@ -685,6 +685,7 @@ namespace Comet.Client
     {
         internal List<string> Warnings = new();
 
+        internal void LogDebug(string s) { }
         internal void LogWarning(string s) => Warnings.Add(s);
     }
 

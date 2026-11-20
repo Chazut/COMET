@@ -12,6 +12,8 @@ var methods = new[]
     "WatchHiddenMovement",
     "HiddenBeingShot",
     "HiddenCanRun",
+    "AfterNativeDoorRush",
+    "FinishNativeDoorChoice",
     "KeepHiddenChoice",
     "SourceSearchScope",
     "QuietHeardSearch",

@@ -9,7 +9,7 @@ public sealed class DoorFakeGrenadeConfig
     public Dictionary<string, double> Chances { get; set; } =
         new()
         {
-            ["GigaChad"] = 30,
+            ["GigaChad"] = 40,
             ["Chad"] = 20,
             ["Normal"] = 10,
             ["Wreckless"] = 5,
@@ -121,7 +121,8 @@ public sealed class DoorFakeGrenade
         double now,
         double roll,
         DoorFakeGrenadeConfig c,
-        bool medicalEnabled = false
+        bool medicalEnabled = false,
+        bool planned = false
     )
     {
         if (
@@ -130,7 +131,7 @@ public sealed class DoorFakeGrenade
             || (!c.Enabled && !medicalEnabled)
             || !known.Finite
             || !DoorPolicy.Finite(now)
-            || now < next
+            || !planned && now < next
             || !DoorPolicy.Finite(age)
             || age < 0
             || age > c.ContactLifetime
@@ -142,7 +143,7 @@ public sealed class DoorFakeGrenade
         )
             return false;
         double stamp = now - age;
-        if (history.TryGetValue(target, out var h) && now - h.at < c.TargetCooldown)
+        if (!planned && history.TryGetValue(target, out var h) && now - h.at < c.TargetCooldown)
             return false;
         history[target] = (now, stamp);
         next = now + c.Cooldown;
@@ -163,7 +164,7 @@ public sealed class DoorFakeGrenade
             Chance = chance,
             Roll = roll * 100,
         };
-        if (roll * 100 >= chance)
+        if (!planned && roll * 100 >= chance)
             End("fake-roll-declined");
         return Active;
     }

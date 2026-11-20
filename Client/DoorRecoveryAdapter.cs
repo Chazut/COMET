@@ -63,6 +63,31 @@ public sealed partial class Plugin
     private static MethodInfo recoveryClear = null!;
     private static bool recoveryFikaContract;
 
+    private static void CaptureDoorLayer(SAIN.SAINComponent.Classes.SAINActivationClass __instance, out bool __state) =>
+        __state = __instance.SAINLayersActive;
+
+    private static void RecoveryLayerDeactivated(SAIN.SAINComponent.Classes.SAINActivationClass __instance, bool __state)
+    {
+        if (__state && !__instance.SAINLayersActive)
+            ClearDeactivatedDoor(__instance.Bot);
+    }
+
+    private static void RecoveryBotDeactivated(SAIN.SAINComponent.Classes.SAINActivationClass __instance, bool __0)
+    {
+        if (!__0)
+            ClearDeactivatedDoor(__instance.Bot);
+    }
+
+    private static void ClearDeactivatedDoor(BotComponent bot)
+    {
+        var p = Instance;
+        if (bot.DoorOpener?.Interacting != true || p?.config?.Enabled != true
+            || !p.config.DoorRecovery.Enabled || !p.Authority || !NativeAdapter.IsSupportedAi(bot))
+            return;
+        recoveryClear.Invoke(bot.DoorOpener, null);
+        p.Logger.LogDebug($"C02 restored door collision on SAIN deactivation for {bot.ProfileId}");
+    }
+
     private static void PatchDoorRecovery(Harmony h)
     {
         recoveryInteraction = AccessTools.Field(typeof(WorldInteractiveObject), "_interaction");
@@ -79,6 +104,12 @@ public sealed partial class Plugin
             || recoveryClear == null
         )
             throw new MissingMemberException("C02 native door recovery contract");
+        var activation = typeof(SAIN.SAINComponent.Classes.SAINActivationClass);
+        h.Patch(AccessTools.Method(activation, "SetActive"),
+            postfix: new HarmonyMethod(typeof(Plugin), nameof(RecoveryBotDeactivated)));
+        h.Patch(AccessTools.Method(activation, "ManualUpdate"),
+            prefix: new HarmonyMethod(typeof(Plugin), nameof(CaptureDoorLayer)),
+            postfix: new HarmonyMethod(typeof(Plugin), nameof(RecoveryLayerDeactivated)));
         h.Patch(
             AccessTools.Method(typeof(DoorOpener), nameof(DoorOpener.TryInteractWithDoor)),
             prefix: new HarmonyMethod(typeof(Plugin), nameof(RecoveryBefore)),

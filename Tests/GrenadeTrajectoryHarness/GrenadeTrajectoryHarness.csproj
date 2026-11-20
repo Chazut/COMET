@@ -15,6 +15,8 @@
     />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../../Shared/DoorApproach.cs" />
+    <Compile Include="../../Shared/PreparationWait.cs" />
     <Compile Include="../../Shared/GrenadeTrajectory.cs" Link="GrenadeTrajectory.cs" />
   </ItemGroup>
   <ItemGroup>

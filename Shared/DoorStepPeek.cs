@@ -82,14 +82,13 @@ public sealed class DoorStepTrace
 // Continuation only. This policy cannot draw another D02/D03 opportunity or reset its cooldown.
 public sealed class DoorStepPeek
 {
+    private readonly DoorMovePhase movement = new();
     public DoorStepTrace? Trace { get; private set; }
     public bool Active => Trace != null && Trace.State != "ended" && Trace.State != "completed";
     private double started,
         last,
-        phaseAt,
-        progressAt;
-    private DoorPoint origin,
-        progress;
+        phaseAt;
+    private DoorPoint origin;
 
     public bool Begin(DoorJumpTrace parent, double now, double roll, DoorStepPeekConfig c)
     {
@@ -98,7 +97,6 @@ public sealed class DoorStepPeek
             || !c.Enabled
             || parent.State != "completed"
             || !parent.Returned
-            || parent.VisualAcquired
             || !new DoorPoint(parent.KnownX, parent.KnownY, parent.KnownZ).Finite
             || !new DoorPoint(parent.ActualX, parent.ActualY, parent.ActualZ).Finite
             || !DoorPolicy.Finite(parent.ContactAge)
@@ -116,6 +114,7 @@ public sealed class DoorStepPeek
             Door = parent.Door,
             Target = parent.Target,
             Source = parent.Source,
+            VisualAcquired = parent.VisualAcquired,
             Personality = parent.Personality,
             KnownX = parent.KnownX,
             KnownY = parent.KnownY,
@@ -197,8 +196,7 @@ public sealed class DoorStepPeek
     {
         if (!Active || Trace!.State != "outward-pending")
             return;
-        origin = progress = position;
-        progressAt = now;
+        origin = position;
         Trace.MovementAccepted = true;
         Phase("outward", "step-movement-accepted", now);
     }
@@ -207,8 +205,6 @@ public sealed class DoorStepPeek
     {
         if (!Active || Trace!.State != "return-pending")
             return;
-        progress = position;
-        progressAt = now;
         Trace.ReturnAccepted = true;
         Phase("returning", "step-return-accepted", now);
     }
@@ -267,16 +263,19 @@ public sealed class DoorStepPeek
         t.Looking = looking;
         t.ContactAge = contactAge;
         t.VisualAcquired |= visible;
-        if (visible)
+        t.Elapsed = DoorPolicy.Finite(started) ? Math.Max(0, now - started) : 0;
+        if (t.State is "outward" or "returning")
         {
-            End("step-native-visual-acquired", now);
-            return false;
+            string failure = movement.Check(t.State, position, arrived, now, out double remaining);
+            t.Remaining = remaining;
+            if (failure.Length > 0)
+            {
+                End("step-" + failure, now);
+                return false;
+            }
         }
-        if (t.Elapsed >= c.Limit)
-        {
-            End("step-total-timeout", now);
-            return false;
-        }
+        else
+            movement.Reset();
         switch (t.State)
         {
             case "planning":

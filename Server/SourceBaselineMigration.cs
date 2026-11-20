@@ -14,14 +14,34 @@ internal static class SourceBaselineMigration
             document
                 .Select(x => x.Key)
                 .FirstOrDefault(k => string.Equals(k, name, StringComparison.OrdinalIgnoreCase));
-        if (
-            document[
-                Existing(nameof(CometConfig.BehaviorBaseline))
-                    ?? nameof(CometConfig.BehaviorBaseline)
-            ]
-                ?.GetValue<string>() == CometConfig.SourceBaseline
-        )
+        var marker = Existing(nameof(CometConfig.BehaviorBaseline)) ?? nameof(CometConfig.BehaviorBaseline);
+        var baseline = document[marker]?.GetValue<string>();
+        if (baseline == CometConfig.SourceBaseline)
             return false;
+        if (baseline == "zzap-fbb86b83-2")
+        {
+            // This revision changes only the door admission defaults in persisted settings.
+            // Preserve every other setting and each personality value the user tuned.
+            if (document[Existing(nameof(CometConfig.DoorJumpPeek)) ?? nameof(CometConfig.DoorJumpPeek)] is JsonObject module
+                && module.FirstOrDefault(x => x.Key.Equals("Chances", StringComparison.OrdinalIgnoreCase)).Value is JsonObject chances)
+            {
+                var previous = new Dictionary<string, double>
+                {
+                    ["GigaChad"] = 35, ["Chad"] = 25, ["Wreckless"] = 15,
+                    ["Normal"] = 10, ["Rat"] = 0, ["SnappingTurtle"] = 0,
+                };
+                var current = new DoorJumpPeekConfig().Chances;
+                var profile = document[Existing(nameof(CometConfig.DifficultyPreset)) ?? nameof(CometConfig.DifficultyPreset)]?.GetValue<string>();
+                double factor = DifficultyPresets.ChanceFactor(profile);
+                foreach (var (key, value) in previous)
+                {
+                    if (chances[key] is JsonValue saved && saved.TryGetValue<double>(out var number) && number == value * factor)
+                        chances[key] = current[key] * factor;
+                }
+            }
+            document[marker] = CometConfig.SourceBaseline;
+            return true;
+        }
         var defaults = JsonSerializer.SerializeToNode(new CometConfig())!.AsObject();
         var preserved = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {

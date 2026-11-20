@@ -96,11 +96,8 @@ public static class GrenadeTrajectoryRules
     public const int AttemptLimit = 12;
     public const double SearchLifetime = 2;
 
-    // Roof info only orders candidates; the native arc check decides feasibility.
-    public static int[] Angles(bool alternative, bool lowCeiling) =>
-        alternative ? new[] { 15, 25 }
-        : lowCeiling ? new[] { 15, 25, 35, 45 }
-        : new[] { 25, 15, 35, 45 };
+    public static int[] Angles(bool doorway, bool indoors, float distance = 6) =>
+        doorway || indoors && distance < 6 ? new[] { 15, 25 } : new[] { 15, 25, 35, 45 };
 
     public static double Dispersion(double distance) =>
         .5 + 4.5 * Math.Max(0, Math.Min(1, (distance - 10) / 40));

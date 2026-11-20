@@ -27,6 +27,13 @@ public static class DifficultyPresets
     public static bool IsKnown(string? name) =>
         name == "Hard" || name == "Normal" || name == "Easy";
 
+    internal static double ChanceFactor(string? name) => name switch
+    {
+        "Normal" => .75,
+        "Easy" => .5,
+        _ => 1,
+    };
+
     public static CometConfig Create(string name)
     {
         if (!IsKnown(name))
@@ -34,7 +41,7 @@ public static class DifficultyPresets
         var c = new CometConfig { DifficultyPreset = name };
         if (name == "Hard")
             return c;
-        double chance = name == "Normal" ? .75 : .5;
+        double chance = ChanceFactor(name);
         double delay = name == "Normal" ? 1.25 : 1.5;
         void Chances(Dictionary<string, double> values)
         {
@@ -42,7 +49,7 @@ public static class DifficultyPresets
                 values[key] *= chance;
         }
 
-        // D02/D03 share one recon roll; D05/D06 share one feint roll.
+        // Door plans share their admission roll. D05/D06 share one feint roll.
         // Style preferences are unchanged, avoiding a second roll or changing the mix.
         Chances(c.DoorJumpPeek.Chances);
         c.DoorJumpPeek.Cooldown *= delay;

@@ -76,14 +76,10 @@ public sealed partial class Plugin
             || !e.EnemyKnown
             || e.KnownPlaces.LastKnownPosition is not Vector3 known
             || !s.Jump.Policy.SameContact(e.EnemyProfileId, DP(known))
-            || e.TimeSinceLastKnownUpdated > config.DoorApproach.ContactLifetime
         )
             return "peek-contact-changed-or-expired";
         if (e.IsVisible)
-        {
             s.Jump.Policy.Trace!.VisualAcquired = true;
-            return "peek-native-visual-acquired";
-        }
         if (!TacticalDoorSearch(b, s))
             return "peek-search-not-owned";
         if (b.BotOwner.Memory.IsUnderFire || b.BotOwner.Medecine.Using)
@@ -527,7 +523,10 @@ public sealed partial class Plugin
         }
         RecordDoorJump(s, true);
         if (r.Policy.Trace?.State == "completed" && r.Policy.Trace.Returned)
-            TryStartDoorStep(s, r);
+        {
+            TryStartDoorStep(s, r.Owner, r.Door, r.TargetInstance, r.Policy.Trace);
+            if (!s.StepPeek.Policy.Active) FinishPeekFeint(s, r.Owner, r.Door);
+        }
         r.DropReferences();
     }
 

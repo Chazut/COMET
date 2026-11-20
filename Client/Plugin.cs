@@ -812,6 +812,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 state = new BotState(bot, plugin.config, plugin.session);
                 plugin.states.Add(bot, state);
             }
+            state.Door.NativeFallback = state.Door.NativeSelected = false;
             if (!ContactSafety.Allows(bot, enemy))
             {
                 plugin.ReleaseThreat(bot, state, "contact-ended-own-squad");
@@ -867,6 +868,8 @@ public sealed partial class Plugin : BaseUnityPlugin
             if (plugin.KeepDoorEntry(bot, state, ref result, ref __result))
                 return false;
             if (plugin.KeepDoorClear(bot, state, ref result, ref __result))
+                return false;
+            if (plugin.KeepCombatDoor(bot, enemy, state, ref result, ref __result))
                 return false;
             if (plugin.KeepDoorAmbush(bot, state, ref result, ref __result))
                 return false;
@@ -1128,10 +1131,21 @@ public sealed partial class Plugin : BaseUnityPlugin
                 if (!choice.Decision.HasValue)
                 {
                     plugin.YieldToSain(state, "no-feasible-option");
+                    state.Door.NativeFallback = true;
                     return true;
                 }
                 var tactic = choice.Decision.Value;
                 state.Expected = NativeAdapter.Map(tactic);
+                if (tactic == Tactic.Push && state.Door.SessionPlan.Length > 0 && !state.Door.FromSearch)
+                {
+                    if (state.Door.SessionPlan == "trap")
+                    {
+                        state.Expected = ECombatDecision.Freeze;
+                        state.Decision = "Hold";
+                    }
+                    else
+                        state.Expected = ECombatDecision.Search;
+                }
                 state.RequestedFrame = Time.frameCount;
                 result = state.Expected;
                 __result = true;
@@ -1599,6 +1613,8 @@ public sealed partial class Plugin : BaseUnityPlugin
             state.PlanService.Clear();
         if (state.ActiveLabel.Length > 0 && !suspendPlan)
             ObserveControlRelease(state, reason);
+        if (state.Door.SessionPlan.Length > 0)
+            CloseDoorSession(state);
         EndDoorSpatial(state, reason);
         EndDoorRecovery(state, reason);
         EndDoorTransit(state, reason);

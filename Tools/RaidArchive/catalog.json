@@ -460,12 +460,12 @@
   },
   {
     "id": "E06",
-    "name": "Human equipment exemption covered by A09/S06",
-    "status": "integrated",
+    "name": "zzap exemption for human equipment",
+    "status": "excluded",
     "trace": "",
     "config": null,
     "counting": "trace",
-    "note": "Recorded evidence only. Missing events do not prove zero opportunities. Completion means the feature reported completion, not tactical success."
+    "note": "COMET deliberately includes the observed human target's equipment in vulnerability scoring for A09 and S06."
   },
   {
     "id": "G01",

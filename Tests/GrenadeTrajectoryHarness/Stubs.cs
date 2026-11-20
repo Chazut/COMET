@@ -60,6 +60,8 @@ namespace UnityEngine
     {
         public const float Deg2Rad = (float)Math.PI / 180;
 
+        public static float Lerp(float a, float b, float t) => a + (b-a) * Math.Clamp(t,0,1);
+        public static float InverseLerp(float a, float b, float v) => Math.Clamp((v-a)/(b-a),0,1);
         public static float Tan(float x) => (float)Math.Tan(x);
 
         public static float Cos(float x) => (float)Math.Cos(x);
@@ -209,6 +211,7 @@ public class AIGreanageThrowData
 
 public enum AIGreandeAng
 {
+    ang5 = 5,
     ang15 = 15,
     ang25 = 25,
     ang35 = 35,
@@ -229,12 +232,14 @@ public static class AIGrenadeHelper
         float percent
     )
     {
+        if (percent != 0) throw new InvalidOperationException("Both arc evaluations must accept the full native range");
         Calls++;
         return new()
         {
             Position = from,
             Target = target,
             Ang = (int)angle,
+            Force = Math.Abs((int)angle - 35) + 10,
             CanThrow = Allowed(target, (int)angle),
         };
     }
@@ -293,7 +298,7 @@ namespace SAIN.SAINComponent.Classes.Mover
     public class DoorLink
     {
         public object? Door = new();
-        internal Comet.Client.DoorGeometry Geometry = new();
+        internal Comet.Core.DoorGeometry Geometry = new() { Id = "door", State = "Open", Center = new(8, 0, 0), Normal = new(1, 0, 0), Axis = new(0, 0, 1), HalfWidth = 1 };
     }
 
     public class DoorDataStruct
@@ -427,8 +432,12 @@ namespace SAIN.Components
         public SAIN.Preset.Shared.Enums.ETagStatus HealthStatus;
     }
 
+    public class Location { public bool IsIndoors; }
+    public class TestInfo { public TestProfile Profile = new(); }
+    public class TestProfile { public float DifficultyModifier = .5f; }
     public class Memory
     {
+        public Location Location = new();
         public HealthMemory Health = new();
     }
 
@@ -464,6 +473,7 @@ namespace SAIN.Components
 
     public class BotComponent
     {
+        public TestInfo Info = new();
         public bool Pmc = true,
             BotActive = true,
             IsDead,
@@ -503,6 +513,7 @@ namespace Comet.Core
         public long Revision = 1;
         public double GrenadeContactLifetime = 8;
         public GrenadeJudgmentConfig GrenadeJudgment = new();
+        public DoorApproachConfig DoorApproach = new();
         public GrenadeTrajectoryConfig GrenadeTrajectory = new() { Enabled = true };
         public object Opportunity = new();
         public object EnvironmentContext = new();
@@ -512,28 +523,6 @@ namespace Comet.Core
             if (!double.IsFinite(v) || v < lo || v > hi)
                 throw new ArgumentException(n);
         }
-    }
-
-    public readonly struct DoorPoint
-    {
-        public readonly double X,
-            Y,
-            Z;
-
-        public DoorPoint(double x, double y, double z)
-        {
-            X = x;
-            Y = y;
-            Z = z;
-        }
-
-        public bool Finite => double.IsFinite(X) && double.IsFinite(Y) && double.IsFinite(Z);
-        public double Length => Math.Sqrt(X * X + Y * Y + Z * Z);
-
-        public double Dot(DoorPoint p) => X * p.X + Y * p.Y + Z * p.Z;
-
-        public static DoorPoint operator -(DoorPoint a, DoorPoint b) =>
-            new(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
     }
 
     public class EnvironmentTrace
@@ -628,16 +617,6 @@ namespace Comet.Client
         internal DoorGeometry Geometry = new();
     }
 
-    internal class DoorGeometry
-    {
-        internal string Id = "door",
-            State = "Open";
-        internal DoorPoint Center = new(12, 0, 0),
-            Normal = new(1, 0, 0),
-            Axis = new(0, 0, 1);
-        internal double HalfWidth = 1;
-    }
-
     internal class BotState
     {
         internal EnvironmentContext Environment = new();
@@ -692,11 +671,12 @@ namespace Comet.Client
         private class Rng : Random
         {
             internal int Draws;
+            internal double Value = .1;
 
             public override double NextDouble()
             {
                 Draws++;
-                return .1;
+                return Value;
             }
         }
 
@@ -776,6 +756,7 @@ namespace Comet.Client
         internal CometConfig Settings => config!;
         internal int Count => states.Count;
         internal int Draws => jumpRandom.Draws;
+        internal double Draw { set => jumpRandom.Value = value; }
         internal List<string> Events => diagnostics!.Events;
         internal List<Player> Players => world!.RegisteredPlayers;
 

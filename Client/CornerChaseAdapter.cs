@@ -157,7 +157,7 @@ public sealed partial class Plugin
                 ) > 1.5f,
             Healthy = b.Memory.Health.HealthStatus == global::ETagStatus.Healthy,
             Hurt = b.Memory.Health.HealthStatus != global::ETagStatus.Healthy,
-            Weakness = b.GoalEnemy == null ? 0 : ZzapEnemyWeakness.Read(b, b.GoalEnemy, out _),
+            Weakness = b.GoalEnemy == null ? 0 : ZzapEnemyWeakness.Score(b, b.GoalEnemy),
             AmmoRatio =
                 SAIN.SAINComponent.Classes.WeaponFunction.SAINBotSuppressClass.CalcAmmoRatio(
                     b.BotOwner,

@@ -134,15 +134,15 @@
     },
     "SecondaryEntrance": {
       "Title": "Watch another access, then consider entering - S02",
-      "Description": "A teammate can watch a different entrance while the squad keeps the enemy busy. Uses S01's participation roll. Several teammates may choose different accesses. Entry needs a ready partner and recent information. The entry chance is rolled once per attempt. The retry also requires newer information. A blocked passage or unavailable partner never forces an entry.",
+      "Description": "A teammate watching the same enemy can support an approach from another entrance. Several squadmates can take different routes when the map allows it.",
       "Category": "Squad",
-      "Summary": "A teammate can watch a different entrance while the squad keeps the enemy busy."
+      "Summary": "Approach a known enemy through another entrance with squad support."
     },
     "Crossfire": {
       "Title": "Find another firing angle - S01",
-      "Description": "When a teammate is engaging a known enemy, each PMC can choose a different reachable angle. Several teammates may move at once if their positions and routes are useful. No one is forced to move. Visible enemies, healing and immediate dangers keep priority. Uses only remembered or shared contact information. Positions are spaced apart, firing lanes are checked, and failed routes are abandoned. Indoor angle must not exceed outdoor angle; stall timeout must not exceed movement timeout. Settings apply next raid.",
+      "Description": "When a squadmate can see the same enemy, another PMC can seek a different firing angle. It still needs a usable destination and route.",
       "Category": "Squad",
-      "Summary": "When a teammate is engaging a known enemy, each PMC can choose a different reachable angle."
+      "Summary": "Seek a different angle while a squadmate has eyes on the enemy."
     },
     "ReadyStance": {
       "Title": "Keep the weapon ready after a fight - H05",
@@ -206,9 +206,9 @@
     },
     "GrenadeTrajectory": {
       "Title": "Find a grenade trajectory - G02",
-      "Description": "Aim at the last personally known position, a nearby corner or behind an open door. Prefer throws with more clearance around obstacles. SAIN still handles throwing and the game's grenade physics. Failed searches use G01's \"Retry without a trajectory\" setting, even with grenade judgment disabled. Random aiming error is kept for the whole attempt. The door, trajectory and nearby nonhostiles are checked again before throwing.",
+      "Description": "Consider the last known position, a nearby corner or an open doorway. The bot compares viable arcs and can pick the lowest-force throw or another valid arc. Indoor and outdoor throws use different angles.",
       "Category": "Grenades",
-      "Summary": "Aim at the last personally known position, a nearby corner or behind an open door."
+      "Summary": "Compare viable grenade trajectories before choosing a throw."
     },
     "GrenadeJudgment": {
       "Title": "Choose when to throw a grenade - G01",
@@ -368,9 +368,9 @@
     },
     "DoorApproach": {
       "Title": "Prepare a doorway approach - D01",
-      "Description": "While searching for a lost contact, a PMC can move beside a nearby door before continuing. It compares both sides, checks the route and standing space, and uses only the enemy's last known position. After reaching the frame, a PMC can choose a prepared entry on recent information (D07), or a cautious check on older information (D08). Otherwise it can try a feint, reconnaissance, or continue searching. RR records the choice and the observed result.",
+      "Description": "A PMC can take position beside the frame when an enemy disappears behind a door. In combat its personality and the situation influence whether it clears the room, peeks or waits. A PMC already searching can also decide to check the room.",
       "Category": "Doors",
-      "Summary": "While searching for a lost contact, a PMC can move beside a nearby door before continuing."
+      "Summary": "Approach a doorway from the side to investigate a known contact."
     },
     "DoorRoomClear": {
       "Title": "Prepare a room entry - D07",
@@ -404,9 +404,9 @@
     },
     "DoorAmbush": {
       "Title": "Wait at a doorway - D09 / D10",
-      "Description": "When a PMC has already chosen to hold, find a protected angle on the doorway exit. This does not make every bot camp or reveal an enemy through a closed door. Keep a good current angle. Move only for a protected doorway position with enough time left to use it. Otherwise keep a useful native Hold or reconsider another action. Feints retain D05/D06 chances, permissions and cooldowns. No forced enemy reaction. The door stays as it is. Waits begin after arrival or confirmation of the current angle, and may end earlier. Contact memory and the shared A12 hold budget still apply, including approach and feint time. The hold limit comes from Stalled plans (A12), or Lost contact (A01) when A12 is disabled. Changing doors never resets it. Danger or a visible enemy immediately returns priority to SAIN. Requires D01 doorway approach. RR distinguishes a retained position from a requested move or confirmed arrival, a clear eye/muzzle view, and an enemy actually spotted.",
+      "Description": "A PMC can watch a doorway from cover during a hold. A combat door plan can also select an ambush directly. Patience and stance vary by personality.",
       "Category": "Doors",
-      "Summary": "When a PMC has already chosen to hold, find a protected angle on the doorway exit."
+      "Summary": "Watch the exit from cover and wait for the enemy."
     },
     "DoorSearchClear": {
       "Title": "Check a room while searching - D08",
@@ -416,9 +416,9 @@
     },
     "DoorJumpPeek": {
       "Title": "Doorway reconnaissance - D02 / D03",
-      "Description": "One chance to investigate after reaching a protected frame. The PMC chooses one safe style, then resumes normal decisions. It does not chain both maneuvers. These chances apply when no feint was selected. D02 personality chances and cooldown apply to both reconnaissance styles together. For example, with Chad set to 25% and run-by preference at 40%, both routes being safe gives 10% run-by, 15% jump peek and 75% normal search.",
+      "Description": "A PMC can look into a room from the corridor by jumping, running past the opening or stepping out and back. The last option is available when the other two moves are unsuitable.",
       "Category": "Doors",
-      "Summary": "Let PMCs briefly peek or run past a doorway to check a known threat."
+      "Summary": "Look into a room from the corridor and return to cover."
     },
     "DoorFakeMedical": {
       "Title": "Doorway feints - D05 / D06",
@@ -5174,6 +5174,16 @@
       "Section": "DoorJumpPeek",
       "Simple": true
     },
+    "DoorJumpPeek.GigaChadPeekChance": {
+      "Label": "Peek preference",
+      "Help": "Weights peeking during a combat door plan. For a GigaChad it also balances peeking against waiting in ambush.",
+      "Min": 0.0,
+      "Max": 100.0,
+      "Scale": 1,
+      "Section": "DoorJumpPeek",
+      "Simple": false,
+      "Unit": "%"
+    },
     "DoorJumpPeek.Chances.GigaChad": {
       "Label": "Giga Chad - Chance",
       "Help": "",
@@ -5556,6 +5566,16 @@
       "Scale": 1,
       "Section": "DoorRoomClear",
       "Simple": true
+    },
+    "DoorRoomClear.RoomClearChance": {
+      "Label": "Room entry weight",
+      "Help": "Base preference for entering during combat. Nearby allies and the state of the contact affect the final choice.",
+      "Min": 0.0,
+      "Max": 100.0,
+      "Scale": 1,
+      "Section": "DoorRoomClear",
+      "Simple": false,
+      "Unit": "%"
     },
     "DoorRoomClear.Chances.GigaChad": {
       "Label": "Giga Chad - Chance",

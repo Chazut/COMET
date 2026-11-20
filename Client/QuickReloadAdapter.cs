@@ -270,7 +270,6 @@ public sealed partial class Plugin
                     item is Magazine m
                     && !ReferenceEquals(m, old)
                     && slot.CanAccept(m)
-                    && m.IsAmmoCompatible(w.Chambers)
                 )
                     f.SpareMagazines++;
         return f;

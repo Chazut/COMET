@@ -70,9 +70,7 @@ foreach (
         p => p.Frame.Combat.Pmc = false,
         p => p.Frame.Combat.Ghost = true,
         p => p.Frame.Combat.Authority = false,
-        p => p.Frame.Combat.Urgent = true,
         p => p.Frame.Combat.Action = "Search",
-        p => p.Frame.SimplifiedSkeleton = true,
     }
 )
 {
@@ -81,8 +79,15 @@ foreach (
     p.Apply();
     Check(
         p.Lean.Bot.Player.MovementContext.Calls.Count == 0 && !p.State.CombatLean.Policy.Active,
-        "scope/urgency/simplified skeleton cannot acquire physical animation"
+        "scope or other action cannot acquire physical animation"
     );
+}
+foreach (var change in new Action<Plugin>[] { p => p.Frame.Combat.Urgent = true, p => p.Frame.SimplifiedSkeleton = true })
+{
+    var p = new Plugin();
+    change(p);
+    p.Apply();
+    Check(p.Lean.Bot.Player.MovementContext.Calls.Count > 0, "an isolated hint does not veto native lean");
 }
 foreach (
     var otherOwner in new Action<Plugin>[]

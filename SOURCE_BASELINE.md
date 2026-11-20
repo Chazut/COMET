@@ -7,10 +7,24 @@ Do not add a defensive tactical veto merely because it seems reasonable.
 
 Reference: R_F's SAIN zzap snapshot
 `fbb86b838e0fa692b759b2c0b11fc30158a53876`.
-Configuration marker: `zzap-fbb86b83-2`.
+The audited door, grenade, cover and squad changes also track remix 7.6
+(`d8655293f607161fa0c7c0cf9958af4ffcfbae8f`).
+Configuration marker: `zzap-d8655293-1`.
 The host remains official SAIN 4.5.1; the fork DLL is not distributed or installed.
 
 ## Behavioral changes
+
+### Door decisions and engagement scoring (2026-11-20)
+
+Combat door selection follows a refused rush. Search has its own room-clear roll.
+A decline blocks another door for eight seconds and the same door for 25 seconds.
+Ending a session blocks that door for 60 seconds. Conditional peeks, clears and
+traps share the selection. Existing installations migrate the previous default
+personality chances while retaining individually tuned values.
+
+COMET applies repetition and outcome scores within the current encounter. It
+continues to use equipment when estimating human target weakness. The latter
+is an intentional difference from the fork.
 
 ### Brief sight loss and outdoor relocation (2026-11-20)
 

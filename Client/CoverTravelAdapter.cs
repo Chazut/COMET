@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Reflection.Emit;
 using Comet.Core;
 using EFT;
 using HarmonyLib;
@@ -64,10 +66,76 @@ public sealed partial class Plugin
             postfix: new HarmonyMethod(typeof(Plugin), nameof(CoverTravelUpdate))
         );
         var type = typeof(BotComponent).Assembly.GetType(SeekCoverType, true);
+        h.Patch(AccessTools.Method(type, "OnSteeringTicked"),
+            prefix: new HarmonyMethod(typeof(Plugin), nameof(SteerBusyCoverWalker)),
+            transpiler: new HarmonyMethod(typeof(Plugin), nameof(InsertWalkingGaze)));
         h.Patch(
             AccessTools.Method(type, "Stop") ?? throw new MissingMethodException("M09 cover stop"),
             prefix: new HarmonyMethod(typeof(Plugin), nameof(CoverTravelStopped))
         );
+    }
+
+    private static bool ScopedCoverWalker(BotComponent b) =>
+        Instance is { } p && p.config?.Enabled == true && p.config.CoverTravel.Enabled
+        && p.Authority && NativeAdapter.IsSupportedAi(b) && !p.Ghost(b.ProfileId)
+        && !b.Player.IsSprintEnabled && b.Player.Velocity.sqrMagnitude >= .25f;
+
+    private static bool SteerBusyCoverWalker(BotAction __instance)
+    {
+        var b = __instance.Bot;
+        if (!ScopedCoverWalker(b) || !(b.BotOwner.WeaponManager?.Reload?.Reloading == true || b.BotOwner.Medecine?.Using == true))
+            return true;
+        var cover = b.Cover.CoverInUse ?? b.Cover.CoverPoint_MovingTo;
+        if (cover == null || cover.BotInThisCover || (cover.Position - b.Position).sqrMagnitude < 9f)
+            return true;
+        b.Aim.LoseAimTarget();
+        b.Steering.LookToMovingDirection();
+        return false;
+    }
+
+    // The native action has already attempted to shoot and suppress when it resets suppression.
+    private static IEnumerable<CodeInstruction> InsertWalkingGaze(IEnumerable<CodeInstruction> instructions)
+    {
+        var reset = typeof(SAIN.SAINComponent.Classes.WeaponFunction.SAINBotSuppressClass).GetMethod("ResetSuppressing");
+        var suppress = typeof(SAIN.SAINComponent.Classes.WeaponFunction.SAINBotSuppressClass).GetMethod("TrySuppressAnyEnemy");
+        var body = new List<CodeInstruction>(instructions);
+        object? resume = null;
+        bool found = false;
+        for (int i = 0; i < body.Count; i++)
+        {
+            var instruction = body[i];
+            if (i > 0 && body[i - 1].Calls(suppress) &&
+                (instruction.opcode == OpCodes.Brtrue || instruction.opcode == OpCodes.Brtrue_S))
+                resume = instruction.operand;
+            yield return instruction;
+            if (!instruction.Calls(reset) || resume == null)
+                continue;
+            found = true;
+            yield return new CodeInstruction(OpCodes.Ldarg_0);
+            yield return new CodeInstruction(OpCodes.Call, typeof(Plugin).GetMethod(nameof(FaceWalkWithoutThreat), System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic));
+            yield return new CodeInstruction(OpCodes.Brfalse, resume);
+            yield return new CodeInstruction(OpCodes.Ret);
+        }
+        if (!found)
+            throw new MissingMethodException("M09 SeekCover suppression reset");
+    }
+
+    private static bool FaceWalkWithoutThreat(BotAction action)
+    {
+        var b = action.Bot;
+        if (!ScopedCoverWalker(b) || !b.Mover.Moving)
+            return false;
+        var cover = b.Cover.CoverInUse ?? b.Cover.CoverPoint_MovingTo;
+        if (cover != null && (cover.BotInThisCover || (cover.Position - b.Position).sqrMagnitude < 9f))
+            return false;
+        float fire = b.BotOwner.Memory.UnderFireTime;
+        var enemy = b.GoalEnemy;
+        if (fire > 0 && Time.time - fire < 3f || enemy?.IsVisible == true
+            || enemy?.Seen == true && enemy.TimeSinceSeen < 4f
+                && enemy.KnownPlaces.LastKnownPosition is Vector3 pos && (pos - b.Position).sqrMagnitude < 900f)
+            return false;
+        b.Steering.LookToMovingDirection();
+        return true;
     }
 
     private static void CoverTravelNativeSprint(SAINCoverClass __instance, bool __result)

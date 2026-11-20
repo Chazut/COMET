@@ -28,6 +28,7 @@ internal static class DoorStepTests
                 {
                     State = "completed",
                     Returned = true,
+                    VisualAcquired = true,
                     Door = "d",
                     Target = "e",
                 },
@@ -37,6 +38,7 @@ internal static class DoorStepTests
             ),
             "peek continuation"
         );
+        Check(p.Trace!.VisualAcquired, "a sighting during the previous peek survives the transition");
         p.Prepared(new(1, 0, 0), new(2, 0, 0), 1, .2, 0, "peek", 10);
         Check(p.Active && p.Trace!.State == "preparing", "zero rest accepted");
         Check(

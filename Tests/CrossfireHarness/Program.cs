@@ -285,8 +285,9 @@ foreach (string reason in new[] { "incoming-fire", "contact-changed", "timeout" 
 {
     var (p, b, m) = Setup();
     p.config!.Crossfire.Participation = 0;
+    m.Position = new(90, 0, 0);
     p.Observe(b);
-    C(!p.states[b].Crossfire.Policy.Active && p.Claims == 0, "source personality roll may decline");
+    C(p.states[b].Crossfire.Policy.Active, "visible supporting teammate beyond 35m activates regardless of legacy participation");
     Save(p);
 }
 {

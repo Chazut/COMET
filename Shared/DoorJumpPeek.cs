@@ -6,17 +6,18 @@ namespace Comet.Core;
 
 public sealed class DoorJumpPeekConfig
 {
-    // Legacy JSON keys retained: Chances and Cooldown now govern the shared D02/D03 opportunity.
+    // Chances is the original JSON key for the combat door admission roll. Cooldown is a legacy setting.
     public bool Enabled { get; set; } = true;
+    public double GigaChadPeekChance { get; set; } = 55;
     public Dictionary<string, double> Chances { get; set; } =
         new()
         {
-            ["GigaChad"] = 35,
-            ["Chad"] = 25,
-            ["Wreckless"] = 15,
-            ["Normal"] = 10,
-            ["Rat"] = 0,
-            ["SnappingTurtle"] = 0,
+            ["GigaChad"] = 60,
+            ["Chad"] = 35,
+            ["Wreckless"] = 60,
+            ["Normal"] = 25,
+            ["Rat"] = 50,
+            ["SnappingTurtle"] = 60,
             ["Coward"] = 0,
             ["Timmy"] = 0,
         };
@@ -29,6 +30,7 @@ public sealed class DoorJumpPeekConfig
 
     public void Validate()
     {
+        CometConfig.Range(GigaChadPeekChance, 0, 100, nameof(GigaChadPeekChance));
         if (Chances == null || Chances.Count != 8)
             throw new ArgumentException("Missing doorway peek personality chances.");
         foreach (
@@ -105,6 +107,7 @@ public sealed class DoorJumpTrace
 // Pure state machine. Native requests never count as takeoff, landing, vision or arrival.
 public sealed class DoorJumpPeek
 {
+    private readonly DoorMovePhase movement = new();
     public DoorJumpTrace? Trace { get; private set; }
     public bool Active => Trace != null && Trace.State != "ended" && Trace.State != "completed";
     private double last,
@@ -119,6 +122,7 @@ public sealed class DoorJumpPeek
     {
         if (Active)
             throw new InvalidOperationException("A doorway jump is already active.");
+        movement.Reset();
         last = phaseAt = now;
         started = double.NaN;
         known = new(selection.KnownX, selection.KnownY, selection.KnownZ);
@@ -175,6 +179,7 @@ public sealed class DoorJumpPeek
         // Bounded per-bot history; all evidence expires with raid state, never retain native door objects.
         evidence[key] = stamp;
         blockedUntil = now + c.Cooldown;
+        movement.Reset();
         last = phaseAt = now;
         started = double.NaN;
         known = contact;
@@ -264,18 +269,19 @@ public sealed class DoorJumpPeek
         t.ActualY = position.Y;
         t.ActualZ = position.Z;
         t.VisualAcquired |= visible;
-        if (visible)
-        {
-            End("peek-native-visual-acquired", now);
-            return false;
-        }
         t.Elapsed = DoorPolicy.Finite(started) ? Math.Max(0, now - started) : 0;
-        t.Remaining = Math.Max(0, c.Limit - t.Elapsed);
-        if (DoorPolicy.Finite(started) && t.Elapsed >= c.Limit)
+        if (t.State is "run-up" or "returning")
         {
-            End("peek-time-budget-ended", now);
-            return false;
+            string failure = movement.Check(t.State, position, arrived, now, out double remaining);
+            t.Remaining = remaining;
+            if (failure.Length > 0)
+            {
+                End("peek-" + failure, now);
+                return false;
+            }
         }
+        else
+            movement.Reset();
         double phaseTime = now - phaseAt;
         if (t.MovementAccepted && !grounded)
         {

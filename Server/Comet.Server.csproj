@@ -87,6 +87,7 @@
     <Compile Include="../Shared/DoorJumpPeek.cs" Link="Core/DoorJumpPeek.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../Shared/DoorMovePhase.cs" Link="Core/DoorMovePhase.cs" />
     <Compile Include="../Shared/DoorRunBy.cs" Link="Core/DoorRunBy.cs" />
   </ItemGroup>
   <ItemGroup>

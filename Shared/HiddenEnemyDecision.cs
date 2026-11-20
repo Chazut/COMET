@@ -7,6 +7,7 @@ namespace Comet.Core;
 // Captured on the Unity thread. Contains no live enemy transform, inventory or health.
 public sealed class Situation
 {
+    public double? RealDistance;
     public double Now;
     public string Target = "";
     public string Personality = "Normal";
@@ -200,6 +201,8 @@ public sealed class HiddenEnemyDecision
                 }
             );
         }
+        EncounterScoring.Adjust(candidates, s, config);
+        OutcomeScoring.Adjust(candidates, s, config);
         var chosen = mixer.Select(
             candidates,
             s.Target,

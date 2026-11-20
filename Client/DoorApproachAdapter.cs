@@ -30,6 +30,13 @@ internal sealed class DoorRuntime
     internal readonly DoorApproach Policy = new();
     internal readonly List<DoorWork> Work = new();
     internal DoorWork? Chosen;
+    internal string SessionPlan = "", SessionDoor = "", SessionEnemy = "", Feint = "";
+    internal bool FromSearch, Entered, NativeFallback, NativeSelected;
+    internal DoorWork? Nearby;
+    internal float ProbeUntil, SessionAt;
+    internal double SelectionChance, SelectionRoll;
+    internal string ProbeTarget = "";
+    internal readonly DoorSessionCooldowns Cooldowns = new();
     internal IBotPathData? OwnedPath;
     internal NavMeshPath? IssuedRoute;
     internal float NextMoveOrder;
@@ -85,7 +92,8 @@ public sealed partial class Plugin
         b.SAINLayersActive
         && b.Decision.CurrentCombatDecision == ECombatDecision.Search
         && b.CurrentAction?.GetType().Name == "SearchAction"
-        && (s.ActiveLabel.Length == 0 || s.ActiveLabel == "COMET:Search")
+        && (s.ActiveLabel.Length == 0 || s.ActiveLabel == "COMET:Search"
+            || s.Door.SessionPlan.Length > 0 && s.ActiveLabel == "COMET:Push")
         && !s.Handoff.Blocked(Time.time, HandoffContact(s.Situation));
 
     private string DoorGate(BotComponent b, Enemy? e, BotState s)
@@ -108,6 +116,13 @@ public sealed partial class Plugin
             b.BotOwner.Memory.IsUnderFire
             || b.Grenade.GrenadeDangerPoint != null
             || b.Decision.CurrentSelfDecision != ESelfActionType.None;
+        if (s.Door.SessionPlan.Length > 0 && e != null && e.EnemyProfileId == s.Door.SessionEnemy)
+        {
+            if (!scope || !c.DoorApproach.Enabled) return "door-out-of-scope";
+            if (!search) return "door-search-not-owned";
+            if (unsafeNow) return "door-native-priority";
+            return e.EnemyKnown && e.KnownPlaces.LastKnownPosition.HasValue ? "" : "door-contact-expired";
+        }
         double unseen =
             e == null ? 0
             : e.Seen ? e.TimeSinceSeen
@@ -150,6 +165,9 @@ public sealed partial class Plugin
             p.RefreshDoorInterruption(b, s);
             if (!p.GuardDoorReservation(b, s))
                 return true;
+            if (!p.HasDoorAction(s) && !p.EnsureDoorSession(b, enemy, s, true))
+                return true;
+            s.Door.Entered = true;
             bool fallback =
                 s.Interruption.Policy.Pending ? p.StepDoorResume(b, s)
                 : s.RoomClear.Policy.Active ? p.StepDoorClear(b, s)
@@ -158,6 +176,8 @@ public sealed partial class Plugin
                 : s.RunBy.Policy.Active ? p.StepDoorRun(b, enemy, s)
                 : s.Jump.Policy.Active ? p.StepDoorJump(b, enemy, s)
                 : p.StepDoor(b, enemy, s);
+            if (s.Door.Entered && !p.HasDoorAction(s))
+                p.CloseDoorSession(s);
             return p.CompleteDoorReservationStep(b, s, fallback);
         }
         catch (Exception ex)
@@ -233,17 +253,17 @@ public sealed partial class Plugin
                 var work = r.Chosen;
                 bool reached = t.Arrived;
                 FinishDoor(s);
-                if (
-                    reached
-                    && work != null
-                    && !TryStartDoorClear(b, e, s, work)
-                    && !TryStartDoorFake(b, e, s, work)
-                )
-                    TryStartDoorJump(b, e, s, work);
+                if (reached && work != null)
+                {
+                    if (r.SessionPlan == "clear")
+                        TryStartDoorClear(b, e, s, work);
+                    else if (r.SessionPlan == "peek")
+                        TryStartDoorJump(b, e, s, work);
+                }
                 return !s.RoomClear.Policy.Active
                     && !s.Fake.Policy.Active
                     && !s.Jump.Policy.Active
-                    && !s.RunBy.Policy.Active;
+                    && !s.RunBy.Policy.Active && !s.StepPeek.Policy.Active;
             }
             // The source refreshes the move order every 0.75 s while approaching.
             if (Time.time >= r.NextMoveOrder)
@@ -299,7 +319,7 @@ public sealed partial class Plugin
         }
         if (!r.Policy.Planning)
         {
-            if (Time.time < r.NextPlan || !r.Policy.CanPlan(e.EnemyProfileId, DP(known), Time.time))
+            if (Time.time < r.NextPlan || r.SessionPlan.Length == 0 && !r.Policy.CanPlan(e.EnemyProfileId, DP(known), Time.time))
                 return true;
             r.NextPlan = Time.time + 2;
             StartDoorPlan(b, e, s, known);
@@ -447,6 +467,8 @@ public sealed partial class Plugin
                 continue;
             }
             work.Geometry = g;
+            if (r.SessionDoor.Length > 0 && r.SessionDoor != g.Id)
+                continue;
             string why = DoorPolicy.Geometry(
                 g,
                 DP(b.Position),
@@ -719,6 +741,10 @@ public sealed partial class Plugin
                 profileId = s.ProfileId,
                 name = s.Name,
                 botInstance = s.Id,
+                doorPlan = r.SessionPlan,
+                entry = r.FromSearch ? "search" : "combat",
+                selectionChance = r.SelectionChance,
+                selectionRoll = r.SelectionRoll,
                 doorApproach = t,
             }
         );

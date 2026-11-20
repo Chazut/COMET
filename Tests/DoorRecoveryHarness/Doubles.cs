@@ -587,6 +587,7 @@ namespace Comet.Client
     {
         internal List<string> Warnings = new();
 
+        internal void LogDebug(string s) { }
         internal void LogWarning(string s) => Warnings.Add(s);
     }
 
@@ -727,6 +728,10 @@ namespace Comet.Client
     {
         internal static void Generation(WorldInteractiveObject d) => RecoveryGeneration(d);
 
+        internal static void Deactivate(BotComponent b) =>
+            RecoveryBotDeactivated(new SAIN.SAINComponent.Classes.SAINActivationClass(b), false);
+        internal static void Layer(BotComponent b, bool before, bool after) =>
+            RecoveryLayerDeactivated(new SAIN.SAINComponent.Classes.SAINActivationClass(b) { SAINLayersActive = after }, before);
         internal static HarmonyLib.Harmony RecoveryHooks()
         {
             var h = new HarmonyLib.Harmony();

@@ -22,6 +22,13 @@ static class TranspilerAudit
             BarrelReloadAudit.Check(transpiler, Read(target));
         if (transpiler.Name == "FloorRangeTranspiler")
             FloorRangeAudit.Check(transpiler, Read(target));
+        if (transpiler.Name == "RouteQuickReload")
+        {
+            var frame = typeof(Comet.Client.Plugin).GetMethod("QuickReloadFrameFor", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var calls = Read(frame).Select(i => i.operand).OfType<MethodBase>().ToArray();
+            if (!calls.Any(m => m.Name == "CanAccept") || calls.Any(m => m.Name == "IsAmmoCompatible"))
+                throw new Exception("Quick reload spares must count mountable magazines irrespective of their cartridges.");
+        }
     }
 
     static void CheckVariant(MethodBase target, MethodInfo transpiler, string variant)
@@ -89,6 +96,22 @@ static class TranspilerAudit
                 )
             )
                 continue;
+            if (transpiler.Name == "InsertWalkingGaze")
+            {
+                if (call.Name != "ResetSuppressing" || call.ReturnType != typeof(void)
+                    || segment.Length != 5 || !Equals(segment[0].operand, call)
+                    || segment[0].opcode != original.opcode || segment[1].opcode != OpCodes.Ldarg_0
+                    || segment[2].opcode != OpCodes.Call || segment[2].operand is not MethodInfo gaze
+                    || gaze.DeclaringType != typeof(Comet.Client.Plugin) || gaze.Name != "FaceWalkWithoutThreat"
+                    || gaze.ReturnType != typeof(bool) || !gaze.IsStatic
+                    || !gaze.GetParameters().Single().ParameterType.IsAssignableFrom(target.DeclaringType!)
+                    || segment[3].opcode != OpCodes.Brfalse || segment[4].opcode != OpCodes.Ret
+                    || !before.Zip(before.Skip(1)).Any(pair => pair.First.operand is MethodInfo m
+                        && m.Name == "TrySuppressAnyEnemy" && (pair.Second.opcode == OpCodes.Brtrue
+                            || pair.Second.opcode == OpCodes.Brtrue_S) && Equals(pair.Second.operand, segment[3].operand)))
+                    throw new Exception("Walking gaze must follow a failed suppression and rejoin native steering");
+                continue;
+            }
             // Check the actual receiver type too, not only a method name/call count.
             // This catches routing an interface call to a wrapper requiring a concrete implementation.
             var stack = new List<Type>();

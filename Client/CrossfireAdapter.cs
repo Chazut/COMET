@@ -229,27 +229,20 @@ public sealed partial class Plugin
     {
         if (b.Squad.Members == null)
             return null;
-        BotComponent? best = null;
-        float distance = float.MaxValue;
         foreach (var mate in b.Squad.Members.Values)
         {
             if (
                 mate == null
                 || ReferenceEquals(b, mate)
                 || id.Length > 0 && mate.ProfileId != id
-                || !CrossfireScope(mate)
+                || mate.IsDead
                 || mate.GoalEnemy?.EnemyProfileId != b.GoalEnemy?.EnemyProfileId
                 || mate.GoalEnemy?.IsVisible != true
             )
                 continue;
-            float d = Vector3.Distance(b.Position, mate.Position);
-            if (d <= config!.Crossfire.SupportDistance && d < distance)
-            {
-                best = mate;
-                distance = d;
-            }
+            return mate;
         }
-        return best;
+        return null;
     }
 
     private static void ObserveCrossfire(BotDecisionManager __instance)
@@ -412,7 +405,7 @@ public sealed partial class Plugin
             r.Next = Time.time + (float)c.Interval;
             r.Maneuver = null;
             r.ManeuverRole = null;
-            bool selected = r.Policy.Begin(Time.time, c, jumpRandom.NextDouble());
+            bool selected = r.Policy.Begin(Time.time, c);
             var e = b.GoalEnemy!;
             var situation = NativeAdapter.Capture(b, e, true, false);
             r.ContactInstance = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e);

@@ -3,6 +3,16 @@ using UnityEngine;
 
 namespace UnityEngine
 {
+    public static class Physics
+    {
+        public static bool CorridorHasCover = true;
+        public static bool Linecast(Vector3 from, Vector3 to, int layer) => CorridorHasCover;
+    }
+    public static class LayersMaskController
+    {
+        public const int HighPolyWithTerrainMask = 1;
+    }
+
     public static class Time
     {
         public static float time;
@@ -111,6 +121,9 @@ namespace Comet.Client
         private void EndCornerPeek(BotState s, string reason) =>
             s.CornerPeek.Policy.End(reason, Time.time);
 
+        private bool CornerJumpSafe(BotComponent b, Vector3 direction) =>
+            b.Player.MovementContext.CanJump && b.Player.MovementContext.IsGrounded;
+
         private bool CornerOpen(BotComponent b, Vector3 at, Vector3 known)
         {
             Queries++;
@@ -128,6 +141,7 @@ namespace Comet.Client
             out string why
         )
         {
+            LastOrigin = at;
             end = raw;
             path = new();
             why = Route ? "" : "blocked";

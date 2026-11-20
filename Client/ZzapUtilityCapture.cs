@@ -23,7 +23,7 @@ internal static class ZzapUtilityCapture
             _ => .1,
         };
         s.Ammo = SAINBotSuppressClass.CalcAmmoRatio(bot.BotOwner, out _);
-        s.Weakness = ZzapEnemyWeakness.Read(bot, enemy, out _);
+        s.Weakness = ZzapEnemyWeakness.Score(bot, enemy);
         s.PathLength = enemy.Path.PathLength;
         s.Busy = enemy.Status.VulnerableAction != EEnemyAction.None;
         s.GrenadeOut = enemy.Status.VulnerableAction == EEnemyAction.HasGrenade;

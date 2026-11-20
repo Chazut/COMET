@@ -137,7 +137,8 @@ public sealed partial class Plugin
         Enemy e,
         BotState s,
         DoorWork door,
-        bool ambush = false
+        bool ambush = false,
+        string? planned = null
     )
     {
         var r = s.Fake;
@@ -168,13 +169,13 @@ public sealed partial class Plugin
             && b.BotOwner.WeaponManager?.Grenades.HaveGrenade == true;
         string medical = FindFakeMedical(b, out _, out _);
         double styleRoll = jumpRandom.NextDouble();
-        string kind = DoorFeintChoice.Pick(
+        string kind = planned ?? DoorFeintChoice.Pick(
             grenade,
             medical,
             styleRoll,
             config.DoorFakeMedical.Preference
         );
-        if (kind.Length == 0)
+        if (kind.Length == 0 || kind == "grenade" && !grenade || kind != "grenade" && kind != medical)
             return false;
         var previous = r.Policy.Trace;
         bool selected = r.Policy.Begin(
@@ -187,7 +188,8 @@ public sealed partial class Plugin
             Time.time,
             jumpRandom.NextDouble(),
             c,
-            config.DoorFakeMedical.Enabled
+            config.DoorFakeMedical.Enabled,
+            planned != null
         );
         if (ReferenceEquals(previous, r.Policy.Trace))
             return false;

@@ -36,64 +36,36 @@ void Check(bool ok, string why)
 }
 {
     var (p, b, s) = Setup();
+    var deadline = s.CornerPeek.Policy.Deadline;
+    b.Position = new(.3f, 0, 0);
     b.Player.Velocity = new(1, 0, 0);
-    p.Tick(b, s, 10);
-    Check(
-        p.Queries == 0 && s.CornerPeek.Policy.Active,
-        "same-frame callback waits for actual native inertia even before speed sample"
-    );
-    b.Position = new(.2f, 0, 0);
     s.CornerPeek.Speed = 2;
     p.Tick(b, s, 10.08f);
-    Check(
-        p.Queries == 0 && s.CornerPeek.Policy.Active,
-        "20 cm deceleration drift no longer aborts planning"
-    );
-    b.Position = new(.3f, 0, 0);
-    s.CornerPeek.Speed = .1f;
-    b.Player.Velocity = default;
-    p.Tick(b, s, 10.2f);
-    Check(
-        Math.Abs(p.LastOrigin.x - .3) < .00001 && s.CornerPeek.PlanStage == 1,
-        "geometry measured at actual settled position"
-    );
-    p.Tick(b, s, 10.25f);
-    Check(
-        s.CornerPeek.Policy.Trace!.State == "exposed" && s.CornerPeek.LaneSafe,
-        "valid plan applied after stop"
-    );
-    Check(s.CornerPeek.Policy.Deadline == 14, "original deadline retained");
-}
-{
-    var (p, b, s) = Setup();
-    b.Position = new(.2f, 0, 0);
-    p.Tick(b, s, 10.1f);
+    Check(s.CornerPeek.PlanStage == 1 && Math.Abs(s.CornerPeek.Origin.x - .3) < .00001,
+        "the source samples the actual origin while the bot is still moving");
     b.Position = new(.7f, 0, 0);
+    for (int i = 0; i < 5 && s.CornerPeek.Policy.Trace!.State == "planning"; i++)
+        p.Tick(b, s, 10.2f + .1f * i);
+    Check(s.CornerPeek.Policy.Trace!.State == "exposed" && s.CornerPeek.LaneSafe,
+        "drift between frames allows a usable plan");
+    Check(s.CornerPeek.Policy.Deadline == deadline, "original deadline retained");
+}
+{
+    var (p, b, s) = Setup();
+    Physics.CorridorHasCover = false;
+    p.Tick(b, s, 10.1f);
     p.Tick(b, s, 10.2f);
-    Check(
-        s.CornerPeek.Policy.Trace!.Reason == "corner-planning-origin-moved"
-            && !s.CornerPeek.Policy.Active,
-        "later drift invalidates already checked geometry"
-    );
+    p.Tick(b, s, 10.3f);
+    Check(s.CornerPeek.Policy.Trace!.Reason == "corner-no-local-cover",
+        "both candidate sides are exposed to the enemy");
+    Physics.CorridorHasCover = true;
 }
 {
     var (p, b, s) = Setup();
-    p.Open = false;
-    p.Tick(b, s, 10.1f);
-    Check(
-        s.CornerPeek.Policy.Trace!.Reason == "corner-initial-angle-blocked",
-        "real occlusion still rejects peek"
-    );
-}
-{
-    var (p, b, s) = Setup();
-    b.Player.Velocity = new(1, 0, 0);
-    p.Tick(b, s, 10.1f);
-    p.Tick(b, s, 12f);
-    Check(
-        !s.CornerPeek.Policy.Active
-            && s.CornerPeek.Policy.Trace!.Reason == "corner-planning-timeout",
-        "inertia cannot extend planning deadline"
-    );
+    p.Route = false;
+    for (int i = 0; i < 3; i++)
+        p.Tick(b, s, 10.1f + .1f * i);
+    Check(!s.CornerPeek.Policy.Active && s.CornerPeek.Policy.Trace!.Reason == "corner-no-local-cover",
+        "no reachable candidate leaves the native mover in control");
 }
 Console.WriteLine($"PASS {checks} production corner planning checks");

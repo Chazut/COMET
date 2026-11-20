@@ -55,20 +55,32 @@ foreach (
 }
 {
     var (p, b) = Setup();
+    p.Draw = .95;
+    for (int i = 0; i < 30 && p.State(b).GrenadeTrajectory.Selected == null; i++)
+    {
+        p.Find(b);
+        p.Tick(b, Time.timeAsDouble + .01);
+    }
+    var arcs = p.State(b).GrenadeTrajectory;
+    Check(arcs.Trace?.Reason == "trajectory-prepared" && arcs.Selected?.Alternative.Angle == 45,
+        "uniform selection can choose the fourth viable arc even though the third requires less force");
+}
+{
+    var (p, b) = Setup();
     Check(Ready(p, b), "native arc search completes across frames");
     var r = p.State(b).GrenadeTrajectory;
     Check(
-        r.Trace!.Kind == "last-known" && r.Trace.Attempts == 1,
-        $"source stops at first valid angle: kind={r.Trace.Kind}, attempts={r.Trace.Attempts}"
+        r.Trace!.Kind == "last-known" && r.Trace.Attempts == 4,
+        $"source compares the four outdoor arcs: kind={r.Trace.Kind}, attempts={r.Trace.Attempts}"
     );
     Check(
-        r.Trace.Alternatives.Any(a => a.Accepted) && r.Selected != null,
-        "native valid arc accepted without added clearance probes"
+        r.Trace.Alternatives.Count(a => a.Accepted) == 4 && r.Selected?.Alternative.Angle == 35,
+        "the low-force branch selects the third arc without extra clearance probes"
     );
     int preparations = b.BotOwner.WeaponManager.Grenades.Preparations;
     Check(
-        preparations > 0 && preparations == AIGrenadeHelper.Calls,
-        "each successful first-angle preparation goes through native group grenade registration, including expiry refreshes"
+        preparations > 0 && preparations == 1 && AIGrenadeHelper.Calls == 4,
+        "the selected arc is registered once after comparing all angles"
     );
     int calls = AIGrenadeHelper.Calls,
         draws = p.Draws;
@@ -234,7 +246,7 @@ foreach (
 }
 {
     var (p, b) = Setup();
-    Check(p.Find(b), "source native arc may complete on its first candidate");
+    Check(Ready(p, b), "all arcs evaluated before preparation");
     Check(
         p.State(b).GrenadeJudgment.Policy.Trace != null,
         "completed native arc is assessed by G01"

@@ -28,8 +28,8 @@ internal static class DoorRunTests
                 "heard",
                 "Chad",
                 default,
-                3 + j.Cooldown,
-                100 + j.Cooldown,
+                3 + 60,
+                100 + 60,
                 0,
                 0,
                 j,
@@ -37,6 +37,13 @@ internal static class DoorRunTests
             ) != null,
             "same evidence reusable after source cooldown"
         );
+        var declined = new DoorReconOpportunity();
+        DoorRunTrace? Try(string door, double now, double roll = 0) =>
+            declined.TryBegin(door, "e", "heard", "Chad", default, 3, now, roll, 0, j, c);
+        Check(Try("A", 0, .99)?.State == "ended", "high roll declines");
+        Check(Try("B", 7.99) == null && Try("A", 24.99) == null, "global and per-door decline cooldown");
+        Check(Try("B", 8)?.State == "validating" && Try("A", 25)?.State == "validating", "another door opens after eight seconds and first after 25");
+        Check(DoorReconOpportunity.Choose(false, false, 0, j, c) == "ground", "no special move falls back to a ground peek");
         var p = new DoorRunBy();
         p.Begin(t!, 100);
         p.Start(default, 100);
@@ -55,6 +62,27 @@ internal static class DoorRunTests
             "no added flat/corner-count/endpoint veto"
         );
 
+        Check(DoorPlanWeights.Pick(true, true, true, 2, 0, 0, false, 4, false, .5) == "peek"
+            && DoorPlanWeights.Pick(true, true, true, 15, .6, 2, false, 4, false, .5) == "clear"
+            && DoorPlanWeights.Pick(true, true, true, 2, 0, 0, true, 4, true, .5) == "trap",
+            "same draw changes with quiet, weakness, squad support and vulnerable observer");
+        Check(DoorPlanWeights.Pick(true, true, true, 20, .9, 2, true, 2, true, .99, 0, 100) == "peek",
+            "zero-weight clear and trap stay excluded even with bonuses");
+        Check(DoorPlanWeights.Pick(true, true, true, 4, 0, 0, false, 1, false, .5, 0, 0) == "trap",
+            "custom door weights select trap when it is the only weighted plan");
+        var gates = new DoorSessionCooldowns();
+        gates.Finish("314", 100, declined: true);
+        Check(!gates.CanUse("203", 107.9) && gates.CanUse("203", 108), "neighbour opens after the eight second bot cooldown");
+        Check(!gates.CanUse("314", 124.9) && gates.CanUse("314", 125), "decline is local to the door for 25 seconds");
+        gates.Finish("203", 130, declined: false);
+        Check(gates.CanUse("314", 138) && !gates.CanUse("203", 189.9) && gates.CanUse("203", 190), "completed session cools only its door for one minute");
+        var phase = new DoorMovePhase();
+        string Move(string state, double x, double time) => phase.Check(state, new(x, 0, 0), false, time, out _);
+        Check(Move("out", 0, 0) == "" && Move("out", .2, 2.51) == "move-stalled", "wedged bot exits after 2.5s");
+        phase.Reset();
+        Check(Move("out", 0, 0) == "" && Move("out", 1, 3) == "" && Move("out", 2, 6) == ""
+            && Move("out", 3, 9) == "" && Move("out", 4, 12.01) == "move-timeout"
+            && Move("back", 4, 12.02) == "" && Move("back", 4.5, 15) == "", "each leg has its own movement budget");
         return n;
     }
 }

@@ -41,6 +41,52 @@ public sealed partial class Plugin
         nativeRush = AccessTools.MethodDelegate<NativeHiddenDecision>(
             AccessTools.Method(typeof(EnemyDecisionClass), "shallRushEnemy")
         );
+        h.Patch(AccessTools.Method(typeof(EnemyDecisionClass), "shallRushEnemy"),
+            postfix: new HarmonyMethod(typeof(Plugin), nameof(AfterNativeDoorRush)));
+        h.Patch(AccessTools.Method(typeof(EnemyDecisionClass), "GetDecision"),
+            postfix: new HarmonyMethod(typeof(Plugin), nameof(FinishNativeDoorChoice)));
+    }
+
+    // On native fallback this hook runs inside SAIN's aggressive branch, after its actual rush check.
+    private static void AfterNativeDoorRush(EnemyDecisionClass __instance, Enemy enemy, ref bool __result)
+    {
+        var p = Instance;
+        var bot = __instance.Bot;
+        if (p == null || !p.states.TryGetValue(bot, out var s) || !s.Door.NativeFallback)
+            return;
+        s.Door.NativeFallback = false;
+        if (__result)
+            return;
+        try
+        {
+            if (p.EnsureDoorSession(bot, enemy, s, false))
+            {
+                s.Door.NativeSelected = true;
+                __result = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            s.Door.Fault = true;
+            p.Logger.LogWarning("COMET native door selection yielded to SAIN: " + ex);
+        }
+    }
+
+    private static void FinishNativeDoorChoice(EnemyDecisionClass __instance, ref ECombatDecision result)
+    {
+        var p = Instance;
+        if (p == null || !p.states.TryGetValue(__instance.Bot, out var s))
+            return;
+        s.Door.NativeFallback = false;
+        if (!s.Door.NativeSelected)
+            return;
+        s.Door.NativeSelected = false;
+        if (result != ECombatDecision.RushEnemy)
+            return;
+        s.Handoff.Clear();
+        result = s.Expected = s.Door.SessionPlan == "trap" ? ECombatDecision.Freeze : ECombatDecision.Search;
+        s.Decision = s.Door.SessionPlan == "trap" ? "Hold" : "Push";
+        s.RequestedFrame = Time.frameCount;
     }
 
     private void WatchHiddenMovement(BotComponent b, Enemy e, BotState s)
@@ -90,6 +136,9 @@ public sealed partial class Plugin
                 )
                     reason = "zzap-push-nowhere";
                 else if (!nativeRush(b.Decision.EnemyDecisions, e, out reason))
+                {
+                    if (EnsureDoorSession(b, e, s, false))
+                        return "";
                     reason =
                         b.Info.Personality.ToString() != "Coward"
                         && e.Path.PathToEnemyStatus == NavMeshPathStatus.PathComplete
@@ -100,6 +149,11 @@ public sealed partial class Plugin
                         ) >= .35f
                             ? ""
                             : "native-push:" + reason;
+                    if (reason.Length == 0 && config!.DoorApproach.Enabled && b.Info.Personality.ToString() != "Wreckless"
+                        && e.KnownPlaces.LastKnownPosition is Vector3 known
+                        && NearestTacticalDoor(b, e, s, known) != null && ZzapEnemyWeakness.Score(b, e) < .5f)
+                        reason = "zzap-push-not-through-door";
+                }
                 else
                     reason = "";
                 break;

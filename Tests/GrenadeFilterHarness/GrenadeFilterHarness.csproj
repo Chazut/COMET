@@ -19,6 +19,8 @@
       Include="../../Client/GrenadeTrajectoryAdapter.cs"
       Link="GrenadeTrajectoryAdapter.cs"
     />
+    <Compile Include="../../Shared/DoorApproach.cs" />
+    <Compile Include="../../Shared/PreparationWait.cs" />
     <Compile Include="../../Shared/GrenadeTrajectory.cs" Link="GrenadeTrajectory.cs" />
     <Compile Include="../../Client/GrenadeChoiceAdapter.cs" Link="GrenadeChoiceAdapter.cs" />
     <Compile Include="../../Shared/GrenadeChoice.cs" Link="GrenadeChoice.cs" />

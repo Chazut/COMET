@@ -266,10 +266,11 @@ public sealed partial class Plugin
         }
         var e = b.GoalEnemy;
         var known = e.KnownPlaces.LastKnownPosition!.Value;
+        bool selectedTrap = s.Door.SessionPlan == "trap" && s.Door.SessionEnemy == e.EnemyProfileId;
         if (!r.Policy.Active)
         {
             if (
-                Time.time < r.NextPlan
+                !selectedTrap && Time.time < r.NextPlan
                 || s.Fake.Policy.Active
                 || s.RoomClear.Policy.Active
                 || s.Door.Policy.Active
@@ -279,8 +280,9 @@ public sealed partial class Plugin
                 || s.StepPeek.Policy.Active
             )
                 return true;
+            if (selectedTrap) s.Door.Entered = true;
             r.NextPlan = Time.time + 2;
-            if ((e.Seen ? e.TimeSinceSeen : Time.time) < config!.DoorApproach.UnseenDelay)
+            if (!selectedTrap && (e.Seen ? e.TimeSinceSeen : Time.time) < config!.DoorApproach.UnseenDelay)
                 return true;
             if (
                 !r.Policy.Begin(
@@ -294,7 +296,7 @@ public sealed partial class Plugin
                     Math.Min(config!.ContactLifetime, config.DoorApproach.ContactLifetime),
                     AmbushHeld(s),
                     AmbushLimit(s),
-                    config.DoorAmbush
+                    config.DoorAmbush, selectedTrap
                 )
             )
                 return true;
@@ -465,6 +467,8 @@ public sealed partial class Plugin
                 t.Candidates.Add(new() { Reason = "door geometry unavailable" });
                 continue;
             }
+            if (s.Door.SessionPlan == "trap" && g.Id != s.Door.SessionDoor)
+                continue;
             w.Geometry = g;
             string gate = DoorPolicy.Geometry(
                 g,

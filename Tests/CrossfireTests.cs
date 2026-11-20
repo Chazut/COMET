@@ -85,10 +85,7 @@ internal static class CrossfireTests
         {
             var p = new Crossfire();
             bool chosen = p.Begin(10, c, roll);
-            C(chosen == (roll < .7), "participation boundary");
-            if (!chosen)
-                C(!p.Active && p.RetryAt == 14, "decline cooldown");
-            else
+            C(chosen, "eligible crossfire starts for every legacy roll");
             {
                 p.Ready(1, 2, 3, 40, 12);
                 p.Applied(true);

@@ -19,10 +19,18 @@ internal static class ZzapEnemyWeakness
     internal static float Read(BotComponent b, Enemy e, out string[] why)
     {
         var parts = new List<string>();
+        float score = Evaluate(b, e, parts);
+        why = parts.ToArray();
+        return score;
+    }
+
+    internal static float Score(BotComponent b, Enemy e) => Evaluate(b, e, null);
+
+    private static float Evaluate(BotComponent b, Enemy e, List<string>? parts)
+    {
         var p = e.EnemyPlayer;
         if (p == null)
         {
-            why = System.Array.Empty<string>();
             return 0;
         }
         float score = GearWeakness(e, p, parts);
@@ -30,32 +38,31 @@ internal static class ZzapEnemyWeakness
         {
             case ETagStatus.Injured:
                 score += .05f;
-                parts.Add("hurt");
+                parts?.Add("hurt");
                 break;
             case ETagStatus.BadlyInjured:
                 score += .2f;
-                parts.Add("badly hurt");
+                parts?.Add("badly hurt");
                 break;
             case ETagStatus.Dying:
                 score += .35f;
-                parts.Add("dying");
+                parts?.Add("dying");
                 break;
         }
         if (e.Status.VulnerableAction != EEnemyAction.None)
         {
             score += .15f;
-            parts.Add("busy (" + e.Status.VulnerableAction + ")");
+            parts?.Add("busy (" + e.Status.VulnerableAction + ")");
         }
         if (Alone(b, e))
         {
             score += .1f;
-            parts.Add("alone");
+            parts?.Add("alone");
         }
-        why = parts.ToArray();
         return Mathf.Clamp01(score);
     }
 
-    internal static float GearWeakness(Enemy enemy, Player p, List<string> parts)
+    internal static float GearWeakness(Enemy enemy, Player p, List<string>? parts)
     {
         float score = 0f;
         var equipment = p.Inventory?.Equipment;
@@ -67,44 +74,44 @@ internal static class ZzapEnemyWeakness
         if (body <= 0f)
         {
             score += 0.3f;
-            parts.Add("no armor");
+            parts?.Add("no armor");
         }
         else if (body <= 2f)
         {
             score += 0.2f;
-            parts.Add($"armor class {body:0}");
+            parts?.Add($"armor class {body:0}");
         }
         else if (body <= 3f)
         {
             score += 0.08f;
-            parts.Add("armor class 3");
+            parts?.Add("armor class 3");
         }
         float helmet = HighestClass(equipment, EquipmentSlot.Headwear);
         if (helmet <= 0f)
         {
             score += 0.15f;
-            parts.Add("no helmet");
+            parts?.Add("no helmet");
         }
         else if (helmet <= 2f)
         {
             score += 0.05f;
-            parts.Add("weak helmet");
+            parts?.Add("weak helmet");
         }
         var weapon = enemy.EnemyPlayerComponent?.Equipment?.CurrentWeaponInfo;
         if (weapon == null || p.HandsController is not Player.FirearmController)
         {
             score += 0.35f;
-            parts.Add("no gun out");
+            parts?.Add("no gun out");
         }
         else if (weapon.WeaponClass == EWeaponClass.pistol)
         {
             score += 0.3f;
-            parts.Add("pistol");
+            parts?.Add("pistol");
         }
         else if (weapon.WeaponClass == EWeaponClass.smg)
         {
             score += 0.05f;
-            parts.Add("smg");
+            parts?.Add("smg");
         }
         return score;
     }

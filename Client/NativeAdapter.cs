@@ -97,6 +97,7 @@ internal static class NativeAdapter
             Visible = enemy.IsVisible,
             HasContact = known.HasValue && ContactSafety.Allows(bot, enemy),
             ContactAge = enemy.TimeSinceLastKnownUpdated,
+            RealDistance = enemy.RealDistance,
             KnownDistance = known.HasValue ? Vector3.Distance(bot.Position, known.Value) : 0,
             KnownX = known?.x ?? 0,
             KnownY = known?.y ?? 0,

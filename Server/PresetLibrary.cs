@@ -171,7 +171,8 @@ public sealed class PresetLibrary
             != CometConfig.SourceBaseline
         )
         {
-            merged.Remove(nameof(CometConfig.BehaviorBaseline));
+            if (supplied[nameof(CometConfig.BehaviorBaseline)] == null)
+                merged.Remove(nameof(CometConfig.BehaviorBaseline));
             SourceBaselineMigration.Upgrade(merged);
             if (!missing.Contains(nameof(CometConfig.BehaviorBaseline)))
                 missing.Add(nameof(CometConfig.BehaviorBaseline));

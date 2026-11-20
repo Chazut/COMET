@@ -156,7 +156,8 @@ public sealed class DoorAmbush
         double memoryLimit,
         double sharedHeld,
         double sharedLimit,
-        DoorAmbushConfig c
+        DoorAmbushConfig c,
+        bool selectedCombatTrap = false
     )
     {
         if (
@@ -166,9 +167,13 @@ public sealed class DoorAmbush
             || roll < 0
             || roll >= 1
             || !c.Waits.TryGetValue(personality, out var wait)
-            || !CanBegin(target, age, now, c)
+            || (selectedCombatTrap ? Active || target.Length == 0 || !Valid(now) || !Valid(age) || age < 0 : !CanBegin(target, age, now, c))
         )
             return false;
+        // Direct combat traps hold longer than a normal utility Hold at the same door.
+        double seconds = selectedCombatTrap
+            ? personality switch { "Rat" => 60 + 60 * roll, "SnappingTurtle" => 45 + 45 * roll, _ => 20 + 20 * roll }
+            : wait.Min + (wait.Max - wait.Min) * roll;
         Preparation.Clear();
         history[target] = (now, now - age);
         start = last = now;
@@ -185,7 +190,7 @@ public sealed class DoorAmbush
             KnownZ = known.Z,
             EvidenceAt = now - age,
             ContactAge = age,
-            WaitDuration = wait.Min + (wait.Max - wait.Min) * roll,
+            WaitDuration = seconds,
             SharedRemaining = 150,
             Remaining = Math.Min(deadline, memoryUntil) - now,
         };

@@ -16,6 +16,7 @@ namespace UnityEngine
     public static class Time
     {
         public static float time;
+        public static int frameCount = 12;
         public static float realtimeSinceStartup => time;
     }
 
@@ -73,6 +74,7 @@ namespace SAIN.SAINComponent.Classes.EnemyClasses
 
     public class Places
     {
+        public UnityEngine.Vector3? LastKnownPosition = new UnityEngine.Vector3();
         public Place LastKnownPlace = new();
         public float BotDistanceFromLastKnown = 30;
         public int Searched;
@@ -117,6 +119,7 @@ namespace SAIN.SAINComponent.Classes.Decision
 {
     public class EnemyDecisionClass
     {
+        public SAIN.Components.BotComponent Bot;
         public bool Shift,
             Rush;
         public string Refusal = "native";
@@ -376,8 +379,23 @@ namespace Comet.Client
         public CoverPoint Point = new();
     }
 
+    class TestDoor
+    {
+        public bool NativeFallback, NativeSelected, Fault;
+        public string SessionPlan = "";
+    }
+    class TestHandoff
+    {
+        public bool Cleared;
+        public void Clear() => Cleared = true;
+    }
+    class TestLog { public void LogWarning(string message) => throw new Exception(message); }
     class BotState
     {
+        public TestDoor Door = new();
+        public TestHandoff Handoff = new();
+        public ECombatDecision Expected;
+        public int RequestedFrame = -1;
         public string Id = "bot-instance",
             ProfileId = "bot",
             Name = "Back4Streetz",
@@ -416,8 +434,27 @@ namespace Comet.Client
         public static bool Allows(BotComponent b, Enemy e) => Allowed;
     }
 
+    static class ZzapEnemyWeakness
+    {
+        internal static float Weakness;
+        internal static float Score(BotComponent b, Enemy e) => Weakness;
+    }
+
     public partial class Plugin
     {
+        TestLog Logger = new();
+        internal bool SelectedDoor, NearbyDoor;
+        internal ECombatDecision NativeFallback(BotComponent b, bool rush)
+        {
+            var d = b.Decision.EnemyDecisions;
+            d.Bot = b;
+            AfterNativeDoorRush(d, b.GoalEnemy, ref rush);
+            var result = rush ? ECombatDecision.RushEnemy : ECombatDecision.SeekCover;
+            FinishNativeDoorChoice(d, ref result);
+            return result;
+        }
+        bool EnsureDoorSession(BotComponent b, Enemy enemy, BotState state, bool search) => SelectedDoor;
+        object NearestTacticalDoor(BotComponent b, Enemy enemy, BotState state, Vector3 known) => NearbyDoor ? this : null;
         public static Plugin Instance;
         public CometConfig config = new();
         public object world = new();
@@ -538,6 +575,20 @@ namespace Comet.Client
         {
             {
                 var (p, b, s) = Setup();
+                p.SelectedDoor = true;
+                s.Door.SessionPlan = "clear";
+                Check(p.NativeFallback(b, false) == ECombatDecision.SeekCover, "unarmed native fallback stays native");
+                s.Door.NativeFallback = true;
+                Check(p.NativeFallback(b, true) == ECombatDecision.RushEnemy, "native rush wins before tactical door check");
+                s.Door.NativeFallback = true;
+                Check(p.NativeFallback(b, false) == ECombatDecision.Search && s.Handoff.Cleared
+                    && s.RequestedFrame == Time.frameCount && !s.Door.NativeSelected, "native declined rush hands selected clear to SearchAction once");
+                s.Door.SessionPlan = "trap";
+                s.Door.NativeFallback = true;
+                Check(p.NativeFallback(b, false) == ECombatDecision.Freeze && s.Decision == "Hold", "combat trap uses FreezeAction");
+            }
+            {
+                var (p, b, s) = Setup();
                 Api.Decisions.Sent.Clear();
                 s.HiddenExecution.Refusals["Search"] = "partial";
                 s.HiddenExecution.Refusals["Flank"] = "native-ended";
@@ -607,6 +658,17 @@ namespace Comet.Client
                     "continuation not counted as new search"
                 );
                 Check(p.Can(b, s, Tactic.Push) == "", "source 35 percent/40m fallback allowed");
+                p.NearbyDoor = true;
+                Check(p.Can(b, s, Tactic.Push) == "zzap-push-not-through-door", "ordinary push cannot charge a strong enemy through a refused door");
+                ZzapEnemyWeakness.Weakness = .5f;
+                Check(p.Can(b, s, Tactic.Push) == "", "weakness threshold allows ordinary push");
+                ZzapEnemyWeakness.Weakness = 0;
+                b.Info.Personality = "Wreckless";
+                Check(p.Can(b, s, Tactic.Push) == "", "reckless personality may rush past the door");
+                b.Info.Personality = "Normal";
+                p.SelectedDoor = true;
+                Check(p.Can(b, s, Tactic.Push) == "", "selected combat door is taken before ordinary push");
+                p.NearbyDoor = p.SelectedDoor = false;
                 b.BotOwner.Ammo = .3499f;
                 Check(p.Can(b, s, Tactic.Push) != "", "source ammo threshold");
                 b.BotOwner.Ammo = .35f;
