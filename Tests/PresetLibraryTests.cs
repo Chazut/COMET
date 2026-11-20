@@ -237,12 +237,14 @@ internal static class PresetLibraryTests
         var previousGrenadePreset = JsonNode.Parse(json)!.AsObject();
         var grenadeSettings = previousGrenadePreset["Settings"]!.AsObject();
         grenadeSettings["BehaviorBaseline"] = "zzap-d8655293-1";
+        grenadeSettings["DoorRoomClear"]!["GrenadePreference"] = 50;
         foreach (var (age, range) in new[] { (8, 40), (15, 32), (24, 55) })
         {
             grenadeSettings["GrenadeContactLifetime"] = age;
             grenadeSettings["GrenadeTrajectory"]!["Distance"] = range;
             var importedGrenades = PresetLibrary.PreviewImport(previousGrenadePreset.ToJsonString()).Config;
-            Check(importedGrenades.GrenadeContactLifetime == age && importedGrenades.GrenadeTrajectory.Distance == range,
+            Check(importedGrenades.GrenadeContactLifetime == age && importedGrenades.GrenadeTrajectory.Distance == range
+                && importedGrenades.DoorRoomClear.GrenadePreference == 50,
                 "explicit values in a personal preset survive import, including old factory values");
         }
         grenadeSettings.Remove("GrenadeContactLifetime");

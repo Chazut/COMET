@@ -15,26 +15,32 @@ internal static class SourceBaselineMigration
     internal static double MissingGrenadeLifetime(double? contactMemory) =>
         contactMemory < GrenadeJudgmentConfig.DefaultMaxInfoAge ? 8 : GrenadeJudgmentConfig.DefaultMaxInfoAge;
 
-    private static (double Age, double Distance) GrenadeWindows(JsonObject original, bool personalPreset)
+    private static (double Age, double Distance, bool Stock) GrenadeDefaults(JsonObject original, bool personalPreset, bool priorWindows)
     {
         var age = original[Key(original, nameof(CometConfig.GrenadeContactLifetime))]?.Deserialize<double>();
         var memory = original[Key(original, nameof(CometConfig.ContactLifetime))]?.Deserialize<double>();
         var trajectory = original[Key(original, nameof(CometConfig.GrenadeTrajectory))] as JsonObject;
         var distance = trajectory?[Key(trajectory, nameof(GrenadeTrajectoryConfig.Distance))]?.Deserialize<double>();
+        var room = original[Key(original, nameof(CometConfig.DoorRoomClear))] as JsonObject;
+        var preference = room?[Key(room, nameof(DoorRoomClearConfig.GrenadePreference))]?.Deserialize<double>();
+        bool formerWindows = priorWindows && (age == 8 || distance == 40) && age is (null or 8) && distance is (null or 40);
         if (!personalPreset && original[Key(original, nameof(CometConfig.PresetSource))] == null
-            && (age == 8 || distance == 40) && age is (null or 8) && distance is (null or 40))
+            && (formerWindows || preference == 50) && preference is (null or 50))
         {
             var comparison = original.Deserialize<CometConfig>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
-            // Compare against the built-in profile with just its two former defaults normalized.
-            comparison.GrenadeContactLifetime = GrenadeJudgmentConfig.DefaultMaxInfoAge;
-            if (comparison.GrenadeTrajectory != null && DifficultyPresets.IsKnown(comparison.DifficultyPreset))
+            if (comparison.DoorRoomClear != null && comparison.GrenadeTrajectory != null && DifficultyPresets.IsKnown(comparison.DifficultyPreset))
             {
-                comparison.GrenadeTrajectory.Distance = GrenadeTrajectoryConfig.DefaultDistance;
+                comparison.DoorRoomClear.GrenadePreference = DoorRoomClearConfig.DefaultGrenadePreference;
+                if (formerWindows)
+                {
+                    comparison.GrenadeContactLifetime = GrenadeJudgmentConfig.DefaultMaxInfoAge;
+                    comparison.GrenadeTrajectory.Distance = GrenadeTrajectoryConfig.DefaultDistance;
+                }
                 if (!DifficultyPresets.Describe(comparison).Customized)
-                    return (comparison.GrenadeContactLifetime, comparison.GrenadeTrajectory.Distance);
+                    return (comparison.GrenadeContactLifetime, comparison.GrenadeTrajectory.Distance, true);
             }
         }
-        return (age ?? MissingGrenadeLifetime(memory), distance ?? GrenadeTrajectoryConfig.DefaultDistance);
+        return (age ?? MissingGrenadeLifetime(memory), distance ?? GrenadeTrajectoryConfig.DefaultDistance, false);
     }
 
     internal static bool Upgrade(JsonObject document, JsonObject? importedSettings = null)
@@ -45,14 +51,16 @@ internal static class SourceBaselineMigration
         if (baseline == CometConfig.SourceBaseline)
             return false;
         var original = importedSettings ?? document;
-        var (nextAge, nextDistance) = GrenadeWindows(original, importedSettings != null);
+        var (nextAge, nextDistance, stock) = GrenadeDefaults(original, importedSettings != null, baseline != "zzap-d8655293-2");
+        if (stock && document[Existing(nameof(CometConfig.DoorRoomClear))] is JsonObject room)
+            room[Key(room, nameof(DoorRoomClearConfig.GrenadePreference))] = DoorRoomClearConfig.DefaultGrenadePreference;
         if (baseline == "zzap-d8655293-1" || baseline == "zzap-fbb86b83-2")
         {
             document[Existing(nameof(CometConfig.GrenadeContactLifetime))] = nextAge;
             if (document[Existing(nameof(CometConfig.GrenadeTrajectory))] is JsonObject currentTrajectory)
                 currentTrajectory[Key(currentTrajectory, nameof(GrenadeTrajectoryConfig.Distance))] = nextDistance;
         }
-        if (baseline == "zzap-d8655293-1")
+        if (baseline is "zzap-d8655293-1" or "zzap-d8655293-2")
         {
             document[marker] = CometConfig.SourceBaseline;
             return true;

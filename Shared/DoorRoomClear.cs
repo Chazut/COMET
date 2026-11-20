@@ -20,7 +20,8 @@ public sealed class DoorRoomClearConfig
             ["Timmy"] = 0,
         };
     public double ContactLifetime { get; set; } = 60;
-    public double GrenadePreference { get; set; } = 50;
+    public const double DefaultGrenadePreference = 55;
+    public double GrenadePreference { get; set; } = DefaultGrenadePreference;
     public bool AllowFeint { get; set; } = true;
     public double MinimumAmmo { get; set; } = 50;
     public double MinimumStamina { get; set; } = 35;
@@ -64,6 +65,52 @@ public sealed class DoorRoomClearConfig
     }
 }
 
+// Snapshot taken when the door is selected, before the bot moves to it.
+public sealed class DoorClearPlan
+{
+    public double GrenadeWeight { get; }
+    public double DirectWeight { get; }
+    public bool Moving { get; }
+    public bool Camping { get; }
+    public double EnemyDepth { get; }
+    public double Weakness { get; }
+    public bool HealthyRusher { get; }
+    public double Roll { get; }
+    public bool RealGrenade { get; }
+    public int Feints { get; }
+
+    public DoorClearPlan(bool haveGrenade, double preference, bool allowFeints, bool moving,
+        double contactAge, double enemyDepth, double weakness, bool healthyRusher,
+        double variantRoll, double feintRoll)
+    {
+        Moving = moving;
+        Camping = !moving && contactAge > 3;
+        EnemyDepth = enemyDepth;
+        Weakness = weakness;
+        HealthyRusher = healthyRusher;
+        GrenadeWeight = haveGrenade ? preference / 55 : 0;
+        DirectWeight = 1;
+        if (haveGrenade && preference > 0)
+        {
+            if (Camping) GrenadeWeight += 1.5;
+            if (enemyDepth >= 2.5) GrenadeWeight += 1;
+            else if (enemyDepth < 1.5 && Camping)
+            {
+                GrenadeWeight += 1;
+                DirectWeight *= .3;
+            }
+        }
+        if (moving) DirectWeight += 1.5;
+        if (weakness >= .5) DirectWeight += 1;
+        if (healthyRusher) DirectWeight += .5;
+        Roll = variantRoll;
+        RealGrenade = variantRoll * (GrenadeWeight + DirectWeight) < GrenadeWeight;
+        if (haveGrenade && allowFeints && !moving)
+            Feints = Camping ? (feintRoll < .2 ? 0 : feintRoll < .65 ? 1 : 2)
+                : (feintRoll < .5 ? 0 : 1);
+    }
+}
+
 public sealed class DoorClearTrace
 {
     public string Mode { get; set; } = "recent";
@@ -82,7 +129,8 @@ public sealed class DoorClearTrace
     public string Personality { get; set; } = "";
     public double Chance { get; set; }
     public double Roll { get; set; }
-    public double VariantRoll { get; set; }
+    public DoorClearPlan? Plan { get; set; }
+    public double VariantRoll => (Plan?.Roll ?? 0) * 100;
     public string Variant { get; set; } = "undecided";
     public double ContactAge { get; set; }
     public double KnownX { get; set; }
@@ -93,7 +141,9 @@ public sealed class DoorClearTrace
     public double Z { get; set; }
     public bool CoveredDestination { get; set; }
     public bool DoorOpenObserved { get; set; }
-    public bool FeintAttempted { get; set; }
+    public bool FeintAttempted => FeintsStarted > 0;
+    public int FeintsStarted { get; set; }
+    public int FeintsCompleted { get; set; }
     public string Feint { get; set; } = "none";
     public string FeintOutcome { get; set; } = "not-attempted";
     public bool ThrowRequested { get; set; }
@@ -162,10 +212,10 @@ public sealed class DoorRoomClear
     // The door session owns the admission roll and both cooldowns for all its variants.
     public bool BeginSelected(string door, string target, string source, string personality,
         DoorPoint known, double age, double now, double chance, double roll, double limit,
-        DoorRoomClearConfig config, bool search) =>
+        DoorRoomClearConfig config, bool search, DoorClearPlan plan) =>
         !Active && config.Enabled && known.Finite && BeginCore(door, target, source, personality,
             known, age, now, roll / 100, config, chance, search ? "search" : "recent", 1, limit,
-            config.ContactLifetime, limit, true);
+            config.ContactLifetime, limit, true, plan);
 
     public bool Begin(
         string door,
@@ -272,7 +322,8 @@ public sealed class DoorRoomClear
         double limit,
         double fadeFrom,
         double fadeUntil,
-        bool selected = false
+        bool selected = false,
+        DoorClearPlan? plan = null
     )
     {
         double evidence = now - age;
@@ -284,6 +335,7 @@ public sealed class DoorRoomClear
         Trace = new()
         {
             Mode = mode,
+            Plan = plan,
             BaseChance = baseChance,
             AgeFactor = factor,
             SelectionContactAge = age,
@@ -360,24 +412,35 @@ public sealed class DoorRoomClear
         }
     }
 
-    public void FeintStart(string kind, double now)
+    public bool HasPendingFeint => Active && Trace!.State == "planning"
+        && Trace.FeintsStarted < Trace.Plan?.Feints;
+
+    public void FeintStart(double now)
     {
-        if (Active && !Trace!.FeintAttempted && Trace.State == "planning")
+        if (HasPendingFeint)
         {
-            Trace.FeintAttempted = true;
-            Trace.Feint = kind;
+            Trace!.FeintsStarted++;
+            Trace.Feint = "grenade";
             Trace.FeintOutcome = "running";
             Phase("feint", "clear-feint-started", now);
         }
     }
 
-    public void FeintEnd(bool completed, string reason, double now)
+    public void FeintEnd(bool completed, string reason, double now, bool weaponReady)
     {
         if (Active && Trace!.State == "feint")
         {
             Trace.FeintOutcome = reason;
             if (completed)
-                Phase("ready", "clear-feint-weapon-recovered", now);
+            {
+                Trace.FeintsCompleted++;
+                Phase(Trace.FeintsStarted < Trace.Plan!.Feints ? "planning" : "ready",
+                    "clear-feint-weapon-recovered", now);
+            }
+            else if (weaponReady && reason is ("fake-item-or-hands-unavailable" or "fake-no-accessible-grenade"
+                or "fake-missing-item" or "fake-draw-not-observed" or "fake-draw-call-failed"
+                or "fake-draw-callback-failed"))
+                Phase("ready", "clear-feint-draw-unavailable", now);
             else
                 End("clear-feint-ended:" + reason);
         }
@@ -386,7 +449,10 @@ public sealed class DoorRoomClear
     public void Ready(double now)
     {
         if (Active && Trace!.State == "planning")
+        {
+            if (HasPendingFeint) Trace.FeintOutcome = "draw-unavailable";
             Phase("ready", "clear-route-ready", now);
+        }
     }
 
     public bool Choose(
@@ -394,21 +460,23 @@ public sealed class DoorRoomClear
         bool grenade,
         string directWhy,
         string grenadeWhy,
-        double roll,
         double pauseRoll,
         double now,
-        DoorRoomClearConfig c,
-        bool sharedGrenadeJudgment = false
+        DoorRoomClearConfig c
     )
     {
-        if (!Active || Trace!.State != "ready" || !Roll(roll) || !Roll(pauseRoll))
+        if (!Active || Trace!.State != "ready" || Trace.Plan is not { } plan || !Roll(pauseRoll))
             return false;
         if (c.GrenadePreference <= 0)
         {
             grenade = false;
             grenadeWhy = "disabled by preset";
         }
-        Trace.VariantRoll = roll * 100;
+        else if (plan.GrenadeWeight == 0)
+        {
+            grenade = false;
+            grenadeWhy = "no real grenade in initial plan";
+        }
         Trace.Alternatives = new[]
         {
             "Direct entry: " + (direct ? "eligible" : directWhy),
@@ -420,10 +488,7 @@ public sealed class DoorRoomClear
             End("clear-no-safe-variant");
             return false;
         }
-        Trace.Variant =
-            grenade && (sharedGrenadeJudgment || !direct || roll * 100 < c.GrenadePreference)
-                ? "grenade"
-                : "direct";
+        Trace.Variant = grenade && (!direct || plan.RealGrenade) ? "grenade" : "direct";
         Trace.BlastPause = c.BlastPauseMin + (c.BlastPauseMax - c.BlastPauseMin) * pauseRoll;
         Phase(
             Trace.Variant == "grenade" ? "throw-ready" : "entry-ready",
@@ -456,7 +521,11 @@ public sealed class DoorRoomClear
             return;
         Trace.ThrowAccepted = accepted;
         if (!accepted && Active)
+        {
+            Trace.Variant = "direct";
+            Trace.GrenadeOutcome = "native-throw-refused";
             Phase("entry-ready", "clear-native-throw-refused-dash-anyway", now);
+        }
         else if (accepted)
             blastAt = now + Trace.FuseEstimate + .3;
     }

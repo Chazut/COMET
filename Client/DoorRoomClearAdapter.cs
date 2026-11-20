@@ -39,7 +39,6 @@ internal sealed class DoorClearRuntime
         LogAt = -1000;
     internal double BestScore = double.MaxValue;
     internal bool EntryChecked,
-        FeintChecked,
         NativeThrowCall,
         ThrowGuardPassed,
         Fault;
@@ -252,6 +251,7 @@ public sealed partial class Plugin
             config?.DoorRoomClear.Enabled != true
             || r.Fault
             || r.Policy.Active
+            || s.Door.ClearPlan is not { } plan
             || DoorGate(b, e, s).Length > 0
             || e.KnownPlaces.LastKnownPosition is not Vector3 known
         )
@@ -262,7 +262,7 @@ public sealed partial class Plugin
             s.Situation?.ContactSource ?? "sain-last-known", b.Info.Personality.ToString(), DP(known),
             e.TimeSinceLastKnownUpdated, Time.time, s.Door.SelectionChance, s.Door.SelectionRoll,
             searching ? config.DoorSearchClear.ContactLifetime : config.DoorRoomClear.ContactLifetime,
-            config.DoorRoomClear, searching);
+            config.DoorRoomClear, searching, plan);
         if (ReferenceEquals(old, r.Policy.Trace))
             return false;
         if (!selected)
@@ -280,7 +280,6 @@ public sealed partial class Plugin
         r.Projectile = null;
         r.Candidate = 0;
         r.BestScore = double.MaxValue;
-        r.FeintChecked = false;
         r.LastCallback = r.LastCheck = Time.time;
         r.NextCheck = 0;
         r.ThrowGuardPassed = false;
@@ -415,7 +414,7 @@ public sealed partial class Plugin
             r.EntryChecked = true;
             // A direct entry variant is chosen before opening the door; no grenade was requested.
             if (
-                t.Mode == "recent"
+                t.Mode == "recent" && t.Plan is { RealGrenade: false, Feints: 0 }
                 && r.Door != null
                 && r.Door.Data.Door.DoorState == EDoorState.Shut
                 && ClearGate(b, s).Length == 0
@@ -442,11 +441,15 @@ public sealed partial class Plugin
             if (!s.Fake.Policy.Active)
             {
                 var f = s.Fake.Policy.Trace;
+                bool completed = f?.State == "completed" && f.WeaponReady;
                 r.Policy.FeintEnd(
-                    f?.State == "completed" && f.WeaponReady,
+                    completed,
                     f?.Reason ?? "feint-not-confirmed",
-                    Time.time
+                    Time.time,
+                    FakeWeaponReady(b)
                 );
+                if (completed)
+                    r.NextCheck = Time.time + .4f + .8f * (float)jumpRandom.NextDouble();
                 RecordDoorClear(s, true);
             }
             if (!r.Policy.Active)
@@ -546,19 +549,11 @@ public sealed partial class Plugin
                     EndDoorClear(s, "clear-no-interior-route");
                     return true;
                 }
-                if (!r.FeintChecked)
+                if (r.Policy.HasPendingFeint && TryStartDoorFake(b, e!, s, r.Door!, planned: "grenade", roomClear: true))
                 {
-                    r.FeintChecked = true;
-                    if (
-                        config!.DoorRoomClear.AllowFeint
-                        && (t.Mode != "search" || config.DoorSearchClear.AllowFeint)
-                        && TryStartDoorFake(b, e!, s, r.Door!)
-                    )
-                    {
-                        r.Policy.FeintStart(s.Fake.Policy.Trace!.Kind, Time.time);
-                        RecordDoorClear(s, true);
-                        return false;
-                    }
+                    r.Policy.FeintStart(Time.time);
+                    RecordDoorClear(s, true);
+                    return false;
                 }
                 r.Policy.Ready(Time.time);
             }
@@ -571,17 +566,16 @@ public sealed partial class Plugin
                     return true;
                 }
                 string direct = DirectClearSafety(b, r);
-                string nade = PrepareClearGrenade(b, e!, s);
+                string nade = direct.Length == 0 && t.Plan?.RealGrenade == false
+                    ? "direct entry planned" : PrepareClearGrenade(b, e!, s);
                 r.Policy.Choose(
                     direct.Length == 0,
                     nade.Length == 0,
                     direct,
                     nade,
-                    config!.GrenadeJudgment.Enabled ? 0 : jumpRandom.NextDouble(),
                     jumpRandom.NextDouble(),
                     Time.time,
-                    config.DoorRoomClear,
-                    config.GrenadeJudgment.Enabled
+                    config!.DoorRoomClear
                 );
             }
             else if (t.State == "throw-ready")
@@ -590,6 +584,7 @@ public sealed partial class Plugin
                 if (why.Length > 0)
                 {
                     t.Variant = "direct";
+                    t.GrenadeOutcome = why;
                     t.State = "entry-ready";
                     t.Reason = "clear-grenade-unavailable-dash-anyway";
                     return false;

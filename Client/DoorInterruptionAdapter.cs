@@ -24,7 +24,6 @@ internal sealed class DoorInterruptionRuntime
     internal int TargetInstance,
         Side,
         Variant;
-    internal bool FeintChecked;
     internal float NextScan,
         RequestedAt,
         LogAt = -1000;
@@ -266,7 +265,6 @@ public sealed partial class Plugin
             ambush ? s.Ambush.TargetInstance
             : clear ? s.RoomClear.TargetInstance
             : s.Door.TargetInstance;
-        r.FeintChecked = ambush ? s.Ambush.FeintChecked : clear && s.RoomClear.FeintChecked;
         bool keep = r.Policy.Interrupt(
             new()
             {

@@ -30,7 +30,7 @@ public sealed class MovementHearingConfig
 
 public sealed class CometConfig
 {
-    public const string SourceBaseline = "zzap-d8655293-2";
+    public const string SourceBaseline = "zzap-d8655293-3";
     public const double DefaultAmbushRadius = 45;
     public string BehaviorBaseline { get; set; } = SourceBaseline;
     public bool QuietLogging { get; set; } = false;

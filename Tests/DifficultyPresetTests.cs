@@ -193,6 +193,7 @@ internal static class DifficultyPresetTests
                 previous.BehaviorBaseline = "zzap-d8655293-1";
                 previous.GrenadeContactLifetime = 8;
                 previous.GrenadeTrajectory.Distance = 40;
+                previous.DoorRoomClear.GrenadePreference = 50;
                 string oldJson = JsonSerializer.Serialize(previous);
                 File.WriteAllText(path, oldJson);
                 var updated = JsonSerializer.Deserialize<CometConfig>(store.ForGame())!;
@@ -207,8 +208,18 @@ internal static class DifficultyPresetTests
                 previous.QuietLogging = true;
                 File.WriteAllText(path, JsonSerializer.Serialize(previous));
                 var custom = store.Read();
-                Check(custom.QuietLogging && custom.GrenadeContactLifetime == 8 && custom.GrenadeTrajectory.Distance == 40,
+                Check(custom.QuietLogging && custom.GrenadeContactLifetime == 8 && custom.GrenadeTrajectory.Distance == 40
+                    && custom.DoorRoomClear.GrenadePreference == 50,
                     "a customized profile can intentionally retain the previous grenade values");
+                var last = DifficultyPresets.Create(level);
+                last.BehaviorBaseline = "zzap-d8655293-2";
+                foreach (int savedPreference in new[] { 0, 1, 50 })
+                {
+                    last.DoorRoomClear.GrenadePreference = savedPreference;
+                    File.WriteAllText(path, JsonSerializer.Serialize(last));
+                    Check(store.Read().DoorRoomClear.GrenadePreference == (savedPreference == 50 ? 55 : savedPreference),
+                        "only the old stock room entry preference migrates");
+                }
             }
             File.WriteAllText(path, """{"BehaviorBaseline":"zzap-d8655293-1","ContactLifetime":12,"GrenadeTrajectory":{"Distance":37}}""");
             var shortMemory = store.Read();

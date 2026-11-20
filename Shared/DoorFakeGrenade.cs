@@ -122,7 +122,8 @@ public sealed class DoorFakeGrenade
         double roll,
         DoorFakeGrenadeConfig c,
         bool medicalEnabled = false,
-        bool planned = false
+        bool planned = false,
+        bool roomClear = false
     )
     {
         if (
@@ -134,7 +135,7 @@ public sealed class DoorFakeGrenade
             || !planned && now < next
             || !DoorPolicy.Finite(age)
             || age < 0
-            || age > c.ContactLifetime
+            || !roomClear && age > c.ContactLifetime
             || !DoorPolicy.Finite(roll)
             || roll < 0
             || roll >= 1

@@ -37,6 +37,7 @@ internal sealed class DoorFakeRuntime
         MedicalNextBefore;
     internal bool MedicalCooldownChecked;
     internal bool AmbushParent;
+    internal bool RoomClearParent;
 
     internal void Dispose()
     {
@@ -138,7 +139,8 @@ public sealed partial class Plugin
         BotState s,
         DoorWork door,
         bool ambush = false,
-        string? planned = null
+        string? planned = null,
+        bool roomClear = false
     )
     {
         var r = s.Fake;
@@ -158,8 +160,8 @@ public sealed partial class Plugin
             return false;
         var c = config.DoorFakeGrenade;
         if (
-            Vector3.Distance(b.Position, VP(door.Geometry.Center)) > c.DoorDistance
-            || Vector3.Distance(known, VP(door.Geometry.Center)) > c.ContactDistance
+            !roomClear && (Vector3.Distance(b.Position, VP(door.Geometry.Center)) > c.DoorDistance
+            || Vector3.Distance(known, VP(door.Geometry.Center)) > c.ContactDistance)
         )
             return false;
         bool grenade =
@@ -167,8 +169,8 @@ public sealed partial class Plugin
             && SainPresetAccess.AllowsGrenades()
             && b.Info.FileSettings.Core.CanGrenade
             && b.BotOwner.WeaponManager?.Grenades.HaveGrenade == true;
-        string medical = FindFakeMedical(b, out _, out _);
-        double styleRoll = jumpRandom.NextDouble();
+        string medical = roomClear ? "" : FindFakeMedical(b, out _, out _);
+        double styleRoll = roomClear ? 0 : jumpRandom.NextDouble();
         string kind = planned ?? DoorFeintChoice.Pick(
             grenade,
             medical,
@@ -189,7 +191,8 @@ public sealed partial class Plugin
             jumpRandom.NextDouble(),
             c,
             config.DoorFakeMedical.Enabled,
-            planned != null
+            planned != null,
+            roomClear
         );
         if (ReferenceEquals(previous, r.Policy.Trace))
             return false;
@@ -219,7 +222,10 @@ public sealed partial class Plugin
             return false;
         }
         r.AmbushParent = ambush;
-        if (ambush)
+        r.RoomClearParent = roomClear;
+        if (roomClear)
+            trace.Alternatives = new[] { "Grenade feint from the room entry plan", "Resume the entry plan if the grenade cannot be drawn" };
+        else if (ambush)
             trace.Alternatives = new[]
             {
                 "Hold the exit with weapon ready",
@@ -463,7 +469,7 @@ public sealed partial class Plugin
                     bool covered;
                     try
                     {
-                        covered = FakeCover(b, s);
+                        covered = r.RoomClearParent || FakeCover(b, s);
                     }
                     finally
                     {

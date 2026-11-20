@@ -42,6 +42,16 @@ internal static class DoorFakeTests
             Check(p.Trace == null, "late data reset");
         }
 
+        var prepared = new DoorFakeGrenade();
+        double olderContact = c.ContactLifetime + 1;
+        Check(!prepared.Begin("d", "e", "heard", "Chad", default, olderContact, 110, .99, c),
+            "standalone feint keeps its contact window");
+        for (int i = 0; i < 2; i++)
+        {
+            Check(prepared.Begin("d", "e", "heard", "Chad", default, olderContact, 110 + i, .99, c,
+                planned: true, roomClear: true), "search clear owns the age window, count and roll of both feints");
+            prepared.End("test-restore");
+        }
         return n;
     }
 }

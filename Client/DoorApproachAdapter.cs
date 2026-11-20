@@ -31,6 +31,7 @@ internal sealed class DoorRuntime
     internal readonly List<DoorWork> Work = new();
     internal DoorWork? Chosen;
     internal string SessionPlan = "", SessionDoor = "", SessionEnemy = "", Feint = "";
+    internal DoorClearPlan? ClearPlan;
     internal bool FromSearch, Entered, NativeFallback, NativeSelected;
     internal DoorWork? Nearby;
     internal float ProbeUntil, SessionAt;

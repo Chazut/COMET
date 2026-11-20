@@ -9,10 +9,20 @@ Reference: R_F's SAIN zzap snapshot
 `fbb86b838e0fa692b759b2c0b11fc30158a53876`.
 The audited door, grenade, cover and squad changes also track remix 7.6
 (`d8655293f607161fa0c7c0cf9958af4ffcfbae8f`).
-Configuration marker: `zzap-d8655293-2`.
+Configuration marker: `zzap-d8655293-3`.
 The host remains official SAIN 4.5.1; the fork DLL is not distributed or installed.
 
 ## Behavioral changes
+
+### D07/D08 room entry choice (2026-11-20)
+
+Both clear modes use the remix 7.6 `BuildClear` weights and feint count when
+the door session is selected. The stock grenade preference is 55. Custom profiles
+retain their saved preference. G01 still checks a planned throw, including its
+trajectory. A preference of zero disables real throws. Recent movement
+rules out feints. A quiet contact can lead to two grenade feints,
+with weapon recovery between them. The D07/D08 trace records the original plan,
+the executed variant and the number of feints started and completed.
 
 ### G01/G02 grenade contact age and throw range (2026-11-20)
 

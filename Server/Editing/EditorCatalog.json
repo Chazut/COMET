@@ -5689,7 +5689,7 @@
     },
     "DoorRoomClear.GrenadePreference": {
       "Label": "Grenade preference for room entry",
-      "Help": "Set to 0 to disable real grenades for room entry. Above 0, shared grenade judgment takes priority when enabled.",
+      "Help": "Higher values favor a real grenade. The bot also considers recent footsteps, the last known position and its own condition. Set to 0 to disable real throws.",
       "Min": 0.0,
       "Max": 100.0,
       "Scale": 1,
@@ -5698,8 +5698,8 @@
       "Unit": "%"
     },
     "DoorRoomClear.AllowFeint": {
-      "Label": "Allow one D05/D06 feint in the entry plan",
-      "Help": "",
+      "Label": "Allow grenade feints before entering",
+      "Help": "The bot may fake a grenade once or twice when the room has gone quiet. Recent footsteps favor entering without a feint.",
       "Min": null,
       "Max": null,
       "Scale": 1,
@@ -5806,8 +5806,8 @@
       "Unit": "s"
     },
     "DoorSearchClear.AllowFeint": {
-      "Label": "Allow one existing feint during a room check",
-      "Help": "",
+      "Label": "Allow grenade feints during a room check",
+      "Help": "Use the same feint choices as a recent contact when searching an older position.",
       "Min": null,
       "Max": null,
       "Scale": 1,

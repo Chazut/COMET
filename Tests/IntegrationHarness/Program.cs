@@ -81,6 +81,18 @@ static class Audit
         VerifySiegeRoomLookup(client);
         var plugin = typeof(Comet.Client.Plugin);
         const BindingFlags instance = BindingFlags.NonPublic | BindingFlags.Instance;
+        var planRoom = plugin.GetMethod("PlanRoomClear", instance)!;
+        var selectRoom = plugin.GetMethod("EnsureDoorSession", instance)!;
+        var stepRoom = Calls(plugin.GetMethod("StepDoorClear", instance)!).ToArray();
+        if (!Calls(selectRoom).Contains(planRoom) || stepRoom.Contains(planRoom)
+            || !stepRoom.Any(m => m.DeclaringType?.Name == "DoorRoomClear" && m.Name == "Choose")
+            || !stepRoom.Any(m => m.Name == "PrepareClearGrenade"))
+            throw new Exception("Room entry must plan once before approach and validate the native throw during execution.");
+        var clearInputs = Calls(planRoom).Select(m => m.Name).ToHashSet();
+        foreach (var input in new[] { "get_LastHeardPlace", "get_TimeSinceHeard", "get_TimeSinceLastKnownUpdated",
+            "get_HaveGrenade", "get_HealthStatus", "Score" })
+            if (!clearInputs.Contains(input))
+                throw new Exception("Room entry is missing a native planning input: " + input);
         var closeFailure = plugin.GetMethod("CloseFailedDoorSession", instance)!;
         foreach (var name in new[] { "FinishDoor", "FinishDoorJump", "FinishDoorRun", "FinishDoorStep",
             "FinishDoorClear", "FinishDoorEntry", "EndDoorAmbush", "EndDoorSupport", "StepDoorResume" })

@@ -64,6 +64,7 @@ public sealed partial class Plugin
         string door = r.SessionDoor, plan = r.SessionPlan, target = r.SessionEnemy;
         var cooldown = r.Cooldowns.FinishSession(door, r.SessionAt, now, reason);
         r.SessionDoor = r.SessionPlan = r.SessionEnemy = r.Feint = "";
+        r.ClearPlan = null;
         r.FromSearch = r.Entered = false;
         Logger.LogDebug($"D01 {s.ProfileId} ended {plan} at {door} target={target} reason={reason} "
             + $"age={now - r.SessionAt:F3}s retrySame={cooldown.SameDoor}s retryOther={cooldown.OtherDoor}s");
@@ -140,6 +141,7 @@ public sealed partial class Plugin
         r.SessionPlan = plan;
         r.SelectionChance = Math.Min(100, chance);
         r.SelectionRoll = roll;
+        r.ClearPlan = plan == "clear" ? PlanRoomClear(b, e, door, known, search) : null;
         r.Feint = plan == "peek" ? PlanPeekFeint(b, personality) : "";
         return true;
     }
@@ -197,6 +199,21 @@ public sealed partial class Plugin
             ZzapEnemyWeakness.Score(b, e), mates, b.Memory.Health.HealthStatus != ETagStatus.Healthy
                 || SAINBotSuppressClass.CalcAmmoRatio(b.BotOwner, out _) < .5f, depth, moving, jumpRandom.NextDouble(),
             c.DoorRoomClear.RoomClearChance, c.DoorJumpPeek.GigaChadPeekChance);
+    }
+
+    private DoorClearPlan PlanRoomClear(BotComponent b, Enemy e, DoorWork door, Vector3 known, bool search)
+    {
+        var c = config!;
+        var heard = e.KnownPlaces.LastHeardPlace;
+        bool moving = e.TimeSinceHeard < 2f && heard?.SoundType is SAINSoundType.FootStep or SAINSoundType.Sprint;
+        bool haveGrenade = b.BotOwner.WeaponManager?.Grenades.HaveGrenade == true;
+        bool feints = c.DoorFakeGrenade.Enabled && c.DoorRoomClear.AllowFeint
+            && (!search || c.DoorSearchClear.AllowFeint);
+        float depth = Mathf.Abs(Vector3.Dot(known - VP(door.Geometry.Center), VP(door.Geometry.Normal)));
+        return new DoorClearPlan(haveGrenade, c.DoorRoomClear.GrenadePreference, feints, moving,
+            e.TimeSinceLastKnownUpdated, depth, ZzapEnemyWeakness.Score(b, e),
+            b.Memory.Health.HealthStatus == ETagStatus.Healthy && b.Info.PersonalitySettings.Rush.CanRushEnemyReloadHeal,
+            haveGrenade ? jumpRandom.NextDouble() : 0, haveGrenade && feints && !moving ? jumpRandom.NextDouble() : 0);
     }
 
     private string PlanPeekFeint(BotComponent b, string personality)
