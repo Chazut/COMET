@@ -79,6 +79,15 @@ static class Audit
         // callbacks on the .NET test host or executing any game action.
         var client = typeof(Comet.Client.Plugin).Assembly;
         VerifySiegeRoomLookup(client);
+        var plugin = typeof(Comet.Client.Plugin);
+        const BindingFlags instance = BindingFlags.NonPublic | BindingFlags.Instance;
+        var closeFailure = plugin.GetMethod("CloseFailedDoorSession", instance)!;
+        foreach (var name in new[] { "FinishDoor", "FinishDoorJump", "FinishDoorRun", "FinishDoorStep",
+            "FinishDoorClear", "FinishDoorEntry", "EndDoorAmbush", "EndDoorSupport", "StepDoorResume" })
+        {
+            if (!Calls(plugin.GetMethod(name, instance)!).Contains(closeFailure))
+                throw new Exception("Door failure outcome missing from the built client: " + name);
+        }
         var exposureHook = typeof(Comet.Client.Plugin).GetMethod(
             "ApplyLocalExposure",
             BindingFlags.Static | BindingFlags.NonPublic

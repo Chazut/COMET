@@ -671,6 +671,9 @@ public sealed partial class Plugin
     private void FinishDoor(BotState s)
     {
         var r = s.Door;
+        if (r.Policy.Trace is { State: "ended" } t)
+            CloseFailedDoorSession(s, t.Door, t.Reason, independent:
+                r.Owner != null && s.Interruption.Policy.Resumed && s.Interruption.Policy.Trace?.Door == t.Door);
         if (OwnsDoorPath(r))
         {
             // Never stop a replacement action's path. A native Search will rebuild from its real position.

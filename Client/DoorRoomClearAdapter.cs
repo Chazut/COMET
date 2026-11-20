@@ -718,10 +718,9 @@ public sealed partial class Plugin
             return "clear-door-unavailable";
         if (refresh)
         {
-            if (
-                !b.Mover.CanGoToPoint(r.Destination, out var path, true)
-                || Length(path.corners) >= 9
-            )
+            if (!b.Mover.CanGoToPoint(r.Destination, out var path, true))
+                return "clear-no-path";
+            if (Length(path.corners) >= 9)
                 return "clear-no-current-route";
             r.Route = path;
         }
@@ -867,6 +866,8 @@ public sealed partial class Plugin
     private void FinishDoorClear(BotState s)
     {
         var r = s.RoomClear;
+        if (r.Policy.Trace is { State: "ended" } ended)
+            CloseFailedDoorSession(s, ended.Door, ended.Reason, r.Door?.Data.Door?.DoorState == EDoorState.Open);
         if (OwnsClearPath(r))
         {
             r.OwnedPath!.Cancel();

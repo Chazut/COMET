@@ -553,6 +553,7 @@ public sealed partial class Plugin
             d.NextCheck = Time.time + .25f;
             if (!accepted)
             {
+                CloseFailedDoorSession(s, t.Door, "resume-move-refused", independent: true);
                 AbandonDoorResume(s, "resume-move-refused");
                 return true;
             }

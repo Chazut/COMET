@@ -37,6 +37,24 @@ public sealed partial class Plugin
         return s.Owner.BotOwner.Memory.IsUnderFire ? DoorSessionEnd.Ordinary : DoorSessionEnd.Interrupted;
     }
 
+    private void CloseFailedDoorSession(BotState s, string door, string outcome, bool doorOpen = false,
+        bool independent = false)
+    {
+        var reason = DoorSessionCooldowns.FailureReason(outcome, doorOpen);
+        if (reason == DoorSessionEnd.Ordinary || door.Length == 0)
+            return;
+        var r = s.Door;
+        if (r.SessionDoor == door)
+            CloseDoorSession(s, reason);
+        else if (independent && r.SessionDoor.Length == 0)
+        {
+            // Resumed approaches, utility holds and support assignments can own a move independently.
+            var cooldown = r.Cooldowns.FinishFailure(door, Time.time);
+            Logger.LogDebug($"D01 {s.ProfileId} ended {outcome} at {door} reason={reason} "
+                + $"retrySame={cooldown.SameDoor}s retryOther={cooldown.OtherDoor}s");
+        }
+    }
+
     private void CloseDoorSession(BotState s, DoorSessionEnd reason)
     {
         var r = s.Door;

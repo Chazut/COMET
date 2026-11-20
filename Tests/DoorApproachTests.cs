@@ -100,6 +100,8 @@ internal static class DoorApproachTests
         p.Accept(false, 30);
         Check(!p.Active && p.Trace!.Reason == "door-mover-refused" && !p.Trace.Arrived,
             "an actual native refusal ends the request without reporting arrival");
+        Check(DoorSessionCooldowns.FailureReason(p.Trace!.Reason, false) == DoorSessionEnd.NoPath,
+            "a rejected native stack move reports a failed session");
         p.Clear();
         Check(p.Trace == null, "raid lifecycle reset");
 

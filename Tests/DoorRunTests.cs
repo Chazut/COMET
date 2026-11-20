@@ -76,6 +76,14 @@ internal static class DoorRunTests
         Check(!gates.CanUse("314", 124.9) && gates.CanUse("314", 125), "decline is local to the door for 25 seconds");
         gates.Finish("203", 130, declined: false);
         Check(gates.CanUse("314", 138) && !gates.CanUse("203", 189.9) && gates.CanUse("203", 190), "completed session cools only its door for one minute");
+        gates.Finish("314", 140, declined: true);
+        Check(!gates.CanProbe(141) && gates.CanUseHold("314", 141)
+            && gates.CanUseHold("new", 141) && !gates.CanUseHold("203", 141),
+            "a utility hold may bypass a declined roll, including its door but no other active door timer");
+        gates.FinishFailure("314", 142);
+        Check(!gates.CanProbeHold(171.999) && gates.CanUseHold("new", 172)
+            && !gates.CanUseHold("314", 201.999) && gates.CanUseHold("314", 202),
+            "a real failure also blocks utility holds for 30 seconds globally and 60 at the failed door");
         foreach (var reason in Enum.GetValues<DoorSessionEnd>())
         foreach (var age in new[] { 0d, 1.499, 1.5, 2 })
         {
@@ -87,7 +95,9 @@ internal static class DoorRunTests
                 or DoorSessionEnd.EnemySpotted or DoorSessionEnd.RushInstead or DoorSessionEnd.Interrupted;
             bool resume = reason == DoorSessionEnd.ResumableGoalChange;
             double same = end + (resume ? 5 : early ? 8 : 60);
-            double other = end + (early || resume ? 3 : 8);
+            bool failed = reason is DoorSessionEnd.MoveTimeout or DoorSessionEnd.Stuck or DoorSessionEnd.NoPath
+                or DoorSessionEnd.DoorDidNotOpen or DoorSessionEnd.OpenFailed;
+            double other = end + (early || resume ? 3 : failed ? 30 : 8);
             Check(!cooldowns.CanProbe(other - .001) && cooldowns.CanUse("203", other),
                 $"global retry boundary for {reason} at {age}");
             Check(!cooldowns.CanUse("314", same - .001) && cooldowns.CanUse("314", same),

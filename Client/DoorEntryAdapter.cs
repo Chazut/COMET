@@ -746,6 +746,8 @@ public sealed partial class Plugin
     private void FinishDoorEntry(BotState s)
     {
         var r = s.Entry;
+        if (r.Prepared && r.Policy.Trace is { State: "ended" } ended)
+            CloseFailedDoorSession(s, ended.Door, ended.Reason);
         if (
             r.Owner != null
             && r.OwnedPath != null

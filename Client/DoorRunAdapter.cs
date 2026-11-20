@@ -360,9 +360,13 @@ public sealed partial class Plugin
                 if (t.State == "return-pending")
                 {
                     // Use the observed far arrival as the start, with both route and full body volume rechecked.
+                    if (!b.Mover.CanGoToPoint(r.Angle, out var path, true, .1f))
+                    {
+                        EndDoorRun(s, "run-by-return-no-path");
+                        return true;
+                    }
                     if (
-                        !b.Mover.CanGoToPoint(r.Angle, out var path, true, .1f)
-                        || DoorRunGeometry
+                        DoorRunGeometry
                             .Route(
                                 r.Door.Geometry,
                                 DP(r.Stack),
@@ -703,6 +707,8 @@ public sealed partial class Plugin
     private void FinishDoorRun(BotState s)
     {
         var r = s.RunBy;
+        if (r.Policy.Trace is { State: "ended" } ended)
+            CloseFailedDoorSession(s, ended.Door, ended.Reason, r.Door?.Data.Door?.DoorState == EDoorState.Open);
         if (
             r.Owner != null
             && r.OwnedPath != null

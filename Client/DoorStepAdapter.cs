@@ -360,6 +360,8 @@ public sealed partial class Plugin
     private void FinishDoorStep(BotState s)
     {
         var r = s.StepPeek;
+        if (r.Policy.Trace is { State: "ended" } ended)
+            CloseFailedDoorSession(s, ended.Door, ended.Reason);
         var b = r.Owner;
         bool ownSearch = b != null && TacticalDoorSearch(b, s);
         if (b != null && r.OwnedPath != null && ReferenceEquals(b.Mover.ActivePath, r.OwnedPath))

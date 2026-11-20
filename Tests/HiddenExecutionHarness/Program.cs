@@ -14,6 +14,7 @@ var methods = new[]
     "HiddenSightMayTakeOver",
     "KeepCombatDoor",
     "CloseDoorSession",
+    "CloseFailedDoorSession",
     "DoorSessionReleaseReason",
     "HiddenCanRun",
     "AfterNativeDoorRush",

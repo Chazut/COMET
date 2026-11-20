@@ -578,6 +578,8 @@ public sealed partial class Plugin
         if (r == null)
             return;
         supportBoard.End(s.ProfileId, reason);
+        if (r.Trace.Accepted && r.MoveAt >= 0)
+            CloseFailedDoorSession(s, r.Trace.Door, reason, independent: true);
         r.Trace.State = "released";
         r.Trace.Reason = reason;
         r.Trace.AngleVerified = false;

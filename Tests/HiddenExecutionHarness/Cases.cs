@@ -477,6 +477,8 @@ namespace Comet.Client
         }
         internal void ReleaseSession(BotState s, string reason) =>
             CloseDoorSession(s, DoorSessionReleaseReason(s, reason));
+        internal void FinishDoorPhase(BotState s, string door, string outcome, bool open = false, bool independent = false) =>
+            CloseFailedDoorSession(s, door, outcome, open, independent);
         internal bool CanResume(BotComponent b, VisibleChoice visible = null) =>
             HiddenSightMayTakeOver(b, b.GoalEnemy, visible);
         internal ECombatDecision NativeFallback(BotComponent b, bool rush)
@@ -613,6 +615,45 @@ namespace Comet.Client
 
         public static void Run()
         {
+            foreach (var why in new[] { "door-mover-refused", "door-approach-timeout", "ambush-approach-timeout",
+                "peek-native-open-refused", "clear-open-timeout", "recon-door-did-not-open",
+                "move-stalled", "run-by-move-timeout", "step-move-stalled", "peek-return-no-path",
+                "run-by-return-no-path", "entry-crossing-refused", "clear-native-move-refused", "clear-entry-recheck:clear-no-path" })
+            {
+                var (p, _, s) = Setup();
+                s.Door.SessionDoor = "314";
+                s.Door.SessionAt = 9.9f;
+                p.FinishDoorPhase(s, "other", why);
+                Check(s.Door.SessionDoor == "314", "another door cannot terminate the current session");
+                p.FinishDoorPhase(s, "314", why);
+                Time.time = 11;
+                p.ReleaseSession(s, "native-decision-cleared");
+                Check(s.Door.SessionDoor == "" && !s.Door.Cooldowns.CanUse("next", 39.999)
+                    && s.Door.Cooldowns.CanUse("next", 40) && !s.Door.Cooldowns.CanUse("314", 69.999)
+                    && s.Door.Cooldowns.CanUse("314", 70), "failed door survives later cleanup: " + why);
+            }
+            {
+                var (p, _, s) = Setup();
+                s.Door.SessionDoor = "314";
+                foreach (var why in new[] { "door-incomplete-stack-route", "clear-no-interior-route",
+                    "step-no-path", "peek-path-not-observed", "ambush-session-timeout", "door-third-party",
+                    "clear-no-path", "clear-entry-recheck:clear-no-current-route" })
+                    p.FinishDoorPhase(s, "314", why);
+                foreach (var why in new[] { "peek-door-did-not-open", "clear-open-timeout", "recon-door-did-not-open" })
+                    p.FinishDoorPhase(s, "314", why, open: true);
+                Check(s.Door.SessionDoor == "314" && s.Door.Cooldowns.CanProbe(10),
+                    "candidate skips, ownership changes and an already open door add no failure penalty");
+            }
+            foreach (var why in new[] { "support-move-stuck", "support-move-timeout", "support-move-refused", "resume-move-refused" })
+            {
+                var (p, _, s) = Setup();
+                p.FinishDoorPhase(s, "314", why);
+                Check(s.Door.Cooldowns.CanProbe(10), "stale callbacks without an owned session are ignored");
+                p.FinishDoorPhase(s, "314", why, independent: true);
+                Check(!s.Door.Cooldowns.CanProbe(39.999) && s.Door.Cooldowns.CanUse("next", 40)
+                    && !s.Door.Cooldowns.CanUse("314", 69.999) && s.Door.Cooldowns.CanUse("314", 70),
+                    "independently owned movement updates the participant's cooldown: " + why);
+            }
             foreach (var plan in new[] { "peek", "clear", "trap" })
             {
                 var (p, b, s) = Setup();

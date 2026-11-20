@@ -270,7 +270,7 @@ public sealed partial class Plugin
         if (!r.Policy.Active)
         {
             if (
-                !selectedTrap && Time.time < r.NextPlan
+                !selectedTrap && (Time.time < r.NextPlan || !s.Door.Cooldowns.CanProbeHold(Time.time))
                 || s.Fake.Policy.Active
                 || s.RoomClear.Policy.Active
                 || s.Door.Policy.Active
@@ -468,6 +468,8 @@ public sealed partial class Plugin
                 continue;
             }
             if (s.Door.SessionPlan == "trap" && g.Id != s.Door.SessionDoor)
+                continue;
+            if (s.Door.SessionPlan != "trap" && !s.Door.Cooldowns.CanUseHold(g.Id, Time.time))
                 continue;
             w.Geometry = g;
             string gate = DoorPolicy.Geometry(
@@ -732,6 +734,7 @@ public sealed partial class Plugin
         if (r.Policy.Trace == null || !r.Policy.Active && r.Owner == null)
             return;
         r.Policy.End(reason, reason == "ambush-visual-contact");
+        CloseFailedDoorSession(s, r.Policy.Trace.Door, reason, independent: r.Owner != null);
         if (OwnAmbushPath(r))
             r.Path!.Cancel();
         if (

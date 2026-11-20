@@ -207,7 +207,7 @@ public sealed partial class Plugin
                 r.OwnedPath = IssuedDoorPath(b, r.Outward!);
                 if (!accepted || (!OwnsJumpPath(r) && Vector3.Distance(b.Position, r.Landing) > .4f))
                 {
-                    EndDoorJump(s, "peek-native-movement-refused");
+                    EndDoorJump(s, accepted ? "peek-path-not-observed" : "peek-native-movement-refused");
                     return true;
                 }
                 r.Policy.Start(DP(b.Position), Time.time);
@@ -293,9 +293,13 @@ public sealed partial class Plugin
             doorClock.Restart();
             try
             {
+                if (!b.Mover.CanGoToPoint(r.Stack, out var path, true, .1f))
+                {
+                    EndDoorJump(s, "peek-return-no-path");
+                    return true;
+                }
                 if (
-                    !b.Mover.CanGoToPoint(r.Stack, out var path, true, .1f)
-                    || DoorJumpGeometry
+                    DoorJumpGeometry
                         .Route(
                             r.Door.Geometry,
                             DP(b.Position),
@@ -509,6 +513,8 @@ public sealed partial class Plugin
     private void FinishDoorJump(BotState s)
     {
         var r = s.Jump;
+        if (r.Policy.Trace is { State: "ended" } ended)
+            CloseFailedDoorSession(s, ended.Door, ended.Reason, r.Door?.Data.Door?.DoorState == EDoorState.Open);
         // Physical jump/interaction is never cancelled. Only stop our path if no other action replaced it.
         if (
             r.Owner != null
