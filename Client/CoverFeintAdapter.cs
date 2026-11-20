@@ -16,9 +16,9 @@ using UnityEngine.AI;
 
 namespace Comet.Client;
 
-internal sealed class CoverFeintRuntime
+internal sealed class CoverFeintRuntime(RepositionCooldown cooldown)
 {
-    internal readonly CoverFeintPolicy Policy = new();
+    internal readonly CoverFeintPolicy Policy = new(cooldown);
     internal readonly Dictionary<IBotPathData, NavMeshPath> Routes = new();
     internal BotComponent? Owner;
     internal Enemy? Enemy;
@@ -230,6 +230,8 @@ public sealed partial class Plugin
                 if (Time.time < r.Next)
                     return false;
                 r.Next = Time.time + .4f;
+                if (Time.time < s.RepositionCooldown.Until)
+                    return false;
                 var f = FeintFrame(b, s);
                 var old = r.Policy.Trace;
                 if (!r.Policy.Begin(f, config.CoverFeint, jumpRandom.NextDouble))
@@ -283,7 +285,7 @@ public sealed partial class Plugin
             && manager.CurrentSelfDecision == ESelfActionType.None
             && manager.CurrentSquadDecision == ESquadDecision.None;
         r.RequestFrame = -1;
-        r.Policy.Accepted(ours);
+        r.Policy.Accepted(ours, Time.time);
         if (!ours)
         {
             FinishFeint(s);
@@ -423,8 +425,15 @@ public sealed partial class Plugin
                     EndFeint(s, "feint-magazine-no-longer-safe");
                     return;
                 }
+                // The source session starts immediately before the firearm request, even if it refuses.
+                p.Trace.MagazineRequested = true;
                 bool accepted = r.Firearm.CheckAmmo();
                 p.MagazineResult(accepted, MagazineOperation(r.Firearm), Time.time);
+                if (!p.Active)
+                {
+                    FinishFeint(s);
+                    return;
+                }
             }
             if (p.Moving && config.CoverFeint.Jump && p.Trace.CompletedPeeks == 0)
             {
@@ -676,9 +685,9 @@ public sealed partial class Plugin
             return;
         bool active = r.Policy.Active;
         if (clear)
-            r.Policy.Clear(why);
+            r.Policy.Clear(why, Time.time);
         else if (active)
-            r.Policy.End(why);
+            r.Policy.End(why, Time.time);
         if (active)
             FinishFeint(s);
         else if (clear)

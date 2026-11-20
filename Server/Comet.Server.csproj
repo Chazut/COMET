@@ -164,6 +164,7 @@
   <ItemGroup>
     <Compile Include="../Shared/CoverFeint.cs" Link="Core/CoverFeint.cs" />
     <Compile Include="../Shared/OutdoorRelocation.cs" Link="Core/OutdoorRelocation.cs" />
+    <Compile Include="../Shared/RepositionCooldown.cs" Link="Core/RepositionCooldown.cs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Shared/ReloadTiming.cs" Link="Core/ReloadTiming.cs" />

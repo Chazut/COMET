@@ -124,6 +124,7 @@ public sealed class RelocationTrace
         Elapsed,
         HoldSeconds,
         HoldElapsed,
+        SharedCooldownUntil,
         ContactAge,
         SightAge,
         PathLength,
@@ -155,6 +156,11 @@ public sealed class RelocationTrace
 
 public sealed class OutdoorRelocation
 {
+    private readonly RepositionCooldown cooldown;
+
+    public OutdoorRelocation() : this(new RepositionCooldown()) { }
+    public OutdoorRelocation(RepositionCooldown cooldown) => this.cooldown = cooldown;
+
     public readonly RelocationHistory History = new();
     public RelocationTrace? Trace { get; private set; }
     public bool Holding => Trace?.State == "holding";
@@ -218,6 +224,7 @@ public sealed class OutdoorRelocation
     {
         if (
             Active
+            || f.Now < cooldown.Until
             || Gate(f, c).Length > 0
             || !History.Eligible(f.Key.Length > 0 ? f.Key : f.Target)
         )
@@ -483,20 +490,26 @@ public sealed class OutdoorRelocation
         return true;
     }
 
-    public void End(string reason)
+    public void End(string reason) => End(reason, lastTime);
+
+    public void End(string reason, double now)
     {
         holdRoll = null;
         if (Trace != null)
         {
+            if (Active && (Trace.ThrowAccepted || Trace.MoveRequested))
+                Trace.SharedCooldownUntil = cooldown.AfterSession(now);
             Trace.State = Trace.Arrived ? "arrived" : "ended";
             Trace.Reason = reason;
             Trace.ValidFor = 0;
         }
     }
 
-    public void Clear(string reason)
+    public void Clear(string reason) => Clear(reason, lastTime);
+
+    public void Clear(string reason, double now)
     {
-        End(reason);
+        End(reason, now);
         History.Clear();
     }
 }

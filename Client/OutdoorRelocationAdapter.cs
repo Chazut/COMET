@@ -20,9 +20,9 @@ using UnityEngine.AI;
 
 namespace Comet.Client;
 
-internal sealed class RelocationRuntime
+internal sealed class RelocationRuntime(RepositionCooldown cooldown)
 {
-    internal readonly OutdoorRelocation Policy = new();
+    internal readonly OutdoorRelocation Policy = new(cooldown);
     internal BotComponent? Owner;
     internal CoverPoint? BestCover,
         Selected;
@@ -345,6 +345,8 @@ public sealed partial class Plugin
                 if (Time.time < r.Next)
                     return false;
                 r.Next = Time.time + .4f;
+                if (Time.time < s.RepositionCooldown.Until)
+                    return false;
                 var f = RelocationFrame(b, s);
                 var previous = r.Policy.Trace;
                 if (!r.Policy.Begin(f, config.OutdoorRelocation, jumpRandom.NextDouble))
@@ -964,9 +966,9 @@ public sealed partial class Plugin
         if (!active && !clear)
             return;
         if (clear)
-            r.Policy.Clear(why);
+            r.Policy.Clear(why, Time.time);
         else
-            r.Policy.End(why);
+            r.Policy.End(why, Time.time);
         if (active)
             FinishRelocation(s);
         else if (clear)

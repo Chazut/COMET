@@ -29,6 +29,14 @@ arrival. The native action stops movement, sets pose to 0.8 and watches the
 last known contact. Threats, a change of action and the session timeout can
 interrupt the hold. M13 records arrival, applied hold and hold expiry separately.
 
+M13 and M14 share the five-second post-session cooldown from remix 7.6
+`RepositionClass.End`. It belongs to the bot across targets. Relocation starts
+when a throw is accepted or the move is requested. A peek starts once its point
+is found. A fake reload starts at the firearm's magazine-check request, which
+can itself end the session if refused. A declined roll or failed initial search
+leaves the shared clock alone. Terminal traces record the expiry in scaled
+game seconds as `sharedCooldownUntil`.
+
 ### A05/H01 ordinary medical decisions (2026-11-20)
 
 With a known enemy, ordinary medical choices use the remix 7.6 `HealUtility`

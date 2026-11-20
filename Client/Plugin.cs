@@ -1979,10 +1979,11 @@ internal sealed class BotState
     internal readonly WeaponRangeRuntime WeaponRange = new();
     internal readonly QuickReloadRuntime QuickReload = new();
     internal readonly WeaponReturnRuntime WeaponReturn = new();
-    internal readonly CoverFeintRuntime CoverFeint = new();
+    internal readonly RepositionCooldown RepositionCooldown = new();
+    internal readonly CoverFeintRuntime CoverFeint;
     internal readonly SeasonalCoverRuntime SeasonalCover = new();
     internal readonly CoverExposureRuntime CoverExposure = new();
-    internal readonly RelocationRuntime Relocation = new();
+    internal readonly RelocationRuntime Relocation;
     internal readonly HoldAngleRuntime HoldAngle = new();
     internal readonly CornerPrefireRuntime CornerPrefire = new();
     internal readonly CornerChaseRuntime CornerChase = new();
@@ -2115,6 +2116,8 @@ internal sealed class BotState
 
     internal BotState(BotComponent bot, CometConfig config, string session, string? identity = null)
     {
+        CoverFeint = new(RepositionCooldown);
+        Relocation = new(RepositionCooldown);
         Owner = bot;
         BotKind = BotEligibility.Kind(bot.Player);
         if (identity != null)

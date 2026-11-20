@@ -141,6 +141,7 @@ checks += RetreatWeaveTests.Run();
 checks += TacticalJumpTests.Run();
 checks += OutdoorRelocationTests.Run();
 checks += CoverFeintTests.Run();
+checks += RepositionCooldownTests.Run();
 checks += ReloadTimingTests.Run();
 checks += PeriodicWorkSlotTests.Run();
 checks += PistolSwapTests.Run();

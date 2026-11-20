@@ -114,6 +114,7 @@ public sealed class CoverFeintTrace
         MagazineWeight,
         Exposure,
         Hold,
+        SharedCooldownUntil,
         Pause,
         Speed,
         DistanceMoved;
@@ -132,6 +133,7 @@ public sealed class CoverFeintTrace
         ExposedObserved,
         ReturnedObserved,
         MagazineRequested,
+        PeekPointSelected,
         MagazineAccepted,
         AnimationObserved,
         WeaponReady,
@@ -142,6 +144,11 @@ public sealed class CoverFeintTrace
 
 public sealed class CoverFeintPolicy
 {
+    private readonly RepositionCooldown cooldown;
+
+    public CoverFeintPolicy() : this(new RepositionCooldown()) { }
+    public CoverFeintPolicy(RepositionCooldown cooldown) => this.cooldown = cooldown;
+
     public readonly PreparationWait Preparation = new();
 
     private sealed class History
@@ -207,7 +214,7 @@ public sealed class CoverFeintPolicy
 
     public bool Begin(CoverFeintFrame f, CoverFeintConfig c, Func<double> random)
     {
-        if (Active || Gate(f, c).Length > 0)
+        if (Active || f.Now < cooldown.Until || Gate(f, c).Length > 0)
             return false;
         if (f.Now < nextRoll)
             return false;
@@ -291,13 +298,15 @@ public sealed class CoverFeintPolicy
         return true;
     }
 
-    public void Accepted(bool accepted)
+    public void Accepted(bool accepted) => Accepted(accepted, lastTime);
+
+    public void Accepted(bool accepted, double now)
     {
         if (Active)
         {
             Trace!.Accepted = accepted;
             if (!accepted)
-                End("feint-native-priority");
+                End("feint-native-priority", now);
         }
     }
 
@@ -330,6 +339,7 @@ public sealed class CoverFeintPolicy
         if (!Active || Trace!.State != "planning" || !goal.Finite)
             return false;
         Goal = goal;
+        Trace.PeekPointSelected = Trace.Kind == "peek";
         Trace.GoalX = goal.X;
         Trace.GoalY = goal.Y;
         Trace.GoalZ = goal.Z;
@@ -356,7 +366,7 @@ public sealed class CoverFeintPolicy
         Trace.AnimationObserved = accepted && operation;
         if (!accepted)
         {
-            End("feint-magazine-refused");
+            End("feint-magazine-refused", now);
             return;
         }
         Set("mag-check", "feint-waiting-for-actual-animation", now);
@@ -469,18 +479,24 @@ public sealed class CoverFeintPolicy
         Trace.ValidFor = .3;
     }
 
-    public void End(string why)
+    public void End(string why) => End(why, lastTime);
+
+    public void End(string why, double now)
     {
         if (Trace == null)
             return;
+        if (Active && (Trace.PeekPointSelected || Trace.MagazineRequested))
+            Trace.SharedCooldownUntil = cooldown.AfterSession(now);
         Trace.State = "ended";
         Trace.Reason = why;
         Trace.ValidFor = 0;
     }
 
-    public void Clear(string why)
+    public void Clear(string why) => Clear(why, lastTime);
+
+    public void Clear(string why, double now)
     {
-        End(why);
+        End(why, now);
         nextRoll = 0;
     }
 }
