@@ -47,6 +47,79 @@ internal static class VisibleDecisionTests
             c.VisibleCombat.PushWeight = a == VisibleTactic.Push ? 1 : 0;
             return c;
         }
+        // Case 47844 from the seeded comparison with VisibleEnemyUtility.Rank.
+        {
+            var c = new CometConfig();
+            c.TacticalMistakes.Enabled = false;
+            var f = Frame();
+            f.Contact.RealDistance = f.Contact.KnownDistance = 19;
+            f.Contact.Health = .270472687795047;
+            f.Contact.Ammo = .7409727884181648;
+            f.Contact.Weakness = .7336250593576698;
+            f.Contact.Looking = f.Contact.Busy = f.Contact.GrenadeOut = true;
+            f.Contact.VisibleMates = .5;
+            f.CurrentExposure = .18018585405321133;
+            f.CoverDistance = 1;
+            f.RecentHit = f.CoverReachable = true;
+            var engine = new VisibleEnemyDecision(c);
+            var choice = engine.Evaluate(f);
+            var mix = choice.Mixing!;
+            Check(choice.Decision == VisibleTactic.Cover && mix.Selected == "Cover"
+                && mix.Mistake!.Best == "Cover", "full precision gives Cover the lead over Shoot");
+            Check(choice.Candidates.Where(x => x.Decision != "Push").All(x => x.Score == 71.01)
+                && mix.Options.Where(x => x.Decision != "Push").All(x => x.Score == 71.01)
+                && mix.Mistake!.Options.Where(x => x.Decision != "Push").All(x => x.Score == 71.01)
+                && mix.Mistake.BestScore == 71.01 && mix.Mistake.SelectedScore == 71.01,
+                "candidate, mixing and mistake diagnostics keep the two-decimal scores");
+            f.RecentHit = false;
+            f.Contact.Now += .1;
+            Check(engine.Evaluate(f).Decision == VisibleTactic.Cover
+                && engine.Mixing!.Opportunity == mix.Opportunity,
+                "cached preference preserves the winner when displayed scores tie");
+
+            // Push leads at these weights. Cover still narrowly beats Shoot as a fallback.
+            c.VisibleCombat.CoverWeight = c.VisibleCombat.ShootWeight = .1;
+            c.VisibleCombat.PushWeight = 2;
+            engine = new VisibleEnemyDecision(c);
+            f.RecentHit = true;
+            f.PushReachable = false;
+            var fallback = engine.Evaluate(f);
+            Check(fallback.Decision == VisibleTactic.Cover && fallback.Mixing!.Mistake!.Best == "Push",
+                "the second and third options also keep their full-precision order");
+            f.RecentHit = false;
+            f.PushReachable = true;
+            f.Contact.Now += .1;
+            Check(engine.Evaluate(f).Decision == VisibleTactic.Push, "cached first choice becomes available");
+            f.PushReachable = false;
+            Check(engine.Evaluate(f).Decision == VisibleTactic.Cover
+                && engine.Mixing!.Opportunity == fallback.Mixing!.Opportunity,
+                "losing the path again uses the original second choice");
+
+            var raw = ZzapUtility.Visible(f, c.Aggression["Normal"]);
+            c.VisibleCombat.PushWeight = 0;
+            c.VisibleCombat.ShootWeight = 50.001 / raw[VisibleTactic.Shoot];
+            c.VisibleCombat.CoverWeight = 50.003 / raw[VisibleTactic.Cover];
+            Check(new VisibleEnemyDecision(c).Evaluate(f).Decision == VisibleTactic.Cover,
+                "weighted scores retain precision");
+            f.Contact.Outcome = new OutcomeTrace
+            {
+                State = "review", Target = f.Contact.Target, Remaining = 1,
+                Effects = new[] { new OutcomeEffect { Action = "Shoot", Results = 2, Delta = .003 } },
+            };
+            Check(new VisibleEnemyDecision(c).Evaluate(f).Decision == VisibleTactic.Shoot
+                && f.Contact.Outcome.Effects[0].Applied == .003,
+                "encounter adjustment can reverse a narrow lead before ranking");
+
+            f.Contact.Outcome = null;
+            c.TacticalMistakes.Enabled = true;
+            c.TacticalMistakes.Chances["Normal"] = 1;
+            c.VisibleCombat.ShootWeight = 71.004 / raw[VisibleTactic.Shoot];
+            c.VisibleCombat.CoverWeight = 36.003 / raw[VisibleTactic.Cover];
+            var mistake = new VisibleEnemyDecision(c).Evaluate(f);
+            Check(mistake.Decision == VisibleTactic.Shoot
+                && mistake.Mixing!.Mistake!.State == "score-loss-too-large",
+                "mistake rejects a raw loss above 35 even when displayed scores differ by 35");
+        }
         foreach (var a in Enum.GetValues<VisibleTactic>())
         {
             var e = new VisibleEnemyDecision(Only(a));

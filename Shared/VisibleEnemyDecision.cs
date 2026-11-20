@@ -150,7 +150,7 @@ public sealed class VisibleEnemyDecision
                 new Candidate
                 {
                     Decision = t.ToString(),
-                    Score = Math.Round(scores[t] * weight, 2),
+                    Score = scores[t] * weight,
                     Eligible = weight > 0 && reason == null,
                     Reason = weight == 0 ? "disabled-by-config" : reason ?? "available",
                 }
@@ -166,9 +166,27 @@ public sealed class VisibleEnemyDecision
             "zzap-visible-score",
             now: s.Now
         );
+        // Rank has fixed the complete preference order, including the mistake verdict.
+        // Cached selections only read that order and current eligibility.
+        RoundReportedScores(candidates, mixer.Last!);
         scoredAt = s.Now;
         until = s.Now + 2 + random.NextDouble();
         return SelectAvailable(v, "zzap-ranked-selection", true);
+    }
+
+    private static void RoundReportedScores(List<Candidate> candidates, MixTrace trace)
+    {
+        foreach (var candidate in candidates)
+            candidate.Score = Math.Round(candidate.Score, 2);
+        foreach (var option in trace.Options)
+            option.Score = Math.Round(option.Score, 2);
+        if (trace.Mistake is { } mistake)
+        {
+            mistake.BestScore = Math.Round(mistake.BestScore, 2);
+            mistake.SelectedScore = Math.Round(mistake.SelectedScore, 2);
+            foreach (var option in mistake.Options)
+                option.Score = Math.Round(option.Score, 2);
+        }
     }
 
     private VisibleChoice SelectAvailable(VisibleSituation v, string reason, bool rescored = false)

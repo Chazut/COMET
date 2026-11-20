@@ -14,6 +14,13 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### A02 visible combat scores (2026-11-20)
+
+A02 ranks Shoot, Cover and Push using the full weighted scores, including
+encounter outcome adjustments. Tactical mistakes use those same scores.
+The cached preference order is kept when capabilities change. Candidate
+and mixing diagnostics display scores to two decimal places after ranking.
+
 ### H01 hearing during medical decisions (2026-11-20)
 
 Ordinary medical choices use the last sound SAIN accepted for each known
