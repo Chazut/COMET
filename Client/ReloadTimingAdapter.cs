@@ -228,21 +228,14 @@ public sealed partial class Plugin
             };
             ranked = ranked.OrderByDescending(x => x.Score).ToList();
             r.Mistakes ??= new TacticalMistakes(p.config.TacticalMistakes, s.Id + "|reload");
-            var selected = r.Mistakes.Select(
+            r.Mistakes.ApplyToRanking(
                 ranked,
                 ranked[0],
                 new MixTrace(),
                 bot.Info.Personality.ToString(),
                 false,
-                Time.time,
-                false,
-                false
+                Time.time
             );
-            if (selected != null && selected != ranked[0])
-            {
-                ranked.Remove(selected);
-                ranked.Insert(0, selected);
-            }
             foreach (var option in ranked)
             {
                 if (option.Decision == "Hold")

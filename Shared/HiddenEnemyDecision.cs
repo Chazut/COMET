@@ -215,25 +215,24 @@ public sealed class HiddenEnemyDecision
         }
         EncounterScoring.Adjust(candidates, s, config);
         OutcomeScoring.Adjust(candidates, s, config);
-        var chosen = mixer.Select(
+        var order = mixer.Rank(
             candidates,
             s.Target,
             s.Personality,
             same ? "zzap-rescore" : "new-contact",
             now: s.Now
         );
-        var previous = same
-            ? candidates.Find(c =>
-                c.Eligible && c.Decision == preference.FirstOrDefault()?.Decision
-            )
+        var chosen = order.FirstOrDefault();
+        var previous = same && preference.Count > 0
+            ? order.Find(c => c.Decision == preference[0].Decision)
             : null;
-        double best = candidates
-            .Where(c => c.Eligible)
-            .Select(c => c.Score)
-            .DefaultIfEmpty(-10000)
-            .Max();
-        if (previous != null && previous.Score >= best - (s.UnderFire ? 15 : 8))
+        if (previous != null && previous.Score >= order.Max(c => c.Score) - (s.UnderFire ? 15 : 8))
         {
+            if (previous != chosen)
+            {
+                order.Remove(previous);
+                order.Insert(0, previous);
+            }
             chosen = previous;
             mixer.Retain("zzap-kept-pick", previous.Decision);
         }
@@ -245,12 +244,7 @@ public sealed class HiddenEnemyDecision
             holdSince = s.Now;
         RankedHoldSeconds = heldFor;
         ranked = candidates;
-        preference = candidates.Where(c => c.Eligible).OrderByDescending(c => c.Score).ToList();
-        if (chosen != null)
-        {
-            preference.Remove(chosen);
-            preference.Insert(0, chosen);
-        }
+        preference = order;
         until =
             s.Now
             + (next == Tactic.Hold ? 4 + random.NextDouble() * 3 : 2.5 + random.NextDouble() * 1.5);

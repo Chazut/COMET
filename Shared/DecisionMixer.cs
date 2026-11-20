@@ -64,6 +64,14 @@ public sealed class DecisionMixer
         bool urgent = false,
         bool retry = false,
         double now = 0
+    ) => Rank(candidates, contact, personality, trigger, now).FirstOrDefault();
+
+    internal List<Candidate> Rank(
+        List<Candidate> candidates,
+        string contact,
+        string personality,
+        string trigger,
+        double now
     )
     {
         if (target != contact || encounter == 0)
@@ -151,9 +159,14 @@ public sealed class DecisionMixer
         }
         trace.Selected = chosen?.Decision ?? "";
         Last = trace;
-        return mistakes == null
-            ? chosen
-            : mistakes.Select(candidates, chosen, trace, personality, visible, now, urgent, retry);
+        mistakes?.ApplyToRanking(ranked, chosen, trace, personality, visible, now, candidates);
+        // A weighted pick moves to the front. The mistake verdict only swaps when the dice kept the best.
+        if (chosen != null && chosen != best)
+        {
+            ranked.Remove(chosen);
+            ranked.Insert(0, chosen);
+        }
+        return ranked;
     }
 
     public MixTrace? Retain(string reason, string? selected = null)

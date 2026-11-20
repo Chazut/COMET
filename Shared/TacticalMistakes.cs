@@ -14,6 +14,7 @@ public sealed class MistakeTrace
     public string Personality { get; set; } = "";
     public int Opportunity { get; set; }
     public int DrawIndex { get; set; }
+    public int? SwappedFromRank { get; set; }
     public double At { get; set; }
     public double? NextAllowedAt { get; set; }
     public double? Roll { get; set; }
@@ -63,6 +64,19 @@ public sealed class TacticalMistakes
             .Where(c => c.Eligible && !double.IsNaN(c.Score) && !double.IsInfinity(c.Score))
             .OrderByDescending(c => c.Score)
             .ToList();
+        return ApplyToRanking(ranked, before, mixing, personality, visible, now, candidates);
+    }
+
+    internal Candidate? ApplyToRanking(
+        List<Candidate> ranked,
+        Candidate? before,
+        MixTrace mixing,
+        string personality,
+        bool visible,
+        double now,
+        List<Candidate>? allCandidates = null
+    )
+    {
         var best = ranked.FirstOrDefault();
         double chance = Math.Min(
             1,
@@ -136,7 +150,7 @@ public sealed class TacticalMistakes
         trace.SelectedScore = chosen?.Score ?? 0;
         trace.DrawIndex = draws;
         trace.ScoreLoss = best == null ? 0 : Math.Max(0, best.Score - trace.SelectedScore) / 100;
-        foreach (var c in candidates)
+        foreach (var c in allCandidates ?? ranked)
             trace.Options.Add(
                 new MixOption
                 {
@@ -149,6 +163,12 @@ public sealed class TacticalMistakes
                         : "ranked-alternative",
                 }
             );
+        if (chosen != null && chosen != before)
+        {
+            int index = ranked.IndexOf(chosen);
+            trace.SwappedFromRank = index + 1;
+            (ranked[0], ranked[index]) = (ranked[index], ranked[0]);
+        }
         mixing.Mistake = trace;
         mixing.Selected = trace.Selected;
         return chosen;

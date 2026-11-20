@@ -159,19 +159,13 @@ public sealed class VisibleEnemyDecision
         Add(VisibleTactic.Cover, c.CoverWeight);
         Add(VisibleTactic.Push, c.PushWeight);
         OutcomeScoring.Adjust(candidates, s, config, v.RecentHit);
-        var best = mixer.Select(
+        preference = mixer.Rank(
             candidates,
             s.Target,
             s.Personality,
             "zzap-visible-score",
             now: s.Now
         );
-        preference = candidates.Where(x => x.Eligible).OrderByDescending(x => x.Score).ToList();
-        if (best != null)
-        {
-            preference.Remove(best);
-            preference.Insert(0, best);
-        }
         scoredAt = s.Now;
         until = s.Now + 2 + random.NextDouble();
         return SelectAvailable(v, "zzap-ranked-selection", true);

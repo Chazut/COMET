@@ -14,6 +14,15 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### A04/A05 fallback after a deliberate mistake (2026-11-20)
+
+Visible combat, hidden combat and reload decisions swap the original best option
+with the option chosen by the mistake verdict. If the third choice becomes
+unavailable, the original runner-up is tried next. For hidden enemies, an ordinary
+weighted draw and retention of a previous close-scoring pick still move that pick
+to the front in their original order. Combat decision traces record the swapped
+option's one-based rank in `mixing.mistake.swappedFromRank`.
+
 ### A01/A12 hold time across hidden contacts (2026-11-20)
 
 The hidden-enemy ranking carries its Hold clock across target changes while
