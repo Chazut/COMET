@@ -202,6 +202,18 @@ static class TranspilerAudit
 
     private sealed record MonoGrenadeToken(int Token);
 
+    // The no-cover postfix relies on SeekCover being the unique terminal default.
+    public static void CheckNativeCoverFallback()
+    {
+        var decision = typeof(SAIN.SAINComponent.Classes.Decision.EnemyDecisionClass).GetMethod("GetDecision")!;
+        var code = Read(decision);
+        int seek = (int)SAIN.Preset.Shared.Enums.ECombatDecision.SeekCover;
+        var stores = Enumerable.Range(1, code.Count - 2).Where(i =>
+            code[i - 1].opcode == OpCodes.Ldarg_1 && code[i].LoadsConstant(seek) && code[i + 1].opcode == OpCodes.Stind_I4);
+        if (!stores.SequenceEqual(new[] { code.Count - 4 }) || code[^2].opcode != OpCodes.Ldc_I4_1 || code[^1].opcode != OpCodes.Ret)
+            throw new Exception("Official SAIN no longer returns SeekCover solely as the final default.");
+    }
+
     static List<CodeInstruction> Read(MethodBase method)
     {
         var bytes = method.GetMethodBody()?.GetILAsByteArray()

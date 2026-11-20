@@ -11,6 +11,7 @@ var methods = new[]
     "RecordHiddenExecution",
     "WatchHiddenMovement",
     "HiddenBeingShot",
+    "HoldWithoutCover",
     "HiddenSightMayTakeOver",
     "KeepCombatDoor",
     "CloseDoorSession",
@@ -58,6 +59,9 @@ foreach (var file in new[] { "HiddenExecutionAdapter.cs", "SourceSearchAdapter.c
 }
 source += File.ReadAllText(Path.Combine(root, "Client/SearchExecutionAdapter.cs"))
     .Split("namespace Comet.Client;")[1];
+var nativeScope = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "Client/LiquidwarpFixesAdapter.cs")))
+    .GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "NativeFixScope");
+source += "partial class Plugin {" + nativeScope + "}";
 var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
     .Split(Path.PathSeparator)
     .Append(typeof(HiddenEnemyDecision).Assembly.Location)

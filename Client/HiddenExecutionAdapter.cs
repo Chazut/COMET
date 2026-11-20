@@ -17,6 +17,9 @@ internal sealed class HiddenExecutionRuntime
     internal readonly HiddenMovementWatch Movement = new();
     internal readonly Dictionary<string, string> Refusals = new();
     internal float HoldOtherBanUntil,
+        NoCoverSince = -1f,
+        NoCoverLast = -10f,
+        NoCoverBanUntil,
         PickAt = -100,
         LogAt = -100;
     internal Enemy? PickEnemy;
@@ -50,6 +53,45 @@ public sealed partial class Plugin
             postfix: new HarmonyMethod(typeof(Plugin), nameof(AfterNativeDoorRush)));
         h.Patch(AccessTools.Method(typeof(EnemyDecisionClass), "GetDecision"),
             postfix: new HarmonyMethod(typeof(Plugin), nameof(FinishNativeDoorChoice)));
+        h.Patch(AccessTools.Method(typeof(EnemyDecisionClass), "GetDecision"),
+            postfix: new HarmonyMethod(typeof(Plugin), nameof(HoldWithoutCover)) { priority = Priority.First });
+    }
+
+    // Official SAIN returns SeekCover only at the end of GetDecision. A skipped original
+    // can also contain SeekCover (e.g. a COMET utility pick) and retains its own decision.
+    private static void HoldWithoutCover(EnemyDecisionClass __instance, Enemy enemy, bool __runOriginal,
+        bool __result, ref ECombatDecision result)
+    {
+        if (!__runOriginal || !__result || result != ECombatDecision.SeekCover)
+            return;
+        var p = Instance;
+        var bot = __instance.Bot;
+        if (p == null || !p.NativeFixScope(bot) || !ContactSafety.Allows(bot, enemy)
+            || !p.states.TryGetValue(bot, out var state))
+            return;
+        var r = state.HiddenExecution;
+        float now = Time.time;
+        if (now < r.NoCoverBanUntil || enemy.IsVisible || bot.Cover.CoverInUse != null
+            || bot.Cover.CoverPoints.Count != 0 || enemy.Path.PathToEnemyStatus != NavMeshPathStatus.PathInvalid
+            || HiddenBeingShot(bot, 5f))
+            return;
+
+        bool starting = r.NoCoverSince < 0f || now - r.NoCoverLast > 1f;
+        if (starting)
+            r.NoCoverSince = now;
+        r.NoCoverLast = now;
+        if (now - r.NoCoverSince < 30f)
+        {
+            result = ECombatDecision.Freeze;
+            if (starting)
+                p.ArbitrationEvent(state, "default-no-cover-no-path", "Freeze");
+        }
+        else
+        {
+            r.NoCoverSince = -1f;
+            r.NoCoverBanUntil = now + 20f;
+            p.ArbitrationEvent(state, "default-no-cover-hold-capped", "SeekCover");
+        }
     }
 
     // Called only with a blocked shot. SAIN can still be finishing a distant-shot decision.
@@ -122,9 +164,9 @@ public sealed partial class Plugin
         RecordHiddenExecution(b, s, reason);
     }
 
-    private static bool HiddenBeingShot(BotComponent b)
+    private static bool HiddenBeingShot(BotComponent b, float recentHitSeconds = 1.5f)
     {
-        if (b.BotOwner.Memory.IsUnderFire || b.Medical.TimeSinceShot < 1.5f)
+        if (b.BotOwner.Memory.IsUnderFire || b.Medical.TimeSinceShot < recentHitSeconds)
             return true;
         foreach (var e in b.EnemyController.KnownEnemies)
             if (e?.Status != null && (e.Status.ShotAtMeRecently || e.Status.ShotMeRecently))

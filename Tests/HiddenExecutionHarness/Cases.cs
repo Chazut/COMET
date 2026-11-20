@@ -267,6 +267,7 @@ namespace SAIN.Components
         public Vector3 Position;
         public bool Supported = true,
             BotActive = true,
+            IsDead,
             GameEnding;
         public string ProfileId = "bot";
         public Enemy GoalEnemy = new();
@@ -396,6 +397,7 @@ namespace Comet.Client
 
     class TestDoor
     {
+        public DoorClearPlan ClearPlan;
         public bool NativeFallback, NativeSelected, Fault, Entered, FromSearch;
         public string SessionPlan = "", SessionDoor = "", SessionEnemy = "", Feint = "";
         public float SessionAt;
@@ -521,6 +523,17 @@ namespace Comet.Client
 
         internal void Watch(BotComponent b, BotState s) => WatchHiddenMovement(b, b.GoalEnemy, s);
 
+        internal ECombatDecision DefaultCover(BotComponent b, ECombatDecision result = ECombatDecision.SeekCover,
+            bool nativeRan = true, bool accepted = true)
+        {
+            var decision = b.Decision.EnemyDecisions;
+            decision.Bot = b;
+            HoldWithoutCover(decision, b.GoalEnemy, nativeRan, accepted, ref result);
+            return result;
+        }
+
+        void ArbitrationEvent(BotState state, string reason, string native) => Events.Add(reason);
+
         public void Partial(BotComponent b) =>
             FinishPartialSearch(b.Search.PathFinder, b.GoalEnemy);
 
@@ -613,8 +626,88 @@ namespace Comet.Client
             return (p, b, s);
         }
 
+        static void CheckNoCoverHold()
+        {
+            var (p, b, s) = Setup();
+            b.Cover.CoverPoints.Clear();
+            b.GoalEnemy.Path.PathToEnemyStatus = NavMeshPathStatus.PathInvalid;
+            foreach (var earlier in new[] { ECombatDecision.Search, ECombatDecision.ShiftCover, ECombatDecision.Freeze, ECombatDecision.StandAndShoot })
+                Check(p.DefaultCover(b, earlier) == earlier, "earlier native decision survives: " + earlier);
+            Check(p.DefaultCover(b, nativeRan: false) == ECombatDecision.SeekCover, "utility or third-party prefix owns SeekCover");
+            Check(p.DefaultCover(b, accepted: false) == ECombatDecision.SeekCover, "rejected native decision");
+            Check(p.Events.Count == 0, "skipped branches never start the clock");
+
+            bool Holds() => p.DefaultCover(b) == ECombatDecision.Freeze;
+            b.Cover.CoverInUse = new();
+            Check(!Holds(), "cover in use");
+            b.Cover.CoverInUse = null;
+            b.Cover.CoverPoints.Add(new());
+            Check(!Holds(), "candidate cover exists");
+            b.Cover.CoverPoints.Clear();
+            foreach (var path in new[] { NavMeshPathStatus.PathPartial, NavMeshPathStatus.PathComplete })
+            {
+                b.GoalEnemy.Path.PathToEnemyStatus = path;
+                Check(!Holds(), "native path: " + path);
+            }
+            b.GoalEnemy.Path.PathToEnemyStatus = NavMeshPathStatus.PathInvalid;
+            b.GoalEnemy.IsVisible = true;
+            Check(!Holds(), "visible enemy");
+            b.GoalEnemy.IsVisible = false;
+            b.BotOwner.Memory.IsUnderFire = true;
+            Check(!Holds(), "under fire");
+            b.BotOwner.Memory.IsUnderFire = false;
+            b.Medical.TimeSinceShot = 4.99f;
+            Check(!Holds(), "hit less than five seconds ago");
+            b.Medical.TimeSinceShot = 5f;
+            var other = new Enemy();
+            b.EnemyController.KnownEnemies.Add(other);
+            other.Status.ShotAtMeRecently = true;
+            Check(!Holds(), "another contact recently fired at the bot");
+            other.Status.ShotAtMeRecently = false;
+            other.Status.ShotMeRecently = true;
+            Check(!Holds(), "another contact recently hit the bot");
+            other.Status.ShotMeRecently = false;
+            Check(Holds(), "exactly five seconds since last hit");
+            for (int t = 11; t < 40; t++)
+            {
+                Time.time = t;
+                if (t == 20)
+                {
+                    b.GoalEnemy = new Enemy();
+                    b.GoalEnemy.Path.PathToEnemyStatus = NavMeshPathStatus.PathInvalid;
+                }
+                Check(Holds(), "continuous hold across ticks and target changes at " + t);
+            }
+            Time.time = 39.99f;
+            Check(Holds(), "just below thirty seconds");
+            Time.time = 40;
+            Check(!Holds(), "thirty-second cap");
+            Time.time = 59.99f;
+            Check(!Holds(), "twenty-second ban still active");
+            Time.time = 60;
+            Check(Holds(), "ban expires exactly at twenty seconds");
+            Check(p.Events.Count == 3 && p.Events[1] == "default-no-cover-hold-capped", "only start, cap and restart logged");
+
+            Time.time = 61;
+            b.GoalEnemy.IsVisible = true;
+            Check(!Holds(), "sight interrupts an active hold immediately");
+            b.GoalEnemy.IsVisible = false;
+            Time.time = 61.01f;
+            Check(Holds() && s.HiddenExecution.NoCoverSince == Time.time, "gap over one second restarts the timer");
+            Time.time = 62;
+            b.BotOwner.Memory.IsUnderFire = true;
+            Check(!Holds(), "fire interrupts an active hold immediately");
+            var second = new BotComponent();
+            second.Cover.CoverPoints.Clear();
+            second.GoalEnemy.Path.PathToEnemyStatus = NavMeshPathStatus.PathInvalid;
+            var secondState = p.states[second] = new BotState { Owner = second };
+            Check(p.DefaultCover(second) == ECombatDecision.Freeze && secondState.HiddenExecution.NoCoverSince == 62,
+                "independent clock for another bot");
+        }
+
         public static void Run()
         {
+            CheckNoCoverHold();
             foreach (var why in new[] { "door-mover-refused", "door-approach-timeout", "ambush-approach-timeout",
                 "peek-native-open-refused", "clear-open-timeout", "recon-door-did-not-open",
                 "move-stalled", "run-by-move-timeout", "step-move-stalled", "peek-return-no-path",
@@ -982,6 +1075,9 @@ namespace Comet.Client
                         break;
                 }
                 bool allowed = scope is "solo" or "fika-host";
+                b.Cover.CoverPoints.Clear();
+                b.GoalEnemy.Path.PathToEnemyStatus = NavMeshPathStatus.PathInvalid;
+                Check((p.DefaultCover(b) == ECombatDecision.Freeze) == allowed, "default cover authority/lifetime: " + scope);
                 b.GoalEnemy.Path.PathToEnemyStatus = NavMeshPathStatus.PathPartial;
                 b.Position = new(8, 0, 0);
                 b.Search.PathFinder.TargetPlace = b.GoalEnemy.KnownPlaces.LastKnownPlace;

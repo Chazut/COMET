@@ -216,7 +216,12 @@ Open door leaves now use the remix 7.6 carver on the AI host (default on).
 The shared navigation mesh reflects the open leaf when no living actor is within
 2 m. SAIN paths retained by supported bots are checked against recent cuts.
 The existing local obstruction recovery still handles a bot already stuck.
-Idle hold behavior and new fork-specific preset switches remain outside this port.
+At the native SeekCover fallback, a supported bot with no cover in use, no
+cover candidates and an invalid path to a hidden enemy holds its angle with
+Freeze. Incoming fire or a hit less than five seconds ago leaves SeekCover in
+control. A continuous hold ends at 30 seconds, followed by 20 seconds before
+this fallback can hold again. A gap over one second restarts the hold clock.
+New fork-specific preset switches remain outside this port.
 C11 batches the new counters with the existing native-fix summary.
 
 ### Hidden-action execution after Back4Streetz raid 459 (2026-11-17)
