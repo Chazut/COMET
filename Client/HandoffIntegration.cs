@@ -27,7 +27,8 @@ public sealed partial class Plugin
         BotState state,
         string reason,
         string kind = "unavailable",
-        bool preserveVisiblePlan = false
+        bool preserveVisiblePlan = false,
+        bool preserveHiddenPreference = false
     )
     {
         bool changed = state.Handoff.Begin(
@@ -46,7 +47,8 @@ public sealed partial class Plugin
                 state,
                 reason,
                 preserveVisiblePlan: preserveVisiblePlan,
-                preserveHiddenPreference: state.Feature == "A01" && reason == "no-feasible-option"
+                preserveHiddenPreference: preserveHiddenPreference
+                    || (state.Feature == "A01" && reason == "no-feasible-option")
             );
         }
         finally

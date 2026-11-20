@@ -17,6 +17,7 @@ public sealed class Situation
         IsActive,
         Ghost,
         Visible,
+        SightWithoutShot,
         HasContact;
     public double ContactAge,
         KnownDistance;
@@ -133,12 +134,21 @@ public sealed class HiddenEnemyDecision
         );
     }
 
-    public bool NeedsEvidence(Situation s) =>
-        ranked.Count == 0 || target != s.Target || s.Now >= until || s.UnderFire;
+    public bool HasUnexpiredPreference(double now) => ranked.Count > 0 && now < until + 1;
 
-    public static string? Ineligible(Situation s, CometConfig c)
+    public bool CanResumeOnSight(Situation s) =>
+        s.Visible && s.SightWithoutShot && s.Target == target && HasUnexpiredPreference(s.Now);
+
+    public bool NeedsEvidence(Situation s) =>
+        !s.Visible && (ranked.Count == 0 || target != s.Target || s.Now >= until || s.UnderFire);
+
+    public string? Ineligible(Situation s) => CheckEligibility(s, config, CanResumeOnSight(s));
+
+    public static string? Ineligible(Situation s, CometConfig c) => CheckEligibility(s, c, false);
+
+    private static string? CheckEligibility(Situation s, CometConfig config, bool reuseOnSight)
     {
-        if (!c.Enabled)
+        if (!config.Enabled)
             return "disabled";
         if (!s.IsAi || !s.IsSupportedBot)
             return "unsupported-bot";
@@ -148,7 +158,7 @@ public sealed class HiddenEnemyDecision
             return "inactive";
         if (s.Ghost)
             return "ghost";
-        if (s.Visible)
+        if (s.Visible && !reuseOnSight)
             return "enemy-visible";
         if (!s.HasContact || s.Target.Length == 0)
             return "no-perceived-contact";
@@ -160,7 +170,7 @@ public sealed class HiddenEnemyDecision
             || s.ContactAge < 0
         )
             return "invalid-contact";
-        if (s.ContactAge > 60)
+        if (!s.Visible && s.ContactAge > 60)
             return "contact-expired";
         return null;
     }
@@ -170,9 +180,11 @@ public sealed class HiddenEnemyDecision
         beforeSelection = current;
         targetBeforeSelection = target;
         holdBeforeSelection = holdSince;
-        string? rejection = Ineligible(s, config);
+        string? rejection = Ineligible(s);
         if (rejection != null)
             return Release(rejection);
+        if (s.Visible)
+            return SelectAvailable(s, "zzap-hidden-memory-on-sight", canRun);
         bool same = target == s.Target;
         if (!NeedsEvidence(s))
             return SelectAvailable(s, "zzap-ranked-memory", canRun);
@@ -335,6 +347,8 @@ public sealed class HiddenEnemyDecision
             Mixing = mixer.Retain("utilityKeep", tactic.ToString()),
         };
     }
+
+    public void SuspendSelection() => current = null;
 
     public Choice Release(string reason)
     {

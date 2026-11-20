@@ -95,6 +95,7 @@ internal static class NativeAdapter
             IsActive = bot.BotActive && !bot.IsDead,
             Ghost = ghost,
             Visible = enemy.IsVisible,
+            SightWithoutShot = enemy.IsVisible && !enemy.CanShoot && (enemy.Seen || enemy.Heard),
             HasContact = known.HasValue && ContactSafety.Allows(bot, enemy),
             ContactAge = enemy.TimeSinceLastKnownUpdated,
             RealDistance = enemy.RealDistance,

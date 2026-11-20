@@ -5,6 +5,7 @@ using Comet.Core;
 using SAIN.Classes.Bot.Search;
 using SAIN.Components;
 using SAIN.Preset.Shared.Enums;
+using SAIN.Preset.Shared.Models.Enums;
 using SAIN.SAINComponent.Classes.Decision;
 using SAIN.SAINComponent.Classes.EnemyClasses;
 using UnityEngine;
@@ -61,7 +62,13 @@ namespace SAIN.Preset.Shared.Enums
         RushEnemy,
         SeekCover,
         ThrowGrenade,
+        ShootDistantEnemy,
     }
+}
+
+namespace SAIN.Preset.Shared.Models.Enums
+{
+    public enum ESuppressionState { None, Light, Medium, Heavy, Extreme }
 }
 
 namespace SAIN.SAINComponent.Classes.EnemyClasses
@@ -122,6 +129,7 @@ namespace SAIN.SAINComponent.Classes.Decision
         public SAIN.Components.BotComponent Bot;
         public bool Shift,
             Rush;
+        public bool FinishingDistantShot;
         public string Refusal = "native";
         public int ShiftCalls,
             RushCalls;
@@ -253,6 +261,7 @@ namespace SAIN.Components
 
     public class BotComponent
     {
+        public Suppression Suppression = new();
         public Mover Mover = new();
         public Vector3 Position;
         public bool Supported = true,
@@ -274,6 +283,11 @@ namespace SAIN.Components
             Search.Decider.Bot = this;
             Search.PathFinder.Bot = this;
         }
+    }
+
+    public class Suppression
+    {
+        public ESuppressionState CurrentState;
     }
 
     public class Decision
@@ -444,6 +458,8 @@ namespace Comet.Client
     {
         TestLog Logger = new();
         internal bool SelectedDoor, NearbyDoor;
+        internal bool CanResume(BotComponent b, VisibleChoice visible = null) =>
+            HiddenSightMayTakeOver(b, b.GoalEnemy, visible);
         internal ECombatDecision NativeFallback(BotComponent b, bool rush)
         {
             var d = b.Decision.EnemyDecisions;
@@ -521,6 +537,11 @@ namespace Comet.Client
 
         public static void Bind()
         {
+            nativeDistantShot = (EnemyDecisionClass d, Enemy e, out string r) =>
+            {
+                r = "";
+                return d.FinishingDistantShot;
+            };
             nativeShift = (EnemyDecisionClass d, Enemy e, out string r) =>
             {
                 d.ShiftCalls++;
@@ -573,6 +594,23 @@ namespace Comet.Client
 
         public static void Run()
         {
+            {
+                var (p, b, _) = Setup();
+                Check(p.CanResume(b), "hidden memory may take over an unclaimed visible contact");
+                Check(!p.CanResume(b, new VisibleChoice { Decision = VisibleTactic.Cover }),
+                    "an executable visible choice takes precedence over hidden memory");
+                b.Decision.CurrentCombatDecision = ECombatDecision.ShootDistantEnemy;
+                b.Decision.EnemyDecisions.FinishingDistantShot = true;
+                Check(!p.CanResume(b), "SAIN retains its active distant shot");
+                b.Decision.EnemyDecisions.FinishingDistantShot = false;
+                Check(p.CanResume(b), "the old decision name cannot block an expired shot");
+                foreach (ESuppressionState level in Enum.GetValues(typeof(ESuppressionState)))
+                {
+                    b.Suppression.CurrentState = level;
+                    Check(p.CanResume(b) == (level <= ESuppressionState.Medium),
+                        "visible fallback respects the source aggressive branch");
+                }
+            }
             {
                 var (p, b, s) = Setup();
                 p.SelectedDoor = true;

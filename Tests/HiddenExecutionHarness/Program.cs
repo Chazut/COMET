@@ -11,6 +11,7 @@ var methods = new[]
     "RecordHiddenExecution",
     "WatchHiddenMovement",
     "HiddenBeingShot",
+    "HiddenSightMayTakeOver",
     "HiddenCanRun",
     "AfterNativeDoorRush",
     "FinishNativeDoorChoice",
@@ -24,6 +25,7 @@ var methods = new[]
 };
 string source =
     "using System;using System.Collections.Generic;using System.Reflection;using Comet.Core;using UnityEngine;using UnityEngine.AI;using SAIN.Components;using SAIN.Classes.Bot.Search;using SAIN.SAINComponent.Classes.EnemyClasses;using SAIN.SAINComponent.Classes.Decision;using SAIN.Preset.Shared.Enums;using static SAIN.SAINComponent.Classes.Search.SearchReasonsStruct;namespace Comet.Client;";
+source = "using SAIN.Preset.Shared.Models.Enums;" + source;
 foreach (var file in new[] { "HiddenExecutionAdapter.cs", "SourceSearchAdapter.cs" })
 {
     var t = CSharpSyntaxTree

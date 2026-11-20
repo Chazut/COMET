@@ -4,6 +4,7 @@ using Comet.Core;
 using HarmonyLib;
 using SAIN.Components;
 using SAIN.Preset.Shared.Enums;
+using SAIN.Preset.Shared.Models.Enums;
 using SAIN.SAINComponent.Classes.Decision;
 using SAIN.SAINComponent.Classes.EnemyClasses;
 using UnityEngine;
@@ -31,7 +32,8 @@ public sealed partial class Plugin
         out string reason
     );
     private static NativeHiddenDecision nativeShift = null!,
-        nativeRush = null!;
+        nativeRush = null!,
+        nativeDistantShot = null!;
 
     private static void PatchHiddenExecution(Harmony h)
     {
@@ -41,11 +43,21 @@ public sealed partial class Plugin
         nativeRush = AccessTools.MethodDelegate<NativeHiddenDecision>(
             AccessTools.Method(typeof(EnemyDecisionClass), "shallRushEnemy")
         );
+        nativeDistantShot = AccessTools.MethodDelegate<NativeHiddenDecision>(
+            AccessTools.Method(typeof(EnemyDecisionClass), "shallShootDistantEnemy")
+        );
         h.Patch(AccessTools.Method(typeof(EnemyDecisionClass), "shallRushEnemy"),
             postfix: new HarmonyMethod(typeof(Plugin), nameof(AfterNativeDoorRush)));
         h.Patch(AccessTools.Method(typeof(EnemyDecisionClass), "GetDecision"),
             postfix: new HarmonyMethod(typeof(Plugin), nameof(FinishNativeDoorChoice)));
     }
+
+    // Called only with a blocked shot. SAIN can still be finishing a distant-shot decision.
+    private static bool HiddenSightMayTakeOver(BotComponent bot, Enemy enemy, VisibleChoice? visible) =>
+        visible?.Decision == null
+        && bot.Suppression.CurrentState is not (ESuppressionState.Heavy or ESuppressionState.Extreme)
+        && !(bot.Decision.CurrentCombatDecision == ECombatDecision.ShootDistantEnemy
+            && nativeDistantShot(bot.Decision.EnemyDecisions, enemy, out _));
 
     // On native fallback this hook runs inside SAIN's aggressive branch, after its actual rush check.
     private static void AfterNativeDoorRush(EnemyDecisionClass __instance, Enemy enemy, ref bool __result)

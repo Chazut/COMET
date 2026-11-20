@@ -91,6 +91,51 @@ static class HiddenExecutionTests
                 "exact source score floor"
             );
         }
+        {
+            var e = Seed(Scores((Tactic.Flank, 70), (Tactic.Search, 60)));
+            var hidden = e.Evaluate(Frame());
+            var s = Frame(15.5);
+            s.Visible = s.SightWithoutShot = true;
+            s.UnderFire = true;
+            Check(!e.NeedsEvidence(s), "seeing the same target behind cover needs no new scores");
+            var kept = e.Evaluate(s);
+            Check(kept.Decision == Tactic.Flank && !kept.Changed
+                && ReferenceEquals(kept.Candidates, hidden.Candidates)
+                && kept.Reason == "zzap-hidden-memory-on-sight",
+                "blocked muzzle continues the same flank without a new selection");
+            s.Now = 15.999;
+            var fallback = e.Evaluate(s, t => t == Tactic.Flank ? "path-lost" : "");
+            Check(fallback.Decision == Tactic.Search && fallback.Changed,
+                "cached options still go through native execution checks");
+            s.Now = 16;
+            Check(e.Evaluate(s).Decision == null, "repeated samples cannot extend the one-second grace");
+        }
+        foreach (var change in new Action<Situation>[] {
+            s => s.Target = "other", s => s.SightWithoutShot = false,
+            s => s.HasContact = false, s => s.IsAuthority = false, s => s.Ghost = true,
+        })
+        {
+            var s = Frame(14);
+            s.Visible = s.SightWithoutShot = true;
+            change(s);
+            Check(Seed(Scores((Tactic.Flank, 70))).Evaluate(s).Decision == null,
+                "visibility fallback respects target, sightline, contact and lifetime");
+        }
+        {
+            var s = Frame();
+            s.Visible = s.SightWithoutShot = true;
+            Check(new HiddenEnemyDecision(new CometConfig()).Evaluate(s).Decision == null,
+                "seeing a target with a blocked shot cannot create a hidden ranking");
+            var e = Seed(Scores((Tactic.Flank, 70)));
+            e.Evaluate(Frame());
+            e.SuspendSelection();
+            s.Target = "other";
+            Check(!e.CanResumeOnSight(s) && e.Current == null,
+                "a visible handoff cannot give another target the old action");
+            s.Target = "enemy";
+            Check(e.Evaluate(s).Changed && e.Current == Tactic.Flank,
+                "reacquiring the original target can reselect its own unexpired flank");
+        }
         foreach (var fallback in new[] { Tactic.Hold, Tactic.FallBack })
         foreach (double score in new[] { 37.99, 38, 49 })
         {

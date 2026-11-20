@@ -784,6 +784,132 @@ public sealed partial class Plugin : BaseUnityPlugin
         }
     }
 
+    // A failed adapter call returns the default result and leaves the native decision in control.
+    private enum VisibleHandoff { Sain, Selected, HiddenRanking }
+
+    private VisibleHandoff ChooseVisible(
+        BotComponent bot, Enemy enemy, BotState state, Situation situation,
+        ref ECombatDecision result, ref bool __result
+    )
+    {
+        bool keepHiddenRanking = state.Engine.HasUnexpiredPreference(situation.Now);
+        bool canResumeHidden = state.Engine.CanResumeOnSight(situation);
+        if (!config!.VisibleCombat.Enabled)
+        {
+            if (canResumeHidden && HiddenSightMayTakeOver(bot, enemy, null))
+                return VisibleHandoff.HiddenRanking;
+            YieldToSain(state, "visible-combat-disabled", preserveHiddenPreference: keepHiddenRanking);
+            return VisibleHandoff.Sain;
+        }
+        state.Situation = situation;
+        if (!canResumeHidden && state.VisibleEngine.NeedsEvidence(situation, bot.Medical.TimeSinceShot < 1.5f))
+            ZzapUtilityCapture.Fill(bot, enemy, situation);
+        var visible = VisibleAdapter.Capture(bot, enemy, situation, state, config);
+        state.VisibleSituation = visible;
+        VisibleChoice? choice = null;
+        if (canResumeHidden)
+        {
+            // With a blocked shot A02 can only reuse a ranking, so no score inputs are needed yet.
+            choice = state.VisibleEngine.Evaluate(visible);
+            if (HiddenSightMayTakeOver(bot, enemy, choice))
+                return VisibleHandoff.HiddenRanking;
+        }
+        ProgressAdapter.Candidates(bot, state, situation);
+        situation.Opportunity = ReadOpportunity(
+            bot,
+            enemy,
+            state,
+            situation,
+            visible
+        );
+        situation.Outcome = ReviewOutcome(bot, state);
+        choice ??= state.VisibleEngine.Evaluate(visible);
+        if (state.Feature != "A02")
+        {
+            Release(state, "visible-contact-handoff", false, preserveVisiblePlan: true,
+                preserveHiddenPreference: keepHiddenRanking);
+            state.Feature = "A02";
+            choice.Changed |= choice.Decision.HasValue;
+        }
+        if (choice.Reason == "plan-kept-pending-exposure")
+            ContinuityEvent(state, "kept", choice.Reason);
+        state.CoverResponseAtSelection = visible.CoverResponse;
+        state.OpponentAtSelection = situation.Opponent?.Copy();
+        state.Mixing = choice.Mixing;
+        state.Decision = choice.Decision?.ToString() ?? "";
+        state.Candidates = choice.Candidates;
+        RecordOutcomeChoice(state, situation);
+        RecordOpportunity(state, situation);
+        string responseKey =
+            visible.CoverResponse?.State
+            + ":"
+            + visible.CoverResponse?.Reason
+            + ":"
+            + visible.CoverId;
+        if (
+            config.CoverResponse.Enabled
+            && responseKey != state.CoverResponseLogKey
+            && Time.time - state.CoverResponseLogAt >= 1
+        )
+        {
+            state.CoverResponseLogAt = Time.time;
+            state.CoverResponseLogKey = responseKey;
+            Emit(
+                state,
+                "evaluated",
+                visible.CoverResponse?.Reason ?? "cover-response-unavailable"
+            );
+        }
+        if (choice.Changed || choice.Reconsidered)
+        {
+            state.FearAtSelection = state.Fear.Current;
+            state.LoadoutAtSelection = situation.Loadout?.Copy();
+        }
+        if (choice.Changed)
+        {
+            Emit(
+                state,
+                choice.Decision == null ? "released" : "selected",
+                choice.Reason
+            );
+            state.ActiveLabel = "";
+            Api.Decisions.Set(state.ProfileId, "");
+        }
+        else if (choice.Reconsidered)
+            Emit(state, "evaluated", "cover-plan-retained:" + choice.Reason);
+        if (!choice.Decision.HasValue)
+        {
+            if (
+                !choice.Changed
+                && (
+                    state.LastRefusal != choice.Reason
+                    || Time.time - state.LastRefusalAt > 5
+                )
+            )
+            {
+                Emit(state, "rejected", choice.Reason);
+                state.LastRefusal = choice.Reason;
+                state.LastRefusalAt = Time.time;
+            }
+            YieldToSain(
+                state,
+                choice.Reason,
+                preserveVisiblePlan: choice.KeepRankingOnHandoff,
+                preserveHiddenPreference: keepHiddenRanking
+            );
+            return VisibleHandoff.Sain;
+        }
+        state.LastRefusal = "";
+        state.Expected =
+            choice.Decision == VisibleTactic.Shoot ? ECombatDecision.StandAndShoot
+            : choice.Decision == VisibleTactic.Cover ? ECombatDecision.SeekCover
+            : ECombatDecision.RushEnemy;
+        state.RequestedFrame = Time.frameCount;
+        result = state.Expected;
+        __result = true;
+        return VisibleHandoff.Selected;
+    }
+
     private static bool Choose(
         EnemyDecisionClass __instance,
         ref ECombatDecision result,
@@ -926,7 +1052,8 @@ public sealed partial class Plugin : BaseUnityPlugin
                 if (state.Feature != "A03" || state.Decision.Length == 0
                     || state.SightEvent?.Target != sight.Target || state.SightEvent.Action != sight.Action)
                 {
-                    plugin.Release(state, "brief-sight-loss", false, true);
+                    plugin.Release(state, "brief-sight-loss", false, true,
+                        preserveHiddenPreference: state.Engine.HasUnexpiredPreference(situation.Now));
                     state.Feature = "A03";
                     state.SightEpisode++;
                     state.Decision = sight.Action == "Push" ? "ContinuePush" : "KeepAngle";
@@ -964,118 +1091,21 @@ public sealed partial class Plugin : BaseUnityPlugin
             }
             if (enemy.IsVisible)
             {
-                if (!plugin.config.VisibleCombat.Enabled)
-                {
-                    plugin.YieldToSain(state, "visible-combat-disabled");
-                    return true;
-                }
-                if (state.Feature != "A02")
-                {
-                    plugin.Release(state, "visible-contact-handoff", false, state.Feature == "A03");
-                    state.Feature = "A02";
-                }
-                state.Situation = situation;
-                if (state.VisibleEngine.NeedsEvidence(situation, bot.Medical.TimeSinceShot < 1.5f))
-                    ZzapUtilityCapture.Fill(bot, enemy, situation);
-                var visible = VisibleAdapter.Capture(bot, enemy, situation, state, plugin.config);
-                ProgressAdapter.Candidates(bot, state, situation);
-                situation.Opportunity = plugin.ReadOpportunity(
-                    bot,
-                    enemy,
-                    state,
-                    situation,
-                    visible
-                );
-                state.VisibleSituation = visible;
-                situation.Outcome = plugin.ReviewOutcome(bot, state);
-                var choice = state.VisibleEngine.Evaluate(visible);
-                if (choice.Reason == "plan-kept-pending-exposure")
-                    plugin.ContinuityEvent(state, "kept", choice.Reason);
-                state.CoverResponseAtSelection = visible.CoverResponse;
-                state.OpponentAtSelection = situation.Opponent?.Copy();
-                state.Mixing = choice.Mixing;
-                state.Decision = choice.Decision?.ToString() ?? "";
-                state.Candidates = choice.Candidates;
-                RecordOutcomeChoice(state, situation);
-                plugin.RecordOpportunity(state, situation);
-                string responseKey =
-                    visible.CoverResponse?.State
-                    + ":"
-                    + visible.CoverResponse?.Reason
-                    + ":"
-                    + visible.CoverId;
-                if (
-                    plugin.config.CoverResponse.Enabled
-                    && responseKey != state.CoverResponseLogKey
-                    && Time.time - state.CoverResponseLogAt >= 1
-                )
-                {
-                    state.CoverResponseLogAt = Time.time;
-                    state.CoverResponseLogKey = responseKey;
-                    plugin.Emit(
-                        state,
-                        "evaluated",
-                        visible.CoverResponse?.Reason ?? "cover-response-unavailable"
-                    );
-                }
-                if (choice.Changed || choice.Reconsidered)
-                {
-                    state.FearAtSelection = state.Fear.Current;
-                    state.LoadoutAtSelection = situation.Loadout?.Copy();
-                }
-                if (choice.Changed)
-                {
-                    plugin.Emit(
-                        state,
-                        choice.Decision == null ? "released" : "selected",
-                        choice.Reason
-                    );
-                    state.ActiveLabel = "";
-                    Api.Decisions.Set(state.ProfileId, "");
-                }
-                else if (choice.Reconsidered)
-                    plugin.Emit(state, "evaluated", "cover-plan-retained:" + choice.Reason);
-                if (!choice.Decision.HasValue)
-                {
-                    if (
-                        !choice.Changed
-                        && (
-                            state.LastRefusal != choice.Reason
-                            || Time.time - state.LastRefusalAt > 5
-                        )
-                    )
-                    {
-                        plugin.Emit(state, "rejected", choice.Reason);
-                        state.LastRefusal = choice.Reason;
-                        state.LastRefusalAt = Time.time;
-                    }
-                    plugin.YieldToSain(
-                        state,
-                        choice.Reason,
-                        preserveVisiblePlan: choice.KeepRankingOnHandoff
-                    );
-                    return true;
-                }
-                state.LastRefusal = "";
-                state.Expected =
-                    choice.Decision == VisibleTactic.Shoot ? ECombatDecision.StandAndShoot
-                    : choice.Decision == VisibleTactic.Cover ? ECombatDecision.SeekCover
-                    : ECombatDecision.RushEnemy;
-                state.RequestedFrame = Time.frameCount;
-                result = state.Expected;
-                __result = true;
-                return false;
+                var visibleResult = plugin.ChooseVisible(bot, enemy, state, situation, ref result, ref __result);
+                if (visibleResult != VisibleHandoff.HiddenRanking)
+                    return visibleResult == VisibleHandoff.Sain;
             }
             if (state.Feature != "A01")
             {
-                plugin.Release(state, "hidden-contact-handoff", false);
+                plugin.Release(state, "hidden-contact-handoff", false, preserveVisiblePlan: true,
+                    preserveHiddenPreference: state.Engine.HasUnexpiredPreference(situation.Now));
                 state.Feature = "A01";
             }
             // A hidden primary target must not override SAIN's response to another visible threat.
-            if (knownEnemies != null && knownEnemies.Any(e => e != null && e.IsVisible))
+            if (!situation.Visible && knownEnemies != null && knownEnemies.Any(e => e != null && e.IsVisible))
                 situation.Visible = true;
             state.Situation = situation;
-            var gate = HiddenEnemyDecision.Ineligible(situation, plugin.config);
+            var gate = state.Engine.Ineligible(situation);
             if (gate != null)
                 plugin.EndSilentSearch(state, gate);
             if (gate != null)
@@ -1087,7 +1117,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 ZzapUtilityCapture.Fill(bot, enemy, situation);
             NativeAdapter.Capabilities(bot, enemy, situation, state, plugin.config);
             if (
-                !situation.Unavailable.ContainsKey(Tactic.Grenade)
+                !situation.Visible && !situation.Unavailable.ContainsKey(Tactic.Grenade)
                 && plugin.StartSquadGrenade(bot, state, enemy, situation, ref result, ref __result)
             )
                 return false;
@@ -1781,8 +1811,13 @@ public sealed partial class Plugin : BaseUnityPlugin
         }
         finally
         {
-            if (!suspendPlan && !preserveHiddenPreference)
-                state.Engine.Release(reason);
+            if (!suspendPlan)
+            {
+                if (preserveHiddenPreference)
+                    state.Engine.SuspendSelection();
+                else
+                    state.Engine.Release(reason);
+            }
             state.ActiveLabel = "";
             state.RequestedFrame = -1;
             state.Execution.Clear();
