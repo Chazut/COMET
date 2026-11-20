@@ -71,7 +71,7 @@ internal static class RepositionCooldownTests
             var config = kind == "peek" ? peek : mag;
             Check(feint.Begin(Feint(10, "A"), config, Low) && feint.Plan(new(1, 0, 0), 11), "plan " + kind);
             if (kind == "peek") feint.Accepted(false, 13);
-            else feint.MagazineResult(kind == "magazine", false, 13);
+            else feint.MagazineResult(kind == "magazine", false, Feint(13, "A"), config);
             if (feint.Active) feint.Clear("feint-out-of-scope", 13);
             Check(feint.Trace!.SharedCooldownUntil == 18, "M14 starts cooldown for " + kind);
             feint.Clear("duplicate cleanup", 15);
@@ -110,7 +110,7 @@ internal static class RepositionCooldownTests
         var completed = new CoverFeintPolicy(timers);
         completed.Begin(Feint(10, "A"), mag, Low);
         completed.Plan(completed.Home, 10);
-        completed.MagazineResult(true, true, 11);
+        completed.MagazineResult(true, true, Feint(11, "A"), mag);
         completed.MagazineObserved(true, true, 13);
         Check(!completed.Observe(Feint(20, "A"), mag) && completed.Trace!.Reason == "feint-hold-finished"
             && timers.Until == 25, "a completed magazine feint starts the wait at hold expiry");

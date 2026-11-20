@@ -45,6 +45,12 @@ than 5 seconds old, and closer to the listener than the enemy's last known
 position. Each observer/contact pair retains one sound. The selection trace
 records all three cues alongside the two weights.
 
+M14 keeps the unused feint available during initial preparation. If the first
+peek has no usable point, it tries the magazine check. A missing firearm or
+a refused check can lead to a peek. The alternate uses its own eligibility
+and the roll from the same decision. An accepted variant consumes the choice.
+The trace keeps the episode ID and records the switch in `fallbackReason`.
+
 ### A05/H01 ordinary medical decisions (2026-11-20)
 
 With a known enemy, ordinary medical choices use the remix 7.6 `HealUtility`

@@ -291,7 +291,6 @@ public sealed partial class Plugin
                 }
                 r.Owner = b;
                 r.Enemy = e;
-                r.Firearm = b.Player.HandsController as Player.FirearmController;
                 r.SeenAt = Time.time - (float)f.Age;
                 r.Candidate = 0;
                 r.FirstSide = 0;
@@ -435,7 +434,7 @@ public sealed partial class Plugin
                 doorClock.Restart();
                 try
                 {
-                    PlanFeint(b, s);
+                    PlanFeint(b, s, f, config.CoverFeint);
                 }
                 finally
                 {
@@ -445,6 +444,11 @@ public sealed partial class Plugin
             }
             else if (p.Trace.State == "planning")
                 p.Preparation.Defer(Time.time, Time.deltaTime);
+            if (!p.Active)
+            {
+                FinishFeint(s);
+                return;
+            }
             if (p.WantsRoute && doorBudget.TryBegin(Time.frameCount, b))
             {
                 doorClock.Restart();
@@ -460,15 +464,16 @@ public sealed partial class Plugin
             }
             if (p.Trace.State == "mag-pending")
             {
+                r.Firearm = b.Player.HandsController as Player.FirearmController;
                 if (r.Firearm == null)
+                    p.NoFirearm(f, config.CoverFeint);
+                else
                 {
-                    EndFeint(s, "feint-magazine-no-longer-safe");
-                    return;
+                    // The source session starts immediately before the firearm request, even if it refuses.
+                    p.Trace.MagazineRequested = true;
+                    bool accepted = r.Firearm.CheckAmmo();
+                    p.MagazineResult(accepted, MagazineOperation(r.Firearm), f, config.CoverFeint);
                 }
-                // The source session starts immediately before the firearm request, even if it refuses.
-                p.Trace.MagazineRequested = true;
-                bool accepted = r.Firearm.CheckAmmo();
-                p.MagazineResult(accepted, MagazineOperation(r.Firearm), Time.time);
                 if (!p.Active)
                 {
                     FinishFeint(s);
@@ -534,20 +539,24 @@ public sealed partial class Plugin
         RecordFeint(s);
     }
 
-    private void PlanFeint(BotComponent b, BotState s)
+    private void PlanFeint(BotComponent b, BotState s, CoverFeintFrame f, CoverFeintConfig settings)
     {
         var r = s.CoverFeint;
         var p = r.Policy;
-        if (p.Trace!.Kind == "magazine")
+        if (p.Trace!.Kind == "peek")
         {
-            p.Plan(p.Home, Time.time);
-            return;
+            if (TryPlanFeintPoint(b, r) || r.Candidate < 16)
+                return;
+            p.NoPeekPoint(f, settings);
+            if (!p.Active)
+                return;
         }
-        if (r.Candidate >= 16)
-        {
-            EndFeint(s, "feint-no-peek-point");
-            return;
-        }
+        p.Plan(p.Home, f.Now);
+    }
+
+    private bool TryPlanFeintPoint(BotComponent b, CoverFeintRuntime r)
+    {
+        var p = r.Policy;
         int i = r.Candidate++;
         var forward = VP(p.Known) - VP(p.Home);
         forward.y = 0;
@@ -568,7 +577,7 @@ public sealed partial class Plugin
                 NavMesh.AllAreas
             )
         )
-            return;
+            return false;
         for (int t = 0; t < 3; t++)
         {
             var target =
@@ -590,9 +599,9 @@ public sealed partial class Plugin
                 continue;
             r.Out = nav.position;
             r.Candidate = 0;
-            p.Plan(DP(r.Out), Time.time);
-            return;
+            return p.Plan(DP(r.Out), Time.time);
         }
+        return false;
     }
 
     private void MoveFeint(BotComponent b, BotState s)

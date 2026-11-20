@@ -269,7 +269,7 @@ internal static class CoverFeintTests
         p.Accepted(true);
         p.Plan(p.Home, 10.1);
         Save();
-        p.MagazineResult(true, false, 10.2);
+        p.MagazineResult(true, false, F(10.2), c);
         Check(!p.Trace!.AnimationObserved, "accepted check does not prove animation");
         Save();
         p.MagazineObserved(false, true, 10.3);
@@ -299,14 +299,107 @@ internal static class CoverFeintTests
         call = 0;
         p.Begin(F(), c, MagRoll);
         p.Plan(p.Home, 10);
-        p.MagazineResult(false, false, 10);
-        Check(!p.Active && !p.Trace!.AnimationObserved, "native refusal releases");
+        p.MagazineResult(false, false, F(10), c);
+        Check(p.Active && p.Trace!.State == "planning" && p.Trace.Kind == "peek"
+            && p.Trace.FallbackReason == "feint-magazine-refused" && !p.Trace.AnimationObserved
+            && p.Trace.MagazineRequested && !p.Trace.MagazineAccepted && p.Trace.SharedCooldownUntil == 15,
+            "native refusal leaves one peek attempt within the original choice");
         Save();
+        p.NoPeekPoint(F(12), c);
+        Check(!p.Active && p.Trace!.Reason == "feint-no-peek-point" && p.Trace.SharedCooldownUntil == 15,
+            "failed alternate search cannot extend the refused check's cooldown or loop back");
+        Save();
+
+        p = new();
+        rolls = 0;
+        p.Begin(F(), c, Low);
+        p.Accepted(true);
+        var original = p.Trace!;
+        f = F(11);
+        f.AmmoRatio = .5;
+        p.NoPeekPoint(f, c);
+        Check(ReferenceEquals(original, p.Trace) && original.Accepted && original.Kind == "magazine"
+            && original.FallbackReason == "feint-no-peek-point" && original.SharedCooldownUntil == 0
+            && rolls == 6 && p.Plan(p.Home, 11),
+            "no initial peek point uses the same episode, rolls and native action at exactly half ammo");
+        p.NoPeekPoint(f, c);
+        p.MagazineResult(true, true, f, c);
+        Check(original.State == "mag-check" && original.MagazineAccepted && original.AnimationObserved,
+            "alternate check executes once and ignores a stale peek result");
+        Save();
+
+        foreach (var failure in new[] { "no firearm", "native refusal" })
+        {
+            p = new();
+            call = 0;
+            p.Begin(F(), c, MagRoll);
+            p.Plan(p.Home, 10);
+            if (failure == "no firearm") p.NoFirearm(F(11), c);
+            else p.MagazineResult(false, false, F(11), c);
+            Check(p.Trace!.Kind == "peek" && p.Trace.SharedCooldownUntil == (failure == "no firearm" ? 0 : 16)
+                && p.Plan(new(1, 0, 0), 11) && call == 6,
+                "alternate peek can start immediately after " + failure);
+            p.End("feint-native-priority", 12);
+            Check(p.Trace.SharedCooldownUntil == 17, "real alternate peek starts its own cooldown on exit");
+        }
+
+        foreach (var veto in new[] { "ammo", "magazine disabled", "magazine chance",
+            "personality", "peek disabled", "peek chance" })
+        {
+            bool peekFirst = veto is "ammo" or "magazine disabled" or "magazine chance";
+            var settings = new CoverFeintConfig();
+            p = new();
+            call = 0;
+            p.Begin(F(), settings, () => call++ == 0 && !peekFirst ? .99 : .1);
+            f = F(11);
+            if (veto == "ammo") f.AmmoRatio = .499;
+            if (veto == "personality") f.Bold = false;
+            if (veto == "magazine disabled") settings.MagazineCheck = false;
+            if (veto == "peek disabled") settings.BaitPeek = false;
+            if (veto == "magazine chance") settings.MagazineChance = 10;
+            if (veto == "peek chance") settings.PeekChance = 10;
+            if (peekFirst) p.NoPeekPoint(f, settings);
+            else { p.Plan(p.Home, 10); p.NoFirearm(f, settings); }
+            Check(!p.Active && p.Trace!.FallbackReason == "" && call == 6,
+                "alternate respects its own eligibility and roll: " + veto);
+        }
+
+        p = new();
+        f = F();
+        f.Bold = false;
+        p.Begin(f, c, Low);
+        p.Plan(p.Home, 10);
+        p.NoFirearm(F(11), c);
+        Check(!p.Active && p.Trace!.SharedCooldownUntil == 0,
+            "when the ordered first choice was skipped, its turn is already spent");
+        p = new();
+        p.Begin(F(), c, Low);
+        f = F(11);
+        f.Visible = true;
+        p.Observe(f, c);
+        p.NoPeekPoint(f, c);
+        Check(!p.Active && p.Trace!.FallbackReason == "", "new sight cancels both variants");
+        p = new();
+        p.Begin(F(), c, Low);
+        p.Plan(new(1, 0, 0), 10);
+        p.RequestMove(10);
+        f = F(11);
+        f.AtGoal = true;
+        p.Observe(f, c);
+        p.Observe(F(12), c);
+        p.RequestMove(12);
+        f.Now = 13;
+        p.Observe(f, c);
+        p.Observe(F(15), c);
+        Check(p.Trace!.State == "planning" && p.Trace.CompletedPeeks == 1, "second peek needs a point");
+        p.NoPeekPoint(F(15), c);
+        Check(!p.Active && p.Trace.FallbackReason == "" && p.Trace.SharedCooldownUntil == 20,
+            "failure on a later peek ends the started session without switching variants");
         p = new();
         call = 0;
         p.Begin(F(), c, MagRoll);
         p.Plan(p.Home, 10);
-        p.MagazineResult(true, false, 10);
+        p.MagazineResult(true, false, F(10), c);
         p.MagazineObserved(false, false, 14.1);
         Check(
             p.Active && p.Trace!.State == "hold",
@@ -566,6 +659,10 @@ internal static class CoverFeintTests
             );
             Check(
                 Calls(pe, md, Method("RefreshFeint"), "CheckAmmo") == 1
+                    && Calls(pe, md, Method("RefreshFeint"), "get_HandsController") == 1
+                    && Calls(pe, md, Method("RefreshFeint"), "NoFirearm") == 1
+                    && Calls(pe, md, Method("RefreshFeint"), "MagazineResult") == 1
+                    && Calls(pe, md, Method("PlanFeint"), "NoPeekPoint") == 1
                     && Calls(pe, md, Method("MagazineOperation"), "get_CurrentHandsOperation") == 1,
                 "native virtual magazine check and observed operation"
             );
@@ -589,6 +686,7 @@ internal static class CoverFeintTests
                     "RefreshFeint",
                     "FeintFrame",
                     "PlanFeint",
+                    "TryPlanFeintPoint",
                     "MoveFeint",
                     "FeintSteering",
                 }

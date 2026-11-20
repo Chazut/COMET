@@ -90,6 +90,7 @@ public sealed class CoverFeintTrace
 {
     public string State = "planning",
         Kind = "",
+        FallbackReason = "",
         Reason = "",
         Target = "",
         Source = "personal-vision",
@@ -163,6 +164,7 @@ public sealed class CoverFeintPolicy
     }
 
     private double nextRoll;
+    private bool alternatePending;
     private int episode;
     private double started,
         phaseAt,
@@ -218,6 +220,11 @@ public sealed class CoverFeintPolicy
     public static bool MateEngaging(string target, string mateTarget, bool visible, double sightAge) =>
         mateTarget == target && (visible || sightAge < 5);
 
+    private static bool CanPeek(CoverFeintFrame f, CoverFeintConfig c) => c.BaitPeek && f.Bold;
+
+    private static bool CanCheckMagazine(CoverFeintFrame f, CoverFeintConfig c) =>
+        c.MagazineCheck && f.AmmoRatio >= .5;
+
     public bool Begin(CoverFeintFrame f, CoverFeintConfig c, Func<double> random)
     {
         if (Active || f.Now < cooldown.Until || Gate(f, c).Length > 0)
@@ -225,8 +232,7 @@ public sealed class CoverFeintPolicy
         if (f.Now < nextRoll)
             return false;
         nextRoll = f.Now + c.RetryDelay;
-        bool peek = c.BaitPeek && f.Bold,
-            mag = c.MagazineCheck && f.AmmoRatio >= .5;
+        bool peek = CanPeek(f, c), mag = CanCheckMagazine(f, c);
         if (!peek && !mag)
             return false;
         double order = random(),
@@ -259,6 +265,7 @@ public sealed class CoverFeintPolicy
                 : p ? "peek"
                 : ""
             );
+        alternatePending = kind == (peekFirst ? "peek" : "magazine");
         Preparation.Clear();
         Home = Goal = f.Position;
         Known = f.Known;
@@ -350,6 +357,8 @@ public sealed class CoverFeintPolicy
             return false;
         Goal = goal;
         Trace.PeekPointSelected = Trace.Kind == "peek";
+        if (Trace.PeekPointSelected)
+            alternatePending = false;
         Trace.GoalX = goal.X;
         Trace.GoalY = goal.Y;
         Trace.GoalZ = goal.Z;
@@ -367,7 +376,40 @@ public sealed class CoverFeintPolicy
         Set(Trace.State == "out-pending" ? "out" : "back", "feint-native-move-requested", now);
     }
 
-    public void MagazineResult(bool accepted, bool operation, double now)
+    public void NoPeekPoint(CoverFeintFrame f, CoverFeintConfig c)
+    {
+        if (Trace is { Kind: "peek", State: "planning" })
+            PreparationFailed("feint-no-peek-point", f, c);
+    }
+
+    public void NoFirearm(CoverFeintFrame f, CoverFeintConfig c)
+    {
+        if (Trace?.State == "mag-pending")
+            PreparationFailed("feint-no-firearm", f, c);
+    }
+
+    private void PreparationFailed(string why, CoverFeintFrame f, CoverFeintConfig c)
+    {
+        var t = Trace!;
+        End(why, f.Now);
+        if (!alternatePending)
+            return;
+        alternatePending = false;
+        bool tryMagazine = t.Kind == "peek";
+        if (tryMagazine
+            ? !CanCheckMagazine(f, c) || t.MagazineRoll >= c.MagazineChance
+            : !CanPeek(f, c) || t.PeekRoll >= c.PeekChance)
+            return;
+
+        // Continue the original ordered choice. A refused native check has already started its cooldown.
+        t.Kind = tryMagazine ? "magazine" : "peek";
+        t.FallbackReason = why;
+        Alternative(why + " -> " + t.Kind);
+        Home = Goal = f.Position;
+        Set("planning", "feint-trying-alternate", f.Now);
+    }
+
+    public void MagazineResult(bool accepted, bool operation, CoverFeintFrame f, CoverFeintConfig c)
     {
         if (Trace?.State != "mag-pending")
             return;
@@ -376,10 +418,11 @@ public sealed class CoverFeintPolicy
         Trace.AnimationObserved = accepted && operation;
         if (!accepted)
         {
-            End("feint-magazine-refused", now);
+            PreparationFailed("feint-magazine-refused", f, c);
             return;
         }
-        Set("mag-check", "feint-waiting-for-actual-animation", now);
+        alternatePending = false;
+        Set("mag-check", "feint-waiting-for-actual-animation", f.Now);
     }
 
     public void MagazineObserved(bool operation, bool ready, double now)
@@ -495,7 +538,7 @@ public sealed class CoverFeintPolicy
     {
         if (Trace == null)
             return;
-        if (Active && (Trace.PeekPointSelected || Trace.MagazineRequested))
+        if (Active && (Trace.PeekPointSelected || (Trace.Kind == "magazine" && Trace.MagazineRequested)))
             Trace.SharedCooldownUntil = cooldown.AfterSession(now);
         Trace.State = "ended";
         Trace.Reason = why;
