@@ -107,7 +107,6 @@ public sealed class HiddenEnemyDecision
     private Tactic? current;
     private Tactic? beforeSelection;
     private string targetBeforeSelection = "";
-    private double holdBeforeSelection;
     private string target = "";
     private double until,
         holdSince = -1,
@@ -116,6 +115,8 @@ public sealed class HiddenEnemyDecision
     private List<Candidate> preference = new();
     public Tactic? Current => current;
     public EnemyRoleAssessment? RankedEnemy { get; private set; }
+    public double? RankedHoldSeconds { get; private set; }
+    public bool RankedHoldCapped => banKnownAt >= 0;
 
     public HiddenEnemyDecision(
         CometConfig config,
@@ -179,7 +180,6 @@ public sealed class HiddenEnemyDecision
     {
         beforeSelection = current;
         targetBeforeSelection = target;
-        holdBeforeSelection = holdSince;
         string? rejection = Ineligible(s);
         if (rejection != null)
             return Release(rejection);
@@ -188,7 +188,7 @@ public sealed class HiddenEnemyDecision
         bool same = target == s.Target;
         if (!NeedsEvidence(s))
             return SelectAvailable(s, "zzap-ranked-memory", canRun);
-        double heldFor = holdSince >= 0 && (same || s.Frozen) ? s.Now - holdSince : 0;
+        double heldFor = holdSince > 0 && (same || s.Frozen) ? s.Now - holdSince : 0;
         double knownAt = s.Now - s.ContactAge;
         if (!same || Math.Abs(banKnownAt - knownAt) >= .5)
             banKnownAt = -1;
@@ -238,6 +238,12 @@ public sealed class HiddenEnemyDecision
             mixer.Retain("zzap-kept-pick", previous.Decision);
         }
         Tactic? next = chosen == null ? null : (Tactic)Enum.Parse(typeof(Tactic), chosen.Decision);
+        // zzap updates HoldSince when it ranks, before native execution tries the candidates.
+        if (next != Tactic.Hold && !s.Frozen)
+            holdSince = -1;
+        else if (heldFor <= 0)
+            holdSince = s.Now;
+        RankedHoldSeconds = heldFor;
         ranked = candidates;
         preference = candidates.Where(c => c.Eligible).OrderByDescending(c => c.Score).ToList();
         if (chosen != null)
@@ -306,13 +312,6 @@ public sealed class HiddenEnemyDecision
         }
         Tactic? next = chosen == null ? null : (Tactic)Enum.Parse(typeof(Tactic), chosen.Decision);
         bool changed = current != next || target != s.Target;
-        if (next == Tactic.Hold || s.Frozen)
-        {
-            if (holdSince < 0 || target != s.Target)
-                holdSince = s.Now;
-        }
-        else
-            holdSince = -1;
         current = next;
         target = s.Target;
         if (changed && reason == "zzap-ranked-memory")
@@ -334,8 +333,6 @@ public sealed class HiddenEnemyDecision
     public Choice Keep(Tactic tactic, string contact)
     {
         bool changed = beforeSelection != tactic || targetBeforeSelection != contact;
-        if (tactic == Tactic.Hold && beforeSelection == tactic)
-            holdSince = holdBeforeSelection;
         current = tactic;
         target = contact;
         return new Choice
@@ -358,6 +355,7 @@ public sealed class HiddenEnemyDecision
         ranked.Clear();
         preference.Clear();
         RankedEnemy = null;
+        RankedHoldSeconds = null;
         return new Choice { Changed = changed, Reason = reason };
     }
 

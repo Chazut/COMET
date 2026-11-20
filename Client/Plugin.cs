@@ -1473,6 +1473,9 @@ public sealed partial class Plugin : BaseUnityPlugin
                 botKind = state.BotKind,
                 decision = state.Decision,
                 candidates = state.Candidates,
+                hiddenHold = (featureOverride ?? state.Feature) == "A01" && state.Engine.RankedHoldSeconds is double held
+                    ? new { secondsAtRank = held, cappedAtRank = state.Engine.RankedHoldCapped }
+                    : null,
                 mixing = state.Mixing,
                 tacticObservationVersion = 1,
                 squadGrenade = state.Feature == "S10" && state.SquadGrenade is { } pair

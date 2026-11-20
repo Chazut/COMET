@@ -14,6 +14,14 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### A01/A12 hold time across hidden contacts (2026-11-20)
+
+The hidden-enemy ranking carries its Hold clock across target changes while
+SAIN reports Freeze. On a fresh ranking, a top Hold preference or native Freeze
+maintains the clock. Cached rankings and execution refusals leave it alone.
+The existing 40-second cap uses this elapsed time. A01 decision events record
+`hiddenHold.secondsAtRank` and `hiddenHold.cappedAtRank` with the candidate scores.
+
 ### H04 recovery after combat (2026-11-20)
 
 H04 samples SAIN's active layer at the start of each decision update. It can

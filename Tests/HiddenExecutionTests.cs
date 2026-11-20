@@ -92,6 +92,62 @@ static class HiddenExecutionTests
             );
         }
         {
+            var config = new CometConfig();
+            foreach (string key in config.Weights.Keys.ToArray())
+                config.Weights[key] = key == "Hold" ? 1 : 0;
+            Situation Contact(double seconds, string target, bool frozen)
+            {
+                var s = Frame(100 + seconds);
+                s.KnownDistance = 11;
+                s.ContactAge = 5 + seconds;
+                s.Target = target;
+                s.Frozen = frozen;
+                s.InCover = true;
+                return s;
+            }
+            static double HoldScore(Choice choice) =>
+                choice.Candidates.Single(c => c.Decision == "Hold").Score;
+
+            foreach (bool alternate in new[] { false, true })
+            {
+                var engine = new HiddenEnemyDecision(config);
+                Choice choice = null!;
+                for (int i = 0; i <= 9; i++)
+                    choice = engine.Evaluate(Contact(5 * i, alternate && i % 2 == 1 ? "b" : "a", true));
+                Check(HoldScore(choice) == -100 && choice.Decision == null,
+                    $"continuous Freeze caps Hold at 45 seconds, alternating targets={alternate}; actual score={HoldScore(choice)}");
+            }
+
+            var cached = new HiddenEnemyDecision(config);
+            var first = cached.Evaluate(Contact(0, "a", false), _ => "unavailable");
+            var retry = cached.Evaluate(Contact(1, "a", false), _ => "unavailable");
+            Check(first.Decision == null && ReferenceEquals(first.Candidates, retry.Candidates)
+                && cached.RankedHoldSeconds == 0 && !cached.RankedHoldCapped,
+                "native refusals reuse the top Hold preference");
+            Check(HoldScore(cached.Evaluate(Contact(39.99, "b", true))) > -100,
+                "the continuous Freeze is below the cap just before forty seconds");
+            Check(HoldScore(cached.Evaluate(Contact(40, "a", true))) == -100
+                && cached.RankedHoldSeconds == 40 && cached.RankedHoldCapped,
+                "cached execution refusals preserve the ranked Hold clock through the exact cap");
+            Check(HoldScore(cached.Evaluate(Contact(41, "b", false))) > -100
+                && cached.RankedHoldSeconds == 0 && !cached.RankedHoldCapped,
+                "a new target starts fresh once SAIN leaves Freeze");
+
+            config.Weights["Push"] = 3;
+            config.DecisionVariety.Enabled = false;
+            config.TacticalMistakes.Enabled = false;
+            var push = new HiddenEnemyDecision(config);
+            Check(push.Evaluate(Contact(0, "a", true)).Decision == Tactic.Push,
+                "a native Freeze starts the clock even with Push ranked first");
+            var moved = push.Evaluate(Contact(10, "b", false));
+            Check(moved.Decision == Tactic.Push, "a mobile bot reranks without Hold");
+            push.Evaluate(Contact(11, "c", true));
+            Check(HoldScore(push.Evaluate(Contact(45, "a", true))) > -100,
+                "time before leaving Freeze does not carry into the next Freeze");
+            Check(HoldScore(push.Evaluate(Contact(51, "b", true))) == -100,
+                "the new Freeze reaches its own cap even with Push ranked first");
+        }
+        {
             var e = Seed(Scores((Tactic.Flank, 70), (Tactic.Search, 60)));
             var hidden = e.Evaluate(Frame());
             var s = Frame(15.5);
