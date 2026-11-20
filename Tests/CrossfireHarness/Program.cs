@@ -86,6 +86,52 @@ CrossfireAction Start(Plugin p, BotComponent b)
     return a;
 }
 void Save(Plugin p) => events.AddRange(p.diagnostics!.Lines);
+foreach (var (chance, contactAge, maneuverRange, crossfireOn, healing, expectManeuver) in new[]
+{
+    (100, 1, 80, true, false, true),   // Both a flank and cover for a reload are available.
+    (100, 1, 80, false, true, true),   // A patient is nearby, with plain crossfire disabled.
+    (0, 1, 80, true, false, false),    // The squad declines its roll, then covers the reload.
+    (100, 15, 80, false, true, false), // Cover can still start on an older contact.
+    (100, 1, 20, true, true, false),   // Outside the maneuver range, within the cover range.
+})
+{
+    var (p, b, anchor) = Setup();
+    Step(30);
+    var cfg = p.config!;
+    cfg.Crossfire.Enabled = crossfireOn;
+    cfg.SquadManeuver.Chance = chance;
+    cfg.SquadManeuver.MaxDistance = maneuverRange;
+    b.GoalEnemy!.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    anchor.GoalEnemy!.KnownPlaces.LastKnownPosition = b.GoalEnemy.KnownPlaces.LastKnownPosition;
+    anchor.GoalEnemy.TimeSinceLastKnownUpdated = 0;
+    b.GoalEnemy.TimeSinceLastKnownUpdated = contactAge;
+    var patient = new BotComponent { Position = new(3, 0, 0), GoalEnemy = null };
+    patient.BotOwner.Medecine.Using = healing;
+    patient.BotOwner.WeaponManager.Reload.Reloading = !healing;
+    patient.Squad.Members = b.Squad.Members;
+    b.Squad.Members.Add(patient.ProfileId, patient);
+    SAINEnableClass.Bots[patient.ProfileId] = patient;
+
+    p.Observe(b);
+    var runtime = p.states[b].Crossfire;
+    var trace = runtime.Policy.Trace;
+    C(runtime.Policy.Active && (expectManeuver
+            ? runtime.Maneuver?.Support == anchor.ProfileId && trace?.CoverMate == null
+            : runtime.Maneuver == null && trace?.CoverMate?.Mate == patient.ProfileId),
+        $"maneuver before covering a busy teammate: chance={chance}, age={contactAge}, range={maneuverRange}");
+    if (!expectManeuver)
+    {
+        cfg.SquadManeuver.Chance = 100;
+        cfg.SquadManeuver.MaxDistance = 80;
+        Step(.6f);
+        b.GoalEnemy.TimeSinceLastKnownUpdated = 0;
+        p.Observe(b);
+        C(runtime.Policy.Active && ReferenceEquals(trace, runtime.Policy.Trace)
+            && runtime.Policy.Trace?.CoverMate?.Mate == patient.ProfileId,
+            "a fresh flank opportunity does not interrupt active teammate cover");
+    }
+    p.EndAll();
+}
 foreach (bool crossfireOn in new[] { false, true })
 foreach (bool maneuverOn in new[] { true, false })
 foreach (bool mateSees in new[] { false, true })

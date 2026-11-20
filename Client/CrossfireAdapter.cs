@@ -319,8 +319,6 @@ public sealed partial class Plugin
             return RefreshSquadTrade(b, s);
         if (r.Policy.Active && r.Policy.Trace?.CoverMate != null)
             return RefreshCoverMate(b, s);
-        if (!r.Policy.Active && mayStart && TryBeginCoverMate(b, s))
-            return RefreshCoverMate(b, s);
         var observed = b.GoalEnemy;
         if (
             r.Policy.Active
@@ -338,12 +336,9 @@ public sealed partial class Plugin
             && config!.SquadManeuver.Enabled
             && observed?.TimeSinceLastKnownUpdated <= config.SquadManeuver.ContactAge;
         string block = CrossfireBlock(b, s, maneuverCandidate: mayStartManeuver);
-        if (block.Length > 0)
+        if (r.Policy.Active && block.Length > 0)
         {
-            if (r.Policy.Active)
-                EndCrossfire(b, s, block);
-            else if (mayStart)
-                RecordCrossfireGate(s, block);
+            EndCrossfire(b, s, block);
             return false;
         }
         if (
@@ -366,11 +361,23 @@ public sealed partial class Plugin
             return r.Policy.Active && r.Policy.Trace!.State != "planning";
         }
         var c = config!.Crossfire;
-        if (mayStartManeuver)
+        if (mayStartManeuver && block.Length == 0)
             TryBeginManeuver(b, s);
-        // A declined S03 plan must not relax the separate S01 eligibility limits.
-        if (!r.Policy.Active && CrossfireBlock(b, s).Length > 0)
-            return false;
+        if (!r.Policy.Active)
+        {
+            if (!mayStart)
+                return false;
+            // A declined or ineligible maneuver leaves teammate cover ahead of plain crossfire.
+            if (TryBeginCoverMate(b, s))
+                return RefreshCoverMate(b, s);
+            if (block.Length == 0 && mayStartManeuver)
+                block = CrossfireBlock(b, s);
+            if (block.Length > 0)
+            {
+                RecordCrossfireGate(s, block);
+                return false;
+            }
+        }
         var support =
             r.Maneuver != null
             && r.Policy.Active
@@ -399,7 +406,7 @@ public sealed partial class Plugin
         }
         else
         {
-            if (!mayStart || Time.time < r.Next || Time.time < r.Policy.RetryAt)
+            if (Time.time < r.Next || Time.time < r.Policy.RetryAt)
                 return false;
             if (support == null)
             {
