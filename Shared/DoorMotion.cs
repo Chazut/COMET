@@ -6,6 +6,7 @@ public sealed class DoorMotionConfig
 {
     public bool Enabled { get; set; } = true;
     public bool PushAway { get; set; } = true;
+    public bool CarveOpenLeaves { get; set; } = true;
     public double StuckDelay { get; set; } = 1.5;
     public double LeafDistance { get; set; } = 1.2;
     public double SwingDuration { get; set; } = .5;

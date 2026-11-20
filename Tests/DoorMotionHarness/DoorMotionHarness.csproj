@@ -17,5 +17,7 @@
     />
     <Compile Include="../../Client/DoorMotionAdapter.cs" Link="DoorMotionAdapter.cs" />
     <Compile Include="../../Client/DoorMotionNetwork.cs" Link="DoorMotionNetwork.cs" />
+    <Compile Include="../../Client/OpenLeafCarver.cs" Link="OpenLeafCarver.cs" />
+    <Compile Include="../../Client/OpenLeafPathAdapter.cs" Link="OpenLeafPathAdapter.cs" />
   </ItemGroup>
 </Project>

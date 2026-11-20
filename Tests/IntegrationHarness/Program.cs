@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Text.Json;
@@ -79,6 +81,7 @@ static class Audit
         // callbacks on the .NET test host or executing any game action.
         var client = typeof(Comet.Client.Plugin).Assembly;
         VerifySiegeRoomLookup(client);
+        VerifyDoorStateEvent();
         var plugin = typeof(Comet.Client.Plugin);
         const BindingFlags instance = BindingFlags.NonPublic | BindingFlags.Instance;
         var planRoom = plugin.GetMethod("PlanRoomClear", instance)!;
@@ -315,12 +318,14 @@ static class Audit
             failed = (int)Read("Failed");
         var unavailable = ((IEnumerable<string>)Read("Unavailable")).ToArray();
         // EFT's unsealed delegate classes are accepted by Unity Mono, but rejected by
-        // CoreCLR. Only these unrelated event-wiring bodies are allowed to be skipped.
+        // CoreCLR. Restrict the exception to the affected event-wiring methods.
         bool KnownHostLimitation(string s) =>
             s.Contains("delegate classes must be sealed")
             && (
                 s.StartsWith("Comet.Client.Plugin.EnsureClearEvents:")
                 || s.StartsWith("Comet.Client.Plugin.ClearRoomEvents:")
+                || (s.StartsWith("Comet.Client.OpenLeafCarver.Register:") || s.StartsWith("Comet.Client.OpenLeafCarver.Dispose:"))
+                    && s.Contains("'EFT.Interactive.WorldInteractiveObjectInteract'")
                 || s.StartsWith("Comet.Client.Plugin+<>c__DisplayClass")
                     && s.Contains(".<EndRaid>b__")
             );
@@ -347,6 +352,24 @@ static class Audit
         Console.WriteLine(
             $"Actual client diagnostic readers: {Readers("ReadersPrepared")} compiled, {Readers("ReadersFallback")} fallback; no payload getter executed."
         );
+    }
+
+    private static void VerifyDoorStateEvent()
+    {
+        using var stream = File.OpenRead(typeof(EFT.Interactive.Door).Assembly.Location);
+        using var pe = new PEReader(stream);
+        var metadata = pe.GetMetadataReader();
+        TypeDefinitionHandle DoorType(string name) => metadata.TypeDefinitions.Single(h =>
+        {
+            var type = metadata.GetTypeDefinition(h);
+            return metadata.StringComparer.Equals(type.Namespace, "EFT.Interactive") && metadata.StringComparer.Equals(type.Name, name);
+        });
+        var door = metadata.GetTypeDefinition(DoorType("WorldInteractiveObject"));
+        var doorEvent = door.GetEvents().Select(metadata.GetEventDefinition)
+            .Single(e => metadata.StringComparer.Equals(e.Name, "OnDoorStateChanged"));
+        var accessors = doorEvent.GetAccessors();
+        if (doorEvent.Type != DoorType("WorldInteractiveObjectInteract") || accessors.Adder.IsNil || accessors.Remover.IsNil)
+            throw new Exception("The native door state event contract changed.");
     }
 
     private static void VerifySiegeRoomLookup(Assembly client)

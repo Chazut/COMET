@@ -837,6 +837,15 @@
       "Section": "DoorMotion",
       "Simple": false
     },
+    "DoorMotion.CarveOpenLeaves": {
+      "Label": "Route around open door leaves",
+      "Help": "Open doors carve their swinging leaf out of the shared navigation mesh once nearby players and bots are clear. Applies next raid on the AI host.",
+      "Min": null,
+      "Max": null,
+      "Scale": 1,
+      "Section": "DoorMotion",
+      "Simple": false
+    },
     "DoorMotion.PushAway": {
       "Label": "Push doors away from the bot",
       "Help": "",

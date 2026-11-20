@@ -18,6 +18,7 @@ public sealed partial class Plugin
     partial void FinishCombatJournal();
 
     partial void ClearRemixRaidState();
+    partial void ClearOpenLeaves();
 
     partial void FinishLocalExposure();
 
@@ -94,6 +95,7 @@ public sealed partial class Plugin
                 );
             }
             Step("fika-transport", Api.DoorMotionNetwork.Clear);
+            Step("open-door-leaves", () => ClearOpenLeaves());
             foreach (var link in clearOwnGrenades.ToArray())
                 Step("grenade-tracker", link.Dispose);
             clearOwnGrenades.Clear();

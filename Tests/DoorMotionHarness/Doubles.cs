@@ -311,6 +311,8 @@ namespace EFT.Interactive
     public class Door : WorldInteractiveObject
     {
         private EDoorState state = EDoorState.Shut;
+        public event Action<WorldInteractiveObject, EDoorState, EDoorState>? OnDoorStateChanged;
+        public int Listeners => OnDoorStateChanged?.GetInvocationList().Length ?? 0;
         public Action? OnSet;
         public bool IgnoreSet;
         public EDoorState DoorState
@@ -318,8 +320,12 @@ namespace EFT.Interactive
             get => state;
             set
             {
+                var previous = state;
                 if (!IgnoreSet)
+                {
                     state = value;
+                    OnDoorStateChanged?.Invoke(this, previous, value);
+                }
                 OnSet?.Invoke();
             }
         }
@@ -517,6 +523,8 @@ namespace SAIN.SAINComponent.Classes.Mover
 
     public class BotPathDataManual(BotComponent bot) : IBotPathData
     {
+        public void Initialize() { }
+        public bool TryUpdatePath(Vector3 destination) => Moving && !CancelRequested;
         protected readonly BotComponent Bot = bot;
         public bool CancelRequested,
             PausedRequested,
@@ -700,6 +708,8 @@ namespace Comet.Client
     internal class Log
     {
         internal List<string> Warnings = new();
+        internal List<string> Info = new();
+        internal void LogInfo(string s) => Info.Add(s);
 
         internal void LogDebug(string s) { }
         internal void LogWarning(string s) => Warnings.Add(s);

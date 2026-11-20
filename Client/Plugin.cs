@@ -188,6 +188,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             RunIntegration("PatchDoorRecovery", () => PatchDoorRecovery(harmony));
 
             RunIntegration("PatchDoorMotion", () => PatchDoorMotion(harmony));
+            RunIntegration("PatchOpenLeafPaths", () => PatchOpenLeafPaths(harmony));
 
             RunIntegration("PatchDoorClosing", () => PatchDoorClosing(harmony));
 
@@ -478,6 +479,8 @@ public sealed partial class Plugin : BaseUnityPlugin
             }
         }
         UpdateLocalDoors();
+        if (world != null)
+            UpdateOpenLeaves(world);
         UpdateExposureDiagnostics();
         FlushTacticalProbes();
         SampleSainPreset();

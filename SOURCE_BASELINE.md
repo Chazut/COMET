@@ -212,7 +212,12 @@ is recorded, and a refusal attributable to expected support has a distinct reaso
 - `d0d031c1` applies the installed SAIN voice, squad talk and grenade settings at bot initialization and on preset reload. Fake-death voice rolls once per eligible wound. A room-entry grenade preference of zero disables real throws even with shared grenade judgment enabled. The native grenade arc cutoff remains zero as in Remix7.6.
 - `902cd039` excludes a door leaf and its descendants from cover, as well as a sibling frame whose bounds center is strictly within 1.5 m of a door pivot. COMET applies the same test when creating its own outdoor cover. Collider classifications are cached per raid. The separate seasonal foliage filter still applies.
 
-The optional NavMesh carver, idle hold behavior and new fork-specific preset switches are outside this port. C11 batches the new counters with the existing native-fix summary.
+Open door leaves now use the remix 7.6 carver on the AI host (default on).
+The shared navigation mesh reflects the open leaf when no living actor is within
+2 m. SAIN paths retained by supported bots are checked against recent cuts.
+The existing local obstruction recovery still handles a bot already stuck.
+Idle hold behavior and new fork-specific preset switches remain outside this port.
+C11 batches the new counters with the existing native-fix summary.
 
 ### Hidden-action execution after Back4Streetz raid 459 (2026-11-17)
 

@@ -17,6 +17,7 @@ internal static class DoorMotionTests
         Check(
             config.Enabled
                 && config.PushAway
+                && config.CarveOpenLeaves
                 && config.StuckDelay == 1.5
                 && config.LeafDistance == 1.2
                 && config.SwingDuration == .5
@@ -67,18 +68,19 @@ internal static class DoorMotionTests
             "{\"doorMotion\":null}"
         )!;
         old.Validate();
-        Check(old.DoorMotion.Enabled, "old config migration");
+        Check(old.DoorMotion.Enabled && old.DoorMotion.CarveOpenLeaves, "old config migration");
         string path = Path.Combine(Path.GetTempPath(), "comet-c04-" + Guid.NewGuid().ToString("N"));
         try
         {
             var store = new ConfigStore(path);
             var c = store.Read();
             c.DoorMotion.PushAway = false;
+            c.DoorMotion.CarveOpenLeaves = false;
             c.DoorMotion.SwingDuration = .75;
             store.Save(c, c.Revision);
             var read = new ConfigStore(path).Read();
             Check(
-                !read.DoorMotion.PushAway && read.DoorMotion.SwingDuration == .75,
+                !read.DoorMotion.PushAway && !read.DoorMotion.CarveOpenLeaves && read.DoorMotion.SwingDuration == .75,
                 "server save/reload"
             );
         }
