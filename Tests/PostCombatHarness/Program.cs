@@ -826,6 +826,82 @@ foreach (float remaining in new[] { 41f, 4.01f, 4f, 3.5f, 3.01f, 3f, 2.99f })
     }
     Physics.BlocksSightTo = null;
 }
+{
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    p.config!.PostCombat.AdvanceChances["Normal"] = 0;
+    b.Squad.IAmLeader = false;
+    var leader = new BotComponent { Position = new(20, 0, 0) };
+    b.Squad.LeaderComponent = leader;
+    SAIN.SAINEnableClass.Bots[b.ProfileId] = b;
+    C(layer.IsActive(), "a follower starts recovery with the leader nearby");
+    action.Start();
+    var r = p.states[b].PostCombat;
+    int episode = r.Policy.Trace!.Episode;
+    C(r.Policy.Trace.State == "watch" && b.Mover.Routes == 0, "watch while the leader is 20 m away");
+    void CheckLeaderEvent(string stage, float? distance)
+    {
+        var snapshot = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last())["postCombat"]!;
+        C((string?)snapshot["state"] == stage && (float?)snapshot["leaderDistance"] == distance,
+            "the H04 event records the stage and the distance to the live leader");
+    }
+    CheckLeaderEvent("watch", 20);
+    Step(1);
+    action.Update(new());
+    leader.Position = new(30, 0, 0);
+    Step(.0625f);
+    action.Update(new());
+    C(r.RouteStage == "regroup" && b.Mover.Routes == 1 && r.Goal.x == 30,
+        "a leader crossing the boundary during the watch starts a route on the next action update");
+    CheckLeaderEvent("regroup", 30);
+    var path = (BotPathDataManual)r.Path!;
+    leader.Position = new(25, 0, 0);
+    Step(.0625f);
+    action.Update(new());
+    C(r.Policy.Trace.State == "watch" && r.Path == null && path.Stops == 1,
+        "returning to exactly 25 m releases the route and resumes the same watch");
+    CheckLeaderEvent("watch", 25);
+    leader.Position = new(35, 0, 0);
+    Step(.0625f);
+    action.Update(new());
+    C(r.Policy.Trace.State == "regroup" && b.Mover.Routes == 1,
+        "another departure is eligible immediately but does not bypass the native order cadence");
+    Step(1);
+    action.Update(new());
+    C(b.Mover.Routes == 2 && r.Goal.x == 35 && r.Policy.Trace.Episode == episode,
+        "the next order follows the leader again within the same recovery episode");
+    leader.IsDead = true;
+    Step(.0625f);
+    action.Update(new());
+    C(r.Policy.Trace.State == "watch" && r.Path == null, "a lost leader releases the current route");
+    CheckLeaderEvent("watch", null);
+    Step(7);
+    action.Update(new());
+    C(!r.Policy.Active, "the watch still expires");
+    b.Squad.LeaderComponent = new() { Position = new(40, 0, 0) };
+    SAIN.SAINEnableClass.Bots[b.ProfileId] = b;
+    Step(1);
+    C(!layer.IsActive() && b.Mover.Routes == 2, "a distant leader cannot reopen a finished episode");
+    Physics.BlocksSightTo = null;
+}
+{
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    p.config!.PostCombat.RegroupDistance = 12;
+    b.Squad.IAmLeader = false;
+    var leader = new BotComponent { Position = new(0, 12, 0) };
+    b.Squad.LeaderComponent = leader;
+    SAIN.SAINEnableClass.Bots[b.ProfileId] = b;
+    C(layer.IsActive(), "a follower can watch at its configured regroup distance");
+    action.Start();
+    C(b.Mover.Routes == 0, "the exact configured threshold is inside the watch radius");
+    leader.Position = new(0, 12.125f, 0);
+    Step(.0625f);
+    action.Update(new());
+    C(b.Mover.Routes == 1 && b.Mover.LastWalkPoint.y == 12.125f,
+        "a vertical crossing uses the preset threshold and the leader's actual position");
+    Physics.BlocksSightTo = null;
+}
 foreach (bool alreadyReloading in new[] { true, false })
 {
     var (p, b, layer, action) = Setup();

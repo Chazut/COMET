@@ -106,6 +106,7 @@ public sealed class PostCombatTrace
     public double AdvanceRoll { get; set; }
     public bool AdvanceSelected { get; set; }
     public double? InspectionDistance { get; set; }
+    public float? LeaderDistance { get; set; }
     public string Contact { get; set; } = "";
     public double ContactAge { get; set; }
     public double? X { get; set; }
@@ -129,7 +130,7 @@ public sealed class PostCombat
     private bool armed,
         coverDone,
         reloadDone,
-        regroupDone,
+        regroupDeclined,
         advanceDone;
     private double start,
         watchUntil,
@@ -188,7 +189,7 @@ public sealed class PostCombat
             start = f.Now;
             double watchDuration = c.WatchMin + Clamp(watchRoll) * (c.WatchMax - c.WatchMin);
             watchUntil = f.Now + watchDuration;
-            coverDone = reloadDone = regroupDone = advanceDone = false;
+            coverDone = reloadDone = regroupDeclined = advanceDone = false;
             double chance = c.AdvanceChances.TryGetValue(f.Personality, out var v) ? v : 40;
             if (f.BadlyInjuredOrDying)
                 chance *= .2;
@@ -238,7 +239,6 @@ public sealed class PostCombat
             return End("post-combat-time-budget-ended");
         if (TryRegroup(f.Heard, f.Regroup))
             return true;
-        regroupDone = true;
         if (f.Now <= watchUntil)
             return Stage("watch", "post-combat-watch-last-threat");
         if (WillAdvance)
@@ -246,8 +246,10 @@ public sealed class PostCombat
         return End("post-combat-work-complete");
     }
 
+    internal bool CanRegroup(bool heard, bool leaderOutOfRange) => !heard && leaderOutOfRange && !regroupDeclined;
+
     internal bool TryRegroup(bool heard, bool leaderOutOfRange) =>
-        !heard && !regroupDone && leaderOutOfRange && Stage("regroup", "post-combat-rejoin-leader");
+        CanRegroup(heard, leaderOutOfRange) && Stage("regroup", "post-combat-rejoin-leader");
 
     public void RenewCoverWatch(double now, double duration)
     {
@@ -263,7 +265,7 @@ public sealed class PostCombat
         if (stage == "reload")
             reloadDone = true;
         if (stage == "regroup")
-            regroupDone = true;
+            regroupDeclined = true;
         if (stage == "check")
             advanceDone = true;
         if (Trace != null)

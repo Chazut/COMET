@@ -34,14 +34,15 @@ public sealed partial class Plugin
         r.Policy.RenewCoverWatch(Time.time, UnityEngine.Random.Range((float)c.WatchMin, (float)c.WatchMax));
     }
 
-    private Vector3? PostRegroupTarget(BotComponent b)
+    private Vector3? PostRegroupTarget(BotComponent b, out float? distance)
     {
+        distance = null;
         var leader = b.Squad.LeaderComponent;
         if (b.Squad.IAmLeader || leader == null || leader.IsDead)
             return null;
         var position = leader.Position;
-        return Vector3.Distance(b.Position, position) > config!.PostCombat.RegroupDistance
-            ? position : (Vector3?)null;
+        distance = Vector3.Distance(b.Position, position);
+        return distance > config!.PostCombat.RegroupDistance ? position : (Vector3?)null;
     }
 
     private void InspectPostMedical(BotComponent b, BotState s)
@@ -80,7 +81,7 @@ public sealed partial class Plugin
                 }
             }
             if (t.State == "reload" && !t.Reloading && reload.Reloading)
-                r.Policy.TryRegroup(r.Heard, PostRegroupTarget(b).HasValue);
+                r.Policy.TryRegroup(r.Heard, PostRegroupTarget(b, out _).HasValue);
             t.Reloading = reload.Reloading;
         }
         if (r.Path != null && t.State != r.RouteStage)
@@ -110,9 +111,22 @@ public sealed partial class Plugin
                 return;
             }
         }
+        Vector3? regroupTarget = null;
+        if (t.State == "regroup")
+        {
+            regroupTarget = PostRegroupTarget(b, out _);
+            if (!regroupTarget.HasValue)
+            {
+                if (r.RouteStage == "regroup")
+                    PostStopRoute(b, r);
+                t.Execution = "regroup no longer needed";
+                return;
+            }
+            if (Time.time < r.NextMoveOrder)
+                return;
+        }
         if (r.RouteStage.Length > 0 && t.State == r.RouteStage)
         {
-            bool regroup = r.RouteStage == "regroup";
             if (r.RouteStage == "cover" && AtPostCombatCover(b, r.Goal))
             {
                 r.Protected = true;
@@ -123,12 +137,11 @@ public sealed partial class Plugin
             }
             if (Time.time >= r.NextMoveOrder)
             {
-                Vector3? target = regroup ? PostRegroupTarget(b) : r.Goal;
-                if (!target.HasValue || !PostWalkToPoint(b, r, target.Value))
+                if (!PostWalkToPoint(b, r, regroupTarget ?? r.Goal))
                 {
                     if (r.RouteStage == "cover")
                         r.CoverRange = PostCombatCoverRange.None;
-                    r.Policy.Complete(r.RouteStage, target.HasValue ? "native movement declined" : "regroup no longer needed");
+                    r.Policy.Complete(r.RouteStage, "native movement declined");
                     PostStopRoute(b, r);
                 }
             }
@@ -200,7 +213,7 @@ public sealed partial class Plugin
             doorClock.Restart();
             try
             {
-                var target = t.State == "check" ? r.Threat : PostRegroupTarget(b);
+                var target = t.State == "check" ? r.Threat : regroupTarget;
                 if (!target.HasValue || !PostMove(b, r, target.Value, t.State))
                     r.Policy.Complete(t.State, "destination unavailable; no repeat");
             }

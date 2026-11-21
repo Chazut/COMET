@@ -282,7 +282,12 @@ public sealed partial class Plugin
                 );
             return false;
         }
-        if (Time.time < r.Next)
+        bool betweenSamples = Time.time < r.Next;
+        string? previousStage = r.Policy.Trace?.State;
+        if (betweenSamples && previousStage is not ("watch" or "regroup"))
+            return r.Policy.Active;
+        bool leaderOutOfRange = PostRegroupTarget(b, out var leaderDistance).HasValue;
+        if (betweenSamples && r.Policy.CanRegroup(r.Heard, leaderOutOfRange) == (previousStage == "regroup"))
             return r.Policy.Active;
         r.Next = Time.time + (float)config!.PostCombat.Interval;
         bool inInitialAdvanceRange = false;
@@ -291,6 +296,7 @@ public sealed partial class Plugin
         if (!wasActive)
         {
             initialHealth = b.Memory.Health.HealthStatus;
+            r.NextMoveOrder = 0;
             // A previous episode's reached cover or failed supply scan is not evidence for this fight.
             // Reset before building the frame: otherwise Tick can mark cover complete using stale protection.
             r.ProneInOpen = false;
@@ -326,7 +332,7 @@ public sealed partial class Plugin
             Heard = r.Heard,
             Coming = r.Heard && r.Coming,
             NeedsCover = r.Threat.HasValue && !r.Protected,
-            Regroup = PostRegroupTarget(b).HasValue,
+            Regroup = leaderOutOfRange,
             CanAdvance = inInitialAdvanceRange,
         };
         bool active = r.Policy.Tick(
@@ -347,6 +353,9 @@ public sealed partial class Plugin
         var t = r.Policy.Trace;
         if (t != null)
         {
+            if (active && previousStage != t.State && (previousStage == "regroup" || t.State == "regroup"))
+                r.MoveAt = Time.time;
+            t.LeaderDistance = leaderDistance;
             if (!wasActive && active)
                 t.AdvanceHealthStatus = initialHealth.ToString();
             t.Contact = r.Contact;
