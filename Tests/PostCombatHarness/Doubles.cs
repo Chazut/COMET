@@ -133,8 +133,8 @@ namespace EFT
         public BotOwner(Player p)
         {
             GetPlayer = p;
-            Medecine = new(p);
             WeaponManager = new(p);
+            Medecine = new(p, WeaponManager.Grenades);
         }
     }
 
@@ -354,10 +354,10 @@ public class BotMedecine
     public BotSurgicalKit SurgicalKit;
     public BotStimulators Stimulators;
 
-    public BotMedecine(Player p)
+    public BotMedecine(Player p, Grenades grenades)
     {
-        FirstAid = new(p);
-        SurgicalKit = new(p);
+        FirstAid = new(p, grenades);
+        SurgicalKit = new(p, grenades);
         Stimulators = new(p);
     }
 
@@ -434,11 +434,14 @@ public class NativeMed(Player p)
     }
 }
 
-public class BotFirstAid(Player p) : NativeMed(p)
+public class BotFirstAid(Player p, Grenades grenades) : NativeMed(p)
 {
     public bool IsBleeding;
 
-    public bool ShallStartUse() => CurUsingMeds != null && !Using;
+    public bool Have2Do => Using || CurUsingMeds != null && CanUseByTime()
+        && Player.HealthController.Parts.Values.Any(part => part.Current < part.Maximum);
+
+    public bool ShallStartUse() => !Using && !grenades.ThrowindNow && Have2Do;
 
     public bool CanUseByTime() => Time.time >= _nextPosibleUseTime;
 
@@ -446,9 +449,11 @@ public class BotFirstAid(Player p) : NativeMed(p)
         Begin(CurUsingMeds, callback);
 }
 
-public class BotSurgicalKit(Player p) : NativeMed(p)
+public class BotSurgicalKit(Player p, Grenades grenades) : NativeMed(p)
 {
-    public bool ShallStartUse() => CurUsingMeds != null && !Using;
+    public bool HaveWork => CurUsingMeds != null && Player.HealthController.Destroyed.Count > 0;
+
+    public bool ShallStartUse() => HaveWork && !Using && !grenades.ThrowindNow && Time.time >= _nextPosibleUseTime;
 
     public void ApplyToCurrentPart(Action? callback = null) => Begin(CurUsingMeds, callback);
 }

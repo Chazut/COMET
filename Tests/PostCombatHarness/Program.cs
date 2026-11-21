@@ -656,6 +656,78 @@ foreach (bool available in new[] { true, false })
     C(!l.IsActive(), "after long medicine routine yields");
     Save(p);
 }
+foreach (bool bhf in new[] { false, true })
+{
+    var (p, b, layer, action) = Setup();
+    p.config!.PostCombat.AdvanceChances["Normal"] = 0;
+    Physics.BlocksSightTo = _ => true;
+    var surgery = b.BotOwner.Medecine.SurgicalKit;
+    b.Player.HealthController.Destroyed.Add(EBodyPart.LeftLeg);
+    surgery.CurUsingMeds = new Meds { Id = "waiting-cms", AllowedPart = EBodyPart.LeftLeg };
+    surgery._bodyPartToHeal = EBodyPart.LeftLeg;
+    surgery._nextPosibleUseTime = Time.time + 16;
+    surgery.Bhf = bhf;
+    Step(13.5f);
+    C(layer.IsActive(), "H04 starts inside the ordinary window");
+    action.Start();
+    Step(.5f);
+    C(layer.IsActive(), "an injured bot with a kit on cooldown keeps H04 at fourteen seconds");
+    action.Update(new());
+    var snapshot = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last())["postCombat"]!;
+    C((bool?)snapshot["medicalWorkLeft"] == true && (bool?)snapshot["medicalUseful"] == false
+        && (bool?)snapshot["medicalBusy"] == false, "telemetry separates pending surgery from readiness and use");
+    Step(1.75f);
+    action.Update(new());
+    C(layer.IsActive() && surgery.Requests == 0, "no early surgery while waiting on the native timer");
+    Step(.25f);
+    action.Update(new());
+    Step(.25f);
+    action.Update(new());
+    C(surgery.Using && surgery.Requests == 1, "native surgery starts once when the kit becomes ready");
+    surgery.Finish();
+    b.Player.HandsController = new Player.FirearmController();
+    Step(.25f);
+    C(!layer.IsActive() && surgery.Cancels == 0, "native completion releases H04, BHF=" + bhf);
+    Physics.BlocksSightTo = null;
+}
+foreach (var reason in new[] { "no-kit", "healthy", "kit-lost", "first-aid-cooldown", "grenade-throw" })
+{
+    var (_, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    var med = b.BotOwner.Medecine;
+    if (reason is "first-aid-cooldown" or "grenade-throw")
+    {
+        b.Player.HealthController.Parts[EBodyPart.LeftArm].Current = 20;
+        med.FirstAid.CurUsingMeds = new MedKit();
+        b.BotOwner.WeaponManager.Grenades.ThrowindNow = reason == "grenade-throw";
+        if (reason == "first-aid-cooldown") med.FirstAid._nextPosibleUseTime = Time.time + 16;
+    }
+    else
+    {
+        if (reason != "healthy") b.Player.HealthController.Destroyed.Add(EBodyPart.LeftLeg);
+        if (reason != "no-kit") med.SurgicalKit.CurUsingMeds = new Meds();
+        med.SurgicalKit._nextPosibleUseTime = Time.time + 20;
+    }
+    Step(14);
+    C(layer.IsActive() == (reason is "kit-lost" or "grenade-throw"), "native work at late admission: " + reason);
+    if (reason == "kit-lost")
+    {
+        action.Start();
+        med.SurgicalKit.CurUsingMeds = null;
+        Step(.25f);
+        C(!layer.IsActive() && med.SurgicalKit.Requests == 0, "losing the only kit ends the extension");
+    }
+    if (reason == "grenade-throw")
+    {
+        action.Start();
+        C(med.FirstAid.Requests == 0, "first aid waits while a grenade throw blocks native start");
+        b.BotOwner.WeaponManager.Grenades.ThrowindNow = false;
+        Step(.25f);
+        action.Update(new());
+        C(med.FirstAid.Using && med.FirstAid.Requests == 1, "first aid starts when the temporary block clears");
+    }
+    Physics.BlocksSightTo = null;
+}
 foreach (bool alreadyReloading in new[] { false, true })
 {
     var (p, b, layer, action) = Setup();

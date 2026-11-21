@@ -102,7 +102,7 @@ internal static class PostCombatTests
             Check(quiet.Tick(new() { Now = 85, Regroup = true }, c, 0, 0) && quiet.Trace!.Remaining == 12,
                 "a new fight has its own ordinary deadline");
         }
-        foreach (var work in new[] { "sound", "medical-busy", "medical-useful" })
+        foreach (var work in new[] { "sound", "medical-busy", "medical-useful", "medical-pending" })
         foreach (bool reloading in new[] { false, true })
         {
             var policy = new PostCombat();
@@ -111,6 +111,7 @@ internal static class PostCombatTests
             var frame = new PostCombatFrame {
                 Heard = work == "sound", MedicalBusy = work == "medical-busy",
                 MedicalUseful = work == "medical-useful", Reloading = reloading,
+                NativeMedicalWork = work == "medical-pending",
             };
             // Start recovery late. The absolute deadline still falls at 102.
             for (int time = 52; time < 102; time++)
@@ -137,7 +138,7 @@ internal static class PostCombatTests
             frame.Now = 110;
             Check(policy.Tick(frame, c, 0, 0) && policy.Trace!.Episode == 2, "a new fight gets its own window");
         }
-        foreach (var work in new[] { "sound", "medical-busy", "medical-useful" })
+        foreach (var work in new[] { "sound", "medical-busy", "medical-useful", "medical-pending" })
         {
             var policy = new PostCombat();
             policy.ObserveFight(1);
@@ -146,17 +147,34 @@ internal static class PostCombatTests
             var frame = new PostCombatFrame {
                 Now = 18, Heard = work == "sound", MedicalBusy = work == "medical-busy",
                 MedicalUseful = work == "medical-useful", Reloading = true,
+                NativeMedicalWork = work == "medical-pending",
             };
             Check(policy.Tick(frame, config, 0, 0) && policy.Trace!.Reloading,
                 "a genuine extension can admit a reloading bot after the ordinary deadline: " + work);
             Check(policy.Trace!.Remaining == (work == "sound" ? 3 : config.MedicalDuration),
                 "a concurrent reload leaves the sound or medical budget intact: " + work);
             frame.Now++;
-            frame.Heard = frame.MedicalBusy = frame.MedicalUseful = false;
+            frame.Heard = frame.MedicalBusy = frame.MedicalUseful = frame.NativeMedicalWork = false;
             Check(!policy.Tick(frame, config, 0, 0) && policy.Trace!.Reason == PostCombat.OrdinaryWindowExpired
                 && policy.Trace.Reloading && policy.Trace.Remaining == 0,
                 "release as soon as only the native reload remains: " + work);
         }
+        var waiting = new PostCombat();
+        waiting.ObserveFight(0);
+        waiting.ObserveFight(2);
+        var pending = new PostCombatFrame { Now = 16, NativeMedicalWork = true, Regroup = true, CanAdvance = true };
+        Check(waiting.Tick(pending, c, 0, 0) && waiting.Trace!.State == "regroup",
+            "a pending treatment permits a distant follower to rejoin");
+        pending.Now += 8;
+        pending.Regroup = false;
+        Check(waiting.Tick(pending, c, 0, 0) && waiting.Trace!.State == "check",
+            "a pending treatment permits the selected inspection after watching");
+        waiting.Complete("check", "destination reached");
+        pending.Now++;
+        Check(waiting.Tick(pending, c, 0, 0) && waiting.Trace!.State == "watch"
+            && waiting.Trace.Reason == "post-combat-waiting-for-treatment", "wait once other work finishes");
+        pending.Threat = true;
+        Check(!waiting.Tick(pending, c, 0, 0), "returning combat interrupts the medical wait");
         var late = new PostCombat();
         late.ObserveFight(0);
         late.ObserveFight(2);

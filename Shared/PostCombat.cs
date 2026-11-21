@@ -71,6 +71,7 @@ public sealed class PostCombatFrame
         Threat,
         NativePriority,
         MedicalBusy,
+        NativeMedicalWork,
         MedicalUseful,
         MedicalUrgent,
         Reloading,
@@ -82,6 +83,7 @@ public sealed class PostCombatFrame
         Heard,
         Coming;
     public string Personality = "Normal";
+    public bool MedicalWorkLeft => MedicalBusy || MedicalUseful || NativeMedicalWork;
 }
 
 public sealed class PostCombatTrace
@@ -101,6 +103,7 @@ public sealed class PostCombatTrace
     public bool Reloading { get; set; }
     public bool MedicalUseful { get; set; }
     public bool MedicalBusy { get; set; }
+    public bool MedicalWorkLeft { get; set; }
     public double AdvanceChance { get; set; }
     public string AdvanceHealthStatus { get; set; } = "";
     public double AdvanceRoll { get; set; }
@@ -144,7 +147,7 @@ public sealed class PostCombat
     internal double OrdinaryDeadline(PostCombatConfig c) => LastFight + c.Duration;
 
     internal bool QuietWindowExpired(PostCombatFrame f, PostCombatConfig c) =>
-        f.Now >= OrdinaryDeadline(c) && !f.Heard && !f.MedicalBusy && !f.MedicalUseful;
+        f.Now >= OrdinaryDeadline(c) && !f.Heard && !f.MedicalWorkLeft;
 
     public void ObserveFight(double now)
     {
@@ -214,6 +217,7 @@ public sealed class PostCombat
         t.Elapsed = Math.Max(0, f.Now - start);
         t.SecondsSinceCombat = f.Now - LastFight;
         t.MedicalBusy = f.MedicalBusy;
+        t.MedicalWorkLeft = f.MedicalWorkLeft;
         t.MedicalUseful = f.MedicalUseful;
         t.AmmoPercent = f.AmmoPercent;
         t.Reloading = f.Reloading;
@@ -227,7 +231,7 @@ public sealed class PostCombat
         double windowLeft = LastFight + MaxSecondsSinceCombat - f.Now;
         t.WatchRemaining = Math.Min(windowLeft, Math.Max(0, watchUntil - f.Now));
         double ordinaryLeft = OrdinaryDeadline(c) - f.Now;
-        double budget = f.MedicalUseful || f.MedicalBusy ? c.MedicalDuration - t.Elapsed : ordinaryLeft;
+        double budget = f.MedicalWorkLeft ? c.MedicalDuration - t.Elapsed : ordinaryLeft;
         if (f.Heard)
             budget = Math.Max(budget, t.WatchRemaining);
         t.Remaining = Math.Min(windowLeft, Math.Max(0, budget));
@@ -250,6 +254,8 @@ public sealed class PostCombat
             return Stage("watch", "post-combat-watch-last-threat");
         if (WillAdvance)
             return Stage("check", "post-combat-check-known-position");
+        if (f.MedicalWorkLeft)
+            return Stage("watch", "post-combat-waiting-for-treatment");
         return End("post-combat-work-complete");
     }
 

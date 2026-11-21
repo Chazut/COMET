@@ -299,10 +299,12 @@ public sealed partial class Plugin
             r.Next = Math.Min(r.Next, (float)ordinaryDeadline);
             r.NextListen = Math.Min(r.NextListen, (float)ordinaryDeadline);
         }
+        var med = b.BotOwner.Medecine;
         var f = new PostCombatFrame
         {
             Now = Time.time,
             MedicalBusy = PostTreatmentInUse(b),
+            NativeMedicalWork = med?.SurgicalKit?.HaveWork == true || med?.FirstAid?.Have2Do == true,
             MedicalUseful = r.MedicalUseful,
             MedicalUrgent = r.MedicalUrgent,
             Reloading = b.BotOwner.WeaponManager.Reload.Reloading,

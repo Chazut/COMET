@@ -327,6 +327,12 @@ A native reload alone uses the ordinary window. When it expires, H04 releases
 control and the native reload continues. Its end event records `reloading` and
 `secondsSinceCombat`. Sound or medical work can extend recovery up to 60 seconds
 from the last combat-layer observation, including while a reload is in progress.
+H04 checks native surgical `HaveWork` and first-aid `Have2Do` to keep pending
+treatment eligible. A PMC with a destroyed limb and a usable kit can regroup or
+watch during the kit cooldown. Starting treatment still requires native
+`ShallStartUse()`. The H04 event distinguishes pending or ongoing work
+(`medicalWorkLeft`), readiness to start (`medicalUseful`), and treatment in
+progress (`medicalBusy`).
 
 H04 can request one native top-up on the same update that orders a move to
 cover. An existing reload can continue on the way. Active treatment suspends
