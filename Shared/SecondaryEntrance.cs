@@ -67,6 +67,7 @@ public sealed class SecondaryEntranceTrace
     public double WatchRemaining { get; set; }
     public bool Extended { get; set; }
     public bool Rolled { get; set; }
+    public double? PreviousEntryRoll { get; set; }
     public double EntryRoll { get; set; }
     public double EntryChance { get; set; }
     public double Ammo { get; set; }
@@ -81,6 +82,7 @@ public sealed class SecondaryEntranceTrace
 // Decision timing only. Native adapters must validate geometry, partner and actual movement.
 public sealed class SecondaryEntrance
 {
+    internal const float RecentContactSeconds = 8f;
     private sealed class Attempt
     {
         public double At,
@@ -136,11 +138,22 @@ public sealed class SecondaryEntrance
 
     internal bool WatchElapsed(double now) => WatchAt >= 0 && now > watchUntil;
 
-    // ready / wait / end. One entry roll even if the partner is temporarily occupied.
+    // Legacy callers supplied a single status for health and freshness.
     public string Decide(
         double now,
         bool fresh,
         string partner,
+        double ammo,
+        string personality,
+        double roll,
+        SecondaryEntranceConfig c
+    ) => Decide(now, fresh, partner == "ready", partner, ammo, personality, roll, c);
+
+    internal string Decide(
+        double now,
+        bool fresh,
+        bool recentContact,
+        string status,
         double ammo,
         string personality,
         double roll,
@@ -156,7 +169,7 @@ public sealed class SecondaryEntrance
             return "end";
         }
         last = now;
-        t.SupportStatus = partner;
+        t.SupportStatus = status;
         t.Ammo = MedicalChoice.Finite(ammo) ? Math.Max(0, Math.Min(100, ammo)) : 0;
         t.WatchRemaining = Math.Max(0, watchUntil - now);
         if (!WatchElapsed(now))
@@ -166,31 +179,39 @@ public sealed class SecondaryEntrance
             t.EntryReason = "enemy no longer believed inside";
             return "end";
         }
-        bool firstDecision = !t.Rolled;
-        if (firstDecision)
+        bool selected = false;
+        if (c.AllowEntry)
         {
+            if (t.Rolled)
+                t.PreviousEntryRoll = t.EntryRoll;
             t.Rolled = true;
             t.EntryRoll = Clamp(roll) * 100;
             t.EntryChance = c.Chance(personality);
+            selected = t.EntryRoll < t.EntryChance;
         }
-        bool selected = c.AllowEntry && t.EntryRoll < t.EntryChance;
-        if (selected && partner != "injured" && t.Ammo >= c.MinimumAmmo)
+        if (selected && status != "injured" && t.Ammo >= c.MinimumAmmo)
         {
-            t.EntryReason = "partner ready and entry selected";
+            t.EntryReason = "entry selected";
             return "ready";
         }
         t.EntryReason =
             !c.AllowEntry ? "entry disabled"
-            : !selected ? "personality keeps watch"
-            : partner == "injured" ? "self injured"
+            : !selected ? "entry roll declined"
+            : status == "injured" ? "self injured"
             : "insufficient loaded ammunition";
-        if (firstDecision && c.Extension > 0)
+        if (!t.Extended && c.Extension > 0)
         {
-            t.Extended = partner != "stale";
-            watchUntil = (t.Extended ? now : watchUntil) + c.Extension;
-            t.WatchRemaining = Math.Max(0, watchUntil - now);
+            if (!recentContact)
+            {
+                t.EntryReason = "no recent contact to extend watch";
+                return "end";
+            }
+            t.Extended = true;
+            watchUntil = now + c.Extension;
+            t.WatchRemaining = c.Extension;
+            return "wait";
         }
-        return now < watchUntil ? "wait" : "end";
+        return "end";
     }
 
     public void End(double now, double? latestEvidence = null)

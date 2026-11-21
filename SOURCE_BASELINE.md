@@ -60,6 +60,9 @@ S02 starts its initial watch on arrival, for the preset's `WatchMax` (15 seconds
 by default). The first update past the watch deadline checks whether the last
 known enemy position is less than 15 seconds old and less than 12 m horizontally
 from the doorway. The next room check after an extension is at its expiry.
+If the bot decides against entering, a sign from the target less than eight
+seconds old allows one extra watch. At the next decision, an entry-enabled
+bot makes a fresh personality roll. The trace retains both entry rolls.
 Ordinary combat interruptions still release the bot during the watch.
 `WatchMin` remains the lower bound for S11 squad siege duration.
 

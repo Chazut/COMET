@@ -1001,9 +1001,13 @@ internal static class CoverFeintTests
                 && Calls(pe, md, Method("FeintFrame"), "MateEngaging") == 1
                 && Calls(pe, md, Method("FeintFrame"), "IsCloserStep") == 1,
                 "shipped selector uses directed fire, squad sight and the last personal sound");
-            foreach (var method in new[] { "ValidateEntranceActive", "ExecuteEntrance", "TryBeginManeuver", "StormBlock", "FeintFrame" })
+            foreach (var method in new[] { "ValidateEntranceActive", "TryBeginManeuver", "StormBlock", "FeintFrame" })
                 Check(Calls(pe, md, Method(method), "TacticalAmmoPercent") == 1,
                     method + " reads the same chamber-inclusive ammunition count");
+            Check(Calls(pe, md, Method("ExecuteEntrance"), "ValidateEntranceActive") == 1
+                && Calls(pe, md, Method("ExecuteEntrance"), "get_Ammo") == 1
+                && Calls(pe, md, Method("ExecuteEntrance"), "Decide") == 1,
+                "S02 uses the validated ammunition reading for its entry decision");
             Check(
                 Calls(pe, md, Method("RefreshFeint"), "RemainingRelocationRoute") == 0
                     && Calls(pe, md, Method("RefreshFeint"), "FeintRouteClear") == 0,

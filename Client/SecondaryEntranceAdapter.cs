@@ -423,7 +423,7 @@ public sealed partial class Plugin
     {
         if (b.Memory.Health.HealthStatus is ETagStatus.BadlyInjured or ETagStatus.Dying)
             return "injured";
-        return b.GoalEnemy.TimeSinceLastKnownUpdated < 8 ? "ready" : "stale";
+        return b.GoalEnemy.TimeSinceLastKnownUpdated < SecondaryEntrance.RecentContactSeconds ? "ready" : "stale";
     }
 
     private bool ValidateEntranceActive(BotComponent b, BotState s, bool callback)
@@ -490,17 +490,19 @@ public sealed partial class Plugin
             a.Policy.Arrived(Time.time);
             t.State = "watching";
             var enemy = b.GoalEnemy;
+            float contactAge = enemy.TimeSinceLastKnownUpdated;
             bool stillInside = a.Policy.WatchElapsed(Time.time)
-                && enemy.TimeSinceLastKnownUpdated < 15f
+                && contactAge < 15f
                 && enemy.KnownPlaces.LastKnownPosition is Vector3 known
                 && Vector3.ProjectOnPlane(known - a.Center, Vector3.up).sqrMagnitude < 12f * 12f;
             string choice = a.Policy.Decide(
                 Time.time,
                 stillInside,
+                contactAge < SecondaryEntrance.RecentContactSeconds,
                 t.SupportStatus,
                 t.Ammo,
                 b.Info.Personality.ToString(),
-                stillInside && !t.Rolled ? jumpRandom.NextDouble() : 0,
+                stillInside && c.AllowEntry ? jumpRandom.NextDouble() : 0,
                 c
             );
             if (choice == "end")

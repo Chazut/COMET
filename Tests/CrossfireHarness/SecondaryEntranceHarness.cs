@@ -274,16 +274,15 @@ internal static class SecondaryEntranceHarness
             Plan(p, b);
             var a = Start(p, b);
             Arrive(p, b, a);
-            m.BotOwner.WeaponManager.Reload.Reloading = true;
-            Wait(p, b, a, 15);
+            b.Info.Personality = Personality.Normal;
+            p.jumpRandom = new EntryRollSequence(.8, .1);
+            Wait(p, b, a, 15.25f);
             var t = p.states[b].Crossfire.Policy.Trace!.Entrance!;
-            C(t.Extended && t.Rolled, "occupied partner extends once");
-            double roll = t.EntryRoll;
-            m.BotOwner.WeaponManager.Reload.Reloading = false;
-            Wait(p, b, a, .5f);
+            C(t.Extended && t.EntryRoll == 80, "a fresh contact permits one extra watch");
+            Wait(p, b, a, 15.25f);
             C(
-                p.states[b].Crossfire.Entrance.Entering && t.EntryRoll == roll,
-                "ready partner uses same entry roll"
+                p.states[b].Crossfire.Entrance.Entering && t.PreviousEntryRoll == 80 && t.EntryRoll == 10,
+                "second decision uses a new entry roll"
             );
             Save(p);
         }

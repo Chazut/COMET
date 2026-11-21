@@ -814,7 +814,7 @@ foreach (string sighting in new[] { "visible at start", "no sight", "support rea
     }
     p.EndAll();
 }
-foreach (string outcome in new[] { "upstairs", "radius boundary", "age boundary", "missing position", "under fire" })
+(Plugin, BotComponent, CrossfireAction) BeginEntranceWatch()
 {
     var (p, b, support) = Setup();
     b.Player.Environment = EnvironmentType.Indoor;
@@ -830,6 +830,14 @@ foreach (string outcome in new[] { "upstairs", "radius boundary", "age boundary"
     Step(18f - Time.time);
     action.Update(new());
     C(entrance.State == "watching" && r.Entrance.Policy.WatchAt == 18, "the watch starts at the side entrance");
+    return (p, b, action);
+}
+foreach (string outcome in new[] { "upstairs", "radius boundary", "age boundary", "missing position", "under fire" })
+{
+    var (p, b, action) = BeginEntranceWatch();
+    var r = p.states[b].Crossfire;
+    var entrance = r.Policy.Trace!.Entrance!;
+    var side = r.Entrance.Center;
     Step(1);
     b.GoalEnemy.TimeSinceLastKnownUpdated = 16;
     b.GoalEnemy.KnownPlaces.LastKnownPosition = outcome == "missing position" ? null : side + new Vector3(20, 0, 0);
@@ -854,6 +862,59 @@ foreach (string outcome in new[] { "upstairs", "radius boundary", "age boundary"
         else
             C(!r.Policy.Active && !entrance.Rolled && entrance.EntryReason == "enemy no longer believed inside",
                 "room evidence rejected at expiry: " + outcome);
+    }
+    p.EndAll();
+}
+foreach (string outcome in new[] { "enters", "declines twice", "lost contact", "rat", "age boundary", "injured", "entry disabled", "chambered round", "empty chamber" })
+{
+    var (p, b, action) = BeginEntranceWatch();
+    var r = p.states[b].Crossfire;
+    var trace = r.Policy.Trace!.Entrance!;
+    b.Info.Personality = outcome == "rat" ? Personality.Rat : Personality.Normal;
+    if (outcome == "injured")
+        b.Memory.Health.HealthStatus = ETagStatus.BadlyInjured;
+    bool allowEntry = outcome != "entry disabled";
+    p.config!.SecondaryEntrance.AllowEntry = allowEntry;
+    var random = new EntryRollSequence(.8, outcome == "declines twice" ? .85 : .1);
+    p.jumpRandom = random;
+    Step(15.25f);
+    b.GoalEnemy!.TimeSinceLastKnownUpdated = outcome switch
+    {
+        "rat" or "injured" => 9f,
+        "age boundary" => 8f,
+        _ => 7.99f,
+    };
+    action.Update(new());
+    bool extends = outcome is not ("rat" or "age boundary" or "injured");
+    C(trace.Extended == extends && r.Policy.Active == extends,
+        "an extension requires contact strictly less than eight seconds old: " + outcome);
+    if (!extends)
+        C(trace.EntryReason == "no recent contact to extend watch" && trace.WatchRemaining == 0,
+            "the final trace explains the departure: " + outcome);
+    int firstDraws = allowEntry ? 1 : 0;
+    C(random.Draws == firstDraws && trace.Rolled == allowEntry, "only entry-enabled decisions draw");
+    if (extends)
+    {
+        Step(15);
+        b.GoalEnemy.TimeSinceLastKnownUpdated = 9;
+        action.Update(new());
+        C(r.Policy.Active && random.Draws == firstDraws, "hold through the exact extension deadline");
+        Step(.02f);
+        b.GoalEnemy.TimeSinceLastKnownUpdated = outcome == "lost contact" ? 15 : 9;
+        if (outcome is "chambered round" or "empty chamber")
+        {
+            var gun = b.BotOwner.WeaponManager.CurrentWeapon;
+            gun.Mag.Count = 14;
+            gun.ChamberAmmoCount = outcome == "chambered round" ? 1 : 0;
+        }
+        action.Update(new());
+        bool secondDraw = allowEntry && outcome != "lost contact";
+        C(random.Draws == firstDraws + (secondDraw ? 1 : 0), "a fresh draw at the second decision: " + outcome);
+        C(trace.PreviousEntryRoll == (secondDraw ? 80d : null), "the trace retains the first draw only after a second draw");
+        if (outcome is "enters" or "chambered round")
+            C(r.Entrance.Entering && trace.EntryRoll == 10, "80 percent then 10 percent changes a Normal PMC's decision");
+        else
+            C(!r.Policy.Active, "no third watch: " + outcome);
     }
     p.EndAll();
 }
@@ -1211,3 +1272,9 @@ File.WriteAllLines(file, events);
 Console.WriteLine(
     $"S01 source adapter: {n} checks; {events.Count} events. Engine doubles, no raid simulation."
 );
+
+sealed class EntryRollSequence(params double[] rolls) : Random
+{
+    public int Draws { get; private set; }
+    public override double NextDouble() => rolls[Draws++];
+}

@@ -126,13 +126,14 @@ internal static class SecondaryEntranceTests
             var p = new SecondaryEntrance();
             p.Begin("e", 1, 1, 0, c);
             p.Arrived(2);
-            C(p.Decide(18, true, "ready", 40, "Chad", 0, c) == "wait" && p.Trace!.Extended,
+            C(p.Decide(18, true, "ready", 40, "Normal", .2, c) == "wait" && p.Trace!.Extended,
                 "low ammunition starts one extra watch at the first decision");
             C(
-                p.Decide(19, false, "stale", 50, "Chad", 1, c) == "wait"
-                    && p.Decide(33, false, "ready", 50, "Chad", 1, c) == "wait"
-                    && p.Decide(33.01, true, "ready", 50, "Chad", 1, c) == "ready",
-                "only reconsider at the end of the extra watch, including a late first update"
+                p.Decide(19, false, "stale", 50, "Normal", .5, c) == "wait"
+                    && p.Decide(33, false, "ready", 50, "Normal", .5, c) == "wait"
+                    && p.Decide(33.01, true, "ready", 50, "Normal", .8, c) == "end"
+                    && p.Trace!.PreviousEntryRoll == 20 && p.Trace.EntryRoll == 80,
+                "a favorable first draw blocked by ammunition cannot carry over to the second decision"
             );
         }
         foreach (
@@ -158,6 +159,22 @@ internal static class SecondaryEntranceTests
                     == (roll * 100 < c.Chance(personality)),
                 "exact chance boundary " + personality
             );
+        }
+        foreach (bool recent in new[] { false, true })
+        {
+            var p = new SecondaryEntrance();
+            p.Begin("e", 1, 1, c);
+            p.Arrived(2);
+            C(p.Decide(18, true, recent, "injured", 100, "Chad", 0, c) == (recent ? "wait" : "end")
+                && p.Trace!.Extended == recent, "injury blocks entry independently of contact freshness");
+        }
+        {
+            var p = new SecondaryEntrance();
+            var cfg = new SecondaryEntranceConfig { Extension = 0 };
+            p.Begin("e", 1, 1, cfg);
+            p.Arrived(2);
+            C(p.Decide(18, true, true, "ready", 100, "Rat", 0, cfg) == "end" && !p.Trace!.Extended,
+                "a preset with zero extension ends the watch even with recent evidence");
         }
         foreach (string mode in new[] { "stale", "clock", "off", "ammo", "toggle" })
         {

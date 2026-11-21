@@ -1219,7 +1219,7 @@
     },
     "SecondaryEntrance.Extension": {
       "Label": "One extra watch period",
-      "Help": "",
+      "Help": "A bot that stays at the entrance can wait once more if it heard or saw the target within the last 8 seconds. It makes a new entry decision when the extra time runs out. Set to 0 to skip the extra wait.",
       "Min": 0.0,
       "Max": 30,
       "Scale": 1,
