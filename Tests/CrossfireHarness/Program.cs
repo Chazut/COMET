@@ -91,6 +91,27 @@ CrossfireAction Start(Plugin p, BotComponent b)
     return a;
 }
 void Save(Plugin p) => events.AddRange(p.diagnostics!.Lines);
+foreach (bool recordedLoss in new[] { false, true })
+foreach (bool aggressive in new[] { false, true })
+{
+    var (p, survivor, mate) = Setup();
+    survivor.Info.PersonalitySettings.Rush.CanRushEnemyReloadHeal = aggressive;
+    mate.IsDead = true;
+    mate.Player.HealthController.IsAlive = false;
+    if (recordedLoss)
+        p.Death(mate, survivor, new Player { ProfileId = survivor.GoalEnemy!.EnemyProfileId });
+    survivor.Squad.Members.Remove(mate.ProfileId);
+    survivor.Squad.BotInGroup = false;
+    Step(.81f);
+    p.Observe(survivor);
+    var reaction = p.states[survivor].Crossfire.Policy.Trace?.Trade;
+    if (recordedLoss)
+        C(reaction?.Mate == mate.ProfileId && reaction.Choice == (aggressive ? "push" : "watch"),
+            "the last member of a duo can react to the recorded loss using its own personality");
+    else
+        C(reaction == null, "a lone PMC without a recorded loss cannot start S05");
+    p.EndAll();
+}
 // Exercise the shared angle search through each tactic's own decision path.
 foreach (var (tactic, distance, indoor, radii) in new[]
 {

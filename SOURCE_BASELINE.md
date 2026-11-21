@@ -25,6 +25,13 @@ into their chambers use their chamber capacity. A missing detachable magazine
 or zero capacity gives a ratio of zero. A full magazine plus one chambered
 round can exceed 100% and remains eligible for M14.
 
+### S05 last survivor (approved COMET difference)
+
+In a duo, the surviving PMC can still start S05 after SAIN removes the dead
+teammate from the squad roster. This uses the recorded loss and the usual
+attacker and personality checks. Remix 7.6 requires at least two listed squad
+members when starting the reaction. The exception in COMET is specific to S05.
+
 ### S06 squad assault admission
 
 In remix 7.6, `shallRushEnemy` checks for a complete path to the enemy and
