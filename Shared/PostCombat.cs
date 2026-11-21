@@ -97,6 +97,7 @@ public sealed class PostCombatTrace
     public double SecondsSinceCombat { get; set; }
     public double Remaining { get; set; }
     public double WatchRemaining { get; set; }
+    public double? LastCoverWatchDuration { get; set; }
     public double AmmoPercent { get; set; }
     public bool Reloading { get; set; }
     public bool MedicalUseful { get; set; }
@@ -239,11 +240,18 @@ public sealed class PostCombat
         if (!f.Heard && !regroupDone && f.Regroup)
             return Stage("regroup", "post-combat-rejoin-leader");
         regroupDone = true;
-        if (f.Now < watchUntil)
+        if (f.Now <= watchUntil)
             return Stage("watch", "post-combat-watch-last-threat");
         if (WillAdvance)
             return Stage("check", "post-combat-check-known-position");
         return End("post-combat-work-complete");
+    }
+
+    public void RenewCoverWatch(double now, double duration)
+    {
+        watchUntil = now + duration;
+        Trace!.LastCoverWatchDuration = duration;
+        Trace.WatchRemaining = Math.Min(duration, LastFight + MaxSecondsSinceCombat - now);
     }
 
     public void Complete(string stage, string outcome)

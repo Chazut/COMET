@@ -17,6 +17,15 @@ public sealed partial class Plugin
     private static bool PostTreatmentInUse(BotComponent b) =>
         b.BotOwner.Medecine.Using || b.Player.HandsController is IMedsController;
 
+    private static bool AtPostCombatCover(BotComponent b, Vector3 point) =>
+        Vector3.Distance(b.Position, point) <= 1f;
+
+    private void RenewPostCoverWatch(PostCombatRuntime r)
+    {
+        var c = config!.PostCombat;
+        r.Policy.RenewCoverWatch(Time.time, UnityEngine.Random.Range((float)c.WatchMin, (float)c.WatchMax));
+    }
+
     private Vector3? PostRegroupTarget(BotComponent b)
     {
         var leader = b.Squad.LeaderComponent;
@@ -84,7 +93,7 @@ public sealed partial class Plugin
         if (r.RouteStage.Length > 0 && t.State == r.RouteStage)
         {
             bool regroup = r.RouteStage == "regroup";
-            if (r.RouteStage == "cover" && Vector3.Distance(b.Position, r.Goal) < 1f)
+            if (r.RouteStage == "cover" && AtPostCombatCover(b, r.Goal))
             {
                 r.Protected = true;
                 r.ProtectedAt = b.Position;
@@ -115,12 +124,17 @@ public sealed partial class Plugin
             var point = SourceOpenGround.FindCover(b, r.Threat, out var why, out var far);
             if (point.HasValue)
             {
+                if (!AtPostCombatCover(b, point.Value))
+                    RenewPostCoverWatch(r);
                 b.Mover.SetTargetPose(far ? 1 : .8f);
                 b.Mover.SetTargetMoveSpeed(far ? 1 : .85f);
                 if (PostMove(b, r, point.Value, "cover"))
                     r.CoverRange = far ? PostCombatCoverRange.Far : PostCombatCoverRange.Near;
                 else
+                {
                     r.CoverRange = PostCombatCoverRange.None;
+                    r.Policy.Complete("cover", "native movement declined");
+                }
             }
             else
             {

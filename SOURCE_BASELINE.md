@@ -324,6 +324,11 @@ native operations finish. Its end event records the reason and `secondsSinceComb
 H04 can request one native top-up on the same update that orders a move to
 cover. An existing reload can continue on the way. Active treatment suspends
 that movement. The H04 trace records `Reloading` alongside the cover action.
+While the cover target is more than 1 m away, each action update draws a new
+watch duration (3 to 6 seconds by default), even between movement orders.
+At 1 m or closer the timer runs down from the last draw. An inspection can
+start once that deadline has passed. H04 events report the last cover draw in
+`lastCoverWatchDuration` and the current time left in `watchRemaining`.
 
 During regrouping, each movement order targets the live squad leader's current
 position. Orders are at least one second apart. Regrouping ends within the

@@ -345,8 +345,88 @@ foreach (
     C(!p.states[b].PostCombat.Policy.Active, "cleanup releases recovery");
     Save(p);
 }
+// Seven seconds to shelter is longer than the initial watch, even on the longest draw.
+foreach (float lastDraw in new[] { 3f, 6f })
+{
+    var (p, b, layer, action) = Setup();
+    p.config!.PostCombat.AdvanceChances["Normal"] = 100;
+    Physics.BlocksSightTo = point => point.z >= 15.9f;
+    UnityEngine.Random.RangeFraction = lastDraw == 3f ? 1f : 0f;
+    C(layer.IsActive(), "a distant shelter is available");
+    action.Start();
+    var r = p.states[b].PostCombat;
+    var cover = r.Goal;
+    C(r.RouteStage == "cover", "the native route leads to shelter");
+    for (int i = 1; i <= 13; i++)
+    {
+        Step(.5f);
+        b.Position = cover * (i / 14f);
+        if (i == 13)
+            UnityEngine.Random.RangeFraction = lastDraw == 3f ? 0f : 1f;
+        action.Update(new());
+    }
+    C(r.Policy.Trace!.WatchRemaining == lastDraw, "each cover update replaces the previous draw");
+    Step(.5f);
+    b.Position = cover - new Vector3(0, 0, 1);
+    action.Update(new());
+    C(r.Protected && r.Path == null, "exactly one metre is close enough to stop renewing");
+    C(r.Policy.Trace.WatchRemaining == lastDraw - .5f, "arrival preserves the last travel deadline");
+    Step(.25f);
+    action.Update(new());
+    C(r.Policy.Trace.State == "watch" && r.RouteStage == "", "the bot watches after a seven-second trip");
+    var snapshot = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last())["postCombat"]!;
+    C((double?)snapshot["lastCoverWatchDuration"] == lastDraw
+        && (double?)snapshot["watchRemaining"] == lastDraw - .75f, "the watch event records draw and time left");
+    Step(lastDraw - .75f);
+    action.Update(new());
+    C(r.Policy.Trace.State == "watch" && r.Policy.Trace.WatchRemaining == 0,
+        "the bot still watches at the exact deadline");
+    Step(.25f);
+    action.Update(new());
+    C(r.RouteStage == "check", "the first decision after expiry orders the approach");
+}
+UnityEngine.Random.RangeFraction = 0;
 // The bot starts exposed at z=0. A wall shelters the first near ring at z=3.
 Physics.BlocksSightTo = point => point.z >= 2.9f;
+foreach (bool acceptFirstOrder in new[] { false, true })
+{
+    var (p, b, layer, action) = Setup();
+    var c = p.config!.PostCombat;
+    c.WatchMin = 2;
+    c.WatchMax = 4;
+    b.Mover.Walk = acceptFirstOrder;
+    C(layer.IsActive(), "the layer may select a cover even if native movement later refuses it");
+    action.Start();
+    var r = p.states[b].PostCombat;
+    C(r.Policy.Trace!.LastCoverWatchDuration == 2, "a first cover attempt uses the configured duration");
+    UnityEngine.Random.RangeFraction = 1;
+    Step(.125f);
+    layer.IsActive();
+    action.OnSteeringTicked();
+    C(r.Policy.Trace.LastCoverWatchDuration == 2, "layer and steering queries leave the cover draw alone");
+    action.Update(new());
+    if (acceptFirstOrder)
+    {
+        C(r.Policy.Trace.LastCoverWatchDuration == 4 && b.Mover.Routes == 1,
+            "the action renews during the movement throttle without sending another order");
+        UnityEngine.Random.RangeFraction = 0;
+        b.BotOwner.Medecine.FirstAid.Using = true;
+        Step(.0625f);
+        action.Update(new());
+        C(r.Policy.Trace.LastCoverWatchDuration == 4, "treatment suppresses renewal even before the next policy tick");
+        b.BotOwner.Medecine.FirstAid.Using = false;
+        b.Mover.Walk = false;
+        Step(1);
+        action.Update(new());
+        C(r.Policy.Trace.LastCoverWatchDuration == 2 && r.RouteStage == "", "a declined repeat order gets its final draw");
+    }
+    int orders = b.Mover.Routes;
+    Step(.5f);
+    action.Update(new());
+    C(r.Policy.Trace.State == "watch" && r.Policy.Trace.WatchRemaining < 2 && b.Mover.Routes == orders,
+        "a declined route leaves a single watch to expire");
+    UnityEngine.Random.RangeFraction = 0;
+}
 foreach (var (alreadyReloading, spare, requests) in new[] { (false, true, 1), (true, true, 0), (false, false, 0) })
 {
     var (p, b, layer, action) = Setup();
@@ -361,6 +441,7 @@ foreach (var (alreadyReloading, spare, requests) in new[] { (false, true, 1), (t
         "first action update orders a route to shelter");
     C(reload.Requests == requests && reload.Reloading == (alreadyReloading || spare),
         "cover order and native reload agree on the first update");
+    C(r.Policy.Trace!.LastCoverWatchDuration == 3, "cover renews during a native reload or with idle hands");
     C(r.Policy.Trace is { State: "cover", Execution: "native movement requested" }
         && r.Policy.Trace.Reloading == reload.Reloading, "cover trace includes the actual native reload state");
     Step(1.1f);

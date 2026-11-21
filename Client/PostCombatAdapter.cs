@@ -386,6 +386,9 @@ public sealed partial class Plugin
                 owner.PatrollingData.Pause();
             }
             r.Policy.Applied(true);
+            if (r.RouteStage == "cover" && r.Policy.Trace!.State == "cover"
+                && !PostTreatmentInUse(b) && !AtPostCombatCover(b, r.Goal))
+                p.RenewPostCoverWatch(r);
             if (Time.time < r.MoveAt)
                 return;
             r.MoveAt = Time.time + (float)p.config!.PostCombat.Interval;
