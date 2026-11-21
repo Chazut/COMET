@@ -111,19 +111,29 @@ public sealed partial class Plugin
                 return;
             }
         }
-        Vector3? regroupTarget = null;
         if (t.State == "regroup")
         {
-            regroupTarget = PostRegroupTarget(b, out _);
-            if (!regroupTarget.HasValue)
+            var target = PostRegroupTarget(b, out _);
+            if (!target.HasValue)
             {
                 if (r.RouteStage == "regroup")
                     PostStopRoute(b, r);
                 t.Execution = "regroup no longer needed";
                 return;
             }
-            if (Time.time < r.NextMoveOrder)
+            if (Time.time <= r.NextMoveOrder)
                 return;
+            bool? moved = r.RouteStage == "regroup"
+                ? PostWalkToPoint(b, r, target.Value)
+                : TryStartPostRoute(b, r, target.Value, "regroup");
+            if (moved == false)
+            {
+                r.NextMoveOrder = Time.time + 1;
+                t.Execution = "regroup movement declined; will retry";
+            }
+            else if (moved == true)
+                t.Execution = "native movement requested";
+            return;
         }
         if (r.RouteStage.Length > 0 && t.State == r.RouteStage)
         {
@@ -137,7 +147,7 @@ public sealed partial class Plugin
             }
             if (Time.time >= r.NextMoveOrder)
             {
-                if (!PostWalkToPoint(b, r, regroupTarget ?? r.Goal))
+                if (!PostWalkToPoint(b, r, r.Goal))
                 {
                     if (r.RouteStage == "cover")
                         r.CoverRange = PostCombatCoverRange.None;
@@ -206,25 +216,30 @@ public sealed partial class Plugin
             t.Execution = started ? "native treatment started" : "native treatment unavailable";
             return;
         }
-        if (t.State is "regroup" or "check")
+        if (t.State == "check")
         {
-            if (!doorBudget.TryBegin(Time.frameCount, b))
-                return;
-            doorClock.Restart();
-            try
-            {
-                var target = t.State == "check" ? r.Threat : regroupTarget;
-                if (!target.HasValue || !PostMove(b, r, target.Value, t.State))
-                    r.Policy.Complete(t.State, "destination unavailable; no repeat");
-            }
-            finally
-            {
-                doorClock.Stop();
-                doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);
-            }
+            if (TryStartPostRoute(b, r, r.Threat, "check") == false)
+                r.Policy.Complete("check", "destination unavailable; no repeat");
             return;
         }
         t.Execution = "waiting for native hands";
+    }
+
+    // A deferred start has not reached SAIN and does not consume a movement order.
+    private bool? TryStartPostRoute(BotComponent b, PostCombatRuntime r, Vector3? target, string stage)
+    {
+        if (!doorBudget.TryBegin(Time.frameCount, b))
+            return null;
+        doorClock.Restart();
+        try
+        {
+            return target.HasValue && PostMove(b, r, target.Value, stage);
+        }
+        finally
+        {
+            doorClock.Stop();
+            doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);
+        }
     }
 
     private static bool PostMove(BotComponent b, PostCombatRuntime r, Vector3 target, string stage)

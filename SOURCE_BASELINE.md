@@ -338,7 +338,11 @@ During regrouping, each movement order targets the live squad leader's current
 position. A quiet follower can start toward the leader during a native reload,
 including on the update that starts a top-up. A heard threat interrupts the
 regroup route while the reload continues. H04 events record `regroup` alongside
-the active reload. Orders are at least one second apart. During the watch, the
+the active reload. After each native regroup order, accepted or refused, the
+next attempt is due on the first action update more than one second later.
+A declined renewal leaves the current path under SAIN's control. The existing
+H04 event reports the refusal and changes back to `native movement requested`
+when the movement request succeeds. During the watch, the
 follower checks the live leader's distance on every action update. It releases
 the route at or below the configured threshold (25 m by default) and can follow
 again if the leader moves away during the same episode. H04 events include

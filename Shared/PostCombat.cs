@@ -130,7 +130,6 @@ public sealed class PostCombat
     private bool armed,
         coverDone,
         reloadDone,
-        regroupDeclined,
         advanceDone;
     private double start,
         watchUntil,
@@ -189,7 +188,7 @@ public sealed class PostCombat
             start = f.Now;
             double watchDuration = c.WatchMin + Clamp(watchRoll) * (c.WatchMax - c.WatchMin);
             watchUntil = f.Now + watchDuration;
-            coverDone = reloadDone = regroupDeclined = advanceDone = false;
+            coverDone = reloadDone = advanceDone = false;
             double chance = c.AdvanceChances.TryGetValue(f.Personality, out var v) ? v : 40;
             if (f.BadlyInjuredOrDying)
                 chance *= .2;
@@ -246,7 +245,7 @@ public sealed class PostCombat
         return End("post-combat-work-complete");
     }
 
-    internal bool CanRegroup(bool heard, bool leaderOutOfRange) => !heard && leaderOutOfRange && !regroupDeclined;
+    internal static bool CanRegroup(bool heard, bool leaderOutOfRange) => !heard && leaderOutOfRange;
 
     internal bool TryRegroup(bool heard, bool leaderOutOfRange) =>
         CanRegroup(heard, leaderOutOfRange) && Stage("regroup", "post-combat-rejoin-leader");
@@ -264,8 +263,6 @@ public sealed class PostCombat
             coverDone = true;
         if (stage == "reload")
             reloadDone = true;
-        if (stage == "regroup")
-            regroupDeclined = true;
         if (stage == "check")
             advanceDone = true;
         if (Trace != null)

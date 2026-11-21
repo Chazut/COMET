@@ -287,7 +287,7 @@ public sealed partial class Plugin
         if (betweenSamples && previousStage is not ("watch" or "regroup"))
             return r.Policy.Active;
         bool leaderOutOfRange = PostRegroupTarget(b, out var leaderDistance).HasValue;
-        if (betweenSamples && r.Policy.CanRegroup(r.Heard, leaderOutOfRange) == (previousStage == "regroup"))
+        if (betweenSamples && PostCombat.CanRegroup(r.Heard, leaderOutOfRange) == (previousStage == "regroup"))
             return r.Policy.Active;
         r.Next = Time.time + (float)config!.PostCombat.Interval;
         bool inInitialAdvanceRange = false;
@@ -401,7 +401,8 @@ public sealed partial class Plugin
             if (r.RouteStage == "cover" && r.Policy.Trace!.State == "cover"
                 && !PostTreatmentInUse(b) && !AtPostCombatCover(b, r.Goal))
                 p.RenewPostCoverWatch(r);
-            bool movementDue = Time.time >= r.MoveAt;
+            bool movementDue = Time.time >= r.MoveAt
+                || r.Policy.Trace!.State == "regroup" && Time.time > r.NextMoveOrder;
             if (movementDue)
                 r.MoveAt = Time.time + (float)p.config!.PostCombat.Interval;
             if (movementDue || r.Policy.Trace!.State == "watch")

@@ -902,6 +902,101 @@ foreach (float remaining in new[] { 41f, 4.01f, 4f, 3.5f, 3.01f, 3f, 2.99f })
         "a vertical crossing uses the preset threshold and the leader's actual position");
     Physics.BlocksSightTo = null;
 }
+foreach (bool firstAccepted in new[] { false, true })
+{
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    b.Squad.IAmLeader = false;
+    b.Squad.LeaderComponent = new() { Position = new(30, 0, 0) };
+    SAIN.SAINEnableClass.Bots[b.ProfileId] = b;
+    b.Mover.Walk = firstAccepted;
+    C(layer.IsActive(), "start recovery with a distant leader");
+    action.Start();
+    var r = p.states[b].PostCombat;
+    var originalPath = (BotPathDataManual?)r.Path;
+    C(b.Mover.Routes == 1 && (originalPath != null) == firstAccepted, "issue the initial regroup order once");
+    b.Mover.Walk = false;
+    for (int i = 0; i < 16; i++)
+    {
+        Step(.0625f);
+        action.Update(new());
+    }
+    C(r.Policy.Trace!.State == "regroup" && b.Mover.Routes == 1,
+        "a refusal leaves regroup eligible and respects the fork's strict one-second deadline");
+    Step(.0625f);
+    action.Update(new());
+    C(b.Mover.Routes == 2 && r.Path == originalPath && (originalPath?.Stops ?? 0) == 0,
+        "a refused renewal retains any previous native path");
+    var snapshot = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last())["postCombat"]!;
+    C((string?)snapshot["state"] == "regroup" && (string?)snapshot["execution"] == "regroup movement declined; will retry",
+        "the H04 log distinguishes a refused regroup order from an accepted one");
+    b.Squad.LeaderComponent.Position = new(43, 0, 0);
+    b.Mover.Walk = true;
+    Step(.9375f);
+    action.Update(new());
+    C(b.Mover.Routes == 2, "a second refusal starts a fresh one-second interval");
+    Step(.125f);
+    action.Update(new());
+    C(b.Mover.Routes == 3 && r.RouteStage == "regroup" && r.Goal.x == 43 && r.Path != null
+        && r.Policy.Trace.Execution == "native movement requested", "the accepted retry uses the leader's latest position");
+    Physics.BlocksSightTo = null;
+}
+foreach (var interruption in new[] { "nearby", "dead", "sound", "combat", "expired" })
+{
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    b.Squad.IAmLeader = false;
+    b.Squad.LeaderComponent = new() { Position = new(30, 0, 0) };
+    SAIN.SAINEnableClass.Bots[b.ProfileId] = b;
+    var hearing = new SAIN.Components.BotControllerSpace.Classes.BotHearingClass();
+    SourceSoundWatch.Attach(hearing);
+    try
+    {
+        b.Mover.Walk = false;
+        C(layer.IsActive(), "regroup is initially eligible before " + interruption);
+        action.Start();
+        var r = p.states[b].PostCombat;
+        C(b.Mover.Routes == 1 && r.Path == null, "the initial order is refused before " + interruption);
+        b.Mover.Walk = true;
+        switch (interruption)
+        {
+            case "nearby": b.Squad.LeaderComponent.Position = new(25, 0, 0); break;
+            case "dead": b.Squad.LeaderComponent.IsDead = true; break;
+            case "sound": hearing.Emit(SAINSoundType.FootStep, new(5, 0, 0), new() { ProfileId = "stranger" }); break;
+            case "combat": b.GoalEnemy!.IsVisible = true; break;
+        }
+        Step(interruption == "expired" ? 60 : 1.0625f);
+        action.Update(new());
+        C(b.Mover.Routes == 1 && r.Policy.Trace!.State == (interruption is "combat" or "expired" ? "ended" : "watch"),
+            "discard a pending retry when the regroup is no longer eligible: " + interruption);
+    }
+    finally
+    {
+        SourceSoundWatch.Detach(hearing);
+        Physics.BlocksSightTo = null;
+    }
+}
+{
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    b.Squad.IAmLeader = false;
+    b.Squad.LeaderComponent = new() { Position = new(30, 0, 0) };
+    SAIN.SAINEnableClass.Bots[b.ProfileId] = b;
+    b.Mover.Walk = false;
+    C(layer.IsActive(), "start a regroup with a temporary pathfinding budget deferral");
+    action.Start();
+    p.doorBudget.Available = false;
+    Step(1.0625f);
+    action.Update(new());
+    C(b.Mover.Routes == 1, "a deferred retry never reaches native movement");
+    b.Mover.Walk = true;
+    p.doorBudget.Available = true;
+    Step(.0625f);
+    action.Update(new());
+    C(b.Mover.Routes == 2 && p.states[b].PostCombat.RouteStage == "regroup",
+        "the budget becoming available permits the pending retry without another one-second wait");
+    Physics.BlocksSightTo = null;
+}
 foreach (bool alreadyReloading in new[] { true, false })
 {
     var (p, b, layer, action) = Setup();
