@@ -712,8 +712,8 @@ public sealed partial class Plugin
                 )
             )
                 StopFeintRoutes(r);
-            if (r.Owner != null && !r.Owner.IsDead && r.Policy.Trace?.AppliedPeekPose == .55f
-                && Math.Abs(r.Owner.Mover.Pose.PoseValue.TargetValue - .55f) < .01f)
+            if (r.Owner != null && !r.Owner.IsDead && r.Policy.Trace?.AppliedPeekPose is float applied
+                && CoverFeintPolicy.StillOwnsLoweredPose(applied, r.Owner.Mover.Pose.PoseValue.TargetValue))
                 r.Owner.Mover.SetTargetPose(1f);
             if (
                 r.OwnSpeed

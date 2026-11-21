@@ -211,9 +211,14 @@ public sealed class CoverFeintPolicy
     {
         { State: "out" or "out-pending", FirstPeekCrouched: bool low, CompletedPeeks: var count } =>
             (count == 0 ? low : !low) ? .55f : 1f,
+        { Kind: "magazine", State: "hold" } => .8f,
         { State: "final-hold" } => 1f,
         _ => null,
     };
+
+    internal static bool StillOwnsLoweredPose(float applied, float current) =>
+        applied < 1f && Math.Abs(current - applied) < .01f;
+
     public int HistoryCount => 0;
 
     public static string Gate(CoverFeintFrame f, CoverFeintConfig c)

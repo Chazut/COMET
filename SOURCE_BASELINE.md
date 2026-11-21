@@ -124,6 +124,12 @@ point through the check and hold, falling back to the encounter's last known
 position if none was available. A bait peek uses the last known position.
 Both look 1.3 metres above their point and give native firing priority.
 
+During the angle hold after a fake reload, each accepted action update requests
+pose 0.8 from SAIN. The magazine-check animation keeps its own stance. On
+expiry or interruption, M14 returns the bot to standing if its last lowered
+pose is still the mover's target. The M14 event records the requested pose in
+the existing `appliedPeekPose` field.
+
 When a started bait peek ends on sight of its enemy or on a native switch to
 `StandAndShoot`, M14 leaves ordinary decisions available for 0.9 s. For the
 next 1.6 s it requests native `Retreat` when the enemy chooser runs, after

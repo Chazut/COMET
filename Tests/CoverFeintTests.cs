@@ -488,12 +488,14 @@ internal static class CoverFeintTests
         var corner = new DoorPoint(4, 2, 7);
         p.RequestMagazineCheck(corner);
         p.RequestMagazineCheck(new(8, 3, 10));
+        Check(p.TargetPeekPose == null, "requesting a magazine check leaves the stance alone");
         Check(p.LookPoint.Equals(corner) && p.Known.Equals(F().Known) && p.Goal.Equals(p.Home),
             "magazine start snapshots the visible path point once and preserves contact and movement goals");
         Save();
         Check(wire[^1].GetProperty("magazineVisiblePathPoint").GetProperty("x").GetDouble() == corner.X,
             "the actual magazine snapshot is recorded in the M14 trace");
         p.MagazineResult(true, false, F(10.2), c);
+        Check(p.TargetPeekPose == null, "accepted magazine check keeps its animation stance");
         Check(!p.Trace!.AnimationObserved, "accepted check does not prove animation");
         Save();
         p.MagazineObserved(false, true, 10.3);
@@ -506,10 +508,12 @@ internal static class CoverFeintTests
         );
         p.Sound("", true);
         p.MagazineObserved(false, false, 11);
-        Check(p.Trace.State == "mag-check", "animation completion still needs weapon readiness");
+        Check(p.Trace.State == "mag-check" && p.TargetPeekPose == null,
+            "no hold pose before the magazine phase ends");
         Save();
         p.MagazineObserved(false, true, 12.1);
         Check(p.Trace.State == "hold" && p.Trace.WeaponReady, "ready weapon begins 4-7 s hold");
+        Check(p.TargetPeekPose == .8f, "the first hold update requests the magazine feint stance");
         var updatedContact = F(12.2);
         updatedContact.Known = new(9, 4, 14);
         p.Observe(updatedContact, c);
@@ -517,11 +521,19 @@ internal static class CoverFeintTests
         Save();
         f = F(16.2);
         Check(p.Observe(f, c), "hold measured from readiness");
+        Check(p.TargetPeekPose == .8f, "the hold continues requesting the same stance");
         f.Now = 16.5;
         Check(
             !p.Observe(f, c) && p.Trace.Reason == "feint-hold-finished",
             "bounded ready hold ends"
         );
+        Check(p.TargetPeekPose == null && CoverFeintPolicy.StillOwnsLoweredPose(.8f, .8f),
+            "the finished hold releases its applied stance and issues no more requests");
+        Check(!CoverFeintPolicy.StillOwnsLoweredPose(.8f, .55f)
+            && !CoverFeintPolicy.StillOwnsLoweredPose(.55f, .8f)
+            && CoverFeintPolicy.StillOwnsLoweredPose(.55f, .55f)
+            && !CoverFeintPolicy.StillOwnsLoweredPose(1f, 1f),
+            "cleanup respects a replacement pose and still releases a lowered bait peek");
         Save();
         call = 0;
         Check(p.Begin(F(40), c, MagRoll) && p.LookPoint.Equals(F().Known)
@@ -732,10 +744,14 @@ internal static class CoverFeintTests
         Check(p.LookPoint.Equals(F().Known) && p.Trace!.MagazineVisiblePathPoint == null,
             "without a visible path point the hold watches the known position");
         Check(
-            p.Active && p.Trace!.State == "hold",
+            p.Active && p.Trace!.State == "hold" && p.TargetPeekPose == .8f,
             "source uses timed magazine hold without an added animation proof gate"
         );
         Save();
+        var visibleDuringHold = F(14.2);
+        visibleDuringHold.Visible = true;
+        Check(!p.Observe(visibleDuringHold, c) && p.Trace!.Reason == "feint-enemy-spotted"
+            && p.TargetPeekPose == null, "sighting the enemy interrupts the magazine hold and its pose");
         foreach (
             string scenario in new[]
             {
@@ -1009,7 +1025,9 @@ internal static class CoverFeintTests
                 && Calls(pe, md, Method("SampleOppositePeek"), "Raycast") == 0
                 && Calls(pe, md, Method("SampleOppositePeek"), "TryPlanFeintPoint") == 0,
                 "the mirror uses a single native NavMesh sample and direct sightline");
-            Check(Calls(pe, md, Method("RefreshFeint"), "SetTargetPose") == 1
+            Check(Calls(pe, md, Method("RefreshFeint"), "get_TargetPeekPose") == 1
+                && Calls(pe, md, Method("RefreshFeint"), "SetTargetPose") == 1
+                && Calls(pe, md, Method("FinishFeint"), "StillOwnsLoweredPose") == 1
                 && Calls(pe, md, Method("FinishFeint"), "SetTargetPose") == 1,
                 "accepted action applies the native pose and releases its lowered stance on exit");
             Check(
