@@ -109,6 +109,10 @@ internal static class SquadManeuverHarness
             for (int i = 1; i < count; i++)
             {
                 var r = p.states[bots[i]].Crossfire;
+                if (r.ManeuverRole?.Role == "rear")
+                    bots[i].Player.LookDirection = (r.Watch - bots[i].Position).normalized;
+                if (r.ManeuverRole?.Role != "flank")
+                    continue;
                 r.Candidates.Clear();
                 r.Candidates.Add(
                     i == 1 ? new(-20, 0, 20)
@@ -144,7 +148,7 @@ internal static class SquadManeuverHarness
             for (int i = 1; i < count; i++)
                 C(
                     p.states[bots[i]].Crossfire.Policy.Trace?.State == "moving",
-                    "flanker actual route "
+                    "maneuver action started for member "
                         + i
                         + ": "
                         + p.states[bots[i]].Crossfire.Policy.Trace?.Reason
@@ -174,8 +178,8 @@ internal static class SquadManeuverHarness
                 "success is retained on shared plan"
             );
             C(
-                !plan.MaySuppress && plan.Until == until,
-                "success stops blind suppression without shortening other flank routes"
+                !plan.MaySuppress && plan.Until <= until && plan.Until <= Time.time + 3,
+                "flanker arrival ends blind suppression and starts convergence"
             );
             Step();
             actions[0].Update(new());
@@ -183,7 +187,7 @@ internal static class SquadManeuverHarness
             actions[2].Update(new());
             C(
                 p.states[bots[2]].Crossfire.Policy.Active,
-                "another flanker continues after first engages"
+                "covering teammate stays active during convergence"
             );
             events.AddRange(p.diagnostics!.Lines);
             p.EndAll();
@@ -204,7 +208,7 @@ internal static class SquadManeuverHarness
             actions[0].OnSteeringTicked();
             actions[1].Update(new());
             C(
-                r.Policy.Active && ReferenceEquals(r.Maneuver, plan) && p.Claims == 4,
+                r.Policy.Active && ReferenceEquals(r.Maneuver, plan) && p.Claims > 0,
                 "coordinated flank keeps shared plan and reservations during short ground loss"
             );
             b.Player.MovementContext.IsGrounded = true;
@@ -227,7 +231,8 @@ internal static class SquadManeuverHarness
         }
         {
             var (p, bots, actions) = Start();
-            C(p.Claims == 4, "three distinct routes and one support reservation");
+            C(p.Claims > 0 && p.states[bots[1]].Crossfire.ManeuverRole?.Role == "flank",
+                "flanker keeps its route alongside stationary roles");
             C(
                 p.states[bots[0]].Crossfire.Maneuver!.Members.Count(x => x.Confirmed) == 4,
                 "all roles confirmed by native callbacks"
@@ -521,14 +526,14 @@ internal static class SquadManeuverHarness
             var (p, bots, actions) = Start();
             p.End(bots[1]);
             C(
-                p.states[bots[2]].Crossfire.Maneuver!.Active,
-                "one failed flanker does not end other routes"
+                !p.states[bots[2]].Crossfire.Maneuver!.Active,
+                "losing the only flanker ends the maneuver"
             );
             Step();
             actions[0].Update(new());
             actions[0].OnSteeringTicked();
             actions[2].Update(new());
-            C(p.states[bots[2]].Crossfire.Policy.Active, "remaining flanker continues");
+            C(!p.states[bots[2]].Crossfire.Policy.Active, "support releases the ended plan");
             events.AddRange(p.diagnostics!.Lines);
             p.EndAll();
         }
@@ -573,7 +578,7 @@ internal static class SquadManeuverHarness
             actions[1].Update(new());
             C(
                 p.states[bots[1]].Crossfire.Policy.Active,
-                "death of another flanker preserves support and surviving flank"
+                "death of the rear guard preserves support and the flank"
             );
             C(
                 p.states[bots[1]].Crossfire.Maneuver!.Member(bots[3].ProfileId)!.Status == "ended",

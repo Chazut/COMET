@@ -36,8 +36,16 @@ their roles in an existing maneuver or choose another squad tactic.
 A new S03 requires the nearby squad members on that enemy to have lost sight
 of it. Someone still watching it can enable ordinary crossfire (S01). Members
 busy with a door tactic are excluded from this check. The sight check precedes
-participation rolls and records `maneuver-squad-member-sees-target`. Once the
+the squad roll and records `maneuver-squad-member-sees-target`. Once the
 plan exists, its support can regain sight and continue in that role.
+
+S03 selects the highest-scoring eligible flanker, preserving SAIN's member
+order for ties. With rear watch enabled and at least three candidates, the
+remaining member farthest horizontally from the remembered contact looks away
+from it. Other teammates with at least 33% loaded ammunition provide the base of
+fire. If none qualify, the rear guard takes that duty when sufficiently loaded.
+A missing flanker or shooter delays the next attempt by ten seconds. Diagnostics
+record each role and the reason for the selection, alongside the single squad roll.
 
 ### M14 second bait peek (2026-11-21)
 

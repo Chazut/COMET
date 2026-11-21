@@ -5,6 +5,7 @@ using EFT;
 using Newtonsoft.Json;
 using SAIN.Components;
 using SAIN.Models.Enums;
+using SAIN.Preset.Shared.Enums;
 using UnityEngine;
 
 namespace Comet.Client;
@@ -15,29 +16,10 @@ public sealed partial class Plugin
 
     private static string ManeuverGroup(BotComponent b) => SquadMemberIdentity.Get(b.Squad.Members);
 
-    private string ManeuverRearContact(BotComponent b, Vector3 known, out Vector3 rear)
+    private static Vector3 ManeuverRearWatch(BotComponent b, Vector3 known)
     {
-        rear = default;
-        foreach (var e in b.EnemyController.KnownEnemies)
-        {
-            if (
-                e == null
-                || e == b.GoalEnemy
-                || !e.EnemyKnown
-                || !float.IsFinite(e.TimeSinceLastKnownUpdated)
-                || e.TimeSinceLastKnownUpdated < 0
-                || e.TimeSinceLastKnownUpdated > config!.SquadManeuver.ContactAge
-                || e.KnownPlaces.LastKnownPosition is not Vector3 point
-                || !ValidPoint(point)
-            )
-                continue;
-            if (Vector3.Angle(known - b.Position, point - b.Position) > 100)
-            {
-                rear = point;
-                return e.EnemyProfileId;
-            }
-        }
-        return "";
+        var away = Vector3.ProjectOnPlane(b.Position - known, Vector3.up);
+        return b.Position + (away.sqrMagnitude > .01f ? away.normalized : -b.Transform.LookDirection) * 10f;
     }
 
     private bool TryBeginManeuver(BotComponent b, BotState s)
@@ -97,8 +79,7 @@ public sealed partial class Plugin
                 if (md < c.MinDistance || md > c.MaxDistance)
                     continue;
                 double ammo = TacticalAmmoPercent(mate.BotOwner);
-                if (ammo <= 0)
-                    continue;
+                var health = mate.Memory.Health.HealthStatus;
                 candidates.Add(
                     new()
                     {
@@ -106,19 +87,19 @@ public sealed partial class Plugin
                         Name = mate.Player.Profile.Nickname,
                         Personality = mate.Info.Personality.ToString(),
                         Ammo = ammo,
+                        MovementBlock = health is ETagStatus.BadlyInjured or ETagStatus.Dying
+                            ? "flanker-severely-injured"
+                            : mate.Decision.CurrentSelfDecision != ESelfActionType.None ? "flanker-self-action" : "",
+                        ContactDistanceSquared = Vector3.ProjectOnPlane(mate.Position - known, Vector3.up).sqrMagnitude,
                         Score = SquadManeuverBoard.Score(
                             mate.Info.Personality.ToString(),
-                            mate.Memory.Health.HealthStatus == ETagStatus.Healthy,
+                            health == ETagStatus.Healthy,
                             ammo,
                             c
                         ),
-                        RearContact = ManeuverRearContact(mate, known, out _),
                     }
                 );
             }
-            // A later member can still see the target. Roll only after checking the whole squad.
-            foreach (var member in candidates)
-                member.Roll = jumpRandom.NextDouble();
             var previous = maneuverBoard.LastAttempt;
             plan = maneuverBoard.TryStart(
                 group,
@@ -127,8 +108,7 @@ public sealed partial class Plugin
                 Time.time - enemy.TimeSinceLastKnownUpdated,
                 jumpRandom.NextDouble(),
                 candidates,
-                c,
-                config.Crossfire.Participation
+                c
             );
             if (plan == null)
                 RecordCrossfireGate(s, "maneuver-not-started: " + maneuverBoard.LastReason);
@@ -145,11 +125,22 @@ public sealed partial class Plugin
             || !plan.Active
             || plan.Enemy != enemy.EnemyProfileId
             || plan.Member(b.ProfileId) is not ManeuverMember role
+            || role.Role == "unassigned"
             || role.Status is "ended" or "engaging"
         )
             return false;
-        if (!b.Squad.Members.TryGetValue(plan.Support, out var support))
-            return false;
+        BotComponent? support = null;
+        Vector3 center = Vector3.zero;
+        int count = 0;
+        foreach (var member in plan.Members)
+        {
+            if (member.Role != "support" || !b.Squad.Members.TryGetValue(member.Id, out var bot)
+                || bot == null || bot.IsDead)
+                continue;
+            support ??= bot;
+            center += bot.Position;
+            count++;
+        }
         r.Maneuver = plan;
         r.ManeuverRole = role;
         r.ManeuverStarted = Time.time;
@@ -166,8 +157,8 @@ public sealed partial class Plugin
         r.Known = known;
         r.Contact = enemy.EnemyProfileId;
         r.ContactAt = Time.time - enemy.TimeSinceLastKnownUpdated;
-        r.Support = plan.Support;
-        r.Reference = support.Position;
+        r.Support = support?.ProfileId ?? "";
+        r.Reference = count > 0 ? center / count : b.Position;
         r.Origin = b.Position;
         r.Candidate = r.Sample = 0;
         r.Route = null;
@@ -178,14 +169,14 @@ public sealed partial class Plugin
         var t = r.Policy.Trace!;
         t.Contact = r.Contact;
         t.Source = NativeAdapter.Capture(b, enemy, true, false).ContactSource;
-        t.Support = plan.Support;
-        t.SupportName = support.Player.Profile.Nickname;
+        t.Support = r.Support;
+        t.SupportName = support?.Player.Profile.Nickname ?? "";
         t.X = known.x;
         t.Y = known.y;
         t.Z = known.z;
         t.ContactAge = enemy.TimeSinceLastKnownUpdated;
-        t.Roll = role.Roll * 100;
-        t.Chance = config.Crossfire.Participation;
+        t.Roll = plan.Roll * 100;
+        t.Chance = c.Chance;
         if (role.Role == "flank")
         {
             role.Status = "planning";
@@ -196,31 +187,9 @@ public sealed partial class Plugin
         {
             r.Entrance.Drop();
             r.Goal = b.Position;
-            r.Watch = known;
-            if (
-                role.Role == "rear"
-                && ManeuverRearContact(b, known, out r.Watch) != role.RearContact
-            )
-            {
-                plan.Drop(b.ProfileId, "rear-contact-changed");
-                EndCrossfire(b, s, "maneuver-rear-contact-changed");
-                return false;
-            }
-            if (
-                !crossfireClaims.Reserve(
-                    s.Id,
-                    r.Goal.x,
-                    r.Goal.y,
-                    r.Goal.z,
-                    config.Crossfire.Spacing,
-                    Time.time,
-                    group
-                )
-            )
-            {
-                EndCrossfire(b, s, "maneuver-support-position-unavailable");
-                return false;
-            }
+            r.Watch = role.Role == "rear" ? ManeuverRearWatch(b, known) : known;
+            // Mark the current spot for moving bots. Two stationary roles can already be side by side.
+            crossfireClaims.Reserve(s.Id, r.Goal.x, r.Goal.y, r.Goal.z, config.Crossfire.Spacing, Time.time, group);
             r.Policy.Ready(r.Goal.x, r.Goal.y, r.Goal.z, 0, 0);
             role.ReadyAt = Time.time;
         }
@@ -246,7 +215,7 @@ public sealed partial class Plugin
             Y = known.y,
             Z = known.z,
             Support = plan.Support,
-            SupportName = plan.Member(plan.Support)!.Name,
+            SupportName = plan.Member(plan.Support)?.Name ?? "",
             Maneuver = plan.Trace(b.ProfileId, Time.time, config!.SquadManeuver),
             Alternatives = new[] { "Hold the current angle", "Continue native SAIN combat" },
         };
@@ -311,11 +280,6 @@ public sealed partial class Plugin
         if (!p.Active || m.Status == "ended")
         {
             EndCrossfire(b, s, "maneuver-required-role-lost");
-            return false;
-        }
-        if (m.Role == "rear" && ManeuverRearContact(b, r.Known, out r.Watch) != m.RearContact)
-        {
-            EndCrossfire(b, s, "maneuver-rear-contact-stale");
             return false;
         }
         if (m.Role == "flank" && r.Policy.Trace!.State == "ready" && m.ReadyAt < 0)

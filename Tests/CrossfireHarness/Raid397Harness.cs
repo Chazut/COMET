@@ -24,31 +24,29 @@ internal static class Raid397Harness
         var willing = new ManeuverMember
         {
             Id = "a",
-            Name = "Only willing",
+            Name = "Support",
             Score = 1,
             Ammo = 70,
-            Roll = .1,
         };
         var other = new ManeuverMember
         {
             Id = "b",
-            Name = "Declines",
+            Name = "Flanker",
             Score = 2,
             Ammo = 70,
-            Roll = .9,
         };
-        var plan = board.TryStart("g", "e", 10, 10, .1, new() { willing, other }, c, 70);
+        var plan = board.TryStart("g", "e", 10, 10, .1, new() { willing, other }, c);
         Check(
-            plan?.Support == "b" && willing.Role == "flank",
-            "do not spend the only willing flanker as support"
+            plan?.Support == "a" && other.Role == "flank",
+            "highest eligible score gets the flank"
         );
         Check(
-            other.SelectionReason == "individual-participation-declined",
-            "personal reason is preserved"
+            other.SelectionReason == "highest-flank-score",
+            "selection explains the assigned role"
         );
         board.Finish(plan!, 11, c, "contact-ended");
         Check(
-            board.TryStart("g", "e", 12, 12, .1, new() { willing, other }, c, 70) == null
+            board.TryStart("g", "e", 12, 12, .1, new() { willing, other }, c) == null
                 && board.LastReason == "maneuver-retry-cooldown",
             "current cooldown cannot repeat previous result"
         );
@@ -56,23 +54,23 @@ internal static class Raid397Harness
         willing.Ammo = 13d / 30 * 100;
         other.Score = -10;
         Check(
-            board.TryStart("g", "e", 10, 10, .1, new() { willing, other }, c, 70) == null,
+            board.TryStart("g", "e", 10, 10, .1, new() { willing, other }, c) == null,
             "low-ammo cautious duo may legitimately decline"
         );
         var detail = board.LastAttempt!.Trace("a", 10, c);
         Check(
-            detail.Selection[0].Reason == "personality-holds-support"
-                && detail.Selection[1].Reason == "ammo-below-flank-threshold",
+            detail.Selection[1].Reason == "personality-holds-support"
+                && detail.Selection[0].Reason == "ammo-below-flank-threshold",
             "both member causes survive plan termination"
         );
         Check(
-            detail.Selection[1].Ammo < 50
-                && detail.Selection[1].MinimumAmmo == 50
-                && detail.Selection[1].Roll == 10,
-            "telemetry carries actual thresholds and rolls"
+            detail.Selection[0].Ammo < 50
+                && detail.Selection[0].MinimumAmmo == 50
+                && detail.Selection[0].MinimumSupportAmmo == 33 && detail.Roll == 10,
+            "telemetry carries actual role thresholds and the group roll"
         );
         Check(
-            board.TryStart("g2", "e", 11, 11, .1, new() { willing }, c, 70) == null
+            board.TryStart("g2", "e", 11, 11, .1, new() { willing }, c) == null
                 && board.LastReason == "maneuver-insufficient-eligible-members",
             "current membership failure is explicit"
         );
@@ -174,18 +172,15 @@ internal static class Raid397Harness
                         Id = b.ProfileId,
                         Score = 2,
                         Ammo = 100,
-                        Roll = 0,
                     },
                     new()
                     {
                         Id = mate.ProfileId,
                         Score = -1,
                         Ammo = 100,
-                        Roll = 0,
                     },
                 },
-                c,
-                100
+                c
             )!;
             r.Maneuver = plan2;
             r.ManeuverRole = plan2.Member(b.ProfileId);

@@ -629,7 +629,8 @@ public sealed partial class Plugin
                 p.ConfirmManeuver(b, s, true);
                 return false;
             }
-            if (s.Crossfire.Policy.Trace?.State == "moving")
+            if (s.Crossfire.Policy.Trace?.State == "moving"
+                && s.Crossfire.ManeuverRole?.Role is not ("rear" or "support"))
                 b.Steering.LookToMovingDirection();
             else
                 b.Steering.LookToPoint(

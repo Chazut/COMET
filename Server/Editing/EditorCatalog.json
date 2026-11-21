@@ -128,9 +128,9 @@
     },
     "SquadManeuver": {
       "Title": "Coordinate support and flanking - S03",
-      "Description": "When an enemy hides, squadmates can hold an angle while others find different approaches. Several PMCs may flank together, with at least one confirmed supporter. Uses S01 movement and S02 entrances; their angle, route and participation settings still apply.",
+      "Description": "When a squad loses sight of an enemy, one bot flanks while teammates with at least 33% loaded ammunition cover it. Squads of three or more can also post a rear guard.",
       "Category": "Squad",
-      "Summary": "Some squadmates hold the angle while others look for another approach."
+      "Summary": "One teammate flanks while the squad covers the approach."
     },
     "SecondaryEntrance": {
       "Title": "Watch another access, then consider entering - S02",
@@ -1485,7 +1485,7 @@
       "Simple": false
     },
     "SquadManeuver.RearWatch": {
-      "Label": "Watch a known rear threat when another supporter is available",
+      "Label": "Post a rear guard in squads of three or more",
       "Help": "",
       "Min": null,
       "Max": null,

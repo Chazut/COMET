@@ -277,6 +277,74 @@ foreach (bool mateSees in new[] { false, true })
     }
     p.EndAll();
 }
+foreach (var condition in new[] { "healthy", "injured", "self-care", "short-mag", "no-support" })
+{
+    var (p, scout, shooter) = Setup();
+    var cfg = p.config!;
+    cfg.SquadManeuver.Chance = 100;
+    cfg.Crossfire.Participation = 0;
+    cfg.Crossfire.Enabled = cfg.CoverMate.Enabled = cfg.SquadTrade.Enabled = false;
+    scout.Info.Personality = Personality.Chad;
+    shooter.Info.Personality = Personality.Normal;
+    scout.Position = new(0, 0, 1);
+    shooter.Position = new(0, 15, 0);
+    var rear = new BotComponent { Squad = scout.Squad, Position = new(1, 0, -1) };
+    rear.Info.Personality = Personality.Rat;
+    var secondShooter = new BotComponent { Squad = scout.Squad, Position = new(0, 14, 0) };
+    secondShooter.Info.Personality = Personality.Rat;
+    foreach (var bot in new[] { rear, secondShooter })
+    {
+        scout.Squad.Members.Add(bot.ProfileId, bot);
+        SAINEnableClass.Bots[bot.ProfileId] = bot;
+    }
+    foreach (var bot in scout.Squad.Members.Values)
+    {
+        bot.GoalEnemy!.IsVisible = false;
+        bot.GoalEnemy.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    }
+    rear.BotOwner.WeaponManager.CurrentWeapon.Mag.Count = 0;
+    if (condition == "injured")
+        scout.Memory.Health.HealthStatus = ETagStatus.BadlyInjured;
+    if (condition == "self-care")
+        scout.Decision.CurrentSelfDecision = ESelfActionType.Reload;
+    if (condition == "short-mag")
+        scout.BotOwner.WeaponManager.CurrentWeapon.Mag.Count = 14;
+    if (condition == "no-support")
+    {
+        shooter.BotOwner.WeaponManager.CurrentWeapon.Mag.Count = 9;
+        secondShooter.BotOwner.WeaponManager.CurrentWeapon.Mag.Count = 9;
+    }
+    p.Observe(shooter);
+    var plan = p.states[shooter].Crossfire.Maneuver;
+    if (condition == "no-support")
+    {
+        C(plan == null && p.diagnostics!.Lines.Any(x => x.Contains("maneuver-no-suppressor")),
+            "no maneuver and a diagnostic when every possible shooter is below 33 percent");
+    }
+    else
+    {
+        var flanker = condition == "healthy" ? scout : shooter;
+        C(plan?.Member(flanker.ProfileId)?.Role == "flank" && plan.Member(rear.ProfileId)?.Role == "rear",
+            "highest eligible flanker and farthest horizontal rear: " + condition);
+        p.Observe(flanker);
+        if (condition == "healthy")
+            C(p.states[flanker].Crossfire.Reference == (shooter.Position + secondShooter.Position) / 2,
+                "flank angle uses both shooters' positions");
+        p.Observe(secondShooter);
+        C(p.states[secondShooter].Crossfire.Maneuver == plan, "nearby stationary shooters both join");
+        p.Observe(rear);
+        var runtime = p.states[rear].Crossfire;
+        C(runtime.Maneuver == plan && runtime.ManeuverRole!.Role == "rear", "empty weapon can watch the rear");
+        var action = new CrossfireAction(rear.BotOwner);
+        action.Start();
+        var away = (rear.Position - new Vector3(0, 0, 30)).normalized;
+        rear.Player.LookDirection = away;
+        action.OnSteeringTicked();
+        C(runtime.ManeuverRole.Confirmed && rear.Steering.LastPoint == rear.Position + away * 10 + Vector3.up * 1.3f,
+            "rear steers away from the contact during the live action without a second enemy");
+    }
+    p.EndAll();
+}
 foreach (var (observer, veto) in new[]
 {
     ("at-radius", true), ("under-fire", true), ("outside-radius", false),

@@ -44,12 +44,11 @@ public sealed class ManeuverMember
         Role = "",
         Status = "assigned",
         Reason = "",
-        RearContact = "",
         SelectionReason = "",
         MovementBlock = "";
     public double Ammo,
         Score,
-        Roll,
+        ContactDistanceSquared,
         ReadyAt = -1,
         LastSeen,
         ProgressAt,
@@ -88,8 +87,7 @@ public sealed class ManeuverSelection
         Reason = "";
     public double Ammo,
         MinimumAmmo,
-        Roll,
-        Participation;
+        MinimumSupportAmmo;
 }
 
 // Detached, raid-local plan: no Unity/SAIN references and no hidden enemy state.
@@ -106,8 +104,7 @@ public sealed class SquadManeuverPlan
         Evidence,
         Roll,
         EndedAt = -1;
-    public double MinimumAmmo,
-        Participation;
+    public double MinimumAmmo;
     public readonly List<ManeuverMember> Members = new();
     public bool Active => State != "ended";
 
@@ -122,10 +119,14 @@ public sealed class SquadManeuverPlan
             && (x.Status is "holding" or "engaging" || x.Reason.Contains("enemy-visible"))
         );
 
-    public bool SupportReady(double now) =>
-        Member(Support) is { Confirmed: true, Applied: true } s
-        && s.Status != "ended"
-        && now - s.LastSeen < 1;
+    public bool SupportReady(double now)
+    {
+        foreach (var member in Members)
+            if (member.Role == "support" && member.Confirmed && member.Applied
+                && member.Status != "ended" && now - member.LastSeen < 1)
+                return true;
+        return false;
+    }
 
     public bool HasProgressingFlanker(double now, SquadManeuverConfig c) =>
         Active
@@ -175,12 +176,10 @@ public sealed class SquadManeuverPlan
         m.Reason = "crossfire-angle-engaged";
         m.Applied = false;
         m.LastSeen = now;
-        // The route has done its job. Hand combat back without reporting a failed
-        // flanker, and let other flankers finish within the original plan deadline.
+        // Hand the flanker back to native combat and let the squad converge.
         State = "converging";
         Reason = "maneuver-angle-engaged";
-        if (!Members.Any(x => x.Role == "flank" && x.Status is not ("ended" or "engaging")))
-            Until = Math.Min(Until, now + 3);
+        Until = Math.Min(Until, now + 3);
     }
 
     public bool Tick(double now, SquadManeuverConfig c)
@@ -239,7 +238,8 @@ public sealed class SquadManeuverPlan
             Roll = Roll * 100,
             Shots = m.Shots,
             FireState =
-                m.Role == "rear" ? "watching known rear threat"
+                m.Role == "unassigned" ? "no role assigned"
+                : m.Role == "rear" ? "watching away from the last known contact"
                 : now - m.LastShot < .3 ? "observed support fire"
                 : "holding",
             Members = Members
@@ -256,8 +256,7 @@ public sealed class SquadManeuverPlan
                     Reason = x.SelectionReason,
                     Ammo = x.Ammo,
                     MinimumAmmo = MinimumAmmo,
-                    Roll = x.Roll * 100,
-                    Participation = Participation,
+                    MinimumSupportAmmo = SquadManeuverBoard.SupportAmmo,
                 })
                 .ToArray(),
         };
@@ -267,6 +266,7 @@ public sealed class SquadManeuverPlan
 public sealed class SquadManeuverBoard
 {
     public const string SomeoneSees = "maneuver-squad-member-sees-target";
+    public const double SupportAmmo = 33;
     private readonly Dictionary<string, SquadManeuverPlan> plans = new();
     private readonly Dictionary<string, (double until, double evidence)> history = new();
     private int serial;
@@ -284,8 +284,7 @@ public sealed class SquadManeuverBoard
         double evidence,
         double roll,
         List<ManeuverMember> candidates,
-        SquadManeuverConfig c,
-        double participation
+        SquadManeuverConfig c
     )
     {
         LastReason = "maneuver-invalid-or-stale-evidence";
@@ -339,55 +338,22 @@ public sealed class SquadManeuverBoard
         }
         // One roll for the whole opportunity; a failed roll also consumes this evidence.
         history[key] = (now + c.Retry, evidence);
-        var members = candidates
-            .OrderBy(x => x.Score)
-            .ThenBy(x => x.Id, StringComparer.Ordinal)
-            .ToList();
-        foreach (var m in members)
-        {
-            m.SelectionReason =
-                m.MovementBlock.Length > 0 ? m.MovementBlock
-                : m.Score < 0 ? "personality-holds-support"
-                : !MedicalChoice.Finite(m.Ammo) || m.Ammo < c.MinimumAmmo
-                    ? "ammo-below-flank-threshold"
-                : !MedicalChoice.Finite(m.Roll)
-                || m.Roll < 0
-                || m.Roll >= 1
-                || m.Roll * 100 >= participation
-                    ? "individual-participation-declined"
-                : "flank-eligible";
-            m.Role = m.SelectionReason == "flank-eligible" ? "flank" : "support";
-        }
-        // Preserve the only willing flanker. A non-participant can still provide
-        // support; selecting that flanker as support first used to waste this plan.
-        var support = members.Find(x => x.Role == "support") ?? members[0];
-        support.Role = "support";
-        if (support.SelectionReason == "flank-eligible")
-            support.SelectionReason = "selected-anchor-support";
-        if (c.RearWatch)
-        {
-            var rear = members.Find(x =>
-                x.Id != support.Id && x.Role == "support" && x.RearContact.Length > 0
-            );
-            if (rear != null)
-                rear.Role = "rear";
-        }
         var plan = new SquadManeuverPlan
         {
             Id = "maneuver-" + (++serial),
             Group = group,
             Enemy = enemy,
-            Support = support.Id,
             Started = now,
             Until = now + c.Duration,
             Evidence = evidence,
             Roll = roll,
             MinimumAmmo = c.MinimumAmmo,
-            Participation = participation,
         };
-        foreach (var m in members)
+        foreach (var m in candidates)
         {
             m.LastSeen = now;
+            m.Role = "unassigned";
+            m.SelectionReason = "squad-roll-declined";
             plan.Members.Add(m);
         }
         LastAttempt = plan;
@@ -397,15 +363,73 @@ public sealed class SquadManeuverBoard
             plan.End(LastReason);
             return null;
         }
-        if (!members.Any(x => x.Role == "flank"))
+        string failure = AssignRoles(plan, c);
+        if (failure.Length > 0)
         {
-            LastReason = "maneuver-no-willing-flanker";
+            history[key] = (now + 10, evidence);
+            LastReason = failure;
             plan.End(LastReason);
             return null;
         }
         LastReason = "maneuver-roles-selected";
         plans[group] = plan;
         return plan;
+    }
+
+    private static string AssignRoles(SquadManeuverPlan plan, SquadManeuverConfig c)
+    {
+        ManeuverMember? flanker = null;
+        foreach (var m in plan.Members)
+        {
+            m.SelectionReason = m.MovementBlock.Length > 0 ? m.MovementBlock
+                : m.Score < 0 ? "personality-holds-support"
+                : !MedicalChoice.Finite(m.Ammo) || m.Ammo < c.MinimumAmmo ? "ammo-below-flank-threshold"
+                : "flank-eligible";
+            if (m.SelectionReason == "flank-eligible" && (flanker == null || m.Score > flanker.Score))
+                flanker = m;
+        }
+        if (flanker == null)
+            return "maneuver-no-willing-flanker";
+        flanker.Role = "flank";
+        flanker.SelectionReason = "highest-flank-score";
+
+        ManeuverMember? rear = null;
+        if (c.RearWatch && plan.Members.Count >= 3)
+        {
+            foreach (var m in plan.Members)
+                if (m != flanker && (rear == null || m.ContactDistanceSquared > rear.ContactDistanceSquared))
+                    rear = m;
+        }
+        foreach (var m in plan.Members)
+        {
+            if (m == flanker || m == rear)
+                continue;
+            if (!MedicalChoice.Finite(m.Ammo) || m.Ammo < SupportAmmo)
+            {
+                m.SelectionReason = "ammo-below-support-threshold";
+                m.Status = "not-participating";
+                continue;
+            }
+            m.Role = "support";
+            m.SelectionReason = "base-of-fire";
+            if (plan.Support.Length == 0)
+                plan.Support = m.Id;
+        }
+        if (rear != null)
+        {
+            if (plan.Support.Length == 0 && MedicalChoice.Finite(rear.Ammo) && rear.Ammo >= SupportAmmo)
+            {
+                rear.Role = "support";
+                rear.SelectionReason = "rear-reassigned-to-fire";
+                plan.Support = rear.Id;
+            }
+            else
+            {
+                rear.Role = "rear";
+                rear.SelectionReason = "farthest-from-contact";
+            }
+        }
+        return plan.Support.Length == 0 ? "maneuver-no-suppressor" : "";
     }
 
     public void Finish(SquadManeuverPlan p, double now, SquadManeuverConfig c, string why)

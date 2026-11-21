@@ -481,6 +481,7 @@ namespace SAIN.Components
 
     public partial class TransformData
     {
+        public Vector3 LookDirection = new(0, 0, 1);
         public Vector3 WeaponRoot = new(0, 1, 0);
     }
 
@@ -596,7 +597,12 @@ namespace SAIN.Components
 
         public void LookToMovingDirection() => Moves++;
 
-        public void LookToPoint(Vector3 p) => Points++;
+        public Vector3 LastPoint;
+        public void LookToPoint(Vector3 p)
+        {
+            Points++;
+            LastPoint = p;
+        }
     }
 
     public class PoseValue
