@@ -25,6 +25,7 @@
     />
     <Reference Include="Harmony" HintPath="C:/Games/SPT-4.1/BepInEx/core/0Harmony.dll" />
     <Compile Include="../../Client/PostCombatAdapter.cs" Link="PostCombatAdapter.cs" />
+    <Compile Include="../../Client/TacticalAmmo.cs" />
     <Compile Include="../../Client/PostCombatExecution.cs" Link="PostCombatExecution.cs" />
     <Compile Include="../../Client/PostCombatLayer.cs" Link="PostCombatLayer.cs" />
     <Compile Include="../../Shared/PostCombat.cs" Link="PostCombat.cs" />

@@ -56,6 +56,24 @@ internal static class CornerPrefireTests
         f.Now = until + .01;
         Check(!p.Observe(f, c), "source burst duration");
 
+        f.Now = 11;
+        f.ParentEpisode++;
+        f.Ammo = 11;
+        Check(!p.Begin(f, c, 0) && p.Trace!.Reason == "prefire-start-ammo",
+            "eleven total rounds are below the start threshold");
+        f.ParentEpisode++;
+        f.Ammo = 12;
+        Check(p.Begin(f, c, 0) && p.Request(f, c),
+            "twelve total rounds allow the first shot");
+        p.Result(true);
+        f.Now += .1;
+        f.Ammo = 10;
+        Check(p.Request(f, c), "ten total rounds keep the active burst above reserve");
+        f.Ammo = 9;
+        p.Shot(f, c);
+        Check(!p.Active && p.Trace!.Reason == "prefire-ammo-reserve",
+            "the shot leaving nine total rounds ends the burst");
+
         return n;
     }
 }

@@ -83,9 +83,8 @@ public sealed partial class Plugin
     {
         var r = s.CornerPrefire;
         var chase = s.CornerChase;
-        var cf = ChaseFrame(b, s);
+        var cf = ChaseFrame(b, s, out var ammo);
         var weapon = b.Player.HandsController?.Item as Weapon;
-        var mag = weapon?.GetCurrentMagazine();
         var f = new CornerPrefireFrame
         {
             Now = Time.time,
@@ -98,8 +97,8 @@ public sealed partial class Plugin
             Weapon = weapon?.Id.ToString() ?? "",
             Mode = weapon?.SelectedFireMode.ToString() ?? "",
             Automatic = weapon?.SelectedFireMode == Weapon.EFireMode.fullauto,
-            Ammo = mag?.Count ?? 0,
-            Capacity = mag?.MaxCount ?? 0,
+            Ammo = ammo.Rounds,
+            Capacity = ammo.Capacity,
             Known = chase.Policy.Known,
             Aim = DP(r.Aim),
             CornerDistance = Vector3.Distance(b.Position, chase.Corner),

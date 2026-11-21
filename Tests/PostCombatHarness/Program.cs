@@ -512,6 +512,19 @@ foreach (bool bhf in new[] { false, true })
     C(b.BotOwner.WeaponManager.Reload.Requests == 1, "missing empty magazine is not full");
     Save(p);
 }
+foreach (int chambered in new[] { 0, 1 })
+{
+    var (p, b, layer, action) = Setup();
+    var gun = ((Player.FirearmController)b.Player.HandsController).Item;
+    gun.Magazine.Count = 20;
+    gun.ChamberAmmoCount = chambered;
+    C(layer.IsActive(), "H04 available at the top-up threshold");
+    action.Start();
+    C(b.BotOwner.WeaponManager.Reload.Requests == (chambered == 0 ? 1 : 0),
+        "the chambered round counts toward the 70 percent top-up threshold");
+    C(p.states[b].PostCombat.Policy.Trace!.AmmoPercent == 100d * (20 + chambered) / 30,
+        "H04 reports the same loaded percentage used for the decision");
+}
 foreach (bool regroup in new[] { false, true })
 {
     var (p, b, l, a) = Setup();

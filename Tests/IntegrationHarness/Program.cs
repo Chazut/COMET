@@ -91,6 +91,15 @@ static class Audit
         VerifyDoorStateEvent();
         var plugin = typeof(Comet.Client.Plugin);
         const BindingFlags instance = BindingFlags.NonPublic | BindingFlags.Instance;
+        var readAmmo = plugin.GetMethod("TacticalAmmoCounts", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var chaseFrame = plugin.GetMethod("ChaseFrame", instance)!;
+        var prefireCalls = Calls(plugin.GetMethod("PrefireFrame", instance)!).ToArray();
+        if (!Calls(readAmmo).Any(m => m.Name == "get_BulletCount")
+            || !Calls(readAmmo).Any(m => m.Name == "get_MaxBulletCount")
+            || !Calls(chaseFrame).Contains(readAmmo)
+            || prefireCalls.Count(m => m.Equals(chaseFrame)) != 1
+            || prefireCalls.Any(m => m.Name == "GetCurrentMagazine"))
+            throw new Exception("Corner pursuit and prefire must use the same native loaded-round count and capacity.");
         var planRoom = plugin.GetMethod("PlanRoomClear", instance)!;
         var selectRoom = plugin.GetMethod("EnsureDoorSession", instance)!;
         var stepRoom = Calls(plugin.GetMethod("StepDoorClear", instance)!).ToArray();

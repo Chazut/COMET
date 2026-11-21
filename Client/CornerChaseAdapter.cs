@@ -120,7 +120,7 @@ public sealed partial class Plugin
         );
     }
 
-    private CornerChaseFrame ChaseFrame(BotComponent b, BotState s)
+    private CornerChaseFrame ChaseFrame(BotComponent b, BotState s, out (int Rounds, int Capacity) ammo)
     {
         var r = s.CornerChase;
         var f = CombatStepFrame(b, s);
@@ -138,6 +138,7 @@ public sealed partial class Plugin
         f.Busy = b.Decision.CurrentSelfDecision != ESelfActionType.None;
         var velocity = b.Player.Velocity;
         velocity.y = 0;
+        ammo = TacticalAmmoCounts(b.BotOwner);
         return new()
         {
             Combat = f,
@@ -158,14 +159,8 @@ public sealed partial class Plugin
             Healthy = b.Memory.Health.HealthStatus == global::ETagStatus.Healthy,
             Hurt = b.Memory.Health.HealthStatus != global::ETagStatus.Healthy,
             Weakness = b.GoalEnemy == null ? 0 : ZzapEnemyWeakness.Score(b, b.GoalEnemy),
-            AmmoRatio =
-                SAIN.SAINComponent.Classes.WeaponFunction.SAINBotSuppressClass.CalcAmmoRatio(
-                    b.BotOwner,
-                    out _
-                ),
-            AmmoOk =
-                b.BotOwner.WeaponManager.Reload.BulletCount
-                >= config!.CornerPrefire.Start(b.BotOwner.WeaponManager.Reload.MaxBulletCount),
+            AmmoRatio = ammo.Capacity > 0 ? (float)ammo.Rounds / ammo.Capacity : 0f,
+            AmmoOk = ammo.Rounds >= config!.CornerPrefire.Start(ammo.Capacity),
             Confident =
                 b.GoalEnemy?.VisiblePathPoint is Vector3 corner
                 && Vector3.Distance(VP(f.Known), corner) < 3
@@ -205,7 +200,7 @@ public sealed partial class Plugin
             r.CallbackAt = Time.time;
             if (!r.Policy.Active)
             {
-                var f = p.ChaseFrame(b, s);
+                var f = p.ChaseFrame(b, s, out _);
                 if (!r.Policy.Eligible(f, p.config.CornerChase) || QueuedCombatMovement(b))
                     return true;
                 if (!p.doorBudget.TryBegin(Time.frameCount, b))
@@ -399,7 +394,7 @@ public sealed partial class Plugin
             EndChase(s, "chase-bot-ended");
             return;
         }
-        var f = ChaseFrame(b, s);
+        var f = ChaseFrame(b, s, out _);
         bool arrived = Vector3.Distance(b.Position, r.Goal) <= .25f;
         f.RouteValid =
             OwnChase(r)

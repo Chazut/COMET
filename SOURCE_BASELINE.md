@@ -16,8 +16,10 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ### Chambered rounds in tactical decisions
 
-S02 entry, S03 flank and support roles, the S06 squad ammo threshold and the
-M14 magazine feint use EFT's loaded-round count and capacity like remix 7.6.
+S02 entry, S03 flank and support roles, the S06 squad ammo threshold, the
+M14 magazine feint and the H04 post-combat reload use EFT's loaded-round count
+and capacity like remix 7.6. M05 uses the same reading when selecting a corner
+pre-fire as M06 uses for its start threshold and ammunition reserve.
 A round in the chamber counts toward the threshold. Weapons loaded directly
 into their chambers use their chamber capacity. A missing detachable magazine
 or zero capacity gives a ratio of zero. A full magazine plus one chambered

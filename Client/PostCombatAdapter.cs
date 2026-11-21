@@ -296,17 +296,12 @@ public sealed partial class Plugin
         }
         ListenPostCombat(b, r);
         InspectPostMedical(b, s);
-        var w = (b.Player.HandsController as Player.FirearmController)?.Item;
-        var mag = w?.GetCurrentMagazine();
-        int capacity = mag?.MaxCount ?? w?.Chambers.Length ?? 0;
-        double ammo =
-            capacity > 0 ? 100d * (mag?.Count ?? w?.ChamberAmmoCount ?? 0) / capacity : 100;
         var leader = b.Squad.LeaderComponent;
         double distance = r.Threat.HasValue ? Vector3.Distance(b.Position, r.Threat.Value) : 0;
         var f = new PostCombatFrame
         {
             Now = Time.time,
-            AmmoPercent = ammo,
+            AmmoPercent = TacticalAmmoPercent(b.BotOwner),
             Health = b
                 .Player.HealthController.GetBodyPartHealth(EBodyPart.Common, false)
                 .Normalized,

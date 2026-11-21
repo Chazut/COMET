@@ -120,7 +120,7 @@ namespace EFT
         public Player GetPlayer;
         public bool IsDead;
         public Settings Settings = new();
-        public WeaponManager WeaponManager = new();
+        public WeaponManager WeaponManager;
         public DoorOpener DoorOpener = new();
         public Memory Memory = new();
         public ShootData ShootData = new();
@@ -131,6 +131,7 @@ namespace EFT
         {
             GetPlayer = p;
             Medecine = new(p);
+            WeaponManager = new(p);
         }
     }
 
@@ -152,15 +153,22 @@ namespace EFT
         public float PART_PERCENT_TO_HEAL = .8f;
     }
 
-    public class WeaponManager
+    public class WeaponManager(Player player)
     {
-        public Reload Reload = new();
+        public Player.FirearmController? ShootController => player.HandsController as Player.FirearmController;
+        public Reload Reload = new(player);
         public Selector Selector = new();
         public Grenades Grenades = new();
     }
 
-    public class Reload
+    public class Reload(Player player)
     {
+        private Weapon Gun => ((Player.FirearmController)player.HandsController).Item;
+        public int BulletCount => Gun.ReloadMode == Weapon.EReloadMode.OnlyBarrel
+            ? Gun.ChamberAmmoCount
+            : Gun.Magazine == null ? 0 : Gun.Magazine.Count + Gun.ChamberAmmoCount;
+        public int MaxBulletCount => Gun.ReloadMode == Weapon.EReloadMode.OnlyBarrel
+            ? Gun.Chambers.Length : Gun.Magazine.MaxCount;
         public bool Reloading,
             Available = true;
         public int Requests;
@@ -1074,6 +1082,8 @@ namespace EFT.InventoryLogic
 {
     public class Weapon : Item
     {
+        public enum EReloadMode { ExternalMagazine, OnlyBarrel }
+        public EReloadMode ReloadMode;
         public object[] Chambers = new object[1];
         public int ChamberAmmoCount;
         public Magazine Magazine = new();
