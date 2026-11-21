@@ -628,12 +628,24 @@ namespace SAIN.Components
     {
         public void SetTargetMoveSpeed(float v) { }
 
+        public int SprintOrders;
+        public bool SprintRequiresCompletePath;
+        public float SprintReach;
+        public SAIN.Models.Enums.ESprintUrgency? SprintUrgency;
+
         public bool RunToPoint(
             Vector3 p,
-            bool slow,
+            bool mustHaveCompletePath,
             float reach,
             SAIN.Models.Enums.ESprintUrgency urgency
-        ) => WalkToPoint(p, slow, reach);
+        )
+        {
+            SprintOrders++;
+            SprintRequiresCompletePath = mustHaveCompletePath;
+            SprintReach = reach;
+            SprintUrgency = urgency;
+            return WalkToPoint(p, mustHaveCompletePath, reach);
+        }
 
         public bool WalkToPoint(Vector3 p, bool slow, float reach)
         {

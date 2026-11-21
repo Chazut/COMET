@@ -814,7 +814,7 @@ foreach (string sighting in new[] { "visible at start", "no sight", "support rea
     }
     p.EndAll();
 }
-(Plugin, BotComponent, CrossfireAction) BeginEntranceWatch()
+(Plugin, BotComponent, CrossfireAction) BeginEntranceWatch(bool shortApproach = false)
 {
     var (p, b, support) = Setup();
     b.Player.Environment = EnvironmentType.Indoor;
@@ -825,12 +825,74 @@ foreach (string sighting in new[] { "visible at start", "no sight", "support rea
     NavMesh.Route = null;
     var r = p.states[b].Crossfire;
     var entrance = r.Policy.Trace!.Entrance!;
+    if (shortApproach)
+        b.Position = r.Goal - new Vector3(3, 0, 0);
     var action = Start(p, b);
     b.Position = r.Goal;
     Step(18f - Time.time);
     action.Update(new());
     C(entrance.State == "watching" && r.Entrance.Policy.WatchAt == 18, "the watch starts at the side entrance");
     return (p, b, action);
+}
+foreach (string scenario in new[] { "crossed", "order refused", "foreign path", "renewal refused" })
+{
+    var (p, b, action) = BeginEntranceWatch(shortApproach: true);
+    var r = p.states[b].Crossfire;
+    var trace = r.Policy.Trace!;
+    var entrance = trace.Entrance!;
+    C(b.Mover.SprintOrders == 0 && !trace.SprintRequested, "the short approach to the watch position uses walking");
+    b.Position = r.Entrance.Center - r.Entrance.Normal * 2.5f;
+    b.Info.Personality = Personality.Chad;
+    Step(15.25f);
+    b.GoalEnemy!.TimeSinceLastKnownUpdated = 0;
+    var foreignPath = new BotPathDataManual { Destination = new(100, 0, 100) };
+    if (scenario == "foreign path")
+    {
+        b.Mover.ActivePath = foreignPath;
+        b.Mover.Observe = false;
+    }
+    b.Mover.Accept = scenario != "order refused";
+    int ordersBefore = b.Mover.Walks;
+    int traceOrdersBefore = trace.MoveOrders;
+    action.Update(new());
+    C(b.Mover.SprintOrders == 1 && b.Mover.Walks == ordersBefore + 1 && trace.MoveOrders == traceOrdersBefore + 1,
+        "the first entry order is exactly one sprint with no preceding walk");
+    C(trace.SprintRequested && !trace.SprintObserved && b.Mover.SprintRequiresCompletePath
+        && b.Mover.SprintUrgency == SAIN.Models.Enums.ESprintUrgency.High && b.Mover.SprintReach == .56f,
+        "the short crossing requests the source sprint parameters; actual speed remains observational");
+    if (scenario is "order refused" or "foreign path")
+    {
+        C(!r.Policy.Active && !entrance.Crossed, "an unexecuted order cannot confirm a crossing");
+        if (scenario == "foreign path")
+            C(ReferenceEquals(b.Mover.ActivePath, foreignPath) && foreignPath.Stops == 0, "entry cleanup preserves unrelated movement");
+        else
+            C(!trace.MoveAccepted, "the trace records a refused sprint");
+    }
+    else
+    {
+        C(r.Entrance.Entering && Math.Abs(Vector3.Distance(b.Position, r.Goal) - 5f) < .001f
+            && Vector3.Distance(b.Mover.ActivePath!.Destination, r.Goal) < .001f,
+            "SAIN received the point on the other side of the entrance");
+        Step(.75f);
+        action.Update(new());
+        C(b.Mover.Walks == ordersBefore + 1, "entry does not renew through exactly 0.75 seconds");
+        b.Mover.Accept = scenario != "renewal refused";
+        Step(.02f);
+        action.Update(new());
+        C(b.Mover.SprintOrders == 2 && b.Mover.Walks == ordersBefore + 2 && trace.MoveOrders == traceOrdersBefore + 2,
+            "the renewal requests a second sprint at short range");
+        if (scenario == "renewal refused")
+            C(!r.Policy.Active && !trace.MoveAccepted && !entrance.Crossed, "a refused renewal ends the crossing");
+        else
+        {
+            b.Position = r.Goal;
+            Step(.02f);
+            action.Update(new());
+            C(!r.Policy.Active && entrance.Crossed && trace.Reason == "secondary-entrance-crossed-and-reached"
+                && b.Mover.SprintOrders == 2, "arrival records the crossing and stops issuing orders");
+        }
+    }
+    p.EndAll();
 }
 foreach (string outcome in new[] { "upstairs", "radius boundary", "age boundary", "missing position", "under fire" })
 {

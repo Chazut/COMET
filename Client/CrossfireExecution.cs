@@ -252,6 +252,28 @@ public sealed partial class Plugin
         }
     }
 
+    private static bool IssueCrossfireMove(BotComponent b, CrossfireRuntime r, bool sprint)
+    {
+        var trace = r.Policy.Trace!;
+        r.NextMoveOrder = Time.time + .75f;
+        trace.MoveOrders++;
+        trace.SprintRequested = sprint;
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        bool accepted = sprint
+            ? b.Mover.RunToPoint(r.Goal, trace.Trade?.Choice != "push", .56f, SAIN.Models.Enums.ESprintUrgency.High)
+            : b.Mover.WalkToPoint(r.Goal, true, .56f);
+        trace.MoveOrderMilliseconds =
+            (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000d / System.Diagnostics.Stopwatch.Frequency;
+        trace.MoveAccepted = accepted;
+        if (accepted)
+        {
+            r.Path = b.Mover.ActivePath;
+            if (r.Path != null)
+                r.PathStarted = r.Path.TimeStarted;
+        }
+        return accepted;
+    }
+
     private void ExecuteCrossfire(BotComponent b, BotState s)
     {
         var r = s.Crossfire;
@@ -286,36 +308,15 @@ public sealed partial class Plugin
                 EndCrossfire(b, s, t.Reason);
                 return;
             }
-            if (t.State == "moving" && Time.time >= r.NextMoveOrder)
+            bool orderDue = r.Entrance.Entering ? Time.time > r.NextMoveOrder : Time.time >= r.NextMoveOrder;
+            if (t.State == "moving" && orderDue)
             {
-                r.NextMoveOrder = Time.time + .75f;
-                bool sprint =
-                    r.Policy.Trace?.Trade?.Choice == "push"
-                    || Vector3.ProjectOnPlane(r.Goal - b.Position, Vector3.up).magnitude > 8;
-                t.MoveOrders++;
-                t.SprintRequested = sprint;
-                long moveStarted = System.Diagnostics.Stopwatch.GetTimestamp();
-                bool accepted = sprint
-                    ? b.Mover.RunToPoint(
-                        r.Goal,
-                        r.Policy.Trace?.Trade?.Choice != "push",
-                        .56f,
-                        SAIN.Models.Enums.ESprintUrgency.High
-                    )
-                    : b.Mover.WalkToPoint(r.Goal, true, .56f);
-                t.MoveAccepted = accepted;
-                t.MoveOrderMilliseconds =
-                    (System.Diagnostics.Stopwatch.GetTimestamp() - moveStarted)
-                    * 1000d
-                    / System.Diagnostics.Stopwatch.Frequency;
-                if (!accepted)
+                bool sprint = r.Entrance.Entering || t.Trade?.Choice == "push" || t.DistanceToGoal > 8;
+                if (!IssueCrossfireMove(b, r, sprint))
                 {
                     EndCrossfire(b, s, "crossfire-noPath");
                     return;
                 }
-                r.Path = b.Mover.ActivePath;
-                if (r.Path != null)
-                    r.PathStarted = r.Path.TimeStarted;
             }
             if (t.State == "holding" && t.Entrance != null)
             {

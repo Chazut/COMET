@@ -550,13 +550,11 @@ public sealed partial class Plugin
             r.Length = (float)Length(cs);
             r.Samples.Clear();
             r.Samples.AddRange(cs);
-            if (!b.Mover.WalkToPointByWay(route, true, .3f, false) || b.Mover.ActivePath == null)
+            if (!IssueCrossfireMove(b, r, sprint: true))
             {
                 EndCrossfire(b, s, "secondary-entrance-native-entry-refused");
                 return;
             }
-            r.Path = b.Mover.ActivePath;
-            r.PathStarted = r.Path.TimeStarted;
             if (!OwnCrossfirePath(b, r))
             {
                 r.Path = null;
