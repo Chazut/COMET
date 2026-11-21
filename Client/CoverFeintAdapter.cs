@@ -119,7 +119,6 @@ public sealed partial class Plugin
         var r = s.CoverFeint;
         var e = b.GoalEnemy;
         var seen = e?.KnownPlaces.LastSeenPlace;
-        var mag = (b.Player.HandsController as Player.FirearmController)?.Item.GetCurrentMagazine();
         var known = e?.KnownPlaces.LastKnownPosition ?? b.Position;
         var f = new CoverFeintFrame
         {
@@ -138,7 +137,7 @@ public sealed partial class Plugin
             Bold = b.Info.PersonalitySettings.Rush.CanRushEnemyReloadHeal,
             Speed = b.Player.Velocity.magnitude,
             Grounded = b.Player.MovementContext.IsGrounded,
-            AmmoRatio = mag?.MaxCount > 0 ? (double)mag.Count / mag.MaxCount : 0,
+            AmmoRatio = TacticalAmmoPercent(b.BotOwner) / 100,
             Protected = r.Protected,
             Exposed = r.Exposed,
             AtGoal =

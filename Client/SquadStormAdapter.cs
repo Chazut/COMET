@@ -56,7 +56,7 @@ public sealed partial class Plugin
             return "storm-injured";
         if (b.Decision.CurrentSelfDecision != ESelfActionType.None)
             return "storm-self-action";
-        if (ManeuverAmmo(b) < c.MinimumAmmo)
+        if (TacticalAmmoPercent(b.BotOwner) < c.MinimumAmmo)
             return "storm-low-ammo";
         return b.BotOwner.BotsGroup == null ? "storm-no-squad" : "";
     }

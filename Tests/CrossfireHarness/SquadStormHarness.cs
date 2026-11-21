@@ -39,11 +39,14 @@ internal static class SquadStormHarness
             Expect(first, false, "a short " + status + " path");
         }
         path.PathToEnemyStatus = NavMeshPathStatus.PathComplete;
-        var magazine = first.BotOwner.WeaponManager.CurrentWeapon.Mag;
+        var gun = first.BotOwner.WeaponManager.CurrentWeapon;
+        var magazine = gun.Mag;
         magazine.Count = 13;
         first.Decision.SelfActionDecisions.AmmoRatio = 13f / 30;
         Expect(first, false, "13/30 is above the squad setting but below the native rush threshold");
+        settings.SquadStorm.MinimumAmmo = 50;
         magazine.Count = 14;
+        gun.ChamberAmmoCount = 1;
         first.Decision.SelfActionDecisions.AmmoRatio = (14f + 1) / 30;
         Expect(first, true, "exactly 50 percent including the chamber");
 
@@ -53,11 +56,13 @@ internal static class SquadStormHarness
         first.Decision.SelfActionDecisions.AmmoRatio = 14f / 30;
         Expect(first, false, "a cached join still needs enough native ammo");
         first.Decision.SelfActionDecisions.AmmoRatio = 1;
+        gun.ChamberAmmoCount = 0;
+        Expect(first, false, "the inner squad threshold also checks ammo on a cached join");
         magazine.Count = 30;
         Expect(first, true, "the same bot can rush again once eligible");
         second.Info.Personality = SAIN.Components.Personality.Coward;
         Expect(second, false, "an eligible teammate can decline the shared plan");
-        Console.WriteLine("S06 native rush admission: 8 checks passed.");
+        Console.WriteLine("S06 native rush admission: 9 checks passed.");
     }
 
     public static void Run()

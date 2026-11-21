@@ -428,12 +428,6 @@ public sealed partial class Plugin
         return b.GoalEnemy.TimeSinceLastKnownUpdated < 8 ? "ready" : "stale";
     }
 
-    private static double EntranceAmmo(BotComponent b)
-    {
-        var m = b.BotOwner.WeaponManager?.CurrentWeapon?.GetCurrentMagazine();
-        return m == null || m.MaxCount <= 0 ? 0 : m.Count * 100d / m.MaxCount;
-    }
-
     private bool ValidateEntranceActive(BotComponent b, BotState s, bool callback)
     {
         var a = s.Crossfire.Entrance;
@@ -448,7 +442,7 @@ public sealed partial class Plugin
             return false;
         }
         a.Policy.Trace!.SupportStatus = EntranceSupportStatus(b, s);
-        a.Policy.Trace.Ammo = EntranceAmmo(b);
+        a.Policy.Trace.Ammo = TacticalAmmoPercent(b.BotOwner);
         return true;
     }
 
@@ -505,7 +499,7 @@ public sealed partial class Plugin
                         a.Center
                     ) < 12,
                 t.SupportStatus,
-                EntranceAmmo(b),
+                TacticalAmmoPercent(b.BotOwner),
                 b.Info.Personality.ToString(),
                 t.Rolled ? t.EntryRoll / 100
                     : Time.time >= a.Policy.WatchAt + t.WatchDuration ? jumpRandom.NextDouble()

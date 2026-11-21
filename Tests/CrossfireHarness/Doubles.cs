@@ -270,7 +270,7 @@ namespace EFT
         public string ProfileId = "";
         public Memory Memory = new();
         public Medicine Medecine = new();
-        public Weapon WeaponManager = new();
+        public WeaponManager WeaponManager = new();
         public DoorOpener DoorOpener = new();
         public Patrol PatrollingData = new();
     }
@@ -314,24 +314,30 @@ namespace EFT
             MaxCount = 30;
     }
 
-    public class Gun
+    public class ShootController
     {
-        public Magazine Mag = new();
-
-        public Magazine GetCurrentMagazine() => Mag;
+        public EFT.InventoryLogic.Weapon? Item = new();
     }
 
-    public class Weapon
+    public class WeaponManager
     {
-        public Gun CurrentWeapon = new();
+        public ShootController? ShootController = new();
+        public EFT.InventoryLogic.Weapon CurrentWeapon => ShootController!.Item!;
         public bool HaveBullets = true;
-        public Reload Reload = new();
+        public Reload Reload;
         public Grenades Grenades = new();
+
+        public WeaponManager() => Reload = new(this);
     }
 
-    public class Reload
+    public class Reload(WeaponManager manager)
     {
         public bool Reloading;
+        private EFT.InventoryLogic.Weapon Item => manager.CurrentWeapon;
+        public int BulletCount => Item.ChamberAmmoCount + (Item.GetCurrentMagazine()?.Count ?? 0);
+        public int MaxBulletCount => Item.ReloadMode == EFT.InventoryLogic.Weapon.EReloadMode.OnlyBarrel
+            ? Item.ChamberCapacity
+            : Item.GetCurrentMagazine()!.MaxCount;
     }
 
     public class Grenades
@@ -1219,6 +1225,15 @@ namespace SAIN.SAINComponent.Classes.Mover
 
 namespace EFT.InventoryLogic
 {
+    public class Weapon
+    {
+        public enum EReloadMode { ExternalMagazine, OnlyBarrel }
+        public EReloadMode ReloadMode;
+        public int ChamberAmmoCount, ChamberCapacity;
+        public EFT.Magazine Mag = new();
+        public EFT.Magazine? GetCurrentMagazine() => Mag;
+    }
+
     public class MedKitClass
     {
         public string Id = "kit";

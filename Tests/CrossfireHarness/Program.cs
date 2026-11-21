@@ -19,6 +19,7 @@ void C(bool ok, string why)
 SquadGrenadeHarness.Run();
 SiegeHarness.Run();
 SquadStormHarness.CheckRushAdmission();
+TacticalAmmoTests.Run();
 void Step(float dt = .02f)
 {
     Time.time += dt;

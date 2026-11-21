@@ -88,7 +88,7 @@ public sealed partial class Plugin
             MateName = loss.Name,
             DeathAge = Time.time - loss.At,
             Delay = loss.ReadyAt - loss.At,
-            Ammo = Math.Max(0, Math.Min(100, ManeuverAmmo(b))),
+            Ammo = Math.Max(0, Math.Min(100, TacticalAmmoPercent(b.BotOwner))),
         };
         t.Support = loss.Mate;
         t.SupportName = loss.Name;

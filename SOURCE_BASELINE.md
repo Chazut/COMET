@@ -14,6 +14,15 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### Chambered rounds in tactical decisions
+
+S02 entry, S03 flank and support roles, the S06 squad ammo threshold and the
+M14 magazine feint use EFT's loaded-round count and capacity like remix 7.6.
+A round in the chamber counts toward the threshold. Weapons loaded directly
+into their chambers use their chamber capacity. A missing detachable magazine
+or zero capacity gives a ratio of zero. A full magazine plus one chambered
+round can exceed 100% and remains eligible for M14.
+
 ### S06 squad assault admission
 
 In remix 7.6, `shallRushEnemy` checks for a complete path to the enemy and

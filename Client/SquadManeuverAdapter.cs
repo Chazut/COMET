@@ -15,12 +15,6 @@ public sealed partial class Plugin
 
     private static string ManeuverGroup(BotComponent b) => SquadMemberIdentity.Get(b.Squad.Members);
 
-    private static double ManeuverAmmo(BotComponent b)
-    {
-        var mag = b.BotOwner.WeaponManager.CurrentWeapon?.GetCurrentMagazine();
-        return mag == null || mag.MaxCount <= 0 ? 0 : 100d * mag.Count / mag.MaxCount;
-    }
-
     private string ManeuverRearContact(BotComponent b, Vector3 known, out Vector3 rear)
     {
         rear = default;
@@ -101,7 +95,7 @@ public sealed partial class Plugin
                 double md = Vector3.Distance(mate.Position, mk.Value);
                 if (md < c.MinDistance || md > c.MaxDistance)
                     continue;
-                double ammo = ManeuverAmmo(mate);
+                double ammo = TacticalAmmoPercent(mate.BotOwner);
                 if (ammo <= 0)
                     continue;
                 candidates.Add(

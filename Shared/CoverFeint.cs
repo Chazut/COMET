@@ -229,7 +229,6 @@ public sealed class CoverFeintPolicy
             || !DoorPolicy.Finite(f.Heard)
             || !DoorPolicy.Finite(f.AmmoRatio)
             || f.AmmoRatio < 0
-            || f.AmmoRatio > 1
             || !f.Position.Finite
             || !f.Known.Finite
             || f.Target.Length == 0

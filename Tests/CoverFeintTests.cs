@@ -54,6 +54,12 @@ internal static class CoverFeintTests
             };
         var c = new CoverFeintConfig();
         c.Validate();
+        var fullPlusChamber = F();
+        fullPlusChamber.AmmoRatio = 31f / 30;
+        var fullyLoadedFeint = new CoverFeintPolicy();
+        Check(fullyLoadedFeint.Begin(fullPlusChamber, new CoverFeintConfig { BaitPeek = false }, () => 0)
+            && fullyLoadedFeint.Trace!.Kind == "magazine",
+            "a full magazine plus chamber still permits a fake reload");
         CoverFeintTrace ChooseAt25m(double shotAt = -1, bool mate = false, bool coming = false)
         {
             var frame = F(20);
@@ -850,6 +856,9 @@ internal static class CoverFeintTests
                 && Calls(pe, md, Method("FeintFrame"), "MateEngaging") == 1
                 && Calls(pe, md, Method("FeintFrame"), "IsCloserStep") == 1,
                 "shipped selector uses directed fire, squad sight and the last personal sound");
+            foreach (var method in new[] { "ValidateEntranceActive", "ExecuteEntrance", "TryBeginManeuver", "StormBlock", "FeintFrame" })
+                Check(Calls(pe, md, Method(method), "TacticalAmmoPercent") == 1,
+                    method + " reads the same chamber-inclusive ammunition count");
             Check(
                 Calls(pe, md, Method("RefreshFeint"), "RemainingRelocationRoute") == 0
                     && Calls(pe, md, Method("RefreshFeint"), "FeintRouteClear") == 0,
