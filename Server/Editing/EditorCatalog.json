@@ -1198,8 +1198,8 @@
       "Simple": false
     },
     "SecondaryEntrance.WatchMin": {
-      "Label": "Minimum watch time",
-      "Help": "",
+      "Label": "Minimum squad siege wait",
+      "Help": "The shortest wait for a squad covering all exits during a siege.",
       "Min": 1.0,
       "Max": 30.0,
       "Scale": 1,
@@ -1208,8 +1208,8 @@
       "Unit": "s"
     },
     "SecondaryEntrance.WatchMax": {
-      "Label": "Maximum watch time",
-      "Help": "",
+      "Label": "Secondary entrance watch time",
+      "Help": "How long a bot watches after reaching the other entrance before checking the enemy's last known position. Also used to calculate squad siege duration.",
       "Min": 1.0,
       "Max": 30.0,
       "Scale": 1,

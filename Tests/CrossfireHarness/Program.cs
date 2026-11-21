@@ -814,6 +814,49 @@ foreach (string sighting in new[] { "visible at start", "no sight", "support rea
     }
     p.EndAll();
 }
+foreach (string outcome in new[] { "upstairs", "radius boundary", "age boundary", "missing position", "under fire" })
+{
+    var (p, b, support) = Setup();
+    b.Player.Environment = EnvironmentType.Indoor;
+    b.GoalEnemy!.KnownPlaces.LastKnownPosition = support.GoalEnemy!.EnemyPosition = new(0, 0, 22);
+    var side = new Vector3(4, 0, 22);
+    NavMesh.Route = (from, to) => [from, from == support.Position ? new(0, 0, 18) : side, to];
+    Plan(p, b);
+    NavMesh.Route = null;
+    var r = p.states[b].Crossfire;
+    var entrance = r.Policy.Trace!.Entrance!;
+    var action = Start(p, b);
+    b.Position = r.Goal;
+    Step(18f - Time.time);
+    action.Update(new());
+    C(entrance.State == "watching" && r.Entrance.Policy.WatchAt == 18, "the watch starts at the side entrance");
+    Step(1);
+    b.GoalEnemy.TimeSinceLastKnownUpdated = 16;
+    b.GoalEnemy.KnownPlaces.LastKnownPosition = outcome == "missing position" ? null : side + new Vector3(20, 0, 0);
+    b.BotOwner.Memory.IsUnderFire = outcome == "under fire";
+    action.Update(new());
+    if (outcome == "under fire")
+        C(!r.Policy.Active && r.Policy.Trace.Reason == "crossfire-under-fire", "incoming fire still interrupts the watch");
+    else
+    {
+        C(r.Policy.Active && !entrance.Rolled, "losing room evidence one second after arrival does not end the watch");
+        Step(14);
+        b.GoalEnemy.TimeSinceLastKnownUpdated = 15;
+        action.Update(new());
+        C(r.Policy.Active && !entrance.Rolled && entrance.WatchRemaining == 0, "hold through exactly fifteen seconds");
+        Step(.02f);
+        b.GoalEnemy.TimeSinceLastKnownUpdated = outcome == "age boundary" ? 15 : 14.99f;
+        b.GoalEnemy.KnownPlaces.LastKnownPosition = outcome == "missing position" ? null
+            : side + new Vector3(outcome == "radius boundary" ? 12 : 11, 6, 0);
+        action.Update(new());
+        if (outcome == "upstairs")
+            C(r.Policy.Active && r.Entrance.Entering && entrance.Rolled, "fresh contact 11 m away horizontally and 6 m above qualifies");
+        else
+            C(!r.Policy.Active && !entrance.Rolled && entrance.EntryReason == "enemy no longer believed inside",
+                "room evidence rejected at expiry: " + outcome);
+    }
+    p.EndAll();
+}
 foreach (var (age, mateSees, indoors, maneuverAge, crossfireAge, expected) in new[]
 {
     (15f, true, false, 10, 20, "S01"),

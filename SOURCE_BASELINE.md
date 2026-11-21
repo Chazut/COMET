@@ -56,6 +56,13 @@ Indoors, an S03 flanker searches for an angle on its last known enemy position
 using the center of the supporting members as its reference. Only ordinary
 crossfire searches for a secondary entrance (S02) when a teammate sees the target.
 
+S02 starts its initial watch on arrival, for the preset's `WatchMax` (15 seconds
+by default). The first update past the watch deadline checks whether the last
+known enemy position is less than 15 seconds old and less than 12 m horizontally
+from the doorway. The next room check after an extension is at its expiry.
+Ordinary combat interruptions still release the bot during the watch.
+`WatchMin` remains the lower bound for S11 squad siege duration.
+
 Incoming fire blocks a PMC's own attempt to start S03. A teammate forming the
 plan can still assign that PMC a role. The PMC can take the role once the fire
 lets up. During an active role, support and rear guards hold under fire and

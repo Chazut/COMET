@@ -73,25 +73,35 @@ internal static class SecondaryEntranceTests
         );
         {
             var p = new SecondaryEntrance();
-            C(p.Begin("enemy", 10, 9, 0, c), "begin");
+            C(p.Begin("enemy", 10, 9, c), "begin");
             p.Arrived(12);
             C(
-                p.Trace!.WatchDuration == 10
-                    && p.Decide(21.99, true, "ready", 100, "Chad", 0, c) == "wait"
+                p.Trace!.WatchDuration == 15
+                    && p.Decide(13, false, "stale", 100, "Chad", 0, c) == "wait"
+                    && p.Trace.WatchRemaining == 14
+                    && p.Decide(27, false, "ready", 100, "Chad", 0, c) == "wait"
                     && !p.Trace.Rolled,
-                "wait before roll"
+                "contact evidence does not end the initial watch, including at exactly its deadline"
             );
             C(
-                p.Decide(22, true, "ready", 100, "Chad", 0, c) == "ready" && p.Trace.Rolled,
-                "ready after actual arrival"
+                p.Decide(27.01, true, "ready", 100, "Chad", 0, c) == "ready" && p.Trace.Rolled,
+                "first update past the deadline uses the current evidence"
             );
-            p.End(23);
+            p.End(28);
             C(
-                !p.CanTry("enemy", 52, 40, c)
+                !p.CanTry("enemy", 57, 40, c)
                     && p.CanTry("enemy", 100, 9, c)
-                    && p.CanTry("enemy", 53, 10, c),
+                    && p.CanTry("enemy", 58, 10, c),
                 "cooldown without new-evidence veto"
             );
+        }
+        foreach (double oldRoll in new[] { 0d, .5d, 1d })
+        {
+            var p = new SecondaryEntrance();
+            var preset = JsonSerializer.Deserialize<SecondaryEntranceConfig>("""{"WatchMin":4,"WatchMax":18}""")!;
+            preset.Validate();
+            C(p.Begin("e", 1, 1, oldRoll, preset) && p.Trace!.WatchDuration == 18,
+                "existing presets and callers use their configured duration for every watch");
         }
         foreach (
             var why in new[]
@@ -108,7 +118,7 @@ internal static class SecondaryEntranceTests
             p.Begin("e", 1, 1, 1, c);
             p.Arrived(2);
             C(
-                p.Decide(17, true, why, 100, "GigaChad", 0, c) == "ready",
+                p.Decide(17.01, true, why, 100, "GigaChad", 0, c) == "ready",
                 "busy partner does not veto entry"
             );
         }
@@ -116,10 +126,13 @@ internal static class SecondaryEntranceTests
             var p = new SecondaryEntrance();
             p.Begin("e", 1, 1, 0, c);
             p.Arrived(2);
-            p.Decide(12, true, "reloading", 100, "Chad", 0, c);
+            C(p.Decide(18, true, "ready", 40, "Chad", 0, c) == "wait" && p.Trace!.Extended,
+                "low ammunition starts one extra watch at the first decision");
             C(
-                p.Decide(13, true, "ready", 50, "Chad", 1, c) == "ready",
-                "partner recovered within extension"
+                p.Decide(19, false, "stale", 50, "Chad", 1, c) == "wait"
+                    && p.Decide(33, false, "ready", 50, "Chad", 1, c) == "wait"
+                    && p.Decide(33.01, true, "ready", 50, "Chad", 1, c) == "ready",
+                "only reconsider at the end of the extra watch, including a late first update"
             );
         }
         foreach (
@@ -141,7 +154,7 @@ internal static class SecondaryEntranceTests
             p.Begin("e", 1, 1, 0, c);
             p.Arrived(2);
             C(
-                (p.Decide(12, true, "ready", 50, personality, roll, c) == "ready")
+                (p.Decide(17.01, true, "ready", 50, personality, roll, c) == "ready")
                     == (roll * 100 < c.Chance(personality)),
                 "exact chance boundary " + personality
             );
@@ -157,7 +170,7 @@ internal static class SecondaryEntranceTests
             if (mode == "toggle")
                 cfg.AllowEntry = false;
             var result = p.Decide(
-                mode == "clock" ? 1 : 12,
+                mode == "clock" ? 1 : 17.01,
                 mode != "stale",
                 "ready",
                 mode == "ammo" ? 49 : 50,

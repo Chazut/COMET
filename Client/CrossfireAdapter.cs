@@ -145,11 +145,12 @@ public sealed partial class Plugin
         )
             return "crossfire-out-of-scope";
         var e = b.GoalEnemy;
+        var known = e?.KnownPlaces.LastKnownPosition;
+        bool watchingEntrance = s.Crossfire.Policy.Trace is { State: "holding", Entrance: not null };
         if (
             e == null
             || !e.EnemyKnown
-            || e.KnownPlaces.LastKnownPosition is not Vector3 known
-            || !ValidPoint(known)
+            || !watchingEntrance && (!known.HasValue || !ValidPoint(known.Value))
         )
             return "crossfire-no-known-contact";
         bool supporting =
@@ -178,7 +179,7 @@ public sealed partial class Plugin
             return "crossfire-contact-stale";
         if (
             !maneuver && !s.Crossfire.Policy.Active
-            && Vector3.ProjectOnPlane(known - b.Position, Vector3.up).magnitude > config.Crossfire.EnemyDistance
+            && Vector3.ProjectOnPlane(known!.Value - b.Position, Vector3.up).magnitude > config.Crossfire.EnemyDistance
         )
             return "crossfire-enemy-too-far";
         if (s.Crossfire.Policy.Active && e.EnemyProfileId != s.Crossfire.Contact)

@@ -91,7 +91,8 @@ public sealed class SecondaryEntrance
     public SecondaryEntranceTrace? Trace { get; private set; }
     public double WatchAt { get; private set; }
     private string target = "";
-    private double evidence,
+    private double watchUntil,
+        evidence,
         last = -1;
 
     public bool CanTry(string id, double now, double info, SecondaryEntranceConfig c) =>
@@ -103,13 +104,11 @@ public sealed class SecondaryEntrance
         && !string.IsNullOrEmpty(id)
         && (!attempts.TryGetValue(id, out var a) || now >= a.At + c.Retry);
 
-    public bool Begin(
-        string id,
-        double now,
-        double info,
-        double watchRoll,
-        SecondaryEntranceConfig c
-    )
+    // Older callers supplied a random draw for the initial watch.
+    public bool Begin(string id, double now, double info, double watchRoll, SecondaryEntranceConfig c) =>
+        Begin(id, now, info, c);
+
+    public bool Begin(string id, double now, double info, SecondaryEntranceConfig c)
     {
         if (!CanTry(id, now, info, c))
             return false;
@@ -117,7 +116,7 @@ public sealed class SecondaryEntrance
         evidence = info;
         last = now;
         attempts[id] = new() { At = now, Evidence = info };
-        Trace = new() { WatchDuration = c.WatchMin + (c.WatchMax - c.WatchMin) * Clamp(watchRoll) };
+        Trace = new() { WatchDuration = c.WatchMax };
         WatchAt = -1;
         return true;
     }
@@ -130,9 +129,12 @@ public sealed class SecondaryEntrance
         if (Trace == null || WatchAt >= 0)
             return;
         WatchAt = last = now;
+        watchUntil = now + Trace.WatchDuration;
         Trace.State = "watching";
         Trace.WatchRemaining = Trace.WatchDuration;
     }
+
+    internal bool WatchElapsed(double now) => WatchAt >= 0 && now > watchUntil;
 
     // ready / wait / end. One entry roll even if the partner is temporarily occupied.
     public string Decide(
@@ -148,22 +150,24 @@ public sealed class SecondaryEntrance
         var t = Trace;
         if (t == null || WatchAt < 0)
             return "wait";
-        if (!MedicalChoice.Finite(now) || now < last || !c.Enabled || !fresh)
+        if (!MedicalChoice.Finite(now) || now < last || !c.Enabled)
         {
-            if (t != null)
-                t.EntryReason = "contact expired or scope lost";
+            t.EntryReason = "clock reset or feature disabled";
             return "end";
         }
         last = now;
         t.SupportStatus = partner;
         t.Ammo = MedicalChoice.Finite(ammo) ? Math.Max(0, Math.Min(100, ammo)) : 0;
-        t.WatchRemaining = Math.Max(
-            0,
-            WatchAt + t.WatchDuration + (t.Extended ? c.Extension : 0) - now
-        );
-        if (now < WatchAt + t.WatchDuration)
+        t.WatchRemaining = Math.Max(0, watchUntil - now);
+        if (!WatchElapsed(now))
             return "wait";
-        if (!t.Rolled)
+        if (!fresh)
+        {
+            t.EntryReason = "enemy no longer believed inside";
+            return "end";
+        }
+        bool firstDecision = !t.Rolled;
+        if (firstDecision)
         {
             t.Rolled = true;
             t.EntryRoll = Clamp(roll) * 100;
@@ -180,12 +184,13 @@ public sealed class SecondaryEntrance
             : !selected ? "personality keeps watch"
             : partner == "injured" ? "self injured"
             : "insufficient loaded ammunition";
-        if (!t.Extended && c.Extension > 0 && partner != "stale")
+        if (firstDecision && c.Extension > 0)
         {
-            t.Extended = true;
-            t.WatchRemaining = Math.Max(0, WatchAt + t.WatchDuration + c.Extension - now);
+            t.Extended = partner != "stale";
+            watchUntil = (t.Extended ? now : watchUntil) + c.Extension;
+            t.WatchRemaining = Math.Max(0, watchUntil - now);
         }
-        return now < WatchAt + t.WatchDuration + c.Extension ? "wait" : "end";
+        return now < watchUntil ? "wait" : "end";
     }
 
     public void End(double now, double? latestEvidence = null)

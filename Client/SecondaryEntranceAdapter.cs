@@ -68,10 +68,8 @@ public sealed partial class Plugin
         r.Policy.Trace!.Entrance = null;
         if (!r.Indoor)
             return DeclineSquad(s, "S02", "entrance-outdoors-use-crossfire");
-        if (!a.Policy.CanTry(r.Contact, Time.time, r.ContactAt, c))
+        if (!a.Policy.Begin(r.Contact, Time.time, r.ContactAt, c))
             return DeclineSquad(s, "S02", "entrance-disabled-stale-or-retry");
-        if (!a.Policy.Begin(r.Contact, Time.time, r.ContactAt, jumpRandom.NextDouble(), c))
-            return DeclineSquad(s, "S02", "entrance-participation-declined");
         r.Policy.Trace.Entrance = a.Policy.Trace;
         a.Started = Time.time;
         a.Calculations = 0;
@@ -491,19 +489,18 @@ public sealed partial class Plugin
         {
             a.Policy.Arrived(Time.time);
             t.State = "watching";
+            var enemy = b.GoalEnemy;
+            bool stillInside = a.Policy.WatchElapsed(Time.time)
+                && enemy.TimeSinceLastKnownUpdated < 15f
+                && enemy.KnownPlaces.LastKnownPosition is Vector3 known
+                && Vector3.ProjectOnPlane(known - a.Center, Vector3.up).sqrMagnitude < 12f * 12f;
             string choice = a.Policy.Decide(
                 Time.time,
-                b.GoalEnemy.TimeSinceLastKnownUpdated < 15
-                    && Vector3.Distance(
-                        b.GoalEnemy.KnownPlaces.LastKnownPosition ?? r.Known,
-                        a.Center
-                    ) < 12,
+                stillInside,
                 t.SupportStatus,
-                TacticalAmmoPercent(b.BotOwner),
+                t.Ammo,
                 b.Info.Personality.ToString(),
-                t.Rolled ? t.EntryRoll / 100
-                    : Time.time >= a.Policy.WatchAt + t.WatchDuration ? jumpRandom.NextDouble()
-                    : 0,
+                stillInside && !t.Rolled ? jumpRandom.NextDouble() : 0,
                 c
             );
             if (choice == "end")
