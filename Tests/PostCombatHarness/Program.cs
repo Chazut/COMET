@@ -656,17 +656,50 @@ foreach (bool available in new[] { true, false })
     C(!l.IsActive(), "after long medicine routine yields");
     Save(p);
 }
+foreach (bool alreadyReloading in new[] { false, true })
 {
-    var (_, b, layer, action) = Setup();
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    var reload = b.BotOwner.WeaponManager.Reload;
+    var hands = (Player.FirearmController)b.Player.HandsController;
+    hands.Item.Magazine.Count = 5;
+    reload.Reloading = alreadyReloading;
+    int requests = alreadyReloading ? 0 : 1;
+    Step(13.5f);
+    C(layer.IsActive(), "a late reload is eligible inside the ordinary window");
+    action.Start();
+    Step(.4375f);
+    action.Update(new());
+    var r = p.states[b].PostCombat;
+    C(r.Layer && reload.Reloading && reload.Requests == requests, "keep the native reload before the deadline");
+    C(r.Policy.Trace!.Remaining == .0625, "a reload alone reports only the remaining ordinary time");
+    Step(.0625f);
+    if (alreadyReloading) action.OnSteeringTicked();
+    else action.Update(new());
+    C(!r.Layer && !r.Policy.Active && !Api.Decisions.Recovery.ContainsKey(b.ProfileId),
+        "a reload alone cannot keep control at exactly fourteen seconds");
+    var end = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last());
+    C((string?)end["reason"] == Comet.Core.PostCombat.OrdinaryWindowExpired
+        && (double?)end["postCombat"]?["secondsSinceCombat"] == 14
+        && (double?)end["postCombat"]?["remaining"] == 0 && (bool?)end["postCombat"]?["reloading"] == true,
+        "ordinary end telemetry shows the native reload is still in progress");
+    action.Stop();
+    Step(1);
+    C(!layer.IsActive() && reload.Reloading && reload.Requests == requests
+        && ReferenceEquals(hands, b.Player.HandsController) && hands.Item.Magazine.Count == 5,
+        "releasing H04 neither cancels nor restarts the original reload");
+    Physics.BlocksSightTo = null;
+}
+{
+    var (p, b, layer, _) = Setup();
     var reload = b.BotOwner.WeaponManager.Reload;
     reload.Reloading = true;
-    Step(59.5f);
-    C(layer.IsActive(), "pending native reload can keep recovery up to the combat deadline");
-    action.Start();
-    Step(.5f);
-    action.Stop();
+    Step(14);
+    C(!layer.IsActive() && p.states[b].PostCombat.Policy.Trace == null,
+        "a first poll on the ordinary deadline cannot start H04 for an existing reload");
+    Step(45.5f);
     C(!layer.IsActive() && reload.Reloading && reload.Requests == 0,
-        "release at the deadline leaves the pending native reload alone");
+        "a late poll at 59.5 seconds still leaves the externally owned reload alone");
 }
 foreach (bool bhf in new[] { false, true })
 {

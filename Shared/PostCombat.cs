@@ -144,7 +144,7 @@ public sealed class PostCombat
     internal double OrdinaryDeadline(PostCombatConfig c) => LastFight + c.Duration;
 
     internal bool QuietWindowExpired(PostCombatFrame f, PostCombatConfig c) =>
-        f.Now >= OrdinaryDeadline(c) && !f.Heard && !f.MedicalBusy && !f.MedicalUseful && !f.Reloading;
+        f.Now >= OrdinaryDeadline(c) && !f.Heard && !f.MedicalBusy && !f.MedicalUseful;
 
     public void ObserveFight(double now)
     {
@@ -228,8 +228,6 @@ public sealed class PostCombat
         t.WatchRemaining = Math.Min(windowLeft, Math.Max(0, watchUntil - f.Now));
         double ordinaryLeft = OrdinaryDeadline(c) - f.Now;
         double budget = f.MedicalUseful || f.MedicalBusy ? c.MedicalDuration - t.Elapsed : ordinaryLeft;
-        if (f.Reloading)
-            budget = windowLeft;
         if (f.Heard)
             budget = Math.Max(budget, t.WatchRemaining);
         t.Remaining = Math.Min(windowLeft, Math.Max(0, budget));

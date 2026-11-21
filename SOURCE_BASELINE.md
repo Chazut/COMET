@@ -323,9 +323,10 @@ has 6 seconds left. A late first poll cannot start ordinary work after the
 deadline. H04 samples sound and medical activity at the boundary before releasing
 the route. Its events distinguish the episode's actual `elapsed` time from the
 combat-relative `secondsSinceCombat` and the available `remaining` time.
-The recovery window ends 60 seconds after the last combat-layer observation, even
-with repeated sounds, active treatment or a reload. H04 releases control and lets
-native operations finish. Its end event records the reason and `secondsSinceCombat`.
+A native reload alone uses the ordinary window. When it expires, H04 releases
+control and the native reload continues. Its end event records `reloading` and
+`secondsSinceCombat`. Sound or medical work can extend recovery up to 60 seconds
+from the last combat-layer observation, including while a reload is in progress.
 
 H04 can request one native top-up on the same update that orders a move to
 cover. An existing reload can continue on the way. Active treatment suspends
