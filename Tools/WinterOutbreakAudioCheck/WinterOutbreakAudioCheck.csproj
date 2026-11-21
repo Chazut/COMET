@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <SptRoot Condition="'$(SptRoot)' == ''">C:\Games\SPT-4.1</SptRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="0Harmony" HintPath="$(SptRoot)/BepInEx/core/0Harmony.dll" Private="false" />
+  </ItemGroup>
+</Project>

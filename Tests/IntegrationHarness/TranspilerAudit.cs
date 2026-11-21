@@ -69,6 +69,12 @@ static class TranspilerAudit
                 e
             );
         }
+        if (transpiler.Name == "MovementAudioTranspiler")
+        {
+            CheckMovementPlayback(target, before, after);
+            Console.WriteLine($"  IL OK ({variant}): movement hearing preserves playback on {target.Name}");
+            return;
+        }
         foreach (var original in before)
         {
             var label = original.labels.Single();
@@ -212,6 +218,40 @@ static class TranspilerAudit
             code[i - 1].opcode == OpCodes.Ldarg_1 && code[i].LoadsConstant(seek) && code[i + 1].opcode == OpCodes.Stind_I4);
         if (!stores.SequenceEqual(new[] { code.Count - 4 }) || code[^2].opcode != OpCodes.Ldc_I4_1 || code[^1].opcode != OpCodes.Ret)
             throw new Exception("Official SAIN no longer returns SeekCover solely as the final default.");
+    }
+
+    static void CheckMovementPlayback(MethodBase target, CodeInstruction[] before, CodeInstruction[] after)
+    {
+        var observer = after.Single(i => i.operand is MethodInfo { Name: "MovementAudioPlayed" } m &&
+            m.DeclaringType == typeof(Comet.Client.Plugin));
+        var calls = Read((MethodInfo)observer.operand).Select(i => i.operand).OfType<MethodInfo>().ToArray();
+        if (calls.Count(m => m.Name == "CaptureMovement") != 1 || calls.Any(m => m.Name == "Play"))
+            throw new Exception("The movement observer must report the sound once without playing it again.");
+        int end = Array.IndexOf(after, observer);
+        int play = end - 4;
+        var weather = before.Single(i => i.operand is MethodInfo m && m.Name == "Play" &&
+            m.DeclaringType == typeof(Audio.AudioWeatherSystem.IPlayerStepAudioController));
+        if (play < 0 || !Equals(after[play].operand, weather.operand))
+            throw new Exception("The COMET observer must immediately follow the original weather playback.");
+
+        string[] expected = target.Name switch
+        {
+            "DefaultPlay" => ["ldarg.0", "ldarg.3", "ldarg.2"],
+            "PlayStepSound" => ["ldarg.0", "ldloc.1", "ldloc 7"],
+            "MoveNext" => ["ldloc.1", "ldc.i4.2", "ldloc 7"],
+            _ => throw new Exception("Unexpected movement target: " + target)
+        };
+        var loads = after[(play + 1)..end];
+        var actual = loads.Select(i => i.opcode == OpCodes.Ldloc || i.opcode == OpCodes.Ldloc_S
+            ? "ldloc " + i.operand : i.opcode.Name);
+        if (!expected.SequenceEqual(actual) || after[(play + 1)..(end + 1)].Any(i => i.labels.Count != 0 || i.blocks.Count != 0))
+            throw new Exception("Wrong player, movement, volume or alternate entry point on " + target);
+
+        var preserved = after.Take(play + 1).Concat(after.Skip(end + 1)).ToArray();
+        if (preserved.Length != before.Length || !before.Zip(preserved).All(pair =>
+            pair.First.opcode == pair.Second.opcode && Equals(pair.First.operand, pair.Second.operand) &&
+            pair.First.labels.SequenceEqual(pair.Second.labels) && pair.First.blocks.SequenceEqual(pair.Second.blocks)))
+            throw new Exception("COMET changed EFT playback or its control flow on " + target);
     }
 
     static List<CodeInstruction> Read(MethodBase method)

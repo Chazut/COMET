@@ -171,50 +171,40 @@ public sealed partial class Plugin
         MethodBase __originalMethod
     )
     {
-        var call = AccessTools.Method(typeof(IPlayerStepAudioController), "Play");
-        var wrapper = AccessTools.Method(typeof(Plugin), nameof(MovementAudioPlayed));
-        var owner =
-            __originalMethod.DeclaringType == typeof(Player)
-                ? null
-                : __originalMethod
-                    .DeclaringType!.GetFields(
-                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-                    )
-                    .Single(f => f.FieldType == typeof(Player));
-        int matches = 0;
-        foreach (var instruction in instructions)
-        {
-            if (!instruction.Calls(call))
-            {
-                yield return instruction;
-                continue;
-            }
-            matches++;
-            instruction.opcode = OpCodes.Ldarg_0;
-            instruction.operand = null; // Preserve branch labels / exception boundaries.
-            yield return instruction;
-            if (owner != null)
-                yield return new CodeInstruction(OpCodes.Ldfld, owner);
-            yield return new CodeInstruction(OpCodes.Call, wrapper);
-        }
-        if (matches != 1)
-            throw new InvalidOperationException(
-                "P01 audio hook changed: " + __originalMethod + ", matches=" + matches
-            );
+        var code = instructions.ToList();
+        var controller = AccessTools.Field(typeof(Player), "_specificStepAudioController");
+        var distance = AccessTools.PropertyGetter(typeof(Player), nameof(Player.Distance));
+        var play = AccessTools.Method(typeof(IPlayerStepAudioController), "Play");
+        int receiver = code.FindIndex(i => i.LoadsField(controller));
+        int distanceRead = code.FindIndex(receiver + 1, i => i.Calls(distance));
+        // Winter Outbreak can already have replaced Play with a static wrapper taking the
+        // same receiver. Leave both playback calls intact, whichever mod patches first.
+        int playback = code.FindIndex(distanceRead + 1, i =>
+            i.Calls(play) || (i.opcode == OpCodes.Call && i.operand is MethodInfo method
+                && method.IsStatic && method.ReturnType == typeof(void)
+                && method.GetParameters().FirstOrDefault()?.ParameterType == typeof(IPlayerStepAudioController)));
+        if (receiver < 1 || distanceRead <= receiver + 1 || playback <= distanceRead + 1)
+            throw new InvalidOperationException("P01 audio playback site changed: " + __originalMethod);
+
+        // Replay only EFT's plain argument/local/constant loads. In particular, the volume
+        // here already includes EFT's movement scaling and the owner can be an iterator local.
+        var loads = new[] { code[receiver - 1], code[receiver + 1], code[distanceRead + 1] };
+        static bool IsValueLoad(CodeInstruction i) => i.IsLdarg() || i.LoadsConstant() ||
+            i.opcode.Name is "ldloc" or "ldloc.s" or "ldloc.0" or "ldloc.1" or "ldloc.2" or "ldloc.3";
+        if (!loads.All(IsValueLoad))
+            throw new InvalidOperationException("P01 audio argument loads changed: " + __originalMethod);
+        var observer = AccessTools.Method(typeof(Plugin), nameof(MovementAudioPlayed));
+        code.InsertRange(playback + 1,
+            loads.Select(i => new CodeInstruction(i.opcode, i.operand)).Append(new CodeInstruction(OpCodes.Call, observer)));
+        return code;
     }
 
     private static void MovementAudioPlayed(
-        IPlayerStepAudioController controller,
+        Player player,
         EAudioMovementState movement,
-        EnvironmentType environment,
-        float distance,
-        float volume,
-        float speed,
-        bool firstPerson,
-        Player player
+        float volume
     )
     {
-        controller.Play(movement, environment, distance, volume, speed, firstPerson);
         var p = Instance;
         if (p == null)
             return;
