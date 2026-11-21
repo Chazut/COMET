@@ -7,7 +7,8 @@
 - **Feints:** Watch for the second peek. A PMC can pull back, change sides and peek at a different height. During a fake reload, it watches the last visible spot on your approach.
 - **Grenades & healing:** Bots try lower throws through doorways and favor shorter fuses up close. Personality affects whether a PMC hesitates over routine healing.
 - **After a fight:** PMCs can watch the last threat, turn towards a sound or reload on the move while catching up with their leader.
-- **Fixes:** Ammo checks count the chambered round, bots stop peeking if SAIN refuses the move, and seasonal footstep sounds play correctly.
+- **Fixes:** Ammo checks count the chambered round, and bots stop peeking if SAIN refuses the move.
+- @harmony your Winter Outbreak snow footsteps now play correctly with COMET ❄️
 
 **Raid Review | Since RC2**
 - Squad replays show when nobody took the flank, and how a survivor reacted when the squad identified a fallen teammate's attacker.
