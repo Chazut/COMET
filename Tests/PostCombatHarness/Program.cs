@@ -690,6 +690,110 @@ foreach (bool bhf in new[] { false, true })
     C(!layer.IsActive() && surgery.Cancels == 0, "native completion releases H04, BHF=" + bhf);
     Physics.BlocksSightTo = null;
 }
+foreach (bool firstAid in new[] { true, false })
+foreach (bool alreadyFollowing in new[] { false, true })
+{
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    b.Squad.IAmLeader = false;
+    b.Squad.LeaderComponent = new() { Position = new(40, 0, 0) };
+    SAIN.SAINEnableClass.Bots[b.ProfileId] = b;
+    C(layer.IsActive(), "quiet follower starts recovery before a heal is requested");
+    var r = p.states[b].PostCombat;
+    if (alreadyFollowing)
+    {
+        action.Start();
+        Step(.25f);
+    }
+    var originalPath = (BotPathDataManual?)r.Path;
+    var sain = b.SelfActions;
+    int Attempts() => firstAid ? sain.FirstAidAttempts : sain.SurgeryAttempts;
+    NativeMed treatment;
+    if (firstAid)
+    {
+        b.Player.HealthController.Parts[EBodyPart.LeftArm].Current = 20;
+        treatment = b.BotOwner.Medecine.FirstAid;
+        sain.NextFirstAid = Time.time + 1.5f;
+        b.Player.HealthController.Destroyed.Add(EBodyPart.LeftLeg);
+        b.BotOwner.Medecine.SurgicalKit.CurUsingMeds = new Meds();
+    }
+    else
+    {
+        b.Player.HealthController.Destroyed.Add(EBodyPart.LeftLeg);
+        treatment = b.BotOwner.Medecine.SurgicalKit;
+        sain.NextSurgery = Time.time + 1.5f;
+    }
+    treatment.CurUsingMeds = new MedKit();
+    if (alreadyFollowing) action.Update(new());
+    else
+    {
+        Step(.25f);
+        action.Start();
+    }
+    C(Attempts() == 1 && !treatment.Using && r.Policy.Trace!.State == "regroup"
+        && r.RouteStage == "regroup" && b.Mover.LastWalkPoint.x == 40 && b.Mover.Routes == 1,
+        "a refused native treatment starts or continues the leader route in the same update");
+    var path = (BotPathDataManual)r.Path!;
+    C(originalPath == null || ReferenceEquals(originalPath, path), "a refusal preserves the existing route");
+    var snapshot = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last())["postCombat"]!;
+    C((string?)snapshot["state"] == "regroup" && (string?)snapshot["lastTreatmentAttempt"]
+        == (firstAid ? "first-aid-declined" : "surgery-declined"), "report movement and the native refusal together");
+    Step(.25f);
+    action.Update(new());
+    C(Attempts() == 1 && path.Stops == 0, "no native retry or route teardown during the retry interval");
+    Step(.75f);
+    action.Update(new());
+    C(Attempts() == 2 && !treatment.Using && path.Stops == 0 && r.RouteStage == "regroup",
+        "a second refusal still allows regrouping");
+    var lastPath = (BotPathDataManual)r.Path!;
+    Step(1);
+    action.Update(new());
+    C(Attempts() == 3 && treatment.Using && treatment.Requests == 1 && r.Path == null
+        && lastPath.Stops == 1 && r.Policy.Trace!.State == "medical" && b.Mover.Pose == .6f,
+        "an accepted retry stops the movement and starts treatment once");
+    Step(.25f);
+    action.Update(new());
+    C(Attempts() == 3 && treatment.Cancels == 0, "leave the ongoing treatment with SAIN");
+    C(!firstAid || sain.SurgeryAttempts == 0, "declined first aid retains zzap's priority over surgery");
+    action.Stop();
+    Physics.BlocksSightTo = null;
+}
+foreach (bool gunfire in new[] { true, false })
+{
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    p.config!.PostCombat.AdvanceChances["Normal"] = 100;
+    b.Squad.IAmLeader = !gunfire;
+    b.Squad.LeaderComponent = new() { Position = new(40, 0, 0) };
+    SAIN.SAINEnableClass.Bots[b.ProfileId] = b;
+    b.Player.HealthController.Destroyed.Add(EBodyPart.LeftLeg);
+    b.BotOwner.Medecine.SurgicalKit.CurUsingMeds = new Meds();
+    b.SelfActions.NextSurgery = Time.time + 10;
+    var hearing = new SAIN.Components.BotControllerSpace.Classes.BotHearingClass();
+    SourceSoundWatch.Attach(hearing);
+    try
+    {
+        if (gunfire)
+            SourceSoundWatch.OnShot(new() { ProfileId = "distant-shooter" }, new(45, 0, 0));
+        C(layer.IsActive(), "a declined treatment can fall back to watch or inspection");
+        action.Start();
+        var r = p.states[b].PostCombat;
+        C(r.Policy.Trace!.State == "watch" && b.Mover.Stops == 1 && b.SelfActions.SurgeryAttempts == 1,
+            "watch after refusal with no eligible regroup, including gunfire with a distant leader");
+        if (!gunfire)
+        {
+            Step(7);
+            action.Update(new());
+            C(r.RouteStage == "check" && b.Mover.Routes == 1 && b.SelfActions.SurgeryAttempts == 2,
+                "refusal permits the selected inspection after the watch expires");
+        }
+    }
+    finally
+    {
+        SourceSoundWatch.Detach(hearing);
+        Physics.BlocksSightTo = null;
+    }
+}
 foreach (var reason in new[] { "no-kit", "healthy", "kit-lost", "first-aid-cooldown", "grenade-throw" })
 {
     var (_, b, layer, action) = Setup();

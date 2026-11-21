@@ -306,6 +306,7 @@ public sealed partial class Plugin
             MedicalBusy = PostTreatmentInUse(b),
             NativeMedicalWork = med?.SurgicalKit?.HaveWork == true || med?.FirstAid?.Have2Do == true,
             MedicalUseful = r.MedicalUseful,
+            MedicalRetryDue = !r.Policy.Active || Time.time >= r.MedicalNext,
             MedicalUrgent = r.MedicalUrgent,
             Reloading = b.BotOwner.WeaponManager.Reload.Reloading,
             Heard = r.Heard,
@@ -371,7 +372,9 @@ public sealed partial class Plugin
             t.Z = r.Threat?.z;
         }
         r.Policy.Applied(r.Layer);
-        RecordPostCombat(s, false);
+        // A ready kit can still be refused by SAIN. Publish the action once that call returns.
+        if (!active || t?.State != "medical" || t.MedicalBusy)
+            RecordPostCombat(s, false);
         return active;
     }
 
@@ -543,7 +546,7 @@ public sealed partial class Plugin
                 : ""
         );
         string key =
-            t.Episode + ":" + t.State + ":" + t.Reason + ":" + t.Execution + ":" + t.Applied;
+            t.Episode + ":" + t.State + ":" + t.Reason + ":" + t.Execution + ":" + t.Applied + ":" + t.LastTreatmentAttempt;
         if (!force && key == r.Key && (!t.Applied || Time.time < r.LogAt))
             return;
         r.Key = key;

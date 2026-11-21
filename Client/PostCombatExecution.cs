@@ -84,8 +84,24 @@ public sealed partial class Plugin
                 r.Policy.TryRegroup(r.Heard, PostRegroupTarget(b, out _).HasValue);
             t.Reloading = reload.Reloading;
         }
+        if (t.State == "medical" && !b.BotOwner.WeaponManager.Reload.Reloading
+            && !PostTreatmentInUse(b) && !TryStartPostTreatment(b, r))
+        {
+            // Keep the existing route until the native action actually accepts the treatment.
+            r.Policy.SelectRecoveryMovement(Time.time, r.Heard, PostRegroupTarget(b, out _).HasValue);
+        }
         if (r.Path != null && t.State != r.RouteStage)
             PostStopRoute(b, r);
+        if (t.State == "medical")
+        {
+            if (!b.BotOwner.WeaponManager.Reload.Reloading)
+            {
+                b.Mover.Stop();
+                b.Mover.SetTargetPose(.6f);
+                SetPostCombatProne(b, r, r.ProneInOpen);
+            }
+            return;
+        }
         if (t.State == "reload")
             return;
         if (t.State == "watch")
@@ -188,34 +204,6 @@ public sealed partial class Plugin
             }
             return;
         }
-        if (t.State == "medical")
-        {
-            var med = b.BotOwner.Medecine;
-            if (b.BotOwner.WeaponManager.Reload.Reloading)
-                return;
-            if (med.Using)
-            {
-                b.Mover.Stop();
-                b.Mover.SetTargetPose(.6f);
-                SetPostCombatProne(b, r, r.ProneInOpen);
-                return;
-            }
-            if (Time.time < r.MedicalNext)
-                return;
-            r.MedicalNext = Time.time + 1;
-            bool started =
-                med.FirstAid?.ShallStartUse() == true
-                    ? b.SelfActions.DoFirstAid()
-                    : med.SurgicalKit?.ShallStartUse() == true && b.SelfActions.DoSurgery();
-            if (started)
-            {
-                b.Mover.Stop();
-                b.Mover.SetTargetPose(.6f);
-                SetPostCombatProne(b, r, r.ProneInOpen);
-            }
-            t.Execution = started ? "native treatment started" : "native treatment unavailable";
-            return;
-        }
         if (t.State == "check")
         {
             if (TryStartPostRoute(b, r, r.Threat, "check") == false)
@@ -223,6 +211,31 @@ public sealed partial class Plugin
             return;
         }
         t.Execution = "waiting for native hands";
+    }
+
+    private static bool TryStartPostTreatment(BotComponent b, PostCombatRuntime r)
+    {
+        if (Time.time < r.MedicalNext)
+            return false;
+        r.MedicalNext = Time.time + 1;
+        var med = b.BotOwner.Medecine;
+        var t = r.Policy.Trace!;
+        bool started;
+        if (med.FirstAid?.ShallStartUse() == true)
+        {
+            started = b.SelfActions.DoFirstAid();
+            t.LastTreatmentAttempt = started ? "first-aid-started" : "first-aid-declined";
+        }
+        else if (med.SurgicalKit?.ShallStartUse() == true)
+        {
+            started = b.SelfActions.DoSurgery();
+            t.LastTreatmentAttempt = started ? "surgery-started" : "surgery-declined";
+        }
+        else
+            return false;
+        if (started)
+            t.Execution = "native treatment started";
+        return started;
     }
 
     // A deferred start has not reached SAIN and does not consume a movement order.

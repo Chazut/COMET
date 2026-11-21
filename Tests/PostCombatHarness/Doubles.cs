@@ -515,14 +515,25 @@ namespace SAIN.Components
 {
     public class SelfActions(BotOwner owner)
     {
+        public float NextFirstAid, NextSurgery;
+        public int FirstAidAttempts, SurgeryAttempts;
+
         public bool DoFirstAid()
         {
+            FirstAidAttempts++;
+            if (owner.IsDead || Time.time <= NextFirstAid || !owner.Medecine.FirstAid.ShallStartUse())
+                return false;
+            NextFirstAid = Time.time + 5;
             owner.Medecine.FirstAid.TryApplyToCurrentPart();
             return true;
         }
 
         public bool DoSurgery()
         {
+            SurgeryAttempts++;
+            if (owner.IsDead || Time.time <= NextSurgery || !owner.Medecine.SurgicalKit.ShallStartUse())
+                return false;
+            NextSurgery = Time.time + 5;
             owner.Medecine.SurgicalKit.ApplyToCurrentPart();
             return true;
         }

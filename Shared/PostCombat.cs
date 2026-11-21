@@ -73,6 +73,7 @@ public sealed class PostCombatFrame
         MedicalBusy,
         NativeMedicalWork,
         MedicalUseful,
+        MedicalRetryDue = true,
         MedicalUrgent,
         Reloading,
         HandsReady = true;
@@ -104,6 +105,7 @@ public sealed class PostCombatTrace
     public bool MedicalUseful { get; set; }
     public bool MedicalBusy { get; set; }
     public bool MedicalWorkLeft { get; set; }
+    public string? LastTreatmentAttempt { get; set; }
     public double AdvanceChance { get; set; }
     public string AdvanceHealthStatus { get; set; } = "";
     public double AdvanceRoll { get; set; }
@@ -246,15 +248,20 @@ public sealed class PostCombat
             return TryRegroup(f.Heard, f.Regroup) || Stage("reload", "post-combat-native-reload-active");
         if (WantsReload)
             return Stage("reload", "post-combat-top-up-magazine");
-        if (f.MedicalUseful && !f.Coming)
+        if (f.MedicalUseful && f.MedicalRetryDue && !f.Coming)
             return Stage("medical", "post-combat-useful-treatment");
-        if (TryRegroup(f.Heard, f.Regroup))
+        return SelectRecoveryMovement(f.Now, f.Heard, f.Regroup);
+    }
+
+    internal bool SelectRecoveryMovement(double now, bool heard, bool leaderOutOfRange)
+    {
+        if (TryRegroup(heard, leaderOutOfRange))
             return true;
-        if (f.Now <= watchUntil)
+        if (now <= watchUntil)
             return Stage("watch", "post-combat-watch-last-threat");
         if (WillAdvance)
             return Stage("check", "post-combat-check-known-position");
-        if (f.MedicalWorkLeft)
+        if (Trace!.MedicalWorkLeft)
             return Stage("watch", "post-combat-waiting-for-treatment");
         return End("post-combat-work-complete");
     }

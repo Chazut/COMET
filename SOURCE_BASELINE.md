@@ -333,6 +333,11 @@ watch during the kit cooldown. Starting treatment still requires native
 `ShallStartUse()`. The H04 event distinguishes pending or ongoing work
 (`medicalWorkLeft`), readiness to start (`medicalUseful`), and treatment in
 progress (`medicalBusy`).
+If SAIN declines an otherwise ready first-aid or surgery request, the same
+update can rejoin the leader, watch or inspect the last contact. An existing
+regroup route continues through refusals. H04 retries at most once a second
+and stops moving when treatment starts. The ordinary H04 event records the
+native result in `lastTreatmentAttempt` alongside the action the bot took.
 
 H04 can request one native top-up on the same update that orders a move to
 cover. An existing reload can continue on the way. Active treatment suspends
