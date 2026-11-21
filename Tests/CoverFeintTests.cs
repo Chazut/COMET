@@ -54,6 +54,82 @@ internal static class CoverFeintTests
             };
         var c = new CoverFeintConfig();
         c.Validate();
+        CheckMoveOrders();
+        void CheckMoveOrders()
+        {
+            var settings = new CoverFeintConfig { Peeks = 1 };
+            CoverFeintPolicy StartLeg(string leg, out float start)
+            {
+                var policy = new CoverFeintPolicy();
+                var frame = F();
+                Check(policy.Begin(frame, settings, () => .1), "select a bait peek");
+                policy.Accepted(true);
+                policy.Plan(new(2, 0, 0), frame.Now);
+                start = 10f;
+                if (leg == "back")
+                {
+                    policy.MoveResult(start, true);
+                    frame.Now = 10.1f;
+                    frame.AtGoal = true;
+                    policy.Observe(frame, settings);
+                    frame.Now = start = 10.5f;
+                    policy.Observe(frame, settings);
+                }
+                Check(policy.WantsRoute && policy.MoveOrderDue(start), leg + " starts with an order due");
+                return policy;
+            }
+
+            foreach (var leg in new[] { "out", "back" })
+            {
+                foreach (bool renewal in new[] { false, true })
+                {
+                    var policy = StartLeg(leg, out float start);
+                    float now = start;
+                    if (renewal)
+                    {
+                        policy.MoveResult(start, true);
+                        Check(!policy.MoveOrderDue(start + .6f), leg + " does not renew at exact equality");
+                        now = start + 1.3f;
+                        policy.Observe(F(now), settings);
+                        Check(policy.MoveOrderDue(now) && policy.Trace!.State == leg,
+                            "an overdue " + leg + " renewal is resolved before the phase timeout");
+                    }
+                    int before = policy.Trace!.MoveRequests;
+                    policy.MoveResult(now, false);
+                    Check(!policy.Observe(F(now + 3), settings) && !policy.MoveOrderDue(now + 3)
+                        && policy.Trace.Reason == "feint-no-path" && policy.Trace.LastMoveLeg == leg
+                        && policy.Trace.MoveRequests == before + 1 && policy.Trace.CompletedPeeks == 0
+                        && !policy.Trace.ReturnedObserved && policy.Trace.SharedCooldownUntil == now + 5d,
+                        leg + (renewal ? " renewal" : " initial order") + " refused ends the peek immediately");
+                }
+
+                var accepted = StartLeg(leg, out float at);
+                accepted.MoveResult(at, true);
+                int requests = accepted.Trace!.MoveRequests;
+                accepted.MoveResult(at, true);
+                Check(accepted.Trace.MoveRequests == requests, "duplicate callback cannot reissue " + leg);
+                float renew = at + .65f;
+                accepted.Observe(F(renew), settings, actionTick: false);
+                Check(accepted.Trace.MoveRequests == requests && accepted.MoveOrderDue(renew),
+                    "passive observation leaves the " + leg + " order for the action");
+                accepted.MoveResult(renew, true);
+                accepted.AdvanceMove(F(renew), settings);
+                Check(accepted.Trace.State == leg && accepted.Trace.MoveRequests == requests + 1
+                    && !accepted.MoveOrderDue(renew), leg + " renewal keeps the current leg");
+                accepted.Observe(F(at + (leg == "out" ? .91f : 1.21f)), settings);
+                Check(accepted.Trace.State == (leg == "out" ? "show" : "final-hold"),
+                    leg + " renewal preserves the original phase timer");
+
+                var arrived = StartLeg(leg, out at);
+                var arrival = F(at);
+                arrival.AtGoal = true;
+                requests = arrived.Trace!.MoveRequests;
+                arrived.Observe(arrival, settings);
+                Check(!arrived.MoveOrderDue(at) && arrived.Trace.MoveRequests == requests
+                    && arrived.Trace.State == (leg == "out" ? "show" : "final-hold"),
+                    "already at the " + leg + " goal requires no native move order");
+            }
+        }
         var fullPlusChamber = F();
         fullPlusChamber.AmmoRatio = 31f / 30;
         var fullyLoadedFeint = new CoverFeintPolicy();
@@ -86,7 +162,7 @@ internal static class CoverFeintTests
             Check(policy.Begin(frame, settings, () => .1), "timed peek starts");
             policy.Accepted(true);
             policy.Plan(new(1, 0, 0), frame.Now);
-            policy.RequestMove(frame.Now);
+            policy.MoveResult(frame.Now, true);
             var trace = policy.Trace!;
             frame.Now = 11;
             frame.AtGoal = true;
@@ -104,7 +180,7 @@ internal static class CoverFeintTests
             policy.Observe(frame, settings);
             Check(trace.State == "back-pending" && trace.Exposure == .2f && trace.ExposureChecks == 3,
                 "a lower draw can end the exposure earlier than the first draw");
-            policy.RequestMove(frame.Now);
+            policy.MoveResult(frame.Now, true);
             frame.Now = 12;
             policy.Observe(frame, settings);
             Check(trace.State == "pause" && trace.PauseChecks == 0, "arrival does not draw the between-peek pause");
@@ -122,7 +198,7 @@ internal static class CoverFeintTests
             policy.ResolveOppositePeek(null, frame.Now);
             Check(trace.State == "out-pending" && ranges.Count == 6,
                 "finishing the delayed probe releases the second peek without another draw");
-            policy.RequestMove(frame.Now);
+            policy.MoveResult(frame.Now, true);
             policy.Observe(frame, settings);
             settings.ExposureMin = .4;
             settings.ExposureMax = .5;
@@ -242,7 +318,7 @@ internal static class CoverFeintTests
         Check(p.Plan(new(1, 0, 0), 10.1) && p.TargetPeekPose == .55f
             && p.Trace!.FirstPeekCrouched == true && rolls == 5, "one stance roll on the first usable point");
         Save();
-        p.RequestMove(10.2);
+        p.MoveResult(10.2, true);
         Save();
         var f = F(10.4);
         f.Position = new(.5, 0, 0);
@@ -286,7 +362,7 @@ internal static class CoverFeintTests
             "elapsed exposure asks to return, never teleports"
         );
         Save();
-        p.RequestMove(10.8);
+        p.MoveResult(10.8, true);
         f = F(11);
         f.Position = new(.5, 0, 0);
         p.Observe(f, c);
@@ -316,14 +392,14 @@ internal static class CoverFeintTests
             && wire[^1].GetProperty("firstPeekCrouched").GetBoolean()
             && wire[^1].GetProperty("firstPeekPoint").GetProperty("x").GetDouble() == 1,
             "M14 records the first opening, stance and opposite-side result");
-        p.RequestMove(12.1);
+        p.MoveResult(12.1, true);
         f = F(12.3);
         f.Position = new(-1, 0, 0);
         f.Exposed = f.AtGoal = true;
         p.Observe(f, c);
         f.Now = 12.6;
         p.Observe(f, c);
-        p.RequestMove(12.6);
+        p.MoveResult(12.6, true);
         f = F(12.9);
         f.AtGoal = true;
         Check(
@@ -561,14 +637,14 @@ internal static class CoverFeintTests
             p.Plan(first, 10);
             Check(p.TargetPeekPose == 1f && p.Trace!.FirstPeekCrouched == false,
                 "at exactly 40 percent the first peek stands");
-            p.RequestMove(10);
+            p.MoveResult(10, true);
             f.Now = 11;
             f.AtGoal = true;
             p.Observe(f, settings);
             Check(p.TargetPeekPose == null, "show does not issue an outbound stance");
             f.Now = 12;
             p.Observe(f, settings);
-            p.RequestMove(12);
+            p.MoveResult(12, true);
             f.Now = 13;
             p.Observe(f, settings);
             if (peeks == 1)
@@ -692,7 +768,7 @@ internal static class CoverFeintTests
             p.Begin(F(), c, Low);
             p.Accepted(true);
             p.Plan(new(1, 0, 0), 10);
-            p.RequestMove(10);
+            p.MoveResult(10, true);
             f = F(10.2);
             switch (scenario)
             {
@@ -896,6 +972,11 @@ internal static class CoverFeintTests
                 Calls(pe, md, Method("StopFeintRoutes"), "OwnFeintRoute") == 1,
                 "cleanup only touches owned generation"
             );
+            Check(Calls(pe, md, Method("MoveFeint"), "WalkToPoint") == 1
+                && Calls(pe, md, Method("MoveFeint"), "StopFeintRoutes") == 0
+                && Calls(pe, md, Method("RefreshFeint"), "MoveOrderDue") == 1
+                && Calls(pe, md, Method("RefreshFeint"), "MoveResult") == 1,
+                "shipped action forwards the native move result and permits reuse of the active path");
             foreach (
                 var method in new[]
                 {

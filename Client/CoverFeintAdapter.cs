@@ -23,8 +23,7 @@ internal sealed class CoverFeintRuntime(RepositionCooldown cooldown)
     internal BotComponent? Owner;
     internal Enemy? Enemy;
     internal Player.FirearmController? Firearm;
-    internal NavMeshPath? Requesting;
-    internal Vector3 From;
+    internal bool IssuingMove;
     internal float Next,
         LastSafety = -1000,
         NextSafety,
@@ -49,7 +48,7 @@ internal sealed class CoverFeintRuntime(RepositionCooldown cooldown)
         Owner = null;
         Enemy = null;
         Firearm = null;
-        Requesting = null;
+        IssuingMove = false;
         Routes.Clear();
         RequestFrame = -1;
         OwnSpeed = false;
@@ -140,11 +139,7 @@ public sealed partial class Plugin
             AmmoRatio = TacticalAmmoPercent(b.BotOwner) / 100,
             Protected = r.Protected,
             Exposed = r.Exposed,
-            AtGoal =
-                Vector2.Distance(
-                    new(b.Position.x, b.Position.z),
-                    new((float)r.Policy.Goal.X, (float)r.Policy.Goal.Z)
-                ) < .7f,
+            AtGoal = AtFeintGoal(b, r.Policy.Goal),
             Fire = e?.Status.TimeLastShotAtMe ?? -1,
         };
         f.MagazineAudible = true;
@@ -429,18 +424,18 @@ public sealed partial class Plugin
                 b.Mover.SetTargetPose(pose);
                 p.Trace.AppliedPeekPose = pose;
             }
-            if (p.WantsRoute && doorBudget.TryBegin(Time.frameCount, b))
+            if (p.MoveOrderDue(f.Now))
             {
-                doorClock.Restart();
-                try
+                // Planning or finishing the exposure can change the destination during this callback.
+                f.AtGoal = AtFeintGoal(b, p.Goal);
+                if (!f.AtGoal)
+                    p.MoveResult(f.Now, MoveFeint(b, r));
+                if (!p.Active)
                 {
-                    MoveFeint(b, s);
+                    FinishFeint(s);
+                    return;
                 }
-                finally
-                {
-                    doorClock.Stop();
-                    doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);
-                }
+                p.AdvanceMove(f, config.CoverFeint);
             }
             if (p.Trace.State == "mag-pending")
             {
@@ -592,17 +587,21 @@ public sealed partial class Plugin
         return false;
     }
 
-    private void MoveFeint(BotComponent b, BotState s)
+    private static bool AtFeintGoal(BotComponent b, DoorPoint goal) =>
+        Vector2.Distance(new(b.Position.x, b.Position.z), new((float)goal.X, (float)goal.Z)) < .7f;
+
+    private static bool MoveFeint(BotComponent b, CoverFeintRuntime r)
     {
-        var r = s.CoverFeint;
-        var p = r.Policy;
-        var goal = VP(p.Goal);
-        StopFeintRoutes(r);
-        r.From = b.Position;
-        b.Mover.WalkToPoint(goal, true, .49f);
-        p.RequestMove(Time.time);
-        if (b.Mover.ActivePath is { } path)
-            r.Routes[path] = path.NavMeshPath;
+        r.IssuingMove = true;
+        try
+        {
+            if (!b.Mover.WalkToPoint(VP(r.Policy.Goal), true, .49f))
+                return false;
+        }
+        finally
+        {
+            r.IssuingMove = false;
+        }
         if (!r.OwnSpeed)
         {
             r.PreviousSpeed = (float)
@@ -611,6 +610,7 @@ public sealed partial class Plugin
             r.OwnSpeed = true;
         }
         b.Mover.SetTargetMoveSpeed(1);
+        return true;
     }
 
     private static void FeintPathInitialized(BotPathDataManual __instance, NavMeshPath path)
@@ -622,7 +622,7 @@ public sealed partial class Plugin
         {
             var r = s.CoverFeint;
             r.Routes.Remove(__instance);
-            if (r.Policy.Active && ReferenceEquals(path, r.Requesting) && r.Routes.Count < 2)
+            if (r.IssuingMove && r.Policy.Active)
                 r.Routes[__instance] = path;
         }
     }

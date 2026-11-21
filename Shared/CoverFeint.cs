@@ -95,6 +95,7 @@ public sealed class CoverFeintTrace
         Target = "",
         Source = "personal-vision",
         Action = "Freeze",
+        LastMoveLeg = "",
         SoundEvent = "";
     public int Episode,
         CompletedPeeks,
@@ -182,14 +183,13 @@ public sealed class CoverFeintPolicy
     }
 
     private double nextRoll;
+    private float nextMoveOrder;
     private bool alternatePending;
     private Func<double> unitRoll = null!;
     private int episode;
     private double started,
         phaseAt,
         lastTime,
-        progressAt,
-        best,
         fireAt,
         heardAt;
     public CoverFeintTrace? Trace { get; private set; }
@@ -423,14 +423,24 @@ public sealed class CoverFeintPolicy
         Trace.GoalZ = goal.Z;
     }
 
-    public void RequestMove(double now)
+    public bool MoveOrderDue(double now) => WantsRoute || (Moving && (float)now > nextMoveOrder);
+
+    public void MoveResult(double now, bool accepted)
     {
-        if (!WantsRoute)
+        if (!MoveOrderDue(now))
             return;
-        Trace!.MoveRequests++;
-        progressAt = now;
-        best = double.MaxValue;
-        Set(Trace.State == "out-pending" ? "out" : "back", "feint-native-move-requested", now);
+        var t = Trace!;
+        t.MoveRequests++;
+        t.LastMoveLeg = t.State is "out-pending" or "out" ? "out" : "back";
+        if (!accepted)
+        {
+            End("feint-no-path", now);
+            return;
+        }
+        nextMoveOrder = (float)now + .6f;
+        // A renewed order belongs to the same leg and keeps its original phase clock.
+        t.State = t.LastMoveLeg;
+        t.Reason = "feint-native-move-requested";
     }
 
     public void NoPeekPoint(CoverFeintFrame f, CoverFeintConfig c)
@@ -559,26 +569,11 @@ public sealed class CoverFeintPolicy
                 End("feint-hold-finished");
             return Active;
         }
-        if (Moving)
+        if (Moving || WantsRoute)
         {
             t.MovementObserved |= t.DistanceMoved > .15;
-            if (!actionTick)
-                return true;
-            if (t.State == "out" && (f.AtGoal || f.Now - phaseAt > .9))
-            {
-                t.ExposedObserved |= f.Exposed;
-                Set("show", "feint-show-shoulder", f.Now);
-            }
-            else if (t.State == "back" && (f.AtGoal || f.Now - phaseAt > 1.2))
-            {
-                t.ReturnedObserved |= f.AtGoal;
-                t.CompletedPeeks++;
-                Set(
-                    t.CompletedPeeks >= c.Peeks ? "final-hold" : "pause",
-                    "feint-peek-complete",
-                    f.Now
-                );
-            }
+            if (actionTick)
+                AdvanceMove(f, c);
         }
         else if (actionTick && t.State == "show")
         {
@@ -607,6 +602,24 @@ public sealed class CoverFeintPolicy
     {
         SetGoal(Home);
         Set("back-pending", why, now);
+    }
+
+    public void AdvanceMove(CoverFeintFrame f, CoverFeintConfig c)
+    {
+        // On a late update zzap asks the mover before applying the leg's timeout.
+        if (!f.AtGoal && MoveOrderDue(f.Now))
+            return;
+        if (Trace is { State: "out" or "out-pending" } outward && (f.AtGoal || f.Now - phaseAt > .9))
+        {
+            outward.ExposedObserved |= f.Exposed;
+            Set("show", "feint-show-shoulder", f.Now);
+        }
+        else if (Trace is { State: "back" or "back-pending" } back && (f.AtGoal || f.Now - phaseAt > 1.2))
+        {
+            back.ReturnedObserved |= f.AtGoal;
+            back.CompletedPeeks++;
+            Set(back.CompletedPeeks >= c.Peeks ? "final-hold" : "pause", "feint-peek-complete", f.Now);
+        }
     }
 
     private void Set(string state, string reason, double now)

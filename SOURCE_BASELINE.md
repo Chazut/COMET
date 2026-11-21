@@ -35,6 +35,13 @@ their roles in an existing maneuver or choose another squad tactic.
 
 ### M14 second bait peek (2026-11-21)
 
+During each outward and return leg, the accepted action renews its native
+move on the first update more than 0.6 seconds after the last order. Arrival
+within 0.7 m horizontally needs no order. SAIN refusing the first move or a
+renewal ends the session with `feint-no-path`, even on an update that crosses
+the leg's timeout. The trace records the attempted leg and total move orders.
+Renewals preserve the leg timer and allow SAIN to reuse its path.
+
 Once the first peek has a point, the bot has a 40% chance to lower its stance
 to 0.55. On the second outward leg it uses the opposite stance. At the first
 return, it tries the reflection of the first opening across its starting cover.
