@@ -39,6 +39,14 @@ busy with a door tactic are excluded from this check. The sight check precedes
 the squad roll and records `maneuver-squad-member-sees-target`. Once the
 plan exists, its support can regain sight and continue in that role.
 
+Only the proposer checks the horizontal distance to its last known enemy position
+and the age of that observation (defaults 15-80 m and up to 10 s, inclusive).
+The squad radius uses 3D distance between teammates. A nearby member tracking the
+same enemy can be assigned a role even with older information or a different
+distance to the contact. It takes that role using its own remembered point.
+The throttled eligibility log distinguishes `maneuver-proposer-horizontal-range`
+from `maneuver-proposer-contact-stale`.
+
 S03 selects the highest-scoring eligible flanker, preserving SAIN's member
 order for ties. With rear watch enabled and at least three candidates, the
 remaining member farthest horizontally from the remembered contact looks away

@@ -65,6 +65,10 @@ internal static class SquadManeuverTests
             members[2].VisibleContact = true;
             C(ReferenceEquals(plan, admission.TryStart("sight", "enemy", 11, 10, 0, members, c)),
                 "regaining sight preserves the existing plan");
+            C(ReferenceEquals(plan, admission.TryStart("sight", "enemy", 21, 10, 0, members, c)),
+                "an older personal timestamp still retrieves an active plan");
+            C(admission.TryStart("sight", "other", 21, 10, 0, members, c) == null,
+                "a different enemy cannot inherit the active plan");
         }
         {
             var jamTeam = Team();

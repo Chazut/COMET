@@ -152,17 +152,14 @@ public sealed partial class Plugin
             return "crossfire-no-known-contact";
         bool supporting =
             s.Crossfire.ManeuverRole?.Role == "support"
-            || maneuverCandidate
+            || e.IsVisible && maneuverCandidate
                 && b.Squad.Members != null
                 && maneuverBoard.Get(ManeuverGroup(b)) is { Active: true } plan
                 && plan.Member(b.ProfileId)?.Role == "support";
 
         if (e.IsVisible && !supporting && !s.Crossfire.Policy.Active)
             return "crossfire-enemy-visible";
-        double contactAge =
-            s.Crossfire.Policy.Active ? 25
-            : maneuver ? config!.SquadManeuver.ContactAge
-            : config!.Crossfire.ContactAge;
+        double contactAge = s.Crossfire.Policy.Active ? 25 : config!.Crossfire.ContactAge;
         bool continuing =
             s.Crossfire.Policy.CanContinueRememberedRoute(Time.time, config.Crossfire)
             || supporting
@@ -174,13 +171,12 @@ public sealed partial class Plugin
         if (
             !float.IsFinite(e.TimeSinceLastKnownUpdated)
             || e.TimeSinceLastKnownUpdated < 0
-            || e.TimeSinceLastKnownUpdated > contactAge && !continuing
+            || !maneuver && e.TimeSinceLastKnownUpdated > contactAge && !continuing
         )
             return "crossfire-contact-stale";
         if (
-            !s.Crossfire.Policy.Active
-            && Vector3.ProjectOnPlane(known - b.Position, Vector3.up).magnitude
-                > (maneuver ? config.SquadManeuver.MaxDistance : config.Crossfire.EnemyDistance)
+            !maneuver && !s.Crossfire.Policy.Active
+            && Vector3.ProjectOnPlane(known - b.Position, Vector3.up).magnitude > config.Crossfire.EnemyDistance
         )
             return "crossfire-enemy-too-far";
         if (s.Crossfire.Policy.Active && e.EnemyProfileId != s.Crossfire.Contact)
@@ -325,12 +321,8 @@ public sealed partial class Plugin
             && observed.TimeSinceLastKnownUpdated >= 0
         )
             r.ContactAt = Math.Max(r.ContactAt, Time.time - observed.TimeSinceLastKnownUpdated);
-        // An expired maneuver can still leave a crossfire or secondary entrance available.
-        bool mayStartManeuver =
-            !r.Policy.Active
-            && mayStart
-            && config!.SquadManeuver.Enabled
-            && observed?.TimeSinceLastKnownUpdated <= config.SquadManeuver.ContactAge;
+        // The freshness and range of the proposer matter only when forming a new S03.
+        bool mayStartManeuver = !r.Policy.Active && mayStart && config!.SquadManeuver.Enabled;
         string block = CrossfireBlock(b, s, maneuverCandidate: mayStartManeuver);
         if (r.Policy.Active && block.Length > 0)
         {
@@ -366,11 +358,11 @@ public sealed partial class Plugin
             // A declined or ineligible maneuver leaves teammate cover ahead of plain crossfire.
             if (TryBeginCoverMate(b, s))
                 return RefreshCoverMate(b, s);
-            if (block.Length == 0 && mayStartManeuver)
+            if (mayStartManeuver)
                 block = CrossfireBlock(b, s);
             if (block.Length > 0)
             {
-                RecordCrossfireGate(s, block);
+                RecordCrossfireGate(s, block, feature: "S01");
                 return false;
             }
         }

@@ -293,7 +293,6 @@ public sealed class SquadManeuverBoard
             || !MedicalChoice.Finite(evidence)
             || now < 0
             || evidence > now
-            || now - evidence > c.ContactAge
             || !c.Enabled
         )
             return null;
@@ -306,6 +305,8 @@ public sealed class SquadManeuverBoard
                 old.Enemy == enemy ? "maneuver-existing-plan" : "maneuver-other-contact-active";
             return old.Enemy == enemy ? old : null;
         }
+        if (now - evidence > c.ContactAge)
+            return null;
         string key = group + "/" + enemy;
         if (old != null)
         {

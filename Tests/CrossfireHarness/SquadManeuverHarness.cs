@@ -453,7 +453,7 @@ internal static class SquadManeuverHarness
                     break;
                 case "stale":
                     foreach (var b in bots)
-                        b.GoalEnemy!.TimeSinceLastKnownUpdated = 9;
+                        b.GoalEnemy!.TimeSinceLastKnownUpdated = (float)p.config!.SquadManeuver.ContactAge + 1;
                     break;
                 case "too-close":
                     foreach (var b in bots)

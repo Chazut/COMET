@@ -31,13 +31,15 @@ public sealed partial class Plugin
         r.ManeuverNext = Time.time + (float)config.Crossfire.Interval;
         var enemy = b.GoalEnemy!;
         var known = enemy.KnownPlaces.LastKnownPosition!.Value;
-        double distance = Vector3.Distance(b.Position, known);
-        if (distance < c.MinDistance || distance > c.MaxDistance)
-            return false;
         string group = ManeuverGroup(b);
         var plan = maneuverBoard.Get(group);
         if (plan?.Active != true)
         {
+            double distance = Vector3.ProjectOnPlane(known - b.Position, Vector3.up).magnitude;
+            if (distance < c.MinDistance || distance > c.MaxDistance)
+                return DeclineSquad(s, "S03", "maneuver-proposer-horizontal-range");
+            if (enemy.TimeSinceLastKnownUpdated > c.ContactAge)
+                return DeclineSquad(s, "S03", "maneuver-proposer-contact-stale");
             if (NativeStormActive(b))
                 return DeclineSquad(s, "S03", "maneuver-squad-storm-active");
             var candidates = new List<ManeuverMember>();
@@ -68,15 +70,9 @@ public sealed partial class Plugin
                     ms.Crossfire.Policy.Active
                     || ms.Crossfire.Fault
                     || Time.time < ms.Crossfire.Policy.RetryAt
-                    || CrossfireBlock(mate, ms, maneuverCandidate: true).Length > 0
+                    || CrossfireCommonBlock(mate, ms).Length > 0
                     || !CrossfireCanAcquire(mate)
                 )
-                    continue;
-                var mk = mate.GoalEnemy.KnownPlaces.LastKnownPosition;
-                if (mk == null || mate.GoalEnemy.TimeSinceLastKnownUpdated > c.ContactAge)
-                    continue;
-                double md = Vector3.Distance(mate.Position, mk.Value);
-                if (md < c.MinDistance || md > c.MaxDistance)
                     continue;
                 double ammo = TacticalAmmoPercent(mate.BotOwner);
                 var health = mate.Memory.Health.HealthStatus;

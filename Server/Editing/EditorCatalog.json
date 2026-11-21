@@ -1387,7 +1387,7 @@
     },
     "SquadManeuver.SquadDistance": {
       "Label": "Maximum teammate distance",
-      "Help": "",
+      "Help": "Distance from the bot proposing the maneuver to each teammate, including height differences.",
       "Min": 5.0,
       "Max": 80.0,
       "Scale": 1,
@@ -1397,7 +1397,7 @@
     },
     "SquadManeuver.MinDistance": {
       "Label": "Minimum contact distance",
-      "Help": "",
+      "Help": "Minimum horizontal distance from the bot proposing a new maneuver to its last known enemy position.",
       "Min": 5.0,
       "Max": 80.0,
       "Scale": 1,
@@ -1407,7 +1407,7 @@
     },
     "SquadManeuver.MaxDistance": {
       "Label": "Maximum contact distance",
-      "Help": "",
+      "Help": "Maximum horizontal distance from the bot proposing a new maneuver to its last known enemy position.",
       "Min": 5.0,
       "Max": 150.0,
       "Scale": 1,
@@ -1417,7 +1417,7 @@
     },
     "SquadManeuver.ContactAge": {
       "Label": "Maximum known information age",
-      "Help": "",
+      "Help": "How recent the proposer's enemy information must be. Nearby teammates tracking the same enemy can join with an older observation.",
       "Min": 1.0,
       "Max": 20.0,
       "Scale": 1,

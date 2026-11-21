@@ -402,6 +402,78 @@ foreach (bool crossfireOn in new[] { false, true })
         "a declined maneuver falls back to plain crossfire only when enabled");
     p.EndAll();
 }
+foreach (var (horizontal, height, age, separation, failure) in new[]
+{
+    (78f, 20f, 10f, 35f, ""), (80f, 20f, 10f, 35f, ""), (15f, -20f, 10f, 35f, ""),
+    (14.99f, 20f, 1f, 35f, "maneuver-proposer-horizontal-range"),
+    (80.01f, 0f, 1f, 35f, "maneuver-proposer-horizontal-range"),
+    (40f, 0f, 10.01f, 35f, "maneuver-proposer-contact-stale"),
+    (40f, 0f, 0f, 35.01f, "maneuver-insufficient-eligible-members"),
+})
+{
+    var (p, proposer, mate) = Setup();
+    Step(60);
+    p.config!.SquadManeuver.Chance = 100;
+    proposer.Position = Vector3.zero;
+    mate.Position = Vector3.up * separation;
+    mate.Info.Personality = Personality.Rat;
+    mate.GoalEnemy!.IsVisible = false;
+    mate.GoalEnemy.KnownPlaces.LastKnownPosition = proposer.GoalEnemy!.KnownPlaces.LastKnownPosition =
+        new Vector3(0, height, horizontal);
+    proposer.GoalEnemy.TimeSinceLastKnownUpdated = age;
+    mate.GoalEnemy.TimeSinceLastKnownUpdated = 0;
+    p.Observe(proposer);
+    C((p.states[proposer].Crossfire.Maneuver != null) == (failure.Length == 0),
+        $"S03 proposer at {horizontal}m horizontal, {height}m vertical, {age}s old; teammate {separation}m above");
+    if (failure.Length != 0)
+        C(p.diagnostics!.Lines.Any(line => line.Contains(failure)), "S03 admission diagnostic: " + failure);
+    p.EndAll();
+}
+foreach (var (assignedRole, personalRange, personalAge, initiallyMissingPoint) in new[]
+{
+    ("support", 8f, 1f, false), ("support", 90f, 10.01f, false), ("support", 30f, 40f, true),
+    ("flank", 90f, 40f, false), ("rear", 8f, 40f, false),
+})
+{
+    var (p, proposer, mate) = Setup();
+    Step(60);
+    p.config!.SquadManeuver.Chance = 100;
+    p.config.Crossfire.Enabled = false;
+    proposer.Position = Vector3.zero;
+    mate.Position = new(0, 0, -8);
+    proposer.GoalEnemy!.KnownPlaces.LastKnownPosition = new(0, 0, 40);
+    proposer.GoalEnemy.TimeSinceLastKnownUpdated = 1;
+    mate.GoalEnemy!.IsVisible = false;
+    var ownPoint = mate.Position + new Vector3(0, 0, personalRange);
+    mate.GoalEnemy.KnownPlaces.LastKnownPosition = initiallyMissingPoint ? null : ownPoint;
+    mate.GoalEnemy.TimeSinceLastKnownUpdated = personalAge;
+    proposer.Info.Personality = assignedRole == "flank" ? Personality.Rat : Personality.Chad;
+    mate.Info.Personality = assignedRole == "flank" ? Personality.Chad : Personality.Rat;
+    if (assignedRole == "rear")
+    {
+        var shooter = new BotComponent { Squad = proposer.Squad, Position = new(4, 0, 1) };
+        shooter.GoalEnemy!.KnownPlaces.LastKnownPosition = proposer.GoalEnemy.KnownPlaces.LastKnownPosition;
+        proposer.Squad.Members.Add(shooter.ProfileId, shooter);
+        SAINEnableClass.Bots[shooter.ProfileId] = shooter;
+    }
+    p.Observe(proposer);
+    var plan = p.states[proposer].Crossfire.Maneuver;
+    C(plan?.Member(mate.ProfileId)?.Role == assignedRole, "personal range/age do not filter " + assignedRole);
+    p.Observe(mate);
+    if (initiallyMissingPoint)
+    {
+        C(p.states[mate].Crossfire.Maneuver == null, "no action without a local remembered position");
+        mate.GoalEnemy.KnownPlaces.LastKnownPosition = ownPoint;
+        Step(.6f);
+        p.Observe(mate);
+    }
+    var role = p.states[mate].Crossfire;
+    C(role.Maneuver == plan && role.Known == ownPoint, "member joins using its own remembered point");
+    Step();
+    p.Sample(mate);
+    C(role.Policy.Active && role.Maneuver == plan, "assigned role survives the next update: " + assignedRole);
+    p.EndAll();
+}
 foreach (var (age, mateSees, indoors, maneuverAge, crossfireAge, expected) in new[]
 {
     (15f, true, false, 10, 20, "S01"),
