@@ -355,7 +355,7 @@ public sealed partial class Plugin
                         {
                             Id = "wall-corner",
                             Kind = "wall",
-                            Aim = DP(SourceClampPitch(eye, eye + dir, native)),
+                            Aim = DP(SteeringGeometry.ClampPitch(eye, eye + dir, native)),
                             Clear = true,
                         }
                     );
@@ -402,20 +402,6 @@ public sealed partial class Plugin
         f.WallBlocked = r.Wall || r.ClearChecks == 1;
     }
 
-    // R_F / zzap SAINSteeringClass: hold beyond the wall edge, at a level firing angle.
-    private static Vector3 SourceClampPitch(Vector3 from, Vector3 target, Vector3 forward)
-    {
-        var d = target - from;
-        float h = new Vector3(d.x, 0, d.z).magnitude;
-        if (h < .3f)
-        {
-            var f = new Vector3(forward.x, 0, forward.z);
-            return from + (f.sqrMagnitude > .001f ? f.normalized : Vector3.forward) * 2;
-        }
-        float rise = Mathf.Max(h, 1.5f) * Mathf.Tan(10f * Mathf.Deg2Rad);
-        return new(target.x, from.y + Mathf.Clamp(d.y, -rise, rise), target.z);
-    }
-
     private static Vector3 SourcePastCorner(
         Vector3 root,
         Vector3 corner,
@@ -447,7 +433,7 @@ public sealed partial class Plugin
                         * Mathf.Clamp(dist * .3f, .6f, 1.5f);
             }
         }
-        return SourceClampPitch(root, p + Vector3.up * 1.3f, forward);
+        return SteeringGeometry.ClampPitch(root, p + Vector3.up * 1.3f, forward);
     }
 
     private static bool AngleLane(Vector3 origin, Vector3 point, float radius)

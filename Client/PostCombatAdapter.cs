@@ -16,6 +16,8 @@ using UnityEngine.AI;
 
 namespace Comet.Client;
 
+internal enum PostCombatCoverRange { None, Near, Far }
+
 internal sealed class PostCombatRuntime
 {
     internal readonly PostCombat Policy = new();
@@ -28,6 +30,8 @@ internal sealed class PostCombatRuntime
         ProgressAt,
         BestDistance;
     internal Vector3? Threat;
+    internal PostCombatCoverRange CoverRange;
+    internal bool InspectedThreat;
     internal string Contact = "",
         Key = "",
         RouteStage = "";
@@ -285,6 +289,8 @@ public sealed partial class Plugin
             // A previous episode's reached cover or failed supply scan is not evidence for this fight.
             // Reset before building the frame: otherwise Tick can mark cover complete using stale protection.
             r.ProneInOpen = false;
+            r.CoverRange = PostCombatCoverRange.None;
+            r.InspectedThreat = false;
             r.Protected = NativeCoverProtects(b) || !SourceOpenGround.IsOpen(b.Position, r.Threat);
             r.ProtectedAt = b.Position;
             r.CoverCandidate = 0;
@@ -390,7 +396,7 @@ public sealed partial class Plugin
         }
     }
 
-    internal static bool SteerPostCombat(BotOwner owner)
+    internal static bool SteerPostCombat(BotOwner owner, PostCombatAction action)
     {
         var p = Instance;
         if (
@@ -406,18 +412,45 @@ public sealed partial class Plugin
         {
             if (!p.PostScope(b) || !p.PostCombatWindowOpen(b, s))
                 return false;
+            var r = s.PostCombat;
+            var trace = r.Policy.Trace!;
             if (TacticalSteeringFire.TryShoot(b, TacticalSteeringKind.PostCombat))
+            {
+                trace.LastLook = "engage";
                 return true;
+            }
             if (p.PostDanger(b))
                 return false;
-            if (s.PostCombat.Path != null)
+            bool moving = b.Mover.Moving;
+            var threat = r.InspectedThreat ? null : r.Threat;
+            if (moving && (trace.State == "regroup" || r.CoverRange == PostCombatCoverRange.Far && !r.Heard))
+            {
+                trace.LastLook = "travel";
                 b.Steering.LookToMovingDirection();
-            else if (s.PostCombat.Heard)
-                b.Steering.LookToPoint(s.PostCombat.HeardAt + Vector3.up);
-            else if (s.PostCombat.Threat.HasValue)
-                b.Steering.LookToPoint(s.PostCombat.Threat.Value + Vector3.up);
+            }
+            else if (r.Heard || moving && r.Policy.WillAdvance && threat.HasValue)
+            {
+                trace.LastLook = r.Heard ? "sound" : "advance";
+                var target = r.Heard ? r.HeardAt : threat!.Value;
+                b.Steering.LookToPoint(SteeringGeometry.ClampPitch(
+                    b.Transform.WeaponRoot, target + Vector3.up * 1.3f, b.Transform.LookDirection));
+            }
+            else if (moving && (r.CoverRange == PostCombatCoverRange.None || !threat.HasValue))
+            {
+                trace.LastLook = "travel";
+                b.Steering.LookToMovingDirection();
+            }
+            else if (threat.HasValue)
+            {
+                var offset = action.GetGlanceOffset(b.Position, threat.Value);
+                trace.LastLook = offset.sqrMagnitude > 0 ? "watch-side" : "watch-contact";
+                b.Steering.LookToPoint(threat.Value + offset + Vector3.up * 1.3f);
+            }
             else
+            {
+                trace.LastLook = "look-around";
                 b.Steering.LookToRandomPosition();
+            }
             return true;
         }
         catch (Exception ex)

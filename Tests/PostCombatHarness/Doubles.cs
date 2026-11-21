@@ -16,9 +16,12 @@ namespace UnityEngine
             new(a.x - b.x, a.y - b.y, a.z - b.z);
 
         public static Vector3 forward => new(0, 0, 1);
+        public static Vector3 zero => default;
         public Vector3 normalized => magnitude == 0 ? new() : this * (1 / magnitude);
 
         public static float Dot(Vector3 a, Vector3 b) => a.x * b.x + a.y * b.y + a.z * b.z;
+        public static Vector3 Cross(Vector3 a, Vector3 b) =>
+            new(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
 
         public static Vector3 up => new(0, 1, 0);
 
@@ -520,6 +523,12 @@ namespace SAIN.Components
         }
     }
 
+    public class BotTransform
+    {
+        public Vector3 WeaponRoot = new(0, 1.3f, 0);
+        public Vector3 LookDirection = Vector3.forward;
+    }
+
     public class BotComponent
     {
         public SAIN.Models.Enums.ESAINLayer ActiveLayer;
@@ -540,6 +549,7 @@ namespace SAIN.Components
         public Cover Cover = new();
         public Vector3 Position;
         public EnemyController EnemyController = new();
+        public BotTransform Transform = new();
         public Decision Decision = new();
         public Grenade Grenade = new();
         public Mover Mover = new();
@@ -614,6 +624,7 @@ namespace SAIN.Components
 
     public class Mover
     {
+        public bool Moving;
         public ProneController Prone = new();
         public float Pose,
             Speed;
@@ -955,6 +966,10 @@ namespace UnityEngine
     public static class Mathf
     {
         public const float PI = (float)Math.PI;
+        public const float Deg2Rad = PI / 180;
+        public static float Tan(float v) => MathF.Tan(v);
+        public static float Clamp(float v, float min, float max) => Math.Clamp(v, min, max);
+        public static float Max(float a, float b) => Math.Max(a, b);
 
         public static float Cos(float v) => (float)Math.Cos(v);
 
@@ -1398,7 +1413,8 @@ namespace UnityEngine
     public static class Random
     {
         public static float value = .99f;
-        public static float Range(float min, float max) => min;
+        public static float RangeFraction;
+        public static float Range(float min, float max) => min + (max - min) * RangeFraction;
     }
 }
 

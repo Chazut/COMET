@@ -52,6 +52,89 @@ void Save(Plugin p)
 {
     events.AddRange(p.diagnostics!.Lines.Where(x => x.Contains("\"feature\":\"H04\"")));
 }
+foreach (float fraction in new[] { 0f, 1f })
+{
+    var (p, b, layer, action) = Setup();
+    p.config!.PostCombat.AdvanceChances["Normal"] = 0;
+    C(layer.IsActive(), "recovery starts before an idle watch");
+    action.Start();
+    UnityEngine.Random.RangeFraction = fraction;
+    UnityEngine.Random.value = .5f;
+    action.OnSteeringTicked();
+    Vector3 side = new(20, 1.3f, fraction == 0 ? 10 : -10);
+    C(Vector3.Distance(b.Steering.LastPoint, side) < .001f,
+        "watch uses a side offset proportional to horizontal threat distance");
+    UnityEngine.Random.value = .49f;
+    Step(.3f);
+    action.Update(new());
+    C(Vector3.Distance(b.Steering.LastPoint, side) < .001f, "action update keeps the steering tick's glance");
+    Time.time = 10 + (fraction == 0 ? 1.5f : 3f);
+    action.OnSteeringTicked();
+    C(Vector3.Distance(b.Steering.LastPoint, side) < .001f, "watch holds the offset through its exact deadline");
+    Step(.01f);
+    action.OnSteeringTicked();
+    C(Vector3.Distance(b.Steering.LastPoint, new(20, 1.3f, 0)) < .001f, "next glance can recenter on the last contact");
+}
+UnityEngine.Random.RangeFraction = 0;
+UnityEngine.Random.value = .99f;
+foreach (bool far in new[] { false, true })
+foreach (bool advance in new[] { false, true })
+{
+    var (p, b, layer, action) = Setup();
+    p.config!.PostCombat.AdvanceChances["Normal"] = advance ? 100 : 0;
+    Physics.BlocksSightTo = point => point.z >= (far ? 15.9f : 2.9f);
+    var hearing = new SAIN.Components.BotControllerSpace.Classes.BotHearingClass();
+    SourceSoundWatch.Attach(hearing);
+    try
+    {
+        C(layer.IsActive(), "recovery starts in the open");
+        action.Start();
+        var r = p.states[b].PostCombat;
+        C(r.RouteStage == "cover" && r.Goal.z >= (far ? 15.9f : 2.9f), "native cover order was accepted");
+        action.OnSteeringTicked();
+        C(b.Steering.Moving == 0 && r.Policy.Trace!.LastLook == "watch-side",
+            "a route alone cannot turn a stationary bot toward travel");
+        b.Mover.Moving = true;
+        action.OnSteeringTicked();
+        C(r.Policy.Trace!.LastLook == (far ? "travel" : advance ? "advance" : "watch-side"),
+            $"actual movement to far={far} cover with advance={advance}");
+        C(far ? b.Steering.Moving == 1 : Vector3.Distance(b.Steering.LastPoint, new(20, 1.3f, advance ? 0 : 10)) < .001f,
+            "native steering receives the travel direction or the correct remembered point");
+        var stranger = new SAIN.Components.PlayerComponentSpace.PlayerComponent { ProfileId = "audible" };
+        hearing.Emit(SAINSoundType.FootStep, new(5, 12, 0), stranger);
+        Step(.6f);
+        action.Update(new());
+        action.OnSteeringTicked();
+        var levelAim = new Vector3(5, 1.3f + 5 * MathF.Tan(10 * Mathf.Deg2Rad), 0);
+        C(r.Policy.Trace.LastLook == "sound" && Vector3.Distance(b.Steering.LastPoint, levelAim) < .001f,
+            "a heard step takes priority over travel to cover and uses the pitch limit");
+        Step(.6f);
+        action.Update(new());
+        var snapshot = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last());
+        C((string?)snapshot["postCombat"]?["lastLook"] == "sound", "ordinary H04 events report the last issued look order");
+        b.Shoot.Result = true;
+        int pointOrders = b.Steering.Points;
+        action.OnSteeringTicked();
+        C(b.Steering.Points == pointOrders && r.Policy.Trace.LastLook == "engage", "native firing owns aim despite sound");
+    }
+    finally
+    {
+        SourceSoundWatch.Detach(hearing);
+        Physics.BlocksSightTo = null;
+    }
+}
+{
+    var (p, b, layer, action) = Setup();
+    C(layer.IsActive(), "start the recovery layer for a missing remembered threat");
+    action.Start();
+    p.states[b].PostCombat.Threat = null;
+    b.Mover.Moving = true;
+    action.OnSteeringTicked();
+    C(b.Steering.Moving == 1, "travel without a remembered threat even with no COMET path");
+    b.Mover.Moving = false;
+    action.OnSteeringTicked();
+    C(b.Steering.Random == 1, "look around when stationary without a remembered threat");
+}
 foreach (var kind in new[] { "bush", "moving", "bad", "spotted", "solid" })
 {
     var (p, b, l, a) = Setup();
@@ -546,6 +629,11 @@ foreach (bool regroup in new[] { false, true })
         "optional native route " + regroup
     );
     C(s.PostCombat.Goal.x == (regroup ? 30 : 20), "leader or frozen known location only");
+    b.Mover.Moving = true;
+    a.OnSteeringTicked();
+    C(regroup ? b.Steering.Moving == 1
+        : Vector3.Distance(b.Steering.LastPoint, new(20, 1.3f, 0)) < .001f,
+        "face travel when regrouping and the remembered contact when advancing");
     if (regroup)
     {
         b.Squad.LeaderComponent!.Position = new(55, 0, 0);
@@ -561,6 +649,18 @@ foreach (bool regroup in new[] { false, true })
     a.Update(new());
     C(b.Mover.Routes == 2 && b.Mover.LastWalkPoint.x == (regroup ? 55 : 20),
         "renew toward the current leader or the original enemy observation");
+    if (!regroup)
+    {
+        // Keep the check eligible inside the mover's 3 m arrival radius until its action update.
+        p.config.PostCombat.AdvanceMin = 1;
+        b.Position = s.PostCombat.Goal - new Vector3(2, 0, 0);
+        b.Mover.Moving = false;
+        Step();
+        a.Update(new());
+        a.OnSteeringTicked();
+        C(b.Steering.Random == 1 && s.PostCombat.InspectedThreat,
+            "the check stops watching a contact point it has already reached");
+    }
     if (regroup)
     {
         b.Squad.LeaderComponent!.IsDead = true;

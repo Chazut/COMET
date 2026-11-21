@@ -323,6 +323,15 @@ position. Orders are at least one second apart. Regrouping ends within the
 configured distance (25 m by default). The optional enemy search still uses
 the remembered contact position.
 
+H04 steering follows remix 7.6 `PostCombatAction.OnSteeringTicked`. Actual
+movement toward the leader or a far cover in quiet conditions faces travel.
+An audible contact and a planned advance use level aim at the sound or the
+remembered position. While watching a known position, the bot holds each gaze
+for 1.5 to 3 seconds before drawing again. Half the draws center the gaze.
+The others offset it to either side by up to half the horizontal distance.
+Native firing has first priority. The existing H04 event reports the last
+steering order in `lastLook`.
+
 ### Door recovery at Ground Zero (2026-11-20)
 
 In raid 485 a PMC held the same doorway for 37 seconds. C04 selected a reversed

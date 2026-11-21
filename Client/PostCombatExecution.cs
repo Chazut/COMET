@@ -78,6 +78,8 @@ public sealed partial class Plugin
                     r.Protected = true;
                     r.ProtectedAt = b.Position;
                 }
+                else if (r.RouteStage == "check")
+                    r.InspectedThreat = true;
                 r.Policy.Complete(r.RouteStage, "destination reached");
                 PostStopRoute(b, r);
                 return;
@@ -87,6 +89,8 @@ public sealed partial class Plugin
                 Vector3? target = regroup ? PostRegroupTarget(b) : r.Goal;
                 if (!target.HasValue || !PostWalkToPoint(b, r, target.Value))
                 {
+                    if (r.RouteStage == "cover")
+                        r.CoverRange = PostCombatCoverRange.None;
                     r.Policy.Complete(r.RouteStage, target.HasValue ? "native movement declined" : "regroup no longer needed");
                     PostStopRoute(b, r);
                 }
@@ -105,10 +109,14 @@ public sealed partial class Plugin
             {
                 b.Mover.SetTargetPose(far ? 1 : .8f);
                 b.Mover.SetTargetMoveSpeed(far ? 1 : .85f);
-                PostMove(b, r, point.Value, "cover");
+                if (PostMove(b, r, point.Value, "cover"))
+                    r.CoverRange = far ? PostCombatCoverRange.Far : PostCombatCoverRange.Near;
+                else
+                    r.CoverRange = PostCombatCoverRange.None;
             }
             else
             {
+                r.CoverRange = PostCombatCoverRange.None;
                 r.ProneInOpen = true;
                 b.Mover.Prone.SetProne(true);
                 r.Policy.Complete("cover", why ?? "no cover; prone in the open");
@@ -163,8 +171,6 @@ public sealed partial class Plugin
         }
         t.Execution =
             t.State == "watch" ? "watching remembered threat" : "waiting for native hands";
-        if (r.Threat.HasValue)
-            b.Steering.LookToPoint(r.Threat.Value + Vector3.up);
     }
 
     private static bool PostMove(BotComponent b, PostCombatRuntime r, Vector3 target, string stage)

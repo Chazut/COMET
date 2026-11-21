@@ -2,6 +2,7 @@ using DrakiaXYZ.BigBrain.Brains;
 using EFT;
 using SAIN.Layers;
 using SAIN.Models.Enums;
+using UnityEngine;
 
 namespace Comet.Client;
 
@@ -25,6 +26,9 @@ public sealed class PostCombatLayer : SAINLayer
 
 public sealed class PostCombatAction : BotAction
 {
+    private float nextGlance;
+    private Vector3 glanceOffset;
+
     public PostCombatAction(BotOwner owner)
         : base(owner, nameof(PostCombatAction)) { }
 
@@ -45,7 +49,22 @@ public sealed class PostCombatAction : BotAction
 
     public override void OnSteeringTicked()
     {
-        if (!Plugin.SteerPostCombat(BotOwner))
+        if (!Plugin.SteerPostCombat(BotOwner, this))
             Bot.Steering.SteerByPriority(Bot.GoalEnemy);
+    }
+
+    internal Vector3 GetGlanceOffset(Vector3 position, Vector3 threat)
+    {
+        if (nextGlance < Time.time)
+        {
+            nextGlance = Time.time + UnityEngine.Random.Range(1.5f, 3f);
+            var direction = threat - position;
+            direction.y = 0;
+            glanceOffset = UnityEngine.Random.value < .5f
+                ? Vector3.zero
+                : Vector3.Cross(Vector3.up, direction.normalized)
+                    * UnityEngine.Random.Range(-.5f, .5f) * direction.magnitude;
+        }
+        return glanceOffset;
     }
 }

@@ -110,6 +110,7 @@ public sealed class PostCombatTrace
     public double? Y { get; set; }
     public double? Z { get; set; }
     public string Execution { get; set; } = "pending layer";
+    public string LastLook { get; set; } = "";
     public string[] Alternatives { get; set; } = Array.Empty<string>();
 }
 
@@ -120,6 +121,7 @@ public sealed class PostCombat
     private const double MaxSecondsSinceCombat = 60;
     public PostCombatTrace? Trace { get; private set; }
     public bool Active { get; private set; }
+    public bool WillAdvance => Active && !advanceDone && Trace?.AdvanceSelected == true;
     public bool WantsReload => Active && !reloadDone && Trace is { Reloading: false, MedicalBusy: false };
     public double LastFight { get; private set; } = -1000;
     private bool armed,
