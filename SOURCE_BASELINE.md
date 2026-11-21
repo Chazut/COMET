@@ -329,6 +329,10 @@ watch duration (3 to 6 seconds by default), even between movement orders.
 At 1 m or closer the timer runs down from the last draw. An inspection can
 start once that deadline has passed. H04 events report the last cover draw in
 `lastCoverWatchDuration` and the current time left in `watchRemaining`.
+During the stationary watch, each action update stops the mover and requests
+pose 0.75. If no cover was found, H04 keeps the bot prone while watching and
+releases its prone request when the bot moves or hands off. The ordinary H04
+event distinguishes the sheltered watch from the prone fallback in `execution`.
 
 During regrouping, each movement order targets the live squad leader's current
 position. Orders are at least one second apart. Regrouping ends within the

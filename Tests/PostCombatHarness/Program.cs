@@ -52,6 +52,50 @@ void Save(Plugin p)
 {
     events.AddRange(p.diagnostics!.Lines.Where(x => x.Contains("\"feature\":\"H04\"")));
 }
+foreach (float initialPose in new[] { 1f, .6f })
+{
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    b.Mover.SetTargetPose(initialPose);
+    C(layer.IsActive() && b.Mover.Stops == 0 && b.Mover.Pose == initialPose,
+        "querying the layer leaves movement and pose alone");
+    action.Start();
+    var r = p.states[b].PostCombat;
+    C(r.Policy.Trace!.State == "watch" && b.Mover.Stops == 1 && b.Mover.Pose == .75f && !b.Mover.Prone.Value,
+        "a sheltered watcher stops and lowers to 0.75 regardless of its previous pose");
+    b.Mover.SetTargetPose(1);
+    Step(.125f);
+    action.Update(new());
+    C(b.Mover.Stops == 2 && b.Mover.Pose == .75f, "the watch maintains its pose between movement orders");
+    b.BotOwner.Medecine.FirstAid.Using = true;
+    b.Mover.SetTargetPose(.6f);
+    Step(.0625f);
+    action.Update(new());
+    C(b.Mover.Stops == 2 && b.Mover.Pose == .6f, "a new native treatment keeps its pose between decision ticks");
+    b.GoalEnemy!.IsVisible = true;
+    b.Mover.SetTargetPose(1);
+    action.Update(new());
+    C(!r.Policy.Active && b.Mover.Stops == 2 && b.Mover.Pose == 1, "combat takes immediate ownership of movement");
+}
+foreach (bool sheltered in new[] { false, true })
+{
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => sheltered;
+    // A prone request from outside H04 must survive a sheltered watch and its release.
+    b.Mover.Prone.SetProne(sheltered);
+    C(layer.IsActive(), "stationary recovery starts with either form of protection");
+    action.Start();
+    Step();
+    action.Update(new());
+    var r = p.states[b].PostCombat;
+    C(r.Policy.Trace!.State == "watch" && b.Mover.Prone.Value, "keep a native or H04 prone request while watching");
+    var snapshot = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last())["postCombat"]!;
+    C((string?)snapshot["execution"] == (sheltered ? "stopped to watch at pose 0.75" : "watching prone in the open"),
+        "ordinary H04 logs distinguish the watch orders");
+    action.Stop();
+    C(b.Mover.Prone.Value == sheltered, "release only H04's own prone request");
+}
+Physics.BlocksSightTo = null;
 foreach (float fraction in new[] { 0f, 1f })
 {
     var (p, b, layer, action) = Setup();
@@ -357,6 +401,7 @@ foreach (float lastDraw in new[] { 3f, 6f })
     var r = p.states[b].PostCombat;
     var cover = r.Goal;
     C(r.RouteStage == "cover", "the native route leads to shelter");
+    C(b.Mover.Pose == 1 && b.Mover.Stops == 0, "a long cover approach keeps the running stance");
     for (int i = 1; i <= 13; i++)
     {
         Step(.5f);
@@ -374,6 +419,7 @@ foreach (float lastDraw in new[] { 3f, 6f })
     Step(.25f);
     action.Update(new());
     C(r.Policy.Trace.State == "watch" && r.RouteStage == "", "the bot watches after a seven-second trip");
+    C(b.Mover.Stops > 0 && b.Mover.Pose == .75f, "the watcher stops and lowers after reaching distant shelter");
     var snapshot = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last())["postCombat"]!;
     C((double?)snapshot["lastCoverWatchDuration"] == lastDraw
         && (double?)snapshot["watchRemaining"] == lastDraw - .75f, "the watch event records draw and time left");
@@ -384,6 +430,7 @@ foreach (float lastDraw in new[] { 3f, 6f })
     Step(.25f);
     action.Update(new());
     C(r.RouteStage == "check", "the first decision after expiry orders the approach");
+    C(b.Mover.Pose == 1 && !b.Mover.Prone.Value, "the watcher stands to inspect the last contact");
 }
 UnityEngine.Random.RangeFraction = 0;
 // The bot starts exposed at z=0. A wall shelters the first near ring at z=3.
@@ -826,6 +873,8 @@ foreach (bool regroup in new[] { false, true })
         r.ProneInOpen && r.Policy.Trace!.State == "watch",
         "first episode uses source prone fallback in open ground"
     );
+    C(b.Mover.Stops > 0 && b.Mover.Pose == .75f && b.Mover.Prone.Value,
+        "the open-ground watch keeps its prone fallback during the stationary pose request");
     r.MedicalDisabled = true;
     r.MedicalFailures = 2;
     r.MedicalUseful = true;

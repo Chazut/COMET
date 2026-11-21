@@ -20,6 +20,14 @@ public sealed partial class Plugin
     private static bool AtPostCombatCover(BotComponent b, Vector3 point) =>
         Vector3.Distance(b.Position, point) <= 1f;
 
+    private static void SetPostCombatProne(BotComponent b, PostCombatRuntime r, bool prone)
+    {
+        if (r.ProneRequested == prone)
+            return;
+        b.Mover.Prone.SetProne(prone);
+        r.ProneRequested = prone;
+    }
+
     private void RenewPostCoverWatch(PostCombatRuntime r)
     {
         var c = config!.PostCombat;
@@ -51,6 +59,16 @@ public sealed partial class Plugin
         var t = r.Policy.Trace!;
         if (r.Path != null && t.State != r.RouteStage)
             PostStopRoute(b, r);
+        if (t.State == "watch")
+        {
+            if (PostTreatmentInUse(b))
+                return;
+            b.Mover.Stop();
+            b.Mover.SetTargetPose(.75f);
+            SetPostCombatProne(b, r, r.ProneInOpen);
+            t.Execution = r.ProneInOpen ? "watching prone in the open" : "stopped to watch at pose 0.75";
+            return;
+        }
         if (t.State == "check" && r.Threat is Vector3 contact)
         {
             float remaining = Vector3.Distance(b.Position, contact);
@@ -140,7 +158,7 @@ public sealed partial class Plugin
             {
                 r.CoverRange = PostCombatCoverRange.None;
                 r.ProneInOpen = true;
-                b.Mover.Prone.SetProne(true);
+                SetPostCombatProne(b, r, true);
                 r.Policy.Complete("cover", why ?? "no cover; prone in the open");
             }
             return;
@@ -154,7 +172,7 @@ public sealed partial class Plugin
             {
                 b.Mover.Stop();
                 b.Mover.SetTargetPose(.6f);
-                b.Mover.Prone.SetProne(r.ProneInOpen);
+                SetPostCombatProne(b, r, r.ProneInOpen);
                 return;
             }
             if (Time.time < r.MedicalNext)
@@ -168,7 +186,7 @@ public sealed partial class Plugin
             {
                 b.Mover.Stop();
                 b.Mover.SetTargetPose(.6f);
-                b.Mover.Prone.SetProne(r.ProneInOpen);
+                SetPostCombatProne(b, r, r.ProneInOpen);
             }
             t.Execution = started ? "native treatment started" : "native treatment unavailable";
             return;
@@ -191,13 +209,12 @@ public sealed partial class Plugin
             }
             return;
         }
-        t.Execution =
-            t.State == "watch" ? "watching remembered threat" : "waiting for native hands";
+        t.Execution = "waiting for native hands";
     }
 
     private static bool PostMove(BotComponent b, PostCombatRuntime r, Vector3 target, string stage)
     {
-        b.Mover.Prone.SetProne(false);
+        SetPostCombatProne(b, r, false);
         if (stage is "regroup" or "check")
         {
             b.Mover.SetTargetPose(1);
@@ -229,8 +246,8 @@ public sealed partial class Plugin
             && b.Player.MovementContext.IsGrounded
         )
             combatStopPath.Invoke(path, new object[] { false, "COMET post-combat route released" });
-        if (r.ProneInOpen && b != null)
-            b.Mover.Prone.SetProne(false);
+        if (b != null)
+            SetPostCombatProne(b, r, false);
         r.Path = null;
         r.RouteStage = "";
     }

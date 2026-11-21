@@ -41,6 +41,7 @@ internal sealed class PostCombatRuntime
     internal int CoverCandidate,
         MedicalFailures;
     internal bool ProneInOpen,
+        ProneRequested,
         Heard,
         Coming;
     internal Vector3 HeardAt;
@@ -389,11 +390,13 @@ public sealed partial class Plugin
             if (r.RouteStage == "cover" && r.Policy.Trace!.State == "cover"
                 && !PostTreatmentInUse(b) && !AtPostCombatCover(b, r.Goal))
                 p.RenewPostCoverWatch(r);
-            if (Time.time < r.MoveAt)
-                return;
-            r.MoveAt = Time.time + (float)p.config!.PostCombat.Interval;
-            p.ExecutePostCombat(b, s);
-            p.RecordPostCombat(s, false);
+            bool movementDue = Time.time >= r.MoveAt;
+            if (movementDue)
+                r.MoveAt = Time.time + (float)p.config!.PostCombat.Interval;
+            if (movementDue || r.Policy.Trace!.State == "watch")
+                p.ExecutePostCombat(b, s);
+            if (movementDue)
+                p.RecordPostCombat(s, false);
         }
         catch (Exception ex)
         {
