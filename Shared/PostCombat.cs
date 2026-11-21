@@ -66,9 +66,7 @@ public sealed class PostCombatConfig
 
 public sealed class PostCombatFrame
 {
-    public double Now,
-        AmmoPercent = 100,
-        Health = 1;
+    public double Now, AmmoPercent = 100;
     public bool Scope = true,
         Threat,
         NativePriority,
@@ -80,6 +78,7 @@ public sealed class PostCombatFrame
     public bool NeedsCover,
         Regroup,
         CanAdvance,
+        BadlyInjuredOrDying,
         Heard,
         Coming;
     public string Personality = "Normal";
@@ -103,6 +102,7 @@ public sealed class PostCombatTrace
     public bool MedicalUseful { get; set; }
     public bool MedicalBusy { get; set; }
     public double AdvanceChance { get; set; }
+    public string AdvanceHealthStatus { get; set; } = "";
     public double AdvanceRoll { get; set; }
     public bool AdvanceSelected { get; set; }
     public double? InspectionDistance { get; set; }
@@ -162,7 +162,6 @@ public sealed class PostCombat
             !c.Enabled
             || !f.Scope
             || !MedicalChoice.Finite(f.Now)
-            || !MedicalChoice.Finite(f.Health)
             || !MedicalChoice.Finite(f.AmmoPercent)
             || lastNow >= 0 && f.Now < lastNow
         )
@@ -191,7 +190,7 @@ public sealed class PostCombat
             watchUntil = f.Now + watchDuration;
             coverDone = reloadDone = regroupDone = advanceDone = false;
             double chance = c.AdvanceChances.TryGetValue(f.Personality, out var v) ? v : 40;
-            if (f.Health < .4)
+            if (f.BadlyInjuredOrDying)
                 chance *= .2;
             Trace = new()
             {

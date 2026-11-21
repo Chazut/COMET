@@ -286,8 +286,11 @@ public sealed partial class Plugin
             return r.Policy.Active;
         r.Next = Time.time + (float)config!.PostCombat.Interval;
         bool inInitialAdvanceRange = false;
-        if (!r.Policy.Active)
+        bool wasActive = r.Policy.Active;
+        ETagStatus initialHealth = default;
+        if (!wasActive)
         {
+            initialHealth = b.Memory.Health.HealthStatus;
             // A previous episode's reached cover or failed supply scan is not evidence for this fight.
             // Reset before building the frame: otherwise Tick can mark cover complete using stale protection.
             r.ProneInOpen = false;
@@ -313,9 +316,7 @@ public sealed partial class Plugin
         {
             Now = Time.time,
             AmmoPercent = TacticalAmmoPercent(b.BotOwner),
-            Health = b
-                .Player.HealthController.GetBodyPartHealth(EBodyPart.Common, false)
-                .Normalized,
+            BadlyInjuredOrDying = initialHealth is ETagStatus.BadlyInjured or ETagStatus.Dying,
             Personality = b.Info.Personality.ToString(),
             MedicalBusy = PostTreatmentInUse(b),
             MedicalUseful = r.MedicalUseful,
@@ -328,7 +329,6 @@ public sealed partial class Plugin
             Regroup = PostRegroupTarget(b).HasValue,
             CanAdvance = inInitialAdvanceRange,
         };
-        bool was = r.Policy.Active;
         bool active = r.Policy.Tick(
             f,
             config.PostCombat,
@@ -337,7 +337,7 @@ public sealed partial class Plugin
         );
         if (!active)
         {
-            if (was)
+            if (wasActive)
             {
                 ObserveControlRelease(s, "post-combat-finished");
                 PostStopRoute(b, r);
@@ -347,6 +347,8 @@ public sealed partial class Plugin
         var t = r.Policy.Trace;
         if (t != null)
         {
+            if (!wasActive && active)
+                t.AdvanceHealthStatus = initialHealth.ToString();
             t.Contact = r.Contact;
             t.ContactAge = Math.Max(0, Time.time - r.ContactAt);
             t.X = r.Threat?.x;

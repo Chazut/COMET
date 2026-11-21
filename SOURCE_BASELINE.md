@@ -337,7 +337,10 @@ event distinguishes the sheltered watch from the prone fallback in `execution`.
 During regrouping, each movement order targets the live squad leader's current
 position. Orders are at least one second apart. Regrouping ends within the
 configured distance (25 m by default). At the start of recovery, the optional
-inspection uses the 3D distance to the remembered contact. The start range
+inspection uses the 3D distance to the remembered contact. SAIN's cached
+`BadlyInjured` or `Dying` status multiplies the personality's inspection chance
+by 0.2. H04 records that initial status in `advanceHealthStatus` alongside the
+adjusted chance and the episode's single inspection roll. The start range
 defaults to strictly above 4 m and strictly below 40 m. Once selected, the
 inspection completes at 3 m or closer, including if the bot gets there during
 its watch. The H04 event records the actual arrival distance in metres as

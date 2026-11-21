@@ -736,6 +736,39 @@ foreach (int chambered in new[] { 0, 1 })
     C(p.states[b].PostCombat.Policy.Trace!.AmmoPercent == 100d * (20 + chambered) / 30,
         "H04 reports the same loaded percentage used for the decision");
 }
+foreach (var (status, totalHealth, chestHealth, baseChance, expected) in new[]
+{
+    (ETagStatus.Dying, 60f, 10f, 40, 8),
+    (ETagStatus.Injured, 60f, 100f, 40, 40),
+    (ETagStatus.BadlyInjured, 60f, 100f, 40, 8),
+    (ETagStatus.Healthy, 100f, 100f, 40, 40),
+    (ETagStatus.BadlyInjured, 35f, 100f, 75, 15),
+    (ETagStatus.Injured, 35f, 100f, 75, 75), // SAIN has not sampled the latest damage yet.
+})
+{
+    var (p, b, layer, action) = Setup();
+    b.Memory.Health.HealthStatus = status;
+    var parts = b.Player.HealthController.Parts;
+    parts[EBodyPart.Common].Current = totalHealth;
+    parts[EBodyPart.Chest].Current = chestHealth;
+    if (status == ETagStatus.BadlyInjured && totalHealth == 60f)
+        foreach (var part in new[] { EBodyPart.LeftArm, EBodyPart.RightArm, EBodyPart.LeftLeg })
+            parts[part].Current = 10;
+    p.config!.PostCombat.AdvanceChances["Normal"] = baseChance;
+    C(layer.IsActive(), "health modifies the inspection roll while recovery still starts");
+    var r = p.states[b].PostCombat;
+    var t = r.Policy.Trace!;
+    C(t.AdvanceChance == expected && t.AdvanceSelected == (t.AdvanceRoll < expected),
+        $"initial {status} at {totalHealth}% total and {chestHealth}% chest uses {expected}%");
+    var firstRoll = t.AdvanceRoll;
+    b.Memory.Health.HealthStatus = status == ETagStatus.Healthy ? ETagStatus.Dying : ETagStatus.Healthy;
+    action.Start();
+    Step(.6f);
+    action.Update(new());
+    var log = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last())["postCombat"]!;
+    C((string?)log["advanceHealthStatus"] == status.ToString() && (double?)log["advanceChance"] == expected
+        && (double?)log["advanceRoll"] == firstRoll, "the event retains the status and draw from the start of recovery");
+}
 foreach (var (min, max, start, eligible) in new[]
 {
     (4, 40, 4f, false), (4, 40, 4.01f, true), (4, 40, 39.99f, true), (4, 40, 40f, false),
