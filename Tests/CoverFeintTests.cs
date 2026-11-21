@@ -55,6 +55,59 @@ internal static class CoverFeintTests
         var c = new CoverFeintConfig();
         c.Validate();
         CheckMoveOrders();
+        CheckJumpLegs();
+        void CheckJumpLegs()
+        {
+            var policy = new CoverFeintPolicy();
+            var settings = new CoverFeintConfig();
+            var frame = F();
+            Check(policy.Begin(frame, settings, () => .1), "select first bait peek for jump");
+            policy.Accepted(true);
+            policy.Plan(new(2, 0, 0), frame.Now);
+            Check(policy.SprintPeekLeg && policy.PeekJumpKind(frame.Now, settings) == "bait-out",
+                "first outward order uses a sprint and can hop once moving");
+            policy.MoveResult(frame.Now, true);
+            settings.Jump = false;
+            Check(policy.SprintPeekLeg && policy.PeekJumpKind(frame.Now, settings) == null,
+                "disabling hops leaves the first sprint enabled");
+            settings.Jump = true;
+            policy.JumpResult(false);
+            Check(policy.PeekJumpKind(10.1, settings) == "bait-out" && !policy.Trace!.JumpedOut,
+                "refused takeoff can be retried on the same outward leg");
+            policy.JumpResult(true);
+            Check(policy.PeekJumpKind(10.2, settings) == null && policy.Trace!.JumpsAccepted == 1,
+                "one accepted outward hop");
+            frame.AtGoal = true;
+            frame.Now = 10.3;
+            policy.Observe(frame, settings);
+            Check(!policy.SprintPeekLeg && policy.PeekJumpKind(frame.Now, settings) == null,
+                "no sprint or hop during exposure");
+            frame.Now = 11;
+            policy.Observe(frame, settings);
+            Check(policy.SprintPeekLeg && policy.PeekJumpKind(11.049, settings) == null,
+                "first return sprints immediately and waits before hopping");
+            policy.MoveResult(frame.Now, true);
+            Check(policy.PeekJumpKind(11.051, settings) == "bait-back", "return has its own hop");
+            policy.JumpResult(false);
+            Check(policy.PeekJumpKind(11.1, settings) == "bait-back", "refused return hop can retry");
+            policy.JumpResult(true);
+            Check(policy.PeekJumpKind(11.2, settings) == null
+                && policy.Trace is { JumpedOut: true, JumpedBack: true, JumpsAccepted: 2, JumpRequests: 4 },
+                "M14 counts accepted hops independently on the outward and return legs");
+            frame.Now = 11.3;
+            policy.Observe(frame, settings);
+            policy.ResolveOppositePeek(null, frame.Now);
+            frame.Now = 14;
+            policy.Observe(frame, settings);
+            Check(policy.WantsRoute && !policy.SprintPeekLeg && policy.PeekJumpKind(frame.Now, settings) == null,
+                "second outward leg walks with no hop");
+            policy.MoveResult(frame.Now, true);
+            policy.Observe(frame, settings);
+            frame.Now = 15;
+            policy.Observe(frame, settings);
+            Check(policy.WantsRoute && !policy.SprintPeekLeg && policy.PeekJumpKind(frame.Now, settings) == null,
+                "second return also walks with no hop");
+        }
         void CheckMoveOrders()
         {
             var settings = new CoverFeintConfig { Peeks = 1 };
@@ -960,7 +1013,10 @@ internal static class CoverFeintTests
                 && Calls(pe, md, Method("FinishFeint"), "SetTargetPose") == 1,
                 "accepted action applies the native pose and releases its lowered stance on exit");
             Check(
-                Calls(pe, md, Method("RefreshFeint"), "ControlledJump") == 1,
+                Calls(pe, md, Method("RefreshFeint"), "TryFeintJump") == 1
+                && Calls(pe, md, Method("TryFeintJump"), "HasClearRunUp") == 1
+                && Calls(pe, md, Method("TryFeintJump"), "ControlledJump") == 1
+                && Calls(pe, md, Method("TryFeintJump"), "JumpResult") == 1,
                 "running jumps use M12 authority and physics"
             );
             Check(
@@ -973,6 +1029,8 @@ internal static class CoverFeintTests
                 "cleanup only touches owned generation"
             );
             Check(Calls(pe, md, Method("MoveFeint"), "WalkToPoint") == 1
+                && Calls(pe, md, Method("MoveFeint"), "RunToPoint") == 1
+                && Calls(pe, md, Method("MoveFeint"), "get_SprintPeekLeg") == 1
                 && Calls(pe, md, Method("MoveFeint"), "StopFeintRoutes") == 0
                 && Calls(pe, md, Method("RefreshFeint"), "MoveOrderDue") == 1
                 && Calls(pe, md, Method("RefreshFeint"), "MoveResult") == 1,

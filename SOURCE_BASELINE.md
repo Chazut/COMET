@@ -48,7 +48,14 @@ return, it tries the reflection of the first opening across its starting cover.
 The check samples within 0.6 m on the NavMesh and tests the sightline from the
 sampled point to the remembered enemy. A failed check reuses the first opening.
 The M14 trace records the first point, initial stance, side choice and last
-pose requested from SAIN. Only the first outing can use a jump.
+pose requested from SAIN. The first outward and return orders request a
+high-urgency sprint. Subsequent peeks use walking orders. The jump setting
+controls hopping independently. Each leg of the first peek can jump once.
+Blocked headroom or a refused jump leaves the bot free to retry on the next
+action update. The return checks after 0.05 s.
+Takeoff requires 1.2 m/s toward the destination, headroom at both ends and
+at most 0.25 m between their elevations. M14 records its jump requests and
+which legs received an acceptance.
 
 During each active action update in the exposed phase, M14 draws a fresh
 threshold (0.2 to 0.35 seconds by default). Between peeks it does the same

@@ -20,6 +20,7 @@ SquadGrenadeHarness.Run();
 SiegeHarness.Run();
 SquadStormHarness.CheckRushAdmission();
 TacticalAmmoTests.Run();
+CoverFeintJumpTests.Run();
 void Step(float dt = .02f)
 {
     Time.time += dt;

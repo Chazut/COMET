@@ -46,6 +46,7 @@
   <ItemGroup>
     <Compile Include="../../Client/TacticalSteeringFire.cs" />
     <Compile Include="../../Client/TacticalAmmo.cs" />
+    <Compile Include="../../Client/CoverFeintJump.cs" />
     <Compile Include="../../Client/SquadGrenadeSuppression.cs" />
   </ItemGroup>
   <ItemGroup>

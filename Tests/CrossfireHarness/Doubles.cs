@@ -114,6 +114,9 @@ namespace UnityEngine
         public static Func<Vector3, Vector3, bool>? Cast;
         public static Func<Vector3, Vector3, (bool, float)>? Ray;
 
+        public static bool Raycast(Vector3 origin, Vector3 direction, float distance, int mask) =>
+            Raycast(origin, direction, out _, distance, mask);
+
         public static bool Raycast(
             Vector3 a,
             Vector3 d,

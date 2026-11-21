@@ -100,6 +100,7 @@ public sealed class CoverFeintTrace
     public int Episode,
         CompletedPeeks,
         MoveRequests,
+        JumpRequests,
         JumpsAccepted,
         SoundEvents,
         PlaybackSubmissions,
@@ -148,6 +149,7 @@ public sealed class CoverFeintTrace
         ApproachObserved,
         PauseThresholdPassed;
     public DoorPoint? FirstPeekPoint, MagazineVisiblePathPoint;
+    public bool JumpedOut, JumpedBack;
     public bool? FirstPeekCrouched, UsedOppositePoint;
     public float? AppliedPeekPose;
     public float PullBackFrom, PullBackUntil;
@@ -201,6 +203,7 @@ public sealed class CoverFeintPolicy
     public bool Active => Trace != null && Trace.State != "ended";
     public bool Moving => Trace?.State is "out" or "back";
     public bool WantsRoute => Trace?.State is "out-pending" or "back-pending";
+    public bool SprintPeekLeg => Trace is { CompletedPeeks: 0 } && (Moving || WantsRoute);
     public DoorPoint? OppositePeekProbe =>
         Trace is { State: "pause", UsedOppositePoint: null, FirstPeekPoint: { } first }
             ? Home + (Home - first) : null;
@@ -524,10 +527,35 @@ public sealed class CoverFeintPolicy
         }
     }
 
-    public void Jump(bool accepted)
+    public string? PeekJumpKind(double now, CoverFeintConfig config)
     {
-        if (Active && accepted)
-            Trace!.JumpsAccepted++;
+        if (!config.Jump || !SprintPeekLeg)
+            return null;
+        return Trace switch
+        {
+            { State: "out" or "out-pending", JumpedOut: false } => "bait-out",
+            { State: "back" or "back-pending", JumpedBack: false }
+                when (float)now - (float)phaseAt > .05f => "bait-back",
+            _ => null,
+        };
+    }
+
+    public void JumpResult(bool accepted)
+    {
+        if (!SprintPeekLeg)
+            return;
+        var t = Trace!;
+        bool outward = t.State is "out" or "out-pending";
+        if (outward ? t.JumpedOut : t.JumpedBack)
+            return;
+        t.JumpRequests++;
+        if (!accepted)
+            return;
+        if (outward)
+            t.JumpedOut = true;
+        else
+            t.JumpedBack = true;
+        t.JumpsAccepted++;
     }
 
     public bool Observe(CoverFeintFrame f, CoverFeintConfig c) => Observe(f, c, actionTick: true);

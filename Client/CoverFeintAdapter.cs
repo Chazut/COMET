@@ -32,7 +32,6 @@ internal sealed class CoverFeintRuntime(RepositionCooldown cooldown)
     internal int Candidate,
         RequestFrame = -1,
         ProbeFrame = -1,
-        JumpLeg = -1,
         FirstSide;
     internal bool Starting,
         Fault,
@@ -237,7 +236,6 @@ public sealed partial class Plugin
                 r.SeenAt = Time.time - (float)f.Age;
                 r.Candidate = 0;
                 r.FirstSide = 0;
-                r.JumpLeg = -1;
                 r.LastSafety = -1000;
                 r.NextSafety = 0;
             }
@@ -374,7 +372,8 @@ public sealed partial class Plugin
         f.Protected = r.Protected;
         f.Exposed = r.Exposed;
         bool actionTick = execute && p.Trace!.Accepted && b.Decision.CurrentCombatDecision == ECombatDecision.Freeze;
-        if (!p.Observe(f, config.CoverFeint, actionTick))
+        // On a movement tick the native action attempts the jump before testing arrival or timeout.
+        if (!p.Observe(f, config.CoverFeint, actionTick && !p.Moving && !p.WantsRoute))
         {
             FinishFeint(s);
             return;
@@ -424,11 +423,13 @@ public sealed partial class Plugin
                 b.Mover.SetTargetPose(pose);
                 p.Trace.AppliedPeekPose = pose;
             }
-            if (p.MoveOrderDue(f.Now))
+            if (p.Moving || p.WantsRoute)
             {
+                if (p.PeekJumpKind(f.Now, config.CoverFeint) is string kind)
+                    TryFeintJump(b, s, kind);
                 // Planning or finishing the exposure can change the destination during this callback.
                 f.AtGoal = AtFeintGoal(b, p.Goal);
-                if (!f.AtGoal)
+                if (!f.AtGoal && p.MoveOrderDue(f.Now))
                     p.MoveResult(f.Now, MoveFeint(b, r));
                 if (!p.Active)
                 {
@@ -453,55 +454,6 @@ public sealed partial class Plugin
                 {
                     FinishFeint(s);
                     return;
-                }
-            }
-            if (p.Moving && config.CoverFeint.Jump && p.Trace.CompletedPeeks == 0)
-            {
-                int leg = p.Trace.State == "out" ? 0 : 1;
-                var dir = VP(p.Goal) - b.Position;
-                dir.y = 0;
-                var v = b.Player.Velocity;
-                v.y = 0;
-                if (
-                    r.JumpLeg != leg
-                    && dir.magnitude > .45f
-                    && Vector3.Dot(v, dir.normalized) >= 1.2f
-                    && b.Player.MovementContext.IsGrounded
-                    && b.Player.MovementContext.CanJump
-                    && doorBudget.TryBegin(Time.frameCount, b)
-                )
-                {
-                    r.JumpLeg = leg;
-                    doorClock.Restart();
-                    try
-                    {
-                        if (
-                            !Physics.Raycast(
-                                b.Position + Vector3.up * 1.7f,
-                                Vector3.up,
-                                .6f,
-                                LayersMaskController.HighPolyWithTerrainMask
-                            )
-                        )
-                            p.Jump(
-                                ControlledJump(
-                                    b,
-                                    s,
-                                    "M14",
-                                    leg == 0 ? "bait-out" : "bait-back",
-                                    dir,
-                                    VP(p.Goal),
-                                    1.2,
-                                    0,
-                                    true
-                                )
-                            );
-                    }
-                    finally
-                    {
-                        doorClock.Stop();
-                        doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);
-                    }
                 }
             }
             if (!p.Moving && !p.WantsRoute)
@@ -590,12 +542,28 @@ public sealed partial class Plugin
     private static bool AtFeintGoal(BotComponent b, DoorPoint goal) =>
         Vector2.Distance(new(b.Position.x, b.Position.z), new((float)goal.X, (float)goal.Z)) < .7f;
 
+    private void TryFeintJump(BotComponent b, BotState s, string kind)
+    {
+        var policy = s.CoverFeint.Policy;
+        var origin = b.Position;
+        var landing = VP(policy.Goal);
+        if (!b.Player.MovementContext.IsGrounded || !b.Player.MovementContext.CanJump
+            || !CoverFeintJump.HasClearRunUp(origin, landing, b.Player.Velocity))
+            return;
+
+        policy.JumpResult(ControlledJump(b, s, "M14", kind, landing - origin, landing,
+            CoverFeintJump.MinimumForwardSpeed, 0, true));
+    }
+
     private static bool MoveFeint(BotComponent b, CoverFeintRuntime r)
     {
+        var goal = VP(r.Policy.Goal);
         r.IssuingMove = true;
         try
         {
-            if (!b.Mover.WalkToPoint(VP(r.Policy.Goal), true, .49f))
+            if (r.Policy.SprintPeekLeg)
+                return b.Mover.RunToPoint(goal, true, .49f, ESprintUrgency.High);
+            if (!b.Mover.WalkToPoint(goal, true, .49f))
                 return false;
         }
         finally
