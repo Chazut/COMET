@@ -79,6 +79,29 @@ internal static class PostCombatTests
         f.Coming = false;
         f.Now = 64;
         Check(!p.Tick(f, c, 0, 0), "finish when recovery work and sound watch are done");
+        foreach (double age in new[] { 14d, 14.25, 35 })
+        {
+            var quiet = new PostCombat();
+            quiet.ObserveFight(8);
+            quiet.ObserveFight(10);
+            var frame = new PostCombatFrame { Now = 10 + age, NeedsCover = true, Regroup = true, CanAdvance = true, AmmoPercent = 5 };
+            Check(!quiet.Tick(frame, c, 0, 0) && quiet.Trace == null,
+                "a late first poll cannot start ordinary work or initiate a new reload at combat age " + age);
+            frame.NeedsCover = false;
+            frame.Heard = true;
+            frame.Now += .25;
+            Check(quiet.Tick(frame, c, 0, 0) && quiet.Trace!.Episode == 1,
+                "a new sound can still admit the first episode inside the absolute window");
+            frame.Heard = false;
+            frame.Now += .25;
+            Check(!quiet.Tick(frame, c, 0, 0) && quiet.Trace!.Reason == PostCombat.OrdinaryWindowExpired,
+                "the elapsed ordinary window cannot restart after an extension clears");
+            quiet.ResetCombatWindow();
+            quiet.ObserveFight(81);
+            quiet.ObserveFight(83);
+            Check(quiet.Tick(new() { Now = 85, Regroup = true }, c, 0, 0) && quiet.Trace!.Remaining == 12,
+                "a new fight has its own ordinary deadline");
+        }
         foreach (var work in new[] { "sound", "medical-busy", "medical-useful", "reload" })
         {
             var policy = new PostCombat();

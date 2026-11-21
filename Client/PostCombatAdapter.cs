@@ -290,12 +290,34 @@ public sealed partial class Plugin
         if (betweenSamples && PostCombat.CanRegroup(r.Heard, leaderOutOfRange) == (previousStage == "regroup"))
             return r.Policy.Active;
         r.Next = Time.time + (float)config!.PostCombat.Interval;
-        bool inInitialAdvanceRange = false;
+        double ordinaryDeadline = r.Policy.OrdinaryDeadline(config.PostCombat);
+        ListenPostCombat(b, r);
+        InspectPostMedical(b, s);
+        if (Time.time < ordinaryDeadline)
+        {
+            // Sample again at the boundary so a new sound or treatment can keep the layer.
+            r.Next = Math.Min(r.Next, (float)ordinaryDeadline);
+            r.NextListen = Math.Min(r.NextListen, (float)ordinaryDeadline);
+        }
+        var f = new PostCombatFrame
+        {
+            Now = Time.time,
+            MedicalBusy = PostTreatmentInUse(b),
+            MedicalUseful = r.MedicalUseful,
+            MedicalUrgent = r.MedicalUrgent,
+            Reloading = b.BotOwner.WeaponManager.Reload.Reloading,
+            Heard = r.Heard,
+            Coming = r.Heard && r.Coming,
+            Regroup = leaderOutOfRange,
+        };
         bool wasActive = r.Policy.Active;
         ETagStatus initialHealth = default;
         if (!wasActive)
         {
+            if (r.Policy.QuietWindowExpired(f, config.PostCombat))
+                return false;
             initialHealth = b.Memory.Health.HealthStatus;
+            f.BadlyInjuredOrDying = initialHealth is ETagStatus.BadlyInjured or ETagStatus.Dying;
             r.NextMoveOrder = 0;
             // A previous episode's reached cover or failed supply scan is not evidence for this fight.
             // Reset before building the frame: otherwise Tick can mark cover complete using stale protection.
@@ -307,34 +329,16 @@ public sealed partial class Plugin
             r.CoverCandidate = 0;
             r.MedicalFailures = 0;
             r.MedicalDisabled = false;
-            r.MedicalUseful = false;
-            r.MedicalUrgent = false;
             r.MedicalNext = 0;
             if (r.Threat is Vector3 contact)
             {
                 float distance = Vector3.Distance(b.Position, contact);
-                inInitialAdvanceRange = distance > config.PostCombat.AdvanceMin && distance < config.PostCombat.AdvanceMax;
+                f.CanAdvance = distance > config.PostCombat.AdvanceMin && distance < config.PostCombat.AdvanceMax;
             }
         }
-        ListenPostCombat(b, r);
-        InspectPostMedical(b, s);
-        var f = new PostCombatFrame
-        {
-            Now = Time.time,
-            AmmoPercent = TacticalAmmoPercent(b.BotOwner),
-            BadlyInjuredOrDying = initialHealth is ETagStatus.BadlyInjured or ETagStatus.Dying,
-            Personality = b.Info.Personality.ToString(),
-            MedicalBusy = PostTreatmentInUse(b),
-            MedicalUseful = r.MedicalUseful,
-            MedicalUrgent = r.MedicalUrgent,
-            Reloading = b.BotOwner.WeaponManager.Reload.Reloading,
-            HandsReady = true,
-            Heard = r.Heard,
-            Coming = r.Heard && r.Coming,
-            NeedsCover = r.Threat.HasValue && !r.Protected,
-            Regroup = leaderOutOfRange,
-            CanAdvance = inInitialAdvanceRange,
-        };
+        f.AmmoPercent = TacticalAmmoPercent(b.BotOwner);
+        f.Personality = b.Info.Personality.ToString();
+        f.NeedsCover = r.Threat.HasValue && !r.Protected;
         bool active = r.Policy.Tick(
             f,
             config.PostCombat,
@@ -433,6 +437,9 @@ public sealed partial class Plugin
             if (!p.PostScope(b) || !p.PostCombatWindowOpen(b, s))
                 return false;
             var r = s.PostCombat;
+            if (Time.time >= r.Next && Time.time >= r.Policy.OrdinaryDeadline(p.config!.PostCombat)
+                && !p.RefreshPostCombat(b, s))
+                return false;
             var trace = r.Policy.Trace!;
             if (TacticalSteeringFire.TryShoot(b, TacticalSteeringKind.PostCombat))
             {

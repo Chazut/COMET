@@ -121,6 +121,7 @@ public sealed class PostCombatTrace
 public sealed class PostCombat
 {
     public const string WindowExpired = "post-combat-window-expired";
+    public const string OrdinaryWindowExpired = "post-combat-time-budget-ended";
     private const double MaxSecondsSinceCombat = 60;
     public PostCombatTrace? Trace { get; private set; }
     public bool Active { get; private set; }
@@ -139,6 +140,11 @@ public sealed class PostCombat
 
     public bool WantsRecovery(double now) =>
         (Active || armed && now >= LastFight) && now < LastFight + MaxSecondsSinceCombat;
+
+    internal double OrdinaryDeadline(PostCombatConfig c) => LastFight + c.Duration;
+
+    internal bool QuietWindowExpired(PostCombatFrame f, PostCombatConfig c) =>
+        f.Now >= OrdinaryDeadline(c) && !f.Heard && !f.MedicalBusy && !f.MedicalUseful && !f.Reloading;
 
     public void ObserveFight(double now)
     {
@@ -181,8 +187,11 @@ public sealed class PostCombat
             }
             return false;
         }
+        bool quietWindowExpired = QuietWindowExpired(f, c);
         if (!Active)
         {
+            if (quietWindowExpired)
+                return false;
             armed = false;
             Active = true;
             start = f.Now;
@@ -208,6 +217,8 @@ public sealed class PostCombat
         t.MedicalUseful = f.MedicalUseful;
         t.AmmoPercent = f.AmmoPercent;
         t.Reloading = f.Reloading;
+        if (quietWindowExpired)
+            return End(OrdinaryWindowExpired);
         if (f.Heard)
         {
             t.AdvanceSelected = false;
@@ -215,7 +226,8 @@ public sealed class PostCombat
         }
         double windowLeft = LastFight + MaxSecondsSinceCombat - f.Now;
         t.WatchRemaining = Math.Min(windowLeft, Math.Max(0, watchUntil - f.Now));
-        double budget = (f.MedicalUseful || f.MedicalBusy ? c.MedicalDuration : c.Duration) - t.Elapsed;
+        double ordinaryLeft = OrdinaryDeadline(c) - f.Now;
+        double budget = f.MedicalUseful || f.MedicalBusy ? c.MedicalDuration - t.Elapsed : ordinaryLeft;
         if (f.Reloading)
             budget = windowLeft;
         if (f.Heard)
@@ -234,8 +246,6 @@ public sealed class PostCombat
             return Stage("reload", "post-combat-top-up-magazine");
         if (f.MedicalUseful && !f.Coming)
             return Stage("medical", "post-combat-useful-treatment");
-        if (t.Elapsed >= c.Duration && !f.Heard)
-            return End("post-combat-time-budget-ended");
         if (TryRegroup(f.Heard, f.Regroup))
             return true;
         if (f.Now <= watchUntil)

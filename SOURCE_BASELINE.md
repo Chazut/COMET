@@ -317,6 +317,12 @@ H04 samples SAIN's active layer at the start of each decision update. It can
 start once the first and last Combat, AvoidThreat or Flashed samples span at
 least 1.5 seconds. Squad preserves those timestamps during handoff. Other
 layers reset eligibility. The H04 event records this span as `combatLayerSeconds`.
+The ordinary deadline is measured from the last combat-layer observation. With
+the default 14-second window, a quiet follower starting recovery 8 seconds later
+has 6 seconds left. A late first poll cannot start ordinary work after the
+deadline. H04 samples sound and medical activity at the boundary before releasing
+the route. Its events distinguish the episode's actual `elapsed` time from the
+combat-relative `secondsSinceCombat` and the available `remaining` time.
 The recovery window ends 60 seconds after the last combat-layer observation, even
 with repeated sounds, active treatment or a reload. H04 releases control and lets
 native operations finish. Its end event records the reason and `secondsSinceCombat`.

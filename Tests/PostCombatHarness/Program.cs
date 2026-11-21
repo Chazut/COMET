@@ -52,6 +52,81 @@ void Save(Plugin p)
 {
     events.AddRange(p.diagnostics!.Lines.Where(x => x.Contains("\"feature\":\"H04\"")));
 }
+foreach (var (delay, duration, steeringFirst) in new[] { (0f, 14f, false), (8f, 14f, false), (8f, 14f, true), (4f, 9f, false) })
+{
+    var (p, b, layer, action) = Setup();
+    var r = p.states[b].PostCombat;
+    Physics.BlocksSightTo = _ => true;
+    p.config!.PostCombat.Duration = duration;
+    b.ActiveLayer = ESAINLayer.Squad;
+    b.Squad.IAmLeader = false;
+    b.Squad.LeaderComponent = new() { Position = new(40, 0, 0) };
+    SAIN.SAINEnableClass.Bots[b.ProfileId] = b;
+    Step(delay);
+    p.Observe(b);
+    C(layer.IsActive(), "the quiet follower can use the rest of the ordinary window");
+    action.Start();
+    var start = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last())["postCombat"]!;
+    C((double?)start["remaining"] == duration - delay && (double?)start["elapsed"] == 0
+        && (double?)start["secondsSinceCombat"] == delay, "a late start reports only the remaining combat-relative budget");
+    Step(duration - delay - .0625f);
+    action.Update(new());
+    C(r.Layer && r.RouteStage == "regroup", "the route remains eligible immediately before the deadline");
+    var path = (BotPathDataManual)r.Path!;
+    int orders = b.Mover.Routes;
+    Step(.0625f);
+    if (steeringFirst) action.OnSteeringTicked();
+    else action.Update(new());
+    C(!r.Layer && !r.Policy.Active && path.Stops == 1 && b.Mover.Routes == orders
+        && !Api.Decisions.Recovery.ContainsKey(b.ProfileId), "release the quiet route on the deadline, even between policy polls");
+    var end = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics.Lines.Last());
+    C((string?)end["reason"] == "post-combat-time-budget-ended"
+        && (double?)end["postCombat"]?["elapsed"] == duration - delay
+        && (double?)end["postCombat"]?["secondsSinceCombat"] == duration
+        && (double?)end["postCombat"]?["remaining"] == 0, "the end event separates episode duration from combat age");
+    action.Stop();
+    C(!layer.IsActive() && path.Stops == 1, "a later action callback leaves the released route alone");
+    Physics.BlocksSightTo = null;
+}
+foreach (bool treatment in new[] { false, true })
+{
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    b.Squad.IAmLeader = false;
+    b.Squad.LeaderComponent = new() { Position = new(40, 0, 0) };
+    SAIN.SAINEnableClass.Bots[b.ProfileId] = b;
+    var hearing = new SAIN.Components.BotControllerSpace.Classes.BotHearingClass();
+    SourceSoundWatch.Attach(hearing);
+    try
+    {
+        Step(8);
+        C(layer.IsActive(), "a quiet delayed follower starts before the deadline");
+        action.Start();
+        Step(5.9375f);
+        action.Update(new());
+        Step(.0625f);
+        if (treatment)
+            b.BotOwner.Medecine.FirstAid.Using = true;
+        else
+            hearing.Emit(SAINSoundType.FootStep, new(5, 0, 0), new() { ProfileId = "new-contact" });
+        C(layer.IsActive(), "a new sound or treatment at the ordinary deadline extends the current episode");
+        action.Update(new());
+        var r = p.states[b].PostCombat;
+        C(r.Policy.Trace!.State == (treatment ? "medical" : "watch") && r.Policy.Trace.Episode == 1
+            && r.Policy.Trace.SecondsSinceCombat == 14 && r.Policy.Trace.Remaining > 0,
+            "the deadline samples the live extension after the previous poll");
+        b.BotOwner.Medecine.FirstAid.Using = false;
+        Step(10);
+        action.Update(new());
+        C(!r.Layer && !r.Policy.Trace.MedicalBusy && r.Policy.Trace.Reason == Comet.Core.PostCombat.OrdinaryWindowExpired,
+            "clearing the only extension restores the original combat-relative cutoff");
+    }
+    finally
+    {
+        SourceSoundWatch.Detach(hearing);
+        Physics.BlocksSightTo = null;
+    }
+}
 foreach (float initialPose in new[] { 1f, .6f })
 {
     var (p, b, layer, action) = Setup();
