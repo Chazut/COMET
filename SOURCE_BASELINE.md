@@ -377,6 +377,14 @@ inspection completes at 3 m or closer, including if the bot gets there during
 its watch. The H04 event records the actual arrival distance in metres as
 `inspectionDistance`.
 
+At the start of recovery, H04 takes a snapshot of SAIN's last known enemy
+position, falling back to the contact remembered during combat. If neither
+exists, it uses SAIN's last incoming-fire position (`UnderFireFromPosition`)
+when nonzero. Cover, steering and the optional inspection share this point
+for the episode. The H04 event identifies its `threatSource` as
+`current-enemy`, `last-fight`, `incoming-fire` or `none`. An incoming-fire
+position has no associated enemy ID or known contact age.
+
 H04 steering follows remix 7.6 `PostCombatAction.OnSteeringTicked`. Actual
 movement toward the leader or a far cover in quiet conditions faces travel.
 An audible contact and a planned advance use level aim at the sound or the

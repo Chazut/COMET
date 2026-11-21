@@ -17,6 +17,11 @@ namespace UnityEngine
 
         public static Vector3 forward => new(0, 0, 1);
         public static Vector3 zero => default;
+        public static bool operator ==(Vector3 a, Vector3 b) => (a - b).sqrMagnitude < 1e-10f;
+        public static bool operator !=(Vector3 a, Vector3 b) => !(a == b);
+        public override bool Equals(object? value) =>
+            value is Vector3 other && x.Equals(other.x) && y.Equals(other.y) && z.Equals(other.z);
+        public override int GetHashCode() => HashCode.Combine(x, y, z);
         public Vector3 normalized => magnitude == 0 ? new() : this * (1 / magnitude);
 
         public static float Dot(Vector3 a, Vector3 b) => a.x * b.x + a.y * b.y + a.z * b.z;
@@ -739,7 +744,10 @@ namespace SAIN.SAINComponent.Classes.EnemyClasses
 
     public class Places
     {
-        public Vector3? LastKnownPosition => LastSeenPlace?.Position ?? LastHeardPlace?.Position;
+        public EnemyPlace? LastKnownPlace => LastHeardPlace == null || LastSeenPlace != null
+            && LastSeenPlace.TimeSincePositionUpdated <= LastHeardPlace.TimeSincePositionUpdated
+                ? LastSeenPlace : LastHeardPlace;
+        public Vector3? LastKnownPosition => LastKnownPlace?.Position;
         public EnemyPlace? LastSeenPlace = new();
         public EnemyPlace? LastHeardPlace;
     }
@@ -1344,6 +1352,7 @@ namespace SAIN.Components
 {
     public class HealthMemory
     {
+        public Vector3 UnderFireFromPosition;
         public HealthMemoryStatus Health = new();
     }
 

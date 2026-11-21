@@ -113,7 +113,8 @@ public sealed class PostCombatTrace
     public double? InspectionDistance { get; set; }
     public float? LeaderDistance { get; set; }
     public string Contact { get; set; } = "";
-    public double ContactAge { get; set; }
+    public string ThreatSource { get; set; } = "none";
+    public double? ContactAge { get; set; }
     public double? X { get; set; }
     public double? Y { get; set; }
     public double? Z { get; set; }

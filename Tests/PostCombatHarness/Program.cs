@@ -304,6 +304,89 @@ foreach (bool advance in new[] { false, true })
     action.OnSteeringTicked();
     C(b.Steering.Random == 1, "look around when stationary without a remembered threat");
 }
+foreach (var scenario in new[] { "incoming-fire", "none", "last-fight", "current-enemy" })
+{
+    var (p, b, layer, action) = Setup(false);
+    Physics.BlocksSightTo = _ => true;
+    p.config!.PostCombat.AdvanceChances["Normal"] = 100;
+    b.Memory.UnderFireFromPosition = scenario == "none" ? Vector3.zero : new(30, 0, 0);
+    b.BotOwner.Memory.IsUnderFire = true;
+    var places = b.GoalEnemy!.KnownPlaces;
+    if (scenario is "incoming-fire" or "none") places.LastSeenPlace = null;
+    b.ActiveLayer = ESAINLayer.Combat;
+    p.Observe(b);
+    Step(1.5f);
+    p.Observe(b);
+    b.ActiveLayer = ESAINLayer.Squad;
+    C(!layer.IsActive(), "incoming fire still preempts recovery");
+    b.BotOwner.Memory.IsUnderFire = false;
+    if (scenario == "current-enemy")
+    {
+        places.LastSeenPlace = null;
+        places.LastHeardPlace = new() { Position = new(12, 0, 0), TimeSincePositionUpdated = .5f };
+    }
+    else b.GoalEnemy = null;
+    C(layer.IsActive(), "recovery can begin when fire ceases");
+    action.Start();
+    var r = p.states[b].PostCombat;
+    float? x = scenario switch { "incoming-fire" => 30f, "current-enemy" => 12f, "last-fight" => 20f, _ => null };
+    C(r.Threat?.x == x && r.Policy.Trace!.AdvanceSelected == x.HasValue,
+        "use the current enemy memory, then the last fight, then the incoming-fire origin: " + scenario);
+    var snapshot = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last())["postCombat"]!;
+    C((string?)snapshot["threatSource"] == scenario && (float?)snapshot["x"] == x,
+        "the H04 event identifies the selected source and point");
+    C(scenario is "current-enemy" or "last-fight"
+        ? (string?)snapshot["contact"] == "enemy" && (double?)snapshot["contactAge"] == (scenario == "current-enemy" ? .5 : 0)
+        : (string?)snapshot["contact"] == "" && (double?)snapshot["contactAge"] == null,
+        "a shot origin alone carries no assumed shooter or observation age");
+    b.Memory.UnderFireFromPosition = new(35, 0, 0);
+    if (places.LastHeardPlace != null) places.LastHeardPlace.Position = new(39, 0, 0);
+    action.OnSteeringTicked();
+    C(x.HasValue ? b.Steering.Points > 0 && b.Steering.LastPoint.x == x.Value : b.Steering.Random == 1,
+        "steering uses the frozen position or looks around if none exists");
+    Step(7);
+    action.Update(new());
+    C(x.HasValue ? r.RouteStage == "check" && b.Mover.LastWalkPoint.x == x.Value : b.Mover.Routes == 0,
+        "the optional inspection uses the same snapshot");
+    action.Stop();
+    if (scenario == "incoming-fire")
+    {
+        b.ActiveLayer = ESAINLayer.Combat;
+        p.Observe(b);
+        Step(1.5f);
+        p.Observe(b);
+        b.ActiveLayer = ESAINLayer.Squad;
+        C(layer.IsActive() && r.Threat?.x == 35, "a new fight reads the current origin instead of reusing the last fallback");
+        action.Stop();
+        b.Memory.UnderFireFromPosition = Vector3.zero;
+        b.ActiveLayer = ESAINLayer.Combat;
+        p.Observe(b);
+        Step(1.5f);
+        p.Observe(b);
+        b.ActiveLayer = ESAINLayer.Squad;
+        C(layer.IsActive() && r.Threat == null, "clearing the native origin leaves no fictitious enemy memory");
+        action.Stop();
+    }
+    Physics.BlocksSightTo = null;
+}
+{
+    var (p, b, layer, action) = Setup(false);
+    b.GoalEnemy = null;
+    b.Memory.UnderFireFromPosition = new(30, 0, 0);
+    Physics.BlocksSightTo = point => point.z >= 15.9f;
+    b.ActiveLayer = ESAINLayer.Combat;
+    p.Observe(b);
+    Step(1.5f);
+    p.Observe(b);
+    b.ActiveLayer = ESAINLayer.Squad;
+    C(layer.IsActive(), "incoming-fire origin is available for the initial cover assessment");
+    action.Start();
+    var r = p.states[b].PostCombat;
+    C(r.RouteStage == "cover" && r.Goal.z >= 15.9f && b.Mover.Routes == 1,
+        "open ground with only the remembered shot sends the bot to a point that breaks sight");
+    action.Stop();
+    Physics.BlocksSightTo = null;
+}
 foreach (var kind in new[] { "bush", "moving", "bad", "spotted", "solid" })
 {
     var (p, b, l, a) = Setup();
@@ -1117,7 +1200,7 @@ foreach (var (min, max, start, eligible) in new[]
     settings.AdvanceMax = max;
     settings.AdvanceChances["Normal"] = 100;
     var r = p.states[b].PostCombat;
-    var target = r.Threat!.Value;
+    var target = b.GoalEnemy!.KnownPlaces.LastKnownPosition!.Value;
     b.Position = target + Vector3.up * start;
     C(layer.IsActive() && r.Policy.Trace!.AdvanceSelected == eligible, $"initial range {min}..{max} at {start} m");
     action.Start();

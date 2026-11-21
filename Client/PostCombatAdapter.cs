@@ -23,17 +23,17 @@ internal sealed class PostCombatRuntime
     internal readonly PostCombat Policy = new();
     internal float Next,
         LogAt,
-        ContactAt,
         MedicalNext,
         MoveAt,
         NextMoveOrder,
         ProgressAt,
         BestDistance;
+    internal (Vector3 Position, string ProfileId, float UpdatedAt)? LastFightContact;
     internal Vector3? Threat;
+    internal float? ContactAt;
     internal PostCombatCoverRange CoverRange;
     internal bool InspectedThreat;
-    internal string Contact = "",
-        Key = "",
+    internal string Key = "",
         RouteStage = "";
     internal IBotPathData? Path;
     internal Vector3 Goal,
@@ -187,22 +187,23 @@ public sealed partial class Plugin
                 return;
             }
             s.PostCombat.Policy.ObserveFight(Time.time);
-            var place = e?.KnownPlaces.LastSeenPlace;
-            var heard = e?.KnownPlaces.LastHeardPlace;
-            if (heard != null && (place == null || heard.TimeSincePositionUpdated < place.TimeSincePositionUpdated))
-                place = heard;
-            if (place != null && ValidPoint(place.Position) && place.TimeSincePositionUpdated >= 0)
-            {
-                s.PostCombat.Threat = place.Position;
-                s.PostCombat.Contact = e!.EnemyProfileId;
-                s.PostCombat.ContactAt = Time.time - place.TimeSincePositionUpdated;
-            }
+            if (PostEnemyContact(b) is { } contact)
+                s.PostCombat.LastFightContact = contact;
         }
         catch (Exception ex)
         {
             if (p.states.TryGetValue(b, out var s))
                 p.PostError(b, s, ex);
         }
+    }
+
+    private static (Vector3 Position, string ProfileId, float UpdatedAt)? PostEnemyContact(BotComponent b)
+    {
+        var enemy = b.GoalEnemy;
+        var place = enemy?.KnownPlaces.LastKnownPlace;
+        if (place != null && ValidPoint(place.Position) && place.TimeSincePositionUpdated >= 0)
+            return (place.Position, enemy!.EnemyProfileId, Time.time - place.TimeSincePositionUpdated);
+        return null;
     }
 
     private bool PostDanger(BotComponent b)
@@ -315,10 +316,25 @@ public sealed partial class Plugin
         };
         bool wasActive = r.Policy.Active;
         ETagStatus initialHealth = default;
+        string threatSource = "none", contactId = "";
         if (!wasActive)
         {
             if (r.Policy.QuietWindowExpired(f, config.PostCombat))
                 return false;
+            var currentContact = PostEnemyContact(b);
+            var contact = currentContact ?? r.LastFightContact;
+            r.Threat = contact?.Position;
+            r.ContactAt = contact?.UpdatedAt;
+            if (contact.HasValue)
+            {
+                contactId = contact.Value.ProfileId;
+                threatSource = currentContact.HasValue ? "current-enemy" : "last-fight";
+            }
+            else if (b.Memory.UnderFireFromPosition != Vector3.zero)
+            {
+                r.Threat = b.Memory.UnderFireFromPosition;
+                threatSource = "incoming-fire";
+            }
             initialHealth = b.Memory.Health.HealthStatus;
             f.BadlyInjuredOrDying = initialHealth is ETagStatus.BadlyInjured or ETagStatus.Dying;
             r.NextMoveOrder = 0;
@@ -333,9 +349,9 @@ public sealed partial class Plugin
             r.MedicalFailures = 0;
             r.MedicalDisabled = false;
             r.MedicalNext = 0;
-            if (r.Threat is Vector3 contact)
+            if (r.Threat is Vector3 point)
             {
-                float distance = Vector3.Distance(b.Position, contact);
+                float distance = Vector3.Distance(b.Position, point);
                 f.CanAdvance = distance > config.PostCombat.AdvanceMin && distance < config.PostCombat.AdvanceMax;
             }
         }
@@ -364,9 +380,12 @@ public sealed partial class Plugin
                 r.MoveAt = Time.time;
             t.LeaderDistance = leaderDistance;
             if (!wasActive && active)
+            {
                 t.AdvanceHealthStatus = initialHealth.ToString();
-            t.Contact = r.Contact;
-            t.ContactAge = Math.Max(0, Time.time - r.ContactAt);
+                t.ThreatSource = threatSource;
+                t.Contact = contactId;
+            }
+            t.ContactAge = r.ContactAt.HasValue ? Math.Max(0, Time.time - r.ContactAt.Value) : null;
             t.X = r.Threat?.x;
             t.Y = r.Threat?.y;
             t.Z = r.Threat?.z;
@@ -517,8 +536,9 @@ public sealed partial class Plugin
         }
         if (clear)
         {
+            r.LastFightContact = null;
             r.Threat = null;
-            r.Contact = "";
+            r.ContactAt = null;
             r.MedicalOwner = false;
             r.MedicalUseful = false;
         }
