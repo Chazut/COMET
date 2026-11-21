@@ -40,6 +40,7 @@ public sealed class GrenadeChoiceTrace
         Template = "",
         Name = "",
         Preference = "";
+    public bool ThrowerUnderRoof;
     public double KnownX,
         KnownY,
         KnownZ,
@@ -90,7 +91,7 @@ public static class GrenadeChoiceRules
             return "contact-explosion";
         if (!Finite(fuse) || fuse < c.MinimumFuse)
             return "fuse-outside-safe-range";
-        // Flight estimates are diagnostic; zzap selects by fuse, distance and room context.
+        // Flight estimates are diagnostic. Fuse preference uses throw distance and the thrower's roof.
         return "";
     }
 

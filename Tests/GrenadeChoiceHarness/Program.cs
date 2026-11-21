@@ -163,23 +163,66 @@ foreach (
         "rejected alternative reason recorded"
     );
 }
+foreach (bool visible in new[] { false, true })
+foreach (bool targetIndoors in new[] { true, false })
+foreach (var (sainIndoors, eftIndoors, preferUnderRoof, target, item, reason) in new[]
+{
+    (false, false, true, new Vector3(25, 0, 0), "long", "long-outdoors"),
+    (true, false, true, new Vector3(25, 0, 0), "short", "short-indoors"),
+    (false, true, true, new Vector3(25, 0, 0), "short", "short-indoors"),
+    (true, true, false, new Vector3(25, 0, 0), "long", "long-outdoors"),
+    (true, true, false, new Vector3(19.99f, 0, 0), "short", "short-close"),
+    (false, false, true, new Vector3(16, 12, 0), "long", "long-outdoors"), // exactly 20 m in 3D
+})
 {
     var (p, b) = Setup(false, false);
-    b.GoalEnemy!.IsVisible = false;
-    b.GoalEnemy.EnemyPlayer.Environment = EnvironmentType.Indoor;
-    Check(
-        Ready(p, b) && p.State(b).GrenadeChoice.Item == "short",
-        "source reads enemy environment regardless of visibility"
-    );
+    b.Memory.Location.IsIndoors = sainIndoors;
+    b.Player.Environment = eftIndoors ? EnvironmentType.Indoor : EnvironmentType.Outdoor;
+    b.GoalEnemy!.IsVisible = visible;
+    b.GoalEnemy.EnemyPlayer.Environment = targetIndoors ? EnvironmentType.Indoor : EnvironmentType.Outdoor;
+    b.GoalEnemy.KnownPlaces.LastKnownPlace!.Position = target;
+    p.Settings.GrenadeChoice.PreferShortIndoors = preferUnderRoof;
+    var grenades = b.BotOwner.WeaponManager.Grenades;
+    grenades.AIGreanageThrowData!.Target = target;
+    Check(Ready(p, b) && grenades.grenade!.Id == item && p.State(b).GrenadeChoice.Trace!.Preference == reason,
+        $"fuse for SAIN roof={sainIndoors}, EFT roof={eftIndoors}, roof setting={preferUnderRoof}, " +
+        $"target indoors={targetIndoors}, visible={visible}, distance={target.magnitude}");
+    var selection = p.Events.Select(Newtonsoft.Json.Linq.JObject.Parse)
+        .Single(ev => (string?)ev["feature"] == "G03" && (string?)ev["grenadeChoice"]?["state"] == "selected")
+        ["grenadeChoice"]!;
+    Check((bool)selection["throwerUnderRoof"]! == (sainIndoors || eftIndoors)
+        && Math.Abs((double)selection["distance"]! - target.magnitude) < .001,
+        "the selection event records the thrower's roof and the 3D arc distance");
 }
 {
     var (p, b) = Setup(false, false);
-    b.GoalEnemy!.EnemyPlayer.Environment = EnvironmentType.Indoor;
+    p.Settings.GrenadeChoice.ShortFuseDistance = 30;
+    b.BotOwner.WeaponManager.Grenades.AIGreanageThrowData!.Target = new(25, 0, 0);
+    Check(Ready(p, b) && p.State(b).GrenadeChoice.Trace!.Preference == "short-close"
+        && p.State(b).GrenadeChoice.Item == "short", "the configured distance still applies outdoors");
+}
+{
+    var (p, b) = Setup(false, false);
+    var grenades = b.BotOwner.WeaponManager.Grenades;
+    var arc = grenades.AIGreanageThrowData!;
+    arc.Target = new(25, 0, 0);
+    b.GoalEnemy!.KnownPlaces.LastKnownPlace!.Position = arc.Target;
+    Check(Ready(p, b) && grenades.grenade!.Id == "long", "prepare the outdoor throw");
+    b.GoalEnemy.EnemyPlayer.Environment = EnvironmentType.Indoor;
+    p.Tick(b, 10.1);
+    Check(p.Find(b) && grenades.grenade!.Id == "long" && grenades.Selections == 1,
+        "a target entering a building does not change the prepared fuse");
+    b.Memory.Location.IsIndoors = true;
+    p.Tick(b, 10.2);
+    Check(p.Find(b) && grenades.grenade!.Id == "short" && grenades.Selections == 2,
+        "moving under a roof updates the choice within the same opportunity");
+    b.Memory.Location.IsIndoors = false;
     p.Tick(b, 10.3);
-    Check(
-        Ready(p, b) && p.State(b).GrenadeChoice.Item == "short",
-        "personally observed room works with G01 off"
-    );
+    Check(p.Find(b) && grenades.grenade!.Id == "long", "leaving the roof restores the long choice");
+    arc.Position = new(6, 0, 0);
+    p.Tick(b, 10.4);
+    Check(p.Find(b) && grenades.grenade!.Id == "short", "a new arc starting 19 m from the target prefers short");
+    Check(p.Throw(b) && p.Requests == 1, "the updated choice is accepted by the native throw path");
 }
 {
     var (p, b) = Setup();

@@ -17,6 +17,7 @@ internal sealed class GrenadeChoiceRuntime
         LogKey = "";
     internal int Enemy;
     internal long Revision;
+    internal bool ShortFusePreferred;
     internal double ChosenAt,
         Power,
         LogAt = -1000;
@@ -67,10 +68,15 @@ public sealed partial class Plugin
             StopGrenadeChoice(s, "choice-arc-expired", "blocked");
             return false;
         }
+        bool underRoof = GrenadeThrowerUnderRoof(b);
+        bool shortUnderRoof = config!.GrenadeChoice.PreferShortIndoors && underRoof;
+        double distance = Vector3.Distance(d.Position, d.Target);
+        bool shortest = shortUnderRoof || distance < config.GrenadeChoice.ShortFuseDistance;
         if (
             r.Item.Length > 0
+            && r.ShortFusePreferred == shortest
             && r.Enemy == f.Instance
-            && r.Revision == config!.Revision
+            && r.Revision == config.Revision
             && f.Now - r.ChosenAt <= 2
             && Vector3.Distance(r.Known, new((float)f.X, (float)f.Y, (float)f.Z)) <= 1
         )
@@ -79,11 +85,6 @@ public sealed partial class Plugin
         var flat = d.Target - d.Position;
         flat.y = 0;
         var flight = GrenadeChoiceRules.Flight(flat.magnitude, d.Force, d.Ang);
-        bool indoors = b.Player.Environment == EnvironmentType.Indoor || f.Room;
-        double distance = Vector3.Distance(d.Position, d.Target);
-        bool shortest =
-            config!.GrenadeChoice.PreferShortIndoors && indoors
-            || distance < config.GrenadeChoice.ShortFuseDistance;
         r.Trace = new()
         {
             Target = f.Target,
@@ -91,16 +92,11 @@ public sealed partial class Plugin
             KnownX = f.X,
             KnownY = f.Y,
             KnownZ = f.Z,
+            ThrowerUnderRoof = underRoof,
             Distance = distance,
             Flight = flight ?? 0,
             RequiredMargin = 0,
-            Preference = shortest
-                ? (
-                    config.GrenadeChoice.PreferShortIndoors && indoors
-                        ? "short-indoors"
-                        : "short-close"
-                )
-                : "long-outdoors",
+            Preference = shortUnderRoof ? "short-indoors" : shortest ? "short-close" : "long-outdoors",
         };
         r.Item = "";
         flight ??= 0;
@@ -162,6 +158,7 @@ public sealed partial class Plugin
         float oldPower = g.MaxPower;
         g.SetThrowParams(chosen); // Native inventory/animation/Fika execution stays intact.
         r.Item = pick.Item;
+        r.ShortFusePreferred = shortest;
         r.Enemy = f.Instance;
         r.Revision = config.Revision;
         r.Known = new((float)f.X, (float)f.Y, (float)f.Z);

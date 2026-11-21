@@ -387,6 +387,10 @@ public sealed partial class Plugin
         RecordGrenadeTrajectory(s, true);
     }
 
+    // The fork's UnderRoof combines SAIN building areas and EFT's indoor environment.
+    private static bool GrenadeThrowerUnderRoof(BotComponent b) =>
+        b.Memory.Location.IsIndoors || b.Player.Environment == EnvironmentType.Indoor;
+
     private void AddGrenadeAim(
         BotComponent b,
         GrenadeTrajectoryRuntime r,
@@ -396,7 +400,7 @@ public sealed partial class Plugin
         DoorWork? door
     )
     {
-        bool indoors = b.Memory.Location.IsIndoors || b.Player.Environment == EnvironmentType.Indoor;
+        bool indoors = GrenadeThrowerUnderRoof(b);
         Vector3 nominal = raw;
         raw.y += .25f;
         if (door == null)

@@ -200,9 +200,9 @@
     },
     "GrenadeChoice": {
       "Title": "Choose a grenade - G03",
-      "Description": "Choose from carried timed fragmentation grenades: shorter fuse indoors or nearby, longer fuse outdoors at range. Keep a safety margin after estimated arrival. Native throwing and SAIN permission checks still apply. Flight time is an estimate from the native trajectory. Impact grenades, smoke and flash grenades are outside this feature. Selection is not a confirmed throw; RR tracks those separately.",
+      "Description": "The bot chooses among the timed fragmentation grenades it carries. By default it prefers a short fuse when standing under a roof or making a short throw, and a long fuse for a longer throw in the open. SAIN still checks whether it can make the throw.",
       "Category": "Grenades",
-      "Summary": "Choose from carried timed fragmentation grenades: shorter fuse indoors or nearby, longer fuse outdoors at range."
+      "Summary": "Choose a fuse based on throw distance and whether the thrower is under a roof."
     },
     "GrenadeTrajectory": {
       "Title": "Find a grenade trajectory - G02",
@@ -3101,8 +3101,8 @@
       "Simple": false
     },
     "GrenadeChoice.PreferShortIndoors": {
-      "Label": "Prefer a short fuse indoors",
-      "Help": "",
+      "Label": "Prefer a short fuse when the thrower is under a roof",
+      "Help": "When enabled, a roof over the bot favors a short fuse at any distance. When disabled, only throw distance determines the preference.",
       "Min": null,
       "Max": null,
       "Scale": 1,
