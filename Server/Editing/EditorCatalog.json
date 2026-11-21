@@ -1886,26 +1886,6 @@
       "Simple": false,
       "Unit": "s"
     },
-    "SquadStorm.PrepareTimeout": {
-      "Label": "Maximum preparation time",
-      "Help": "",
-      "Min": 0.25,
-      "Max": 6.0,
-      "Scale": 1,
-      "Section": "SquadStorm",
-      "Simple": false,
-      "Unit": "s"
-    },
-    "SquadStorm.Duration": {
-      "Label": "Maximum assault time",
-      "Help": "",
-      "Min": 2.0,
-      "Max": 20.0,
-      "Scale": 1,
-      "Section": "SquadStorm",
-      "Simple": false,
-      "Unit": "s"
-    },
     "SquadStorm.MinimumAmmo": {
       "Label": "Minimum loaded magazine",
       "Help": "",
@@ -1918,7 +1898,7 @@
     },
     "SquadStorm.Retry": {
       "Label": "Same-enemy retry delay",
-      "Help": "",
+      "Help": "How long the squad remembers its assault decision before it can reassess the same enemy.",
       "Min": 5.0,
       "Max": 120.0,
       "Scale": 1,

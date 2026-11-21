@@ -33,7 +33,11 @@ internal static class ConfigEditorTests
         var editor = new ConfigEditor(original);
         EditorField Field(string path) => editor.Catalog.Fields[path];
         var editablePaths = DifficultyPresets.Values(original).Keys
-            .Except(new[] { "Schema", "OutdoorRelocation.RetryDelay", "SquadStorm.MinimumAttackers" })
+            .Except(new[]
+            {
+                "Schema", "OutdoorRelocation.RetryDelay", "SquadStorm.MinimumAttackers",
+                "SquadStorm.PrepareTimeout", "SquadStorm.Duration",
+            })
             .Select(path => path.Replace('[', '.').Replace("]", ""));
         Check(
             editor.Catalog.Fields.Keys.ToHashSet().SetEquals(editablePaths),

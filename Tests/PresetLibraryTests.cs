@@ -55,6 +55,9 @@ internal static class PresetLibraryTests
         const string oldAttackersPath = "SquadStorm.MinimumAttackers";
         const int oldAttackers = 4;
         config.SquadStorm.MinimumAttackers = oldAttackers;
+        const double oldPreparation = 2.75, oldDuration = 13.5;
+        config.SquadStorm.PrepareTimeout = oldPreparation;
+        config.SquadStorm.Duration = oldDuration;
         var saved = library.Create("My setup", config, 0);
         Check(
             saved.Revision == 1
@@ -93,6 +96,8 @@ internal static class PresetLibraryTests
             && preview.Changes.All(change => change.Path != oldAttackersPath)
             && editor.Catalog.Fields.ContainsKey("SquadStorm.SquadDistance"),
             "the retired attacker count stays hidden and the proximity control remains available");
+        Check(preview.Changes.All(change => change.Path is not ("SquadStorm.PrepareTimeout" or "SquadStorm.Duration")),
+            "loading a preset omits the retired S06 timers from the list of changes");
         editor.Apply(preview);
         Check(
             editor.HasPending
@@ -107,6 +112,8 @@ internal static class PresetLibraryTests
             "saved config accurately names unmodified copy"
         );
         editor.Set(editor.Catalog.Fields["CoverFeint.PeekChance"], "21.5");
+        Check(editor.Set(editor.Catalog.Fields["SquadStorm.Retry"], "31"),
+            "the same-enemy S06 reassessment delay is still editable");
         active = store.Save(editor.Snapshot(), editor.Revision);
         editor.AcceptSaved(active);
         Check(
@@ -122,6 +129,9 @@ internal static class PresetLibraryTests
             "saving another visible setting preserves the exact stored M13 delay");
         Check(store.Read().SquadStorm.MinimumAttackers == oldAttackers,
             "saving a visible edit preserves the legacy S06 count in the active config");
+        var storedStorm = store.Read().SquadStorm;
+        Check(storedStorm.Retry == 31 && storedStorm.PrepareTimeout == oldPreparation
+            && storedStorm.Duration == oldDuration, "editing the live S06 delay preserves both old timers on disk");
         var update = library.Update(saved.Id, editor.Snapshot(), library.Read().Revision);
         editor.AttachPreset(update.Config.PresetSource!);
         Check(
@@ -269,14 +279,26 @@ internal static class PresetLibraryTests
             && editor.Catalog.ShowsAddedDefault("BehaviorBaseline"),
             "import review retains active defaults and migration metadata");
         var squadSettings = omitted["Settings"]!["SquadStorm"]!.AsObject();
+        Check(squadSettings["PrepareTimeout"]!.GetValue<double>() == oldPreparation
+            && squadSettings["Duration"]!.GetValue<double>() == oldDuration
+            && imported.Config.SquadStorm.PrepareTimeout == oldPreparation
+            && imported.Config.SquadStorm.Duration == oldDuration,
+            "both legacy timers round-trip through personal preset update, export and import");
         squadSettings.Remove("MinimumAttackers");
+        squadSettings.Remove("PrepareTimeout");
+        squadSettings.Remove("Duration");
         squadSettings.Remove("SquadDistance");
         var squadImport = PresetLibrary.PreviewImport(omitted.ToJsonString());
+        var stormDefaults = new SquadStormConfig();
         Check(squadImport.Config.SquadStorm.MinimumAttackers == 2
+            && squadImport.Config.SquadStorm.PrepareTimeout == stormDefaults.PrepareTimeout
+            && squadImport.Config.SquadStorm.Duration == stormDefaults.Duration
             && squadImport.AddedSettings.Contains(oldAttackersPath)
+            && squadImport.AddedSettings.Contains("SquadStorm.PrepareTimeout")
+            && squadImport.AddedSettings.Contains("SquadStorm.Duration")
             && squadImport.AddedSettings.Where(editor.Catalog.ShowsAddedDefault)
                 .SequenceEqual(new[] { "SquadStorm.SquadDistance" }),
-            "an omitted S06 count loads its default and only the live proximity setting needs review");
+            "omitted legacy S06 fields load their defaults and only the live proximity setting needs review");
         var previousDoorPreset = JsonNode.Parse(json)!.AsObject();
         var previousGrenadePreset = JsonNode.Parse(json)!.AsObject();
         var grenadeSettings = previousGrenadePreset["Settings"]!.AsObject();
