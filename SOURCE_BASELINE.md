@@ -263,6 +263,10 @@ The recovery window ends 60 seconds after the last combat-layer observation, eve
 with repeated sounds, active treatment or a reload. H04 releases control and lets
 native operations finish. Its end event records the reason and `secondsSinceCombat`.
 
+H04 can request one native top-up on the same update that orders a move to
+cover. An existing reload can continue on the way. Active treatment suspends
+that movement. The H04 trace records `Reloading` alongside the cover action.
+
 ### Door recovery at Ground Zero (2026-11-20)
 
 In raid 485 a PMC held the same doorway for 37 seconds. C04 selected a reversed

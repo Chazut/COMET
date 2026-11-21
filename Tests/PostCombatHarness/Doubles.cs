@@ -967,7 +967,8 @@ namespace UnityEngine
         public static bool Raycast(Vector3 a, Vector3 d, float max, int mask) =>
             Raycast(a, d, out _, max, mask, QueryTriggerInteraction.Ignore);
 
-        public static bool Linecast(Vector3 a, Vector3 b, int mask) => false;
+        public static Func<Vector3, bool>? BlocksSightTo;
+        public static bool Linecast(Vector3 a, Vector3 b, int mask) => BlocksSightTo?.Invoke(b) == true;
 
         public static int Rays;
 

@@ -311,7 +311,7 @@ public sealed partial class Plugin
                 .Player.HealthController.GetBodyPartHealth(EBodyPart.Common, false)
                 .Normalized,
             Personality = b.Info.Personality.ToString(),
-            MedicalBusy = b.BotOwner.Medecine.Using || b.Player.HandsController is IMedsController,
+            MedicalBusy = PostTreatmentInUse(b),
             MedicalUseful = r.MedicalUseful,
             MedicalUrgent = r.MedicalUrgent,
             Reloading = b.BotOwner.WeaponManager.Reload.Reloading,

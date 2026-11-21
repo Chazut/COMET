@@ -32,16 +32,19 @@ internal static class PostCombatTests
             MedicalUseful = true,
         };
         Check(
-            p.Tick(f, c, 0, 0) && p.Trace!.State == "reload",
-            "source attempts one reload while seeking protection"
+            p.Tick(f, c, 0, 0) && p.Trace!.State == "cover" && p.WantsReload,
+            "seeking protection and attempting a reload share the first update"
         );
         Check(p.Trace!.CombatLayerSeconds == 1.5, "eligibility records first-to-last combat time");
         p.Complete("reload", "requested");
+        f.Reloading = true;
         f.Now = 10.25;
         p.Tick(f, c, 0, 0);
-        Check(p.Trace!.State == "cover", "move to source cover before treatment");
+        Check(p.Trace!.State == "cover" && p.Trace.Reloading && !p.WantsReload,
+            "keep moving before treatment while the native reload runs");
         p.Complete("cover", "arrived");
         f.NeedsCover = false;
+        f.Reloading = false;
         f.Now = 10.5;
         p.Tick(f, c, 0, 0);
         Check(p.Trace!.State == "medical", "then heal");

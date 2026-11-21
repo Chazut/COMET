@@ -262,6 +262,60 @@ foreach (
     C(!p.states[b].PostCombat.Policy.Active, "cleanup releases recovery");
     Save(p);
 }
+// The bot starts exposed at z=0. A wall shelters the first near ring at z=3.
+Physics.BlocksSightTo = point => point.z >= 2.9f;
+foreach (var (alreadyReloading, spare, requests) in new[] { (false, true, 1), (true, true, 0), (false, false, 0) })
+{
+    var (p, b, layer, action) = Setup();
+    b.Player.HandsController = new Player.FirearmController { Item = new() { Magazine = new() { Count = 5 } } };
+    var reload = b.BotOwner.WeaponManager.Reload;
+    reload.Reloading = alreadyReloading;
+    reload.Available = spare;
+    C(layer.IsActive(), "post-combat layer available in the open");
+    action.Start();
+    var r = p.states[b].PostCombat;
+    C(r.RouteStage == "cover" && b.Mover.Routes == 1 && r.Goal.z >= 2.9f,
+        "first action update orders a route to shelter");
+    C(reload.Requests == requests && reload.Reloading == (alreadyReloading || spare),
+        "cover order and native reload agree on the first update");
+    C(r.Policy.Trace is { State: "cover", Execution: "native movement requested" }
+        && r.Policy.Trace.Reloading == reload.Reloading, "cover trace includes the actual native reload state");
+    Step(1.1f);
+    action.Update(new());
+    C(b.Mover.Routes == 2 && reload.Requests == requests,
+        "the route continues without a duplicate reload request");
+    b.Position = r.Goal;
+    Step();
+    action.Update(new());
+    C(r.Protected && r.Path == null, "arrival completes the cover move with hands busy or idle");
+    action.Stop();
+    C(reload.Reloading == (alreadyReloading || spare), "layer release preserves the native reload");
+    Save(p);
+}
+{
+    var (p, b, layer, action) = Setup();
+    var firstAid = b.BotOwner.Medecine.FirstAid;
+    var reload = b.BotOwner.WeaponManager.Reload;
+    ((Player.FirearmController)b.Player.HandsController).Item.Magazine.Count = 5;
+    C(layer.IsActive(), "cover is selected before treatment begins");
+    firstAid.Using = true;
+    action.Start();
+    Step();
+    action.Update(new());
+    C(b.Mover.Routes == 0 && reload.Requests == 0, "ongoing treatment takes priority over moving and reloading");
+    firstAid.Using = false;
+    Step();
+    action.Update(new());
+    var path = (BotPathDataManual?)p.states[b].PostCombat.Path;
+    C(path != null && reload.Requests == 1, "cover and reload start together when treatment finishes");
+    firstAid.Using = true;
+    Step();
+    action.Update(new());
+    C(path!.Stops == 1 && p.states[b].PostCombat.Path == null && b.Mover.Routes == 1,
+        "starting treatment en route releases the owned cover path");
+    Save(p);
+}
+Physics.BlocksSightTo = null;
 foreach (bool available in new[] { true, false })
 {
     var (p, b, l, a) = Setup();

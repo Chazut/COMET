@@ -98,6 +98,7 @@ public sealed class PostCombatTrace
     public double Remaining { get; set; }
     public double WatchRemaining { get; set; }
     public double AmmoPercent { get; set; }
+    public bool Reloading { get; set; }
     public bool MedicalUseful { get; set; }
     public bool MedicalBusy { get; set; }
     public double AdvanceChance { get; set; }
@@ -119,6 +120,7 @@ public sealed class PostCombat
     private const double MaxSecondsSinceCombat = 60;
     public PostCombatTrace? Trace { get; private set; }
     public bool Active { get; private set; }
+    public bool WantsReload => Active && !reloadDone && Trace is { Reloading: false, MedicalBusy: false };
     public double LastFight { get; private set; } = -1000;
     private bool armed,
         coverDone,
@@ -202,6 +204,7 @@ public sealed class PostCombat
         t.MedicalBusy = f.MedicalBusy;
         t.MedicalUseful = f.MedicalUseful;
         t.AmmoPercent = f.AmmoPercent;
+        t.Reloading = f.Reloading;
         if (f.Heard)
         {
             t.AdvanceSelected = false;
@@ -217,21 +220,19 @@ public sealed class PostCombat
         t.Remaining = Math.Min(windowLeft, Math.Max(0, budget));
         if (f.MedicalBusy)
             return Stage("medical", "post-combat-native-treatment-active");
-        if (f.Reloading)
-            return Stage("reload", "post-combat-native-reload-active");
-        if (!reloadDone && f.AmmoPercent < c.ReloadBelow)
-            return Stage("reload", "post-combat-top-up-magazine");
-        reloadDone = true;
+        if (!f.Reloading && f.AmmoPercent >= c.ReloadBelow)
+            reloadDone = true;
         if (!coverDone && f.NeedsCover && t.Elapsed < c.Duration)
             return Stage("cover", "post-combat-seek-protection");
         coverDone = true;
+        if (f.Reloading)
+            return Stage("reload", "post-combat-native-reload-active");
+        if (WantsReload)
+            return Stage("reload", "post-combat-top-up-magazine");
         if (f.MedicalUseful && !f.Coming)
             return Stage("medical", "post-combat-useful-treatment");
         if (t.Elapsed >= c.Duration && !f.Heard)
             return End("post-combat-time-budget-ended");
-        if (!reloadDone && f.AmmoPercent < c.ReloadBelow)
-            return Stage("reload", "post-combat-top-up-magazine");
-        reloadDone = true;
         if (!f.Heard && !regroupDone && f.Regroup)
             return Stage("regroup", "post-combat-rejoin-leader");
         regroupDone = true;

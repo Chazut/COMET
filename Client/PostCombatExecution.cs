@@ -14,6 +14,9 @@ namespace Comet.Client;
 
 public sealed partial class Plugin
 {
+    private static bool PostTreatmentInUse(BotComponent b) =>
+        b.BotOwner.Medecine.Using || b.Player.HandsController is IMedsController;
+
     private void InspectPostMedical(BotComponent b, BotState s)
     {
         var med = b.BotOwner.Medecine;
@@ -30,6 +33,32 @@ public sealed partial class Plugin
         var c = config!.PostCombat;
         if (r.Path != null && t.State != r.RouteStage)
             PostStopRoute(b, r);
+        if (t.State is "cover" or "reload")
+        {
+            if (PostTreatmentInUse(b))
+            {
+                if (r.RouteStage == "cover")
+                    PostStopRoute(b, r);
+                return;
+            }
+            var reload = b.BotOwner.WeaponManager.Reload;
+            if (r.Policy.WantsReload && !reload.Reloading)
+            {
+                r.Policy.Complete("reload", "native reload attempted once");
+                if (reload.CanReload(true, out var magazine, out var rounds))
+                {
+                    b.BotOwner.ShootData.EndShoot();
+                    reload.Reloading = true;
+                    if (magazine != null)
+                        reload.ReloadMagazine(magazine);
+                    else if (rounds != null && rounds.Count > 0)
+                        reload.ReloadAmmo(rounds);
+                }
+            }
+            t.Reloading = reload.Reloading;
+            if (t.State == "reload")
+                return;
+        }
         if (r.RouteStage.Length > 0 && t.State == r.RouteStage)
         {
             if (Vector3.Distance(b.Position, r.Goal) < (r.RouteStage == "check" ? 3f : 1f))
@@ -102,23 +131,6 @@ public sealed partial class Plugin
                 b.Mover.Prone.SetProne(r.ProneInOpen);
             }
             t.Execution = started ? "native treatment started" : "native treatment unavailable";
-            return;
-        }
-        if (t.State == "reload")
-        {
-            if (b.BotOwner.WeaponManager.Reload.Reloading)
-                return;
-            r.Policy.Complete("reload", "native reload attempted once");
-            var reload = b.BotOwner.WeaponManager.Reload;
-            if (reload.CanReload(true, out var magazine, out var rounds))
-            {
-                b.BotOwner.ShootData.EndShoot();
-                reload.Reloading = true;
-                if (magazine != null)
-                    reload.ReloadMagazine(magazine);
-                else if (rounds != null && rounds.Count > 0)
-                    reload.ReloadAmmo(rounds);
-            }
             return;
         }
         if (t.State is "regroup" or "check")
