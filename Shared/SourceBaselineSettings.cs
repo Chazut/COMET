@@ -128,6 +128,7 @@ public static class SourceBaselineSettings
         "SearchAbandonmentConfig.Inspection",
         "SearchAbandonmentConfig.Radius",
         "SecondaryEntranceConfig.ContactAge",
+        "SecondaryEntranceConfig.Retry",
         "SecondaryEntranceConfig.StandOff",
         "ShotGeometryConfig.AllowPenetration",
         "ShotGeometryConfig.DirectionDegrees",

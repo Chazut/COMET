@@ -32,6 +32,9 @@ internal static class ConfigEditorTests
         var before = JsonSerializer.Serialize(original);
         var editor = new ConfigEditor(original);
         EditorField Field(string path) => editor.Catalog.Fields[path];
+        Check(!editor.Catalog.Fields.ContainsKey("SecondaryEntrance.Retry")
+            && editor.Catalog.Fields.ContainsKey("Crossfire.Retry"),
+            "only the working shared cooldown is exposed for secondary entrance retries");
         var editablePaths = DifficultyPresets.Values(original).Keys
             .Except(new[]
             {

@@ -89,10 +89,9 @@ internal static class SecondaryEntranceTests
             );
             p.End(28);
             C(
-                !p.CanTry("enemy", 57, 40, c)
-                    && p.CanTry("enemy", 100, 9, c)
-                    && p.CanTry("enemy", 58, 10, c),
-                "cooldown without new-evidence veto"
+                p.Trace.State == "ended" && p.Trace.WatchRemaining == 0
+                    && p.CanTry("enemy", 28, 9, c) && p.CanTry("enemy", 28, 28, c),
+                "the entrance itself adds no per-enemy delay to the shared session cooldown"
             );
         }
         foreach (double oldRoll in new[] { 0d, .5d, 1d })
@@ -200,17 +199,23 @@ internal static class SecondaryEntranceTests
         {
             var p = new SecondaryEntrance();
             for (int i = 0; i < 32; i++)
-                C(p.Begin("e" + i, 1, 1, 0, c), "bounded history slot");
-            C(p.CanTry("overflow", 2, 2, c), "history does not cap eligible enemies");
+                C(p.Begin("e" + i, 1, 1, c), "searching another contact does not use up a retry slot");
+            C(p.CanTry("overflow", 2, 2, c), "the number of previous contacts cannot block admission");
+            C(!p.CanTry("", 10, 9, c) && !p.CanTry("e", 10, 11, c)
+                && !p.CanTry("e", double.NaN, 9, c) && !p.CanTry("e", 10, double.NaN, c),
+                "invalid targets and clocks remain ineligible");
         }
         {
             var p = new SecondaryEntrance();
-            p.Begin("e", 10, 9, 0, c);
-            p.End(23, 22);
-            C(
-                p.CanTry("e", 53, 22, c) && p.CanTry("e", 53, 23, c),
-                "retry requires newer evidence than latest information used during the attempt"
-            );
+            var old = JsonSerializer.Deserialize<SecondaryEntranceConfig>("""{"Retry":120}""")!;
+            old.Validate();
+            C(old.Retry == 120 && p.Begin("e", 10, 9, old), "legacy retry value loads");
+            var failed = p.Trace!;
+            p.End(10, 9);
+            C(p.Begin("e", 15, 9, old) && !ReferenceEquals(failed, p.Trace) && failed.State == "ended",
+                "failed search allows another attempt even on the same remembered information");
+            p.ClearCurrent();
+            C(p.Begin("e", 15, 15, old), "new evidence is eligible without waiting for the old preset timer");
         }
         Console.WriteLine($"{n} S02 policy/config checks passed");
         return n;

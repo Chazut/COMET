@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace Comet.Core;
 
@@ -23,6 +22,7 @@ public sealed class SecondaryEntranceConfig
     public double SnappingTurtle { get; set; } = 0;
     public double Coward { get; set; } = 0;
     public double Timmy { get; set; } = 0;
+    // Retained for existing saved presets. Session timing belongs to Crossfire.
     public double Retry { get; set; } = 30;
 
     public void Validate()
@@ -83,19 +83,9 @@ public sealed class SecondaryEntranceTrace
 public sealed class SecondaryEntrance
 {
     internal const float RecentContactSeconds = 8f;
-    private sealed class Attempt
-    {
-        public double At,
-            Evidence;
-    }
-
-    private readonly Dictionary<string, Attempt> attempts = new();
     public SecondaryEntranceTrace? Trace { get; private set; }
     public double WatchAt { get; private set; }
-    private string target = "";
-    private double watchUntil,
-        evidence,
-        last = -1;
+    private double watchUntil, last = -1;
 
     public bool CanTry(string id, double now, double info, SecondaryEntranceConfig c) =>
         c.Enabled
@@ -103,8 +93,7 @@ public sealed class SecondaryEntrance
         && MedicalChoice.Finite(info)
         && info <= now
         && now >= 0
-        && !string.IsNullOrEmpty(id)
-        && (!attempts.TryGetValue(id, out var a) || now >= a.At + c.Retry);
+        && !string.IsNullOrEmpty(id);
 
     // Older callers supplied a random draw for the initial watch.
     public bool Begin(string id, double now, double info, double watchRoll, SecondaryEntranceConfig c) =>
@@ -114,10 +103,7 @@ public sealed class SecondaryEntrance
     {
         if (!CanTry(id, now, info, c))
             return false;
-        target = id;
-        evidence = info;
         last = now;
-        attempts[id] = new() { At = now, Evidence = info };
         Trace = new() { WatchDuration = c.WatchMax };
         WatchAt = -1;
         return true;
@@ -214,23 +200,15 @@ public sealed class SecondaryEntrance
         return "end";
     }
 
-    public void End(double now, double? latestEvidence = null)
+    public void End()
     {
         if (Trace == null)
             return;
         Trace.State = "ended";
         Trace.WatchRemaining = 0;
-        if (attempts.TryGetValue(target, out var a))
-        {
-            a.At = MedicalChoice.Finite(now) ? now : last;
-            a.Evidence =
-                latestEvidence.HasValue
-                && MedicalChoice.Finite(latestEvidence.Value)
-                && latestEvidence.Value <= a.At
-                    ? Math.Max(evidence, latestEvidence.Value)
-                    : evidence;
-        }
     }
+
+    public void End(double now, double? latestEvidence = null) => End();
 
     public void ClearCurrent() => Trace = null;
 }

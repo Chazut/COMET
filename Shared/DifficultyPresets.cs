@@ -104,7 +104,6 @@ public static class DifficultyPresets
         c.SecondaryEntrance.SnappingTurtle *= chance;
         c.SecondaryEntrance.Coward *= chance;
         c.SecondaryEntrance.Timmy *= chance;
-        c.SecondaryEntrance.Retry *= delay;
         c.Validate();
         return c;
     }

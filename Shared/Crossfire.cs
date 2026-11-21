@@ -126,6 +126,7 @@ public sealed class Crossfire
         bestDistance,
         lastNow = -1;
     private int episode;
+    private bool awaitingEntranceOrAngle;
 
     public bool Begin(double now, CrossfireConfig c, double roll = 0)
     {
@@ -138,7 +139,15 @@ public sealed class Crossfire
             Remaining = c.MoveTimeout,
         };
         started = lastNow = now;
+        awaitingEntranceOrAngle = false;
         return true;
+    }
+
+    internal void SearchSecondaryEntrance(SecondaryEntranceTrace entrance)
+    {
+        Trace!.Entrance = entrance;
+        // A real session starts once either the entrance or the fallback angle is chosen.
+        awaitingEntranceOrAngle = true;
     }
 
     public bool Check(
@@ -193,6 +202,7 @@ public sealed class Crossfire
 
     public void Ready(double x, double y, double z, double angle, double length)
     {
+        awaitingEntranceOrAngle = false;
         var t = Trace!;
         t.State = "ready";
         t.Reason = "crossfire-useful-angle";
@@ -258,7 +268,8 @@ public sealed class Crossfire
 
     public bool End(double now, CrossfireConfig c, string reason)
     {
-        RetryAt = now + c.Retry;
+        if (!awaitingEntranceOrAngle)
+            RetryAt = now + c.Retry;
         if (Trace != null)
         {
             Trace.State = "ended";

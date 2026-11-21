@@ -69,8 +69,8 @@ public sealed partial class Plugin
         if (!r.Indoor)
             return DeclineSquad(s, "S02", "entrance-outdoors-use-crossfire");
         if (!a.Policy.Begin(r.Contact, Time.time, r.ContactAt, c))
-            return DeclineSquad(s, "S02", "entrance-disabled-stale-or-retry");
-        r.Policy.Trace.Entrance = a.Policy.Trace;
+            return DeclineSquad(s, "S02", "entrance-disabled-or-invalid-contact");
+        r.Policy.SearchSecondaryEntrance(a.Policy.Trace!);
         a.Started = Time.time;
         a.Calculations = 0;
         // Local door links only. Ordinary open passages are also checked from bounded NavMesh paths below.
@@ -222,7 +222,7 @@ public sealed partial class Plugin
         var r = s.Crossfire;
         var a = r.Entrance;
         a.Policy.Trace!.EntryReason = why;
-        a.Policy.End(Time.time, r.ContactAt);
+        a.Policy.End();
         RecordCrossfire(s, true);
         r.Policy.Trace!.EntranceFallback = why;
         RecordCrossfireGate(s, "secondary-entrance-fallback-to-S01: " + why, true, "S02");

@@ -678,7 +678,7 @@ public sealed partial class Plugin
         EndSquadTrade(s, reason);
         if (r.Policy.Trace.Entrance != null)
         {
-            r.Entrance.Policy.End(Time.time, r.ContactAt);
+            r.Entrance.Policy.End();
             ReleaseEntrance(s);
         }
         r.Policy.End(Time.time, config?.Crossfire ?? new(), reason);

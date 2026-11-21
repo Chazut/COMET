@@ -814,6 +814,60 @@ foreach (string sighting in new[] { "visible at start", "no sight", "support rea
     }
     p.EndAll();
 }
+foreach (string search in new[] { "direct route", "missing navmesh", "same entrance", "usable fallback angle" })
+{
+    var (p, b, support) = Setup();
+    b.Player.Environment = EnvironmentType.Indoor;
+    var known = new Vector3(0, 0, 22);
+    b.GoalEnemy!.KnownPlaces.LastKnownPosition = support.GoalEnemy!.EnemyPosition = known;
+    var front = new Vector3(0, 0, 18);
+    var side = new Vector3(4, 0, 22);
+    NavMesh.Valid = search != "missing navmesh";
+    NavMesh.Route = search == "same entrance" ? (from, to) => [from, front, to] : null;
+    p.Observe(b);
+    var r = p.states[b].Crossfire;
+    var first = r.Policy.Trace!;
+    // Exhaust the ordinary fallback search as well, unless it can play a real S01.
+    Physics.Blocked = search != "usable fallback angle";
+    for (int i = 0; i < 200 && first.State == "planning"; i++)
+    {
+        Step();
+        p.Observe(b);
+    }
+    string reason = search switch
+    {
+        "missing navmesh" => "no navmesh",
+        "same entrance" => "no alternative entrance path",
+        _ => "partner direct route"
+    };
+    C(first.EntranceFallback == reason && first.Entrance == null, $"S02 falls back to S01: {reason}");
+    if (search == "usable fallback angle")
+    {
+        C(first.State == "ready", "the fallback can select an ordinary angle");
+        var action = Start(p, b);
+        action.Stop();
+        C(r.Policy.RetryAt == Time.time + p.config!.Crossfire.Retry, "executed fallback starts the shared cooldown");
+        Step((float)p.config.Crossfire.Retry - .1f);
+        p.Observe(b);
+        C(ReferenceEquals(first, r.Policy.Trace) && !r.Policy.Active, "same contact waits for the shared cooldown");
+        Step((float)p.config.Crossfire.Interval + .01f);
+    }
+    else
+    {
+        C(first.State == "ended" && first.Reason == "crossfire-no-safe-angle", "neither search found a position");
+        C(r.Policy.RetryAt <= Time.time, "an unsuccessful position search does not start the session cooldown");
+        Step(15f - Time.time);
+    }
+    Physics.Blocked = false;
+    NavMesh.Valid = true;
+    NavMesh.Route = (from, to) => [from, from == support.Position ? front : side, to];
+    b.GoalEnemy.TimeSinceLastKnownUpdated = 0;
+    Plan(p, b);
+    C(r.Policy.Trace!.Episode == first.Episode + 1 && r.Policy.Trace.Entrance != null && r.Entrance.Center == side,
+        $"the same enemy can offer a usable entrance on the next eligible decision after {search}");
+    NavMesh.Route = null;
+    p.EndAll();
+}
 (Plugin, BotComponent, CrossfireAction) BeginEntranceWatch(bool shortApproach = false)
 {
     var (p, b, support) = Setup();
@@ -833,6 +887,24 @@ foreach (string sighting in new[] { "visible at start", "no sight", "support rea
     action.Update(new());
     C(entrance.State == "watching" && r.Entrance.Policy.WatchAt == 18, "the watch starts at the side entrance");
     return (p, b, action);
+}
+{
+    var (p, b, action) = BeginEntranceWatch();
+    var r = p.states[b].Crossfire;
+    var first = r.Policy.Trace!;
+    action.Stop();
+    C(r.Policy.RetryAt == Time.time + 4, "ending a played S02 watch starts the normal four-second cooldown");
+    Step(3.99f);
+    p.Observe(b);
+    C(ReferenceEquals(first, r.Policy.Trace) && !r.Policy.Active, "a played S02 still blocks a premature restart");
+    Step((float)p.config!.Crossfire.Interval + .01f);
+    var support = b.Squad.Members[r.Support];
+    NavMesh.Route = (from, to) => [from, from == support.Position ? new(0, 0, 18) : new(4, 0, 22), to];
+    Plan(p, b);
+    C(r.Policy.Trace!.Entrance != null && r.Policy.Trace.Episode == first.Episode + 1,
+        "S02 can be played again on the same enemy after just the shared cooldown");
+    NavMesh.Route = null;
+    p.EndAll();
 }
 foreach (string scenario in new[] { "crossed", "order refused", "foreign path", "renewal refused" })
 {
