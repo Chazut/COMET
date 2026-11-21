@@ -770,6 +770,50 @@ foreach (var (assignedRole, personalRange, personalAge, initiallyMissingPoint) i
     C(role.Policy.Active && role.Maneuver == plan, "assigned role survives the next update: " + assignedRole);
     p.EndAll();
 }
+// The same indoor geometry offers both a usable side entrance and a flanking angle.
+foreach (string sighting in new[] { "visible at start", "no sight", "support reacquired during S03" })
+{
+    var (p, b, support) = Setup();
+    p.config!.SquadManeuver.Chance = 100;
+    b.Player.Environment = EnvironmentType.Indoor;
+    support.Info.Personality = Personality.Rat;
+    var known = new Vector3(0, 0, 22);
+    b.GoalEnemy!.KnownPlaces.LastKnownPosition = support.GoalEnemy!.KnownPlaces.LastKnownPosition = known;
+    support.GoalEnemy.EnemyPosition = known;
+    support.GoalEnemy.IsVisible = sighting == "visible at start";
+    var front = new Vector3(0, 0, 18);
+    var side = new Vector3(4, 0, 22);
+    int entrancePaths = 0;
+    NavMesh.Route = (from, to) =>
+    {
+        entrancePaths++;
+        return [from, from == support.Position ? front : side, to];
+    };
+    if (sighting == "support reacquired during S03")
+    {
+        p.Observe(support);
+        C(p.states[support].Crossfire.ManeuverRole?.Role == "support", "support formed S03 before regaining sight");
+        support.GoalEnemy.IsVisible = true;
+    }
+    Plan(p, b);
+    NavMesh.Route = null;
+    var r = p.states[b].Crossfire;
+    var trace = r.Policy.Trace!;
+    if (sighting == "visible at start")
+    {
+        C(r.Maneuver == null && trace.Entrance != null && r.Entrance.Center == side && entrancePaths > 0,
+            "ordinary crossfire can select the side entrance while support sees the target");
+    }
+    else
+    {
+        C(r.ManeuverRole?.Role == "flank" && trace.Entrance == null && entrancePaths == 0,
+            $"S03 flanker never probes the secondary entrance ({sighting})");
+        C(trace.SearchPass == "zzap-angle-search" && trace.Candidates > 0
+            && r.Indoor && r.Known == known && r.Reference == support.Position,
+            "the flanker selects an indoor angle using its remembered position and the base of fire");
+    }
+    p.EndAll();
+}
 foreach (var (age, mateSees, indoors, maneuverAge, crossfireAge, expected) in new[]
 {
     (15f, true, false, 10, 20, "S01"),

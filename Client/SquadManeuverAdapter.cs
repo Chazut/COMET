@@ -181,15 +181,14 @@ public sealed partial class Plugin
         t.ContactAge = enemy.TimeSinceLastKnownUpdated;
         t.Roll = plan.Roll * 100;
         t.Chance = plan.RollChance;
+        r.Entrance.Drop();
         if (role.Role == "flank")
         {
             role.Status = "planning";
-            if (!BeginEntrance(b, s))
-                BuildCrossfireCandidates(b, r);
+            BuildCrossfireCandidates(b, r);
         }
         else
         {
-            r.Entrance.Drop();
             r.Goal = b.Position;
             r.Watch = role.Role == "rear" ? ManeuverRearWatch(b, known) : known;
             // Mark the current spot for moving bots. Two stationary roles can already be side by side.

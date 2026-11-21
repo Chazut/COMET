@@ -52,6 +52,10 @@ busy with a door tactic are excluded from this check. The sight check precedes
 the squad roll and records `maneuver-squad-member-sees-target`. Once the
 plan exists, its support can regain sight and continue in that role.
 
+Indoors, an S03 flanker searches for an angle on its last known enemy position
+using the center of the supporting members as its reference. Only ordinary
+crossfire searches for a secondary entrance (S02) when a teammate sees the target.
+
 Incoming fire blocks a PMC's own attempt to start S03. A teammate forming the
 plan can still assign that PMC a role. The PMC can take the role once the fire
 lets up. During an active role, support and rear guards hold under fire and
