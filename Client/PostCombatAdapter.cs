@@ -296,7 +296,6 @@ public sealed partial class Plugin
         }
         ListenPostCombat(b, r);
         InspectPostMedical(b, s);
-        var leader = b.Squad.LeaderComponent;
         double distance = r.Threat.HasValue ? Vector3.Distance(b.Position, r.Threat.Value) : 0;
         var f = new PostCombatFrame
         {
@@ -314,12 +313,7 @@ public sealed partial class Plugin
             Heard = r.Heard,
             Coming = r.Heard && r.Coming,
             NeedsCover = r.Threat.HasValue && !r.Protected,
-            Regroup =
-                !b.Squad.IAmLeader
-                && leader != null
-                && !leader.IsDead
-                && Vector3.Distance(b.Position, leader.Position)
-                    > config.PostCombat.RegroupDistance,
+            Regroup = PostRegroupTarget(b).HasValue,
             CanAdvance =
                 r.Threat.HasValue
                 && distance > config.PostCombat.AdvanceMin

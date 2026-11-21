@@ -17,6 +17,16 @@ public sealed partial class Plugin
     private static bool PostTreatmentInUse(BotComponent b) =>
         b.BotOwner.Medecine.Using || b.Player.HandsController is IMedsController;
 
+    private Vector3? PostRegroupTarget(BotComponent b)
+    {
+        var leader = b.Squad.LeaderComponent;
+        if (b.Squad.IAmLeader || leader == null || leader.IsDead)
+            return null;
+        var position = leader.Position;
+        return Vector3.Distance(b.Position, position) > config!.PostCombat.RegroupDistance
+            ? position : (Vector3?)null;
+    }
+
     private void InspectPostMedical(BotComponent b, BotState s)
     {
         var med = b.BotOwner.Medecine;
@@ -30,7 +40,6 @@ public sealed partial class Plugin
     {
         var r = s.PostCombat;
         var t = r.Policy.Trace!;
-        var c = config!.PostCombat;
         if (r.Path != null && t.State != r.RouteStage)
             PostStopRoute(b, r);
         if (t.State is "cover" or "reload")
@@ -61,7 +70,8 @@ public sealed partial class Plugin
         }
         if (r.RouteStage.Length > 0 && t.State == r.RouteStage)
         {
-            if (Vector3.Distance(b.Position, r.Goal) < (r.RouteStage == "check" ? 3f : 1f))
+            bool regroup = r.RouteStage == "regroup";
+            if (!regroup && Vector3.Distance(b.Position, r.Goal) < (r.RouteStage == "check" ? 3f : 1f))
             {
                 if (r.RouteStage == "cover")
                 {
@@ -74,10 +84,10 @@ public sealed partial class Plugin
             }
             if (Time.time >= r.NextMoveOrder)
             {
-                r.NextMoveOrder = Time.time + 1;
-                if (!b.Mover.WalkToPoint(r.Goal))
+                Vector3? target = regroup ? PostRegroupTarget(b) : r.Goal;
+                if (!target.HasValue || !PostWalkToPoint(b, r, target.Value))
                 {
-                    r.Policy.Complete(r.RouteStage, "native movement declined");
+                    r.Policy.Complete(r.RouteStage, target.HasValue ? "native movement declined" : "regroup no longer needed");
                     PostStopRoute(b, r);
                 }
             }
@@ -95,7 +105,7 @@ public sealed partial class Plugin
             {
                 b.Mover.SetTargetPose(far ? 1 : .8f);
                 b.Mover.SetTargetMoveSpeed(far ? 1 : .85f);
-                PostMove(b, s, point.Value, "cover", 0);
+                PostMove(b, r, point.Value, "cover");
             }
             else
             {
@@ -140,21 +150,8 @@ public sealed partial class Plugin
             doorClock.Restart();
             try
             {
-                var leader = b.Squad.LeaderComponent;
-                var target =
-                    t.State == "check" ? r.Threat
-                    : leader != null && !leader.IsDead ? (Vector3?)leader.Position
-                    : null;
-                if (
-                    !target.HasValue
-                    || !PostMove(
-                        b,
-                        s,
-                        target.Value,
-                        t.State,
-                        t.State == "check" ? c.AdvanceMax * 1.8 : 80
-                    )
-                )
+                var target = t.State == "check" ? r.Threat : PostRegroupTarget(b);
+                if (!target.HasValue || !PostMove(b, r, target.Value, t.State))
                     r.Policy.Complete(t.State, "destination unavailable; no repeat");
             }
             finally
@@ -170,28 +167,28 @@ public sealed partial class Plugin
             b.Steering.LookToPoint(r.Threat.Value + Vector3.up);
     }
 
-    private bool PostMove(
-        BotComponent b,
-        BotState s,
-        Vector3 target,
-        string stage,
-        double maxLength
-    )
+    private static bool PostMove(BotComponent b, PostCombatRuntime r, Vector3 target, string stage)
     {
-        var r = s.PostCombat;
         b.Mover.Prone.SetProne(false);
         if (stage is "regroup" or "check")
         {
             b.Mover.SetTargetPose(1);
             b.Mover.SetTargetMoveSpeed(stage == "check" ? .55f : .8f);
         }
+        if (!PostWalkToPoint(b, r, target))
+            return false;
+        r.RouteStage = stage;
+        r.Policy.Trace!.Execution = "native movement requested";
+        return true;
+    }
+
+    private static bool PostWalkToPoint(BotComponent b, PostCombatRuntime r, Vector3 target)
+    {
         if (!b.Mover.WalkToPoint(target))
             return false;
         r.Path = b.Mover.ActivePath;
-        r.RouteStage = stage;
         r.Goal = target;
         r.NextMoveOrder = Time.time + 1;
-        r.Policy.Trace!.Execution = "native movement requested";
         return true;
     }
 

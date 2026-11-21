@@ -528,7 +528,7 @@ foreach (int chambered in new[] { 0, 1 })
 foreach (bool regroup in new[] { false, true })
 {
     var (p, b, l, a) = Setup();
-    p.config!.PostCombat.AdvanceChances["Normal"] = 100;
+    p.config!.PostCombat.AdvanceChances["Normal"] = regroup ? 0 : 100;
     p.config.PostCombat.WatchMin = p.config.PostCombat.WatchMax = 0;
     if (regroup)
     {
@@ -546,6 +546,37 @@ foreach (bool regroup in new[] { false, true })
         "optional native route " + regroup
     );
     C(s.PostCombat.Goal.x == (regroup ? 30 : 20), "leader or frozen known location only");
+    if (regroup)
+    {
+        b.Squad.LeaderComponent!.Position = new(55, 0, 0);
+        b.Position = new(29.5f, 0, 0);
+    }
+    else
+        b.GoalEnemy!.KnownPlaces.LastSeenPlace!.Position = new(55, 0, 0);
+    Step(.4f);
+    a.Update(new());
+    C(b.Mover.Routes == 1 && s.PostCombat.RouteStage == (regroup ? "regroup" : "check"),
+        "keep the route until the next order even on arrival at the leader's old position");
+    Step(.7f);
+    a.Update(new());
+    C(b.Mover.Routes == 2 && b.Mover.LastWalkPoint.x == (regroup ? 55 : 20),
+        "renew toward the current leader or the original enemy observation");
+    if (regroup)
+    {
+        b.Squad.LeaderComponent!.IsDead = true;
+        b.Squad.LeaderComponent = new() { Position = new(80, 0, 0) };
+        SAIN.SAINEnableClass.Bots[b.ProfileId] = b;
+        Step(1.1f);
+        a.Update(new());
+        C(b.Mover.Routes == 3 && b.Mover.LastWalkPoint.x == 80,
+            "renew toward the replacement squad leader");
+        var renewedPath = (BotPathDataManual)b.Mover.ActivePath!;
+        b.Position = new(55, 0, 0);
+        Step();
+        a.Update(new());
+        C(s.PostCombat.RouteStage != "regroup" && b.Mover.Routes == 3 && renewedPath.Stops == 1,
+            "at exactly 25 metres release the renewed route without another regroup order");
+    }
     Save(p);
 }
 {

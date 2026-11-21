@@ -625,6 +625,7 @@ namespace SAIN.Components
         public bool WalkToPoint(Vector3 p, float reach = 1, bool crawl = false)
         {
             Routes++;
+            LastWalkPoint = p;
             if (Walk)
                 ActivePath = new SAIN.SAINComponent.Classes.Mover.BotPathDataManual();
             return Walk;
@@ -635,6 +636,7 @@ namespace SAIN.Components
             Walk = true,
             Complete = true;
         public int Routes;
+        public Vector3 LastWalkPoint;
         public int Stops;
 
         public void Stop() => Stops++;

@@ -269,6 +269,11 @@ H04 can request one native top-up on the same update that orders a move to
 cover. An existing reload can continue on the way. Active treatment suspends
 that movement. The H04 trace records `Reloading` alongside the cover action.
 
+During regrouping, each movement order targets the live squad leader's current
+position. Orders are at least one second apart. Regrouping ends within the
+configured distance (25 m by default). The optional enemy search still uses
+the remembered contact position.
+
 ### Door recovery at Ground Zero (2026-11-20)
 
 In raid 485 a PMC held the same doorway for 37 seconds. C04 selected a reversed
