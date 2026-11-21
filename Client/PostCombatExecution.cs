@@ -42,6 +42,19 @@ public sealed partial class Plugin
         var t = r.Policy.Trace!;
         if (r.Path != null && t.State != r.RouteStage)
             PostStopRoute(b, r);
+        if (t.State == "check" && r.Threat is Vector3 contact)
+        {
+            float remaining = Vector3.Distance(b.Position, contact);
+            if (remaining <= 3f)
+            {
+                r.InspectedThreat = true;
+                t.InspectionDistance = remaining;
+                r.Policy.Complete("check", "destination reached");
+                if (r.RouteStage == "check")
+                    PostStopRoute(b, r);
+                return;
+            }
+        }
         if (t.State is "cover" or "reload")
         {
             if (PostTreatmentInUse(b))
@@ -71,16 +84,11 @@ public sealed partial class Plugin
         if (r.RouteStage.Length > 0 && t.State == r.RouteStage)
         {
             bool regroup = r.RouteStage == "regroup";
-            if (!regroup && Vector3.Distance(b.Position, r.Goal) < (r.RouteStage == "check" ? 3f : 1f))
+            if (r.RouteStage == "cover" && Vector3.Distance(b.Position, r.Goal) < 1f)
             {
-                if (r.RouteStage == "cover")
-                {
-                    r.Protected = true;
-                    r.ProtectedAt = b.Position;
-                }
-                else if (r.RouteStage == "check")
-                    r.InspectedThreat = true;
-                r.Policy.Complete(r.RouteStage, "destination reached");
+                r.Protected = true;
+                r.ProtectedAt = b.Position;
+                r.Policy.Complete("cover", "destination reached");
                 PostStopRoute(b, r);
                 return;
             }

@@ -2483,7 +2483,7 @@
     },
     "PostCombat.AdvanceMin": {
       "Label": "Minimum check distance",
-      "Help": "",
+      "Help": "At the start of recovery, the last known enemy position must be farther away than this for the bot to consider checking it. A bot that chooses to go finishes within 3 m.",
       "Min": 0.0,
       "Max": 20.0,
       "Scale": 1,
@@ -2493,7 +2493,7 @@
     },
     "PostCombat.AdvanceMax": {
       "Label": "Maximum check distance",
-      "Help": "",
+      "Help": "At the start of recovery, the last known enemy position must be closer than this for the bot to consider checking it.",
       "Min": 0.0,
       "Max": 60.0,
       "Scale": 1,

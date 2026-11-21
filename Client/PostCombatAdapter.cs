@@ -284,6 +284,7 @@ public sealed partial class Plugin
         if (Time.time < r.Next)
             return r.Policy.Active;
         r.Next = Time.time + (float)config!.PostCombat.Interval;
+        bool inInitialAdvanceRange = false;
         if (!r.Policy.Active)
         {
             // A previous episode's reached cover or failed supply scan is not evidence for this fight.
@@ -299,10 +300,14 @@ public sealed partial class Plugin
             r.MedicalUseful = false;
             r.MedicalUrgent = false;
             r.MedicalNext = 0;
+            if (r.Threat is Vector3 contact)
+            {
+                float distance = Vector3.Distance(b.Position, contact);
+                inInitialAdvanceRange = distance > config.PostCombat.AdvanceMin && distance < config.PostCombat.AdvanceMax;
+            }
         }
         ListenPostCombat(b, r);
         InspectPostMedical(b, s);
-        double distance = r.Threat.HasValue ? Vector3.Distance(b.Position, r.Threat.Value) : 0;
         var f = new PostCombatFrame
         {
             Now = Time.time,
@@ -320,10 +325,7 @@ public sealed partial class Plugin
             Coming = r.Heard && r.Coming,
             NeedsCover = r.Threat.HasValue && !r.Protected,
             Regroup = PostRegroupTarget(b).HasValue,
-            CanAdvance =
-                r.Threat.HasValue
-                && distance > config.PostCombat.AdvanceMin
-                && distance < config.PostCombat.AdvanceMax,
+            CanAdvance = inInitialAdvanceRange,
         };
         bool was = r.Policy.Active;
         bool active = r.Policy.Tick(

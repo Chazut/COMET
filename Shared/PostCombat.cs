@@ -104,6 +104,7 @@ public sealed class PostCombatTrace
     public double AdvanceChance { get; set; }
     public double AdvanceRoll { get; set; }
     public bool AdvanceSelected { get; set; }
+    public double? InspectionDistance { get; set; }
     public string Contact { get; set; } = "";
     public double ContactAge { get; set; }
     public double? X { get; set; }
@@ -240,7 +241,7 @@ public sealed class PostCombat
         regroupDone = true;
         if (f.Now < watchUntil)
             return Stage("watch", "post-combat-watch-last-threat");
-        if (!advanceDone && t.AdvanceSelected && f.CanAdvance)
+        if (WillAdvance)
             return Stage("check", "post-combat-check-known-position");
         return End("post-combat-work-complete");
     }

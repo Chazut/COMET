@@ -608,6 +608,63 @@ foreach (int chambered in new[] { 0, 1 })
     C(p.states[b].PostCombat.Policy.Trace!.AmmoPercent == 100d * (20 + chambered) / 30,
         "H04 reports the same loaded percentage used for the decision");
 }
+foreach (var (min, max, start, eligible) in new[]
+{
+    (4, 40, 4f, false), (4, 40, 4.01f, true), (4, 40, 39.99f, true), (4, 40, 40f, false),
+    (8, 25, 8f, false), (8, 25, 8.01f, true), (8, 25, 24.99f, true), (8, 25, 25f, false),
+})
+{
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    var settings = p.config!.PostCombat;
+    settings.AdvanceMin = min;
+    settings.AdvanceMax = max;
+    settings.AdvanceChances["Normal"] = 100;
+    var r = p.states[b].PostCombat;
+    var target = r.Threat!.Value;
+    b.Position = target + Vector3.up * start;
+    C(layer.IsActive() && r.Policy.Trace!.AdvanceSelected == eligible, $"initial range {min}..{max} at {start} m");
+    action.Start();
+    // An accepted check can already be in reach before its first movement order.
+    // An initially ineligible bot entering the range during its watch gets no new roll.
+    b.Position = target + Vector3.up * (eligible ? 3 : 20);
+    Step(6.1f);
+    action.Update(new());
+    C(r.InspectedThreat == eligible && b.Mover.Routes == 0, "one decision per episode, including arrival during the watch");
+    Physics.BlocksSightTo = null;
+}
+foreach (float remaining in new[] { 41f, 4.01f, 4f, 3.5f, 3.01f, 3f, 2.99f })
+{
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    p.config!.PostCombat.AdvanceChances["Normal"] = 100;
+    C(layer.IsActive(), "post-combat starts with the contact at 20 m");
+    action.Start();
+    Step(6.1f);
+    action.Update(new());
+    var r = p.states[b].PostCombat;
+    C(r.RouteStage == "check" && b.Mover.Routes == 1, "native approach started after the watch");
+    var path = (BotPathDataManual)r.Path!;
+    b.Position = r.Goal + Vector3.up * remaining;
+    Step(1.1f);
+    action.Update(new());
+    if (remaining > 3)
+        C(!r.InspectedThreat && r.RouteStage == "check" && b.Mover.Routes == 2 && path.Stops == 0,
+            $"renew the accepted route at {remaining} m");
+    else
+    {
+        C(r.InspectedThreat && r.Path == null && b.Mover.Routes == 1 && path.Stops == 1,
+            $"arrival at {remaining} m releases the native route exactly once");
+        var arrival = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last())["postCombat"]!;
+        C((string?)arrival["execution"] == "destination reached"
+            && Math.Abs((double)arrival["inspectionDistance"]! - remaining) < .001,
+            "the arrival event records the measured 3D distance");
+        Step();
+        action.Update(new());
+        C(!r.Policy.Active && b.Mover.Routes == 1 && path.Stops == 1, "a completed inspection does not restart");
+    }
+    Physics.BlocksSightTo = null;
+}
 foreach (bool regroup in new[] { false, true })
 {
     var (p, b, l, a) = Setup();
@@ -651,8 +708,6 @@ foreach (bool regroup in new[] { false, true })
         "renew toward the current leader or the original enemy observation");
     if (!regroup)
     {
-        // Keep the check eligible inside the mover's 3 m arrival radius until its action update.
-        p.config.PostCombat.AdvanceMin = 1;
         b.Position = s.PostCombat.Goal - new Vector3(2, 0, 0);
         b.Mover.Moving = false;
         Step();

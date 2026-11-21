@@ -327,8 +327,12 @@ that movement. The H04 trace records `Reloading` alongside the cover action.
 
 During regrouping, each movement order targets the live squad leader's current
 position. Orders are at least one second apart. Regrouping ends within the
-configured distance (25 m by default). The optional enemy search still uses
-the remembered contact position.
+configured distance (25 m by default). At the start of recovery, the optional
+inspection uses the 3D distance to the remembered contact. The start range
+defaults to strictly above 4 m and strictly below 40 m. Once selected, the
+inspection completes at 3 m or closer, including if the bot gets there during
+its watch. The H04 event records the actual arrival distance in metres as
+`inspectionDistance`.
 
 H04 steering follows remix 7.6 `PostCombatAction.OnSteeringTicked`. Actual
 movement toward the leader or a far cover in quiet conditions faces travel.
