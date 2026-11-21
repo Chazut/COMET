@@ -154,7 +154,8 @@ public sealed class Crossfire
         double now,
         CrossfireConfig c,
         string block = "",
-        double? holdLimit = null
+        double? holdLimit = null,
+        double? convergenceUntil = null
     )
     {
         if (!Active)
@@ -168,6 +169,12 @@ public sealed class Crossfire
         lastNow = now;
         if (block.Length > 0)
             return End(now, c, block);
+        if (Trace!.State == "holding" && convergenceUntil.HasValue)
+        {
+            // The maneuver has already checked its deadline and its participants this tick.
+            Trace.Remaining = Math.Max(0, convergenceUntil.Value - now);
+            return true;
+        }
         // zzap chooses an engaged teammate at acquisition, not as a continuing lease.
         // Support availability is diagnostic; it cannot cancel a useful flank.
         double remaining =

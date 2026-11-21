@@ -322,6 +322,8 @@ public sealed partial class Plugin
                 r.Entrance.Policy.Arrived(Time.time);
                 t.Reason = "secondary-entrance-watch-position-reached";
             }
+            if (t.State == "holding" && r.ManeuverRole?.Role == "flank")
+                r.Maneuver!.BeginConvergence(Time.time, "maneuver-angle-reached");
         }
         if (t.State == "holding")
         {

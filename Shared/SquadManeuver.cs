@@ -95,6 +95,7 @@ public sealed class ManeuverSelection
 // Detached, raid-local plan: no Unity/SAIN references and no hidden enemy state.
 public sealed class SquadManeuverPlan
 {
+    internal const string EnemySpotted = "maneuver-enemy-spotted";
     public string Id = "",
         Group = "",
         Enemy = "",
@@ -111,6 +112,7 @@ public sealed class SquadManeuverPlan
     public double MinimumAmmo;
     public readonly List<ManeuverMember> Members = new();
     public bool Active => State != "ended";
+    public bool Converging => State == "converging";
 
     public ManeuverMember? Member(string id) => Members.Find(x => x.Id == id);
 
@@ -177,13 +179,19 @@ public sealed class SquadManeuverPlan
         if (!Active || m?.Role != "flank")
             return;
         m.Status = "engaging";
-        m.Reason = "crossfire-angle-engaged";
+        m.Reason = EnemySpotted;
         m.Applied = false;
         m.LastSeen = now;
-        // Hand the flanker back to native combat and let the squad converge.
+        BeginConvergence(now, EnemySpotted);
+    }
+
+    internal void BeginConvergence(double now, string reason)
+    {
+        if (!Active || Converging)
+            return;
         State = "converging";
-        Reason = "maneuver-angle-engaged";
-        Until = Math.Min(Until, now + 3);
+        Reason = reason;
+        Until = Math.Min(Until, now + 5);
     }
 
     public bool Tick(double now, SquadManeuverConfig c)
@@ -195,9 +203,9 @@ public sealed class SquadManeuverPlan
             End("maneuver-disabled-or-clock-reset");
             return false;
         }
-        if (now >= Until)
+        if (Converging ? now > Until : now >= Until)
         {
-            End(State == "converging" ? "maneuver-engagement-complete" : "maneuver-timeout");
+            End(Converging ? "maneuver-engagement-complete" : "maneuver-timeout");
             return false;
         }
         foreach (var m in Members)

@@ -79,6 +79,12 @@ can be reassessed after 10 seconds using a still-valid acceptance. Ending a plan
 starts the separately configured same-enemy cooldown (25 seconds by default).
 The maneuver trace records the original roll, chance and deadline in game time.
 
+When the flanker reaches the chosen angle or reacquires the squad's target on
+the way, coordinated blind suppression stops. Existing roles have five seconds
+to converge, capped by the original plan deadline. A later sighting does not
+restart the window. Telemetry distinguishes spotting the target en route from
+engaging it after reaching the angle.
+
 ### M14 second bait peek (2026-11-21)
 
 During each outward and return leg, the accepted action renews its native

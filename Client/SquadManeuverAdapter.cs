@@ -34,6 +34,13 @@ public sealed partial class Plugin
         if (string.IsNullOrEmpty(group))
             return DeclineSquad(s, "S03", "maneuver-no-squad-id");
         var plan = maneuverBoard.Get(group);
+        if (plan?.Converging == true)
+        {
+            // Existing participants finish the plan. An unclaimed role must not restart it.
+            if (plan.Tick(Time.time, c))
+                return false;
+            maneuverBoard.Finish(plan, Time.time, c, plan.Reason);
+        }
         if (plan?.Active != true)
         {
             double distance = Vector3.ProjectOnPlane(known - b.Position, Vector3.up).magnitude;
@@ -383,8 +390,15 @@ public sealed partial class Plugin
             return;
         var p = r.Maneuver;
         p.Evidence = Math.Max(p.Evidence, r.ContactAt);
-        if (why == "crossfire-angle-engaged")
+        if (why == SquadManeuverPlan.EnemySpotted)
             p.Engage(s.ProfileId, Time.time);
+        else if (p.Converging && r.ManeuverRole.Role == "flank")
+        {
+            // Releasing the action after arrival leaves the other roles on their original clock.
+            r.ManeuverRole.Status = "released";
+            r.ManeuverRole.Applied = false;
+            r.ManeuverRole.Reason = why;
+        }
         else
             p.Drop(s.ProfileId, why);
         if (!p.Active)
@@ -398,6 +412,14 @@ public sealed partial class Plugin
         if (r.ManeuverFire)
             EndDiscipline(s, "suppression-support-plan-ended");
         r.ManeuverFire = false;
+    }
+
+    private void EndFlankOnContact(BotComponent b, BotState s)
+    {
+        var trace = s.Crossfire.Policy.Trace!;
+        trace.Outcome = trace.State == "holding" && b.GoalEnemy is { IsVisible: true, CanShoot: true }
+            ? "engaged-from-new-angle" : SquadManeuverPlan.EnemySpotted;
+        EndCrossfire(b, s, SquadManeuverPlan.EnemySpotted);
     }
 
     private void ManeuverShot(BotState s)

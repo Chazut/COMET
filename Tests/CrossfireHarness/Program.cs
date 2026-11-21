@@ -599,6 +599,89 @@ foreach (var (horizontal, height, age, separation, failure) in new[]
         C(p.diagnostics!.Lines.Any(line => line.Contains(failure)), "S03 admission diagnostic: " + failure);
     p.EndAll();
 }
+foreach (var (trigger, duration) in new[] { ("arrival", 25), ("sighting", 25), ("native-combat", 25), ("arrival", 8) })
+{
+    var (p, flanker, support) = Setup();
+    p.config!.SquadManeuver.Chance = 100;
+    p.config.SquadManeuver.Duration = duration;
+    p.config.Crossfire.HoldTimeout = 6;
+    support.Info.Personality = Personality.Rat;
+    support.GoalEnemy!.IsVisible = false;
+    flanker.GoalEnemy!.KnownPlaces.LastKnownPosition = support.GoalEnemy.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    Plan(p, flanker);
+    var runtime = p.states[flanker].Crossfire;
+    var plan = runtime.Maneuver!;
+    double originalDeadline = plan.Until;
+    p.Observe(support);
+    var supportAction = new CrossfireAction(support.BotOwner);
+    supportAction.Start();
+    supportAction.OnSteeringTicked();
+    var flankAction = Start(p, flanker);
+    Step(15f - Time.time);
+    support.GoalEnemy.IsVisible = true;
+    supportAction.Update(new());
+    C(plan.State == "active", "a sighting by the support does not start convergence");
+    support.GoalEnemy.IsVisible = false;
+    if (trigger == "arrival")
+        flanker.Position = runtime.Goal;
+    else if (trigger == "sighting")
+    {
+        flanker.GoalEnemy.IsVisible = true;
+        flanker.GoalEnemy.CanShoot = false;
+    }
+    else
+        flanker.Decision.CurrentCombatDecision = ECombatDecision.StandAndShoot;
+    if (trigger == "native-combat")
+        flankAction.Stop();
+    else
+        flankAction.Update(new());
+    double deadline = Math.Min(originalDeadline, (double)Time.time + 5);
+    C(plan.State == "converging" && plan.Until == deadline && !plan.MaySuppress,
+        trigger + " begins five seconds of convergence and ends coordinated suppression");
+    C(runtime.Policy.Active == (trigger == "arrival"),
+        "the flanker holds on arrival and returns to native combat on contact");
+    if (trigger != "arrival")
+        C(runtime.Policy.Trace!.Outcome == "maneuver-enemy-spotted",
+            "spotting the target en route does not claim a shot from the new angle");
+    if (trigger == "arrival")
+    {
+        Step(1);
+        flankAction.Update(new());
+        flanker.GoalEnemy.IsVisible = true;
+        flankAction.Update(new());
+        C(!runtime.Policy.Active && plan.Until == deadline && runtime.Policy.Trace!.Outcome == "engaged-from-new-angle",
+            "a sighting after arrival cannot restart the five-second window");
+    }
+    Time.time = (float)deadline;
+    p.Sample(support);
+    C(plan.Active && p.states[support].Crossfire.Policy.Active, "support holds through the deadline");
+    Step(.02f);
+    p.Sample(support);
+    C(!plan.Active && !p.states[support].Crossfire.Policy.Active, "support releases the expired plan");
+    p.EndAll();
+}
+{
+    var (p, flanker, support) = Setup();
+    p.config!.SquadManeuver.Chance = 100;
+    p.config.Crossfire.Enabled = false;
+    support.Info.Personality = Personality.Rat;
+    support.GoalEnemy!.IsVisible = false;
+    flanker.GoalEnemy!.KnownPlaces.LastKnownPosition = support.GoalEnemy.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    Plan(p, flanker);
+    var plan = p.states[flanker].Crossfire.Maneuver!;
+    var action = Start(p, flanker);
+    flanker.GoalEnemy.IsVisible = true;
+    action.Update(new());
+    flanker.GoalEnemy.IsVisible = false;
+    p.Observe(support);
+    C(plan.Converging && p.states[support].Crossfire.Maneuver == null,
+        "a support that had not joined before the sighting cannot take up its old role");
+    Step(5.1f);
+    p.Observe(support);
+    C(!plan.Active && plan.EndedAt == Time.time && p.states[support].Crossfire.Maneuver == null,
+        "the next eligible observation retires a converged plan even without ongoing participants");
+    p.EndAll();
+}
 foreach (string expectedRole in new[] { "support", "flank", "rear" })
 {
     var (p, proposer, mate) = Setup();

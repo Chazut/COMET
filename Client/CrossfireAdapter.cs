@@ -336,6 +336,13 @@ public sealed partial class Plugin
             EndCrossfire(b, s, block);
             return false;
         }
+        if (r.Maneuver != null && r.Policy.Active && !ValidateManeuver(b, s))
+            return false;
+        if (r.Policy.Active && r.ManeuverRole?.Role == "flank" && observed!.IsVisible)
+        {
+            EndFlankOnContact(b, s);
+            return false;
+        }
         if (
             r.Policy.Active
             && r.Policy.Trace!.Entrance != null
@@ -347,8 +354,6 @@ public sealed partial class Plugin
             EndCrossfire(b, s, "secondary-entrance-contact-engaged");
             return false;
         }
-        if (r.Maneuver != null && r.Policy.Active && !ValidateManeuver(b, s))
-            return false;
         if (r.Policy.Active && !RevalidateCrossfireContext(b, s))
         {
             if (r.Policy.Active && !r.Policy.CheckMotion(Time.time, config!.Crossfire))
@@ -391,7 +396,8 @@ public sealed partial class Plugin
                     c,
                     holdLimit: r.Policy.Trace.Entrance != null
                         ? config.SecondaryEntrance.WatchMax + config.SecondaryEntrance.Extension + 8
-                        : null
+                        : null,
+                    convergenceUntil: r.Maneuver?.Converging == true ? r.Maneuver.Until : null
                 )
             )
             {
@@ -531,7 +537,12 @@ public sealed partial class Plugin
             var r = s.Crossfire;
             if (!active)
             {
-                if (r.Layer)
+                if (!r.Layer)
+                    return;
+                if (r.ManeuverRole?.Role == "flank" && b.GoalEnemy?.EnemyProfileId == r.Contact
+                    && b.Decision.CurrentCombatDecision == ECombatDecision.StandAndShoot)
+                    p.EndFlankOnContact(b, s);
+                else
                     p.EndCrossfire(b, s, "crossfire-layer-released");
                 return;
             }

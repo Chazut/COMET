@@ -164,6 +164,10 @@ internal static class SquadManeuverHarness
             var plan = r.Maneuver!;
             double until = plan.Until;
             b.Position = r.Goal;
+            b.GoalEnemy!.IsVisible = false;
+            Step();
+            actions[1].Update(new());
+            double convergenceEnd = Math.Min(until, (double)Time.time + 5);
             b.GoalEnemy!.IsVisible = true;
             Step();
             actions[1].Update(new());
@@ -178,7 +182,7 @@ internal static class SquadManeuverHarness
                 "success is retained on shared plan"
             );
             C(
-                !plan.MaySuppress && plan.Until <= until && plan.Until <= Time.time + 3,
+                !plan.MaySuppress && plan.Until == convergenceEnd,
                 "flanker arrival ends blind suppression and starts convergence"
             );
             Step();
