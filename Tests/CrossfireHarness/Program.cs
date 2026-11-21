@@ -599,6 +599,49 @@ foreach (var (horizontal, height, age, separation, failure) in new[]
         C(p.diagnostics!.Lines.Any(line => line.Contains(failure)), "S03 admission diagnostic: " + failure);
     p.EndAll();
 }
+foreach (string expectedRole in new[] { "support", "flank", "rear" })
+{
+    var (p, proposer, mate) = Setup();
+    p.config!.SquadManeuver.Chance = 100;
+    p.config.Crossfire.Enabled = false;
+    mate.GoalEnemy!.IsVisible = false;
+    proposer.GoalEnemy!.KnownPlaces.LastKnownPosition = mate.GoalEnemy.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    proposer.Info.Personality = expectedRole == "flank" ? Personality.Rat : Personality.Chad;
+    mate.Info.Personality = expectedRole == "flank" ? Personality.Chad : Personality.Rat;
+    if (expectedRole == "rear")
+    {
+        mate.Position = new(0, 0, -10);
+        var shooter = new BotComponent { Squad = proposer.Squad };
+        shooter.GoalEnemy!.KnownPlaces.LastKnownPosition = proposer.GoalEnemy.KnownPlaces.LastKnownPosition;
+        proposer.Squad.Members.Add(shooter.ProfileId, shooter);
+        SAINEnableClass.Bots[shooter.ProfileId] = shooter;
+    }
+
+    mate.BotOwner.Memory.IsUnderFire = true;
+    p.Observe(mate);
+    var runtime = p.states[mate].Crossfire;
+    C(runtime.Maneuver == null, "incoming fire blocks the PMC's own S03 proposal");
+    C(p.diagnostics!.Lines.Any(line => line.Contains("\"feature\":\"S03\"") && line.Contains("maneuver-under-fire")),
+        "S03 records why the acting PMC cannot start");
+    p.Observe(proposer);
+    var plan = p.states[proposer].Crossfire.Maneuver;
+    C(plan?.Member(mate.ProfileId)?.Role == expectedRole,
+        "the squad can assign a member under fire to " + expectedRole);
+    Step(.6f);
+    p.Observe(mate);
+    C(runtime.Maneuver == null && !runtime.Policy.Active,
+        "assignment alone does not start the native action while under fire");
+    mate.BotOwner.Memory.IsUnderFire = false;
+    Step(.6f);
+    p.Observe(mate);
+    C(runtime.Maneuver == plan && runtime.ManeuverRole?.Role == expectedRole,
+        "the member can take its assigned role when incoming fire stops");
+    mate.BotOwner.Memory.IsUnderFire = true;
+    p.Sample(mate);
+    C(runtime.Policy.Active == (expectedRole != "flank"),
+        "incoming fire lets established stationary roles hold and releases a moving flanker");
+    p.EndAll();
+}
 foreach (var (assignedRole, personalRange, personalAge, initiallyMissingPoint) in new[]
 {
     ("support", 8f, 1f, false), ("support", 90f, 10.01f, false), ("support", 30f, 40f, true),

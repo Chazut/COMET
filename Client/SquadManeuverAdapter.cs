@@ -71,7 +71,7 @@ public sealed partial class Plugin
                     ms.Crossfire.Policy.Active
                     || ms.Crossfire.Fault
                     || Time.time < ms.Crossfire.Policy.RetryAt
-                    || CrossfireCommonBlock(mate, ms).Length > 0
+                    || CrossfireGroupBlock(mate, ms).Length > 0
                     || !CrossfireCanAcquire(mate)
                 )
                     continue;

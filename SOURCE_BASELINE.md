@@ -52,6 +52,11 @@ busy with a door tactic are excluded from this check. The sight check precedes
 the squad roll and records `maneuver-squad-member-sees-target`. Once the
 plan exists, its support can regain sight and continue in that role.
 
+Incoming fire blocks a PMC's own attempt to start S03. A teammate forming the
+plan can still assign that PMC a role. The PMC can take the role once the fire
+lets up. During an active role, support and rear guards hold under fire and
+flankers yield. The personal admission check logs `maneuver-under-fire`.
+
 Only the proposer checks the horizontal distance to its last known enemy position
 and the age of that observation (defaults 15-80 m and up to 10 s, inclusive).
 The squad radius uses 3D distance between teammates. A nearby member tracking the

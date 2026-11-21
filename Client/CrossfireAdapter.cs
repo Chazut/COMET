@@ -210,6 +210,11 @@ public sealed partial class Plugin
         bool holdsUnderFire = s.Crossfire.ManeuverRole?.Role is "support" or "rear";
         if (b.BotOwner.Memory.IsUnderFire && !holdsUnderFire && !trade)
             return "crossfire-under-fire";
+        return CrossfireGroupBlock(b, s, trade);
+    }
+
+    private static string CrossfireGroupBlock(BotComponent b, BotState s, bool trade = false)
+    {
         // Active plans keep their identity while native hands/physics finish their work.
         if (!s.Crossfire.Policy.Active && DoorPlanActive(s))
             return "crossfire-door-tactic";
@@ -353,6 +358,8 @@ public sealed partial class Plugin
         var c = config!.Crossfire;
         if (mayStartManeuver && block.Length == 0)
             TryBeginManeuver(b, s);
+        else if (mayStartManeuver && block == "crossfire-under-fire")
+            RecordCrossfireGate(s, "maneuver-under-fire", feature: "S03");
         if (!r.Policy.Active)
         {
             if (!mayStart)
