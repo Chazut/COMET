@@ -17,6 +17,8 @@ var p = new Plugin();
 var oldWorld = new EFT.GameWorld();
 p.Begin(oldWorld);
 var oldEpoch = p.Epoch;
+var eftGroup = new object();
+p.nativeStormPlans.GetOrCreateValue(eftGroup)["enemy"] = new();
 using var fetchStarted = new ManualResetEventSlim();
 using var releaseFetch = new ManualResetEventSlim();
 p.loading.Start(oldEpoch, () =>
@@ -62,6 +64,7 @@ Check(
 );
 Check(p.world == null && p.config == null && !p.loading.Pending, "raid world/config detached");
 Check(p.LightClears == 1, "raid cleanup invokes light detection cache cleanup");
+Check(!p.nativeStormPlans.TryGetValue(eftGroup, out _), "raid cleanup forgets the assault verdict even for a still-referenced EFT group");
 Check(p.RemixClears == 1, "raid cleanup releases door, navigation and preset caches");
 Check(ev.Count == 0 && p.clearEvents == null, "both event handlers detached despite one failure");
 Check(

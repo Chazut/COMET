@@ -201,6 +201,8 @@ public static class LayersMaskController
     public const int HighPolyWithTerrainMask = 1;
 }
 
+public class BotsGroup { }
+
 namespace EFT
 {
     public enum EnvironmentType
@@ -268,7 +270,7 @@ namespace EFT
 
     public class BotOwner
     {
-        public object? BotsGroup = new();
+        public BotsGroup? BotsGroup = new();
         public Voxels VoxelesPersonalData = new();
         public string ProfileId = "";
         public Memory Memory = new();
@@ -527,6 +529,7 @@ namespace SAIN.Components
     public partial class Squad
     {
         public bool BotInGroup = true;
+        public SAIN.BotController.Classes.Squad? SquadInfo = new();
         public Dictionary<string, BotComponent> Members = new();
     }
 
@@ -1183,6 +1186,7 @@ namespace Comet.Client
             maneuverBoard.Clear();
             coverMateBoard.Clear();
             stormBoard.Clear();
+            nativeStormPlans = new();
         }
 
         internal bool Choose(BotComponent b)
@@ -1269,6 +1273,7 @@ namespace SAIN.BotController.Classes
 {
     public class Squad
     {
+        public string Id = Guid.NewGuid().ToString("N");
         public Dictionary<string, SAIN.Components.BotComponent> Members = new();
 
         private void memberWasKilled(

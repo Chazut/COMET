@@ -14,8 +14,6 @@ public sealed partial class Plugin
 {
     private readonly SquadManeuverBoard maneuverBoard = new();
 
-    private static string ManeuverGroup(BotComponent b) => SquadMemberIdentity.Get(b.Squad.Members);
-
     private static Vector3 ManeuverRearWatch(BotComponent b, Vector3 known)
     {
         var away = Vector3.ProjectOnPlane(b.Position - known, Vector3.up);
@@ -31,7 +29,9 @@ public sealed partial class Plugin
         r.ManeuverNext = Time.time + (float)config.Crossfire.Interval;
         var enemy = b.GoalEnemy!;
         var known = enemy.KnownPlaces.LastKnownPosition!.Value;
-        string group = ManeuverGroup(b);
+        var group = b.Squad.SquadInfo?.Id;
+        if (string.IsNullOrEmpty(group))
+            return DeclineSquad(s, "S03", "maneuver-no-squad-id");
         var plan = maneuverBoard.Get(group);
         if (plan?.Active != true)
         {
@@ -159,7 +159,7 @@ public sealed partial class Plugin
         r.Candidate = r.Sample = 0;
         r.Route = null;
         r.Rejects.Clear();
-        r.Group = group;
+        r.Group = SquadRosterIdentity(b);
         r.Indoor = b.Player.Environment == EnvironmentType.Indoor;
         RememberCrossfireHandoff(b, r);
         var t = r.Policy.Trace!;
@@ -185,7 +185,7 @@ public sealed partial class Plugin
             r.Goal = b.Position;
             r.Watch = role.Role == "rear" ? ManeuverRearWatch(b, known) : known;
             // Mark the current spot for moving bots. Two stationary roles can already be side by side.
-            crossfireClaims.Reserve(s.Id, r.Goal.x, r.Goal.y, r.Goal.z, config.Crossfire.Spacing, Time.time, group);
+            crossfireClaims.Reserve(s.Id, r.Goal.x, r.Goal.y, r.Goal.z, config.Crossfire.Spacing, Time.time, r.Group);
             r.Policy.Ready(r.Goal.x, r.Goal.y, r.Goal.z, 0, 0);
             role.ReadyAt = Time.time;
         }
@@ -253,6 +253,11 @@ public sealed partial class Plugin
         var m = r.ManeuverRole;
         if (p == null || m == null)
             return true;
+        if (b.Squad.SquadInfo?.Id != p.Group)
+        {
+            EndCrossfire(b, s, "maneuver-squad-changed");
+            return false;
+        }
         var c = config!.SquadManeuver;
         p.Evidence = Math.Max(p.Evidence, r.ContactAt);
         if (!p.Tick(Time.time, c) || m.Status == "ended")

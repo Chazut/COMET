@@ -167,7 +167,7 @@ public sealed partial class Plugin
                 maneuverBoard.Clear();
                 coverMateBoard.Clear();
                 stormBoard.Clear();
-                nativeStormPlans.Clear();
+                nativeStormPlans = new();
                 laneShots.Clear();
                 stormObservationConfig = null;
                 stormOpportunityConfig = null;

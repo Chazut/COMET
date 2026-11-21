@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Comet.Core;
 using EFT;
 using SAIN.Components;
@@ -21,7 +22,7 @@ internal sealed partial class SquadStormRuntime
 public sealed partial class Plugin
 {
     private readonly SquadStormBoard stormBoard = new(); // Lifecycle-compatible telemetry store.
-    private readonly Dictionary<string, NativeStormPlan> nativeStormPlans = new();
+    private ConditionalWeakTable<BotsGroup, Dictionary<string, NativeStormPlan>> nativeStormPlans = new();
 
     private sealed class NativeStormPlan
     {
@@ -72,8 +73,9 @@ public sealed partial class Plugin
             return false;
         var e = b.GoalEnemy!;
         var c = config!.SquadStorm;
-        string key = ManeuverGroup(b) + "/" + e.EnemyProfileId;
-        if (!nativeStormPlans.TryGetValue(key, out var plan) || Time.time > plan.Until)
+        var group = b.BotOwner.BotsGroup!; // StormBlock already checked the group.
+        var plans = nativeStormPlans.GetOrCreateValue(group);
+        if (!plans.TryGetValue(e.EnemyProfileId, out var plan) || Time.time > plan.Until)
         {
             int near = 1;
             foreach (var m in b.Squad.Members.Values)
@@ -89,10 +91,10 @@ public sealed partial class Plugin
             plan = new NativeStormPlan
             {
                 Until = Time.time + (float)c.Retry,
-                Id = "storm-" + key + "-" + Time.frameCount,
+                Id = $"storm-{RuntimeHelpers.GetHashCode(group)}/{e.EnemyProfileId}-{Time.frameCount}",
             };
             plan.Score = ZzapEnemyWeakness.Read(b, e, out plan.Evidence);
-            nativeStormPlans[key] = plan;
+            plans[e.EnemyProfileId] = plan;
         }
         if (plan.Score < c.Weakness)
             return DeclineSquad(s, "S06", "storm-weakness-below-threshold");
@@ -190,10 +192,9 @@ public sealed partial class Plugin
 
     private bool NativeStormActive(BotComponent b) =>
         b.GoalEnemy != null
-        && nativeStormPlans.TryGetValue(
-            ManeuverGroup(b) + "/" + b.GoalEnemy.EnemyProfileId,
-            out var plan
-        )
+        && b.BotOwner.BotsGroup is { } group
+        && nativeStormPlans.TryGetValue(group, out var plans)
+        && plans.TryGetValue(b.GoalEnemy.EnemyProfileId, out var plan)
         && Time.time <= plan.Until
         && plan.Score >= config!.SquadStorm.Weakness;
 }

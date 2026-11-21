@@ -509,7 +509,7 @@ public sealed partial class Plugin
             __state.State = call.State;
             __state.Token = token;
             __state.Group = string.IsNullOrEmpty(__instance.Bot.Squad.SquadInfo?.GUID)
-                ? ManeuverGroup(__instance.Bot)
+                ? SquadRosterIdentity(__instance.Bot)
                 : __instance.Bot.Squad.SquadInfo.GUID;
             token.Trace.Action = __instance.Bot.Decision.CurrentCombatDecision.ToString();
             if (

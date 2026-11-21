@@ -47,6 +47,8 @@ void Step(float dt = .02f)
     };
     foreach (var bot in members.Values)
     {
+        bot.BotOwner.BotsGroup = b.BotOwner.BotsGroup;
+        bot.Squad.SquadInfo = b.Squad.SquadInfo;
         bot.Squad.Members = members;
         bot.EnemyController.KnownEnemies.Add(bot.GoalEnemy!);
         SAINEnableClass.Bots[bot.ProfileId] = bot;
@@ -209,6 +211,7 @@ foreach (bool indoors in new[] { false, true })
     flanker.GoalEnemy!.KnownPlaces.LastKnownPosition = new(0, 0, 30);
     support.GoalEnemy.KnownPlaces.LastKnownPosition = flanker.GoalEnemy.KnownPlaces.LastKnownPosition;
     var leader = new BotComponent { Squad = flanker.Squad };
+    leader.BotOwner.BotsGroup = flanker.BotOwner.BotsGroup;
     leader.GoalEnemy!.EnemyProfileId = "other-enemy";
     flanker.Squad.Members.Add(leader.ProfileId, leader);
     p.Observe(flanker);
@@ -222,6 +225,113 @@ foreach (bool indoors in new[] { false, true })
     Plan(p, flanker);
     C(p.states[flanker].Crossfire.Maneuver == assigned && p.Choose(flanker),
         "an existing flank keeps progressing during the squad assault");
+    p.EndAll();
+}
+{
+    var (p, flanker, support) = Setup();
+    p.config!.SquadManeuver.Chance = 100;
+    support.Info.Personality = Personality.Rat;
+    support.GoalEnemy!.IsVisible = false;
+    var members = flanker.Squad.Members;
+    var rear = new BotComponent { Squad = flanker.Squad, Position = new(0, 0, -5) };
+    rear.Info.Personality = Personality.Rat;
+    members.Add(rear.ProfileId, rear);
+    foreach (var b in members.Values)
+        b.GoalEnemy!.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    p.Observe(flanker);
+    var plan = p.states[flanker].Crossfire.Maneuver;
+    C(plan?.Group == flanker.Squad.SquadInfo!.Id && plan.Member(rear.ProfileId)?.Role == "rear",
+        "S03 plan belongs to SAIN's squad");
+    members.Remove(rear.ProfileId);
+    support.GoalEnemy.IsVisible = true;
+    p.Observe(support);
+    C(p.states[support].Crossfire.Maneuver == plan && p.Choose(support),
+        "support can take its assigned role after the rear guard leaves and contact becomes visible");
+    C(p.states[support].Crossfire.Policy.Trace?.Maneuver?.SquadId == plan!.Group,
+        "the support trace identifies the original SAIN squad");
+    Step();
+    p.Sample(support);
+    C(plan!.Member(rear.ProfileId)!.Status == "ended" && plan.Active,
+        "departed role is dropped while the surviving pair keeps its plan");
+    support.Squad.SquadInfo = new();
+    Step();
+    p.Sample(support);
+    C(p.states[support].Crossfire.Maneuver == null && plan.Active
+        && plan.Member(support.ProfileId)!.Reason == "maneuver-squad-changed",
+        "a bot transferred to another SAIN squad releases its own role");
+    p.EndAll();
+}
+{
+    var (p, b, mate) = Setup();
+    var cfg = p.config!;
+    cfg.SquadManeuver.Chance = 0;
+    mate.GoalEnemy!.IsVisible = false;
+    b.GoalEnemy!.KnownPlaces.LastKnownPosition = mate.GoalEnemy.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    p.Observe(b);
+    cfg.SquadManeuver.Chance = 100;
+    var newcomer = new BotComponent { Squad = b.Squad, GoalEnemy = null };
+    b.Squad.Members.Add(newcomer.ProfileId, newcomer);
+    Step(.6f);
+    p.Observe(mate);
+    C(p.states[mate].Crossfire.Maneuver == null, "arrival cannot bypass a declined S03 roll");
+    mate.Squad.SquadInfo = b.Squad.SquadInfo = new();
+    Step(.6f);
+    p.Observe(mate);
+    C(p.states[mate].Crossfire.Maneuver?.Group == mate.Squad.SquadInfo.Id,
+        "a different SAIN squad with identical members gets its own plan");
+    p.EndAll();
+}
+foreach (bool missingInfo in new[] { false, true })
+{
+    var (p, b, mate) = Setup();
+    p.config!.SquadManeuver.Chance = 100;
+    mate.GoalEnemy!.IsVisible = false;
+    b.GoalEnemy!.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    if (missingInfo)
+        b.Squad.SquadInfo = null;
+    else
+        b.Squad.SquadInfo!.Id = "";
+    p.Observe(b);
+    C(p.states[b].Crossfire.Maneuver == null
+        && p.diagnostics!.Lines.Any(s => s.Contains("maneuver-no-squad-id")),
+        "S03 declines with a diagnostic until SAIN has a squad ID");
+    p.EndAll();
+}
+{
+    var (p, leader, mate) = Setup();
+    var cfg = p.config!;
+    cfg.SquadManeuver.Chance = 100;
+    leader.GoalEnemy!.IsVisible = mate.GoalEnemy!.IsVisible = false;
+    leader.GoalEnemy.KnownPlaces.LastKnownPosition = mate.GoalEnemy.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    var extra = new BotComponent { Squad = leader.Squad, GoalEnemy = null };
+    var members = leader.Squad.Members;
+    members.Add(extra.ProfileId, extra);
+    IssueStormOrder(p, leader, mate);
+    members.Remove(extra.ProfileId);
+    cfg.SquadStorm.Chad = 0;
+    cfg.SquadStorm.Normal = 100;
+    Step(.6f);
+    C(p.ChooseStorm(leader) && !p.ChooseStorm(mate), "S06 retains both personal verdicts after a departure");
+    p.Observe(mate);
+    C(p.states[mate].Crossfire.Maneuver == null
+        && p.diagnostics!.Lines.Any(s => s.Contains("maneuver-squad-storm-active")),
+        "the same S06 verdict still blocks a fresh S03 for the survivors");
+    var enemy = mate.GoalEnemy.EnemyProfileId;
+    mate.GoalEnemy.EnemyProfileId = "different-enemy";
+    C(p.ChooseStorm(mate), "a second enemy has a separate S06 verdict");
+    mate.GoalEnemy.EnemyProfileId = enemy;
+    var eftGroup = mate.BotOwner.BotsGroup;
+    mate.Squad.SquadInfo = new();
+    C(!p.ChooseStorm(mate), "S06 is independent of the SAIN squad ID");
+    mate.BotOwner.BotsGroup = null;
+    C(!p.ChooseStorm(mate), "S06 has no verdict without an EFT group");
+    mate.BotOwner.BotsGroup = new();
+    C(p.ChooseStorm(mate), "a different EFT group with identical members gets a separate verdict");
+    mate.BotOwner.BotsGroup = eftGroup;
+    C(!p.ChooseStorm(mate), "returning to the original EFT group finds the original verdict");
+    Step((float)cfg.SquadStorm.Retry + .1f);
+    mate.GoalEnemy.TimeSinceLastKnownUpdated = 0;
+    C(p.ChooseStorm(mate), "the original group re-evaluates the enemy once its verdict expires");
     p.EndAll();
 }
 foreach (bool crossfireOn in new[] { false, true })

@@ -63,6 +63,7 @@ public sealed class ManeuverMember
 public sealed class ManeuverTrace
 {
     public string Plan = "",
+        SquadId = "",
         State = "preparing",
         Role = "",
         Reason = "",
@@ -226,6 +227,7 @@ public sealed class SquadManeuverPlan
         return new()
         {
             Plan = Id,
+            SquadId = Group,
             State = State,
             Role = m.Role,
             Reason = m.Reason.Length > 0 ? m.Reason : Reason,

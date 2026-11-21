@@ -71,7 +71,7 @@ public sealed partial class Plugin
         r.Origin = b.Position;
         r.Support = loss.Mate;
         r.Reference = b.Position;
-        r.Group = b.Squad.Members != null ? ManeuverGroup(b) : "";
+        r.Group = b.Squad.Members != null ? SquadRosterIdentity(b) : "";
         r.Contact = "";
         r.Known = b.Position;
         r.ContactAt = Time.time;

@@ -88,6 +88,8 @@ public sealed partial class Plugin
 {
     private readonly CrossfireClaims crossfireClaims = new();
 
+    private static string SquadRosterIdentity(BotComponent b) => SquadMemberIdentity.Get(b.Squad.Members);
+
     private static void PatchCrossfire(Harmony h)
     {
         h.Patch(
@@ -153,8 +155,8 @@ public sealed partial class Plugin
         bool supporting =
             s.Crossfire.ManeuverRole?.Role == "support"
             || e.IsVisible && maneuverCandidate
-                && b.Squad.Members != null
-                && maneuverBoard.Get(ManeuverGroup(b)) is { Active: true } plan
+                && b.Squad.SquadInfo?.Id is string squadId
+                && maneuverBoard.Get(squadId) is { Active: true } plan
                 && plan.Member(b.ProfileId)?.Role == "support";
 
         if (e.IsVisible && !supporting && !s.Crossfire.Policy.Active)
@@ -419,9 +421,7 @@ public sealed partial class Plugin
             r.Rejects.Clear();
             RememberCrossfireHandoff(b, r);
             // Detached squad identity: reservations must not expose other groups' hidden positions.
-            var memberIds = new List<string>(b.Squad.Members!.Keys);
-            memberIds.Sort(StringComparer.Ordinal);
-            r.Group = string.Join("|", memberIds);
+            r.Group = SquadRosterIdentity(b);
             r.Indoor =
                 b.Player.Environment == EnvironmentType.Indoor
                 || e.EnemyPlayer?.Environment == EnvironmentType.Indoor;

@@ -147,7 +147,7 @@ public sealed partial class Plugin
             r.Support = mate.ProfileId;
             r.Reference = mate.Position;
             r.Origin = b.Position;
-            r.Group = ManeuverGroup(b);
+            r.Group = SquadRosterIdentity(b);
             r.Indoor = b.Player.Environment == EnvironmentType.Indoor;
             r.Goal = nav.position;
             r.Route = path;

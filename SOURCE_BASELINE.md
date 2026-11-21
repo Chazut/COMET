@@ -33,6 +33,12 @@ As in `SquadCombatClass.AssessManeuver`, a favorable S06 verdict for the
 group and contact blocks planning a new S03 flank. Members can still take
 their roles in an existing maneuver or choose another squad tactic.
 
+S03 stores its plan and retry history under SAIN's squad ID. S06 keeps one
+assessment per EFT group and enemy, with each participant's join decision
+cached until that assessment expires. Arrivals and departures update the
+available members without resetting either tactic. A transfer to a different
+SAIN squad releases the old S03 role. S03 traces include the SAIN squad ID.
+
 A new S03 requires the nearby squad members on that enemy to have lost sight
 of it. Someone still watching it can enable ordinary crossfire (S01). Members
 busy with a door tactic are excluded from this check. The sight check precedes

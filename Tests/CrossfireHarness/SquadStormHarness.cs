@@ -22,6 +22,7 @@ internal static class SquadStormHarness
         var members = new[] { first, second }.ToDictionary(b => b.ProfileId);
         foreach (var b in members.Values)
         {
+            b.BotOwner.BotsGroup = first.BotOwner.BotsGroup;
             b.Squad.Members = members;
             p.states[b] = new BotState(b, settings, p.session);
         }

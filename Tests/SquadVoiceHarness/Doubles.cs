@@ -362,7 +362,7 @@ namespace Comet.Client
 
         private bool Ghost(string id) => Ghosts.Contains(id);
 
-        private static string ManeuverGroup(BotComponent b) =>
+        private static string SquadRosterIdentity(BotComponent b) =>
             string.Join("|", b.Squad.Members.Keys.OrderBy(x => x));
 
         internal Plugin()

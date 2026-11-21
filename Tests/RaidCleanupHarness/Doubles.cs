@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Runtime.CompilerServices;
 using Comet.Core;
 
 namespace HarmonyLib
@@ -143,8 +144,8 @@ namespace Comet.Client
         internal Dictionary<object, Owned> supportOperations = new(),
             movementPending = new(),
             fearMemory = new(),
-            fearDeaths = new(),
-            nativeStormPlans = new();
+            fearDeaths = new();
+        internal ConditionalWeakTable<object, Dictionary<string, Owned>> nativeStormPlans = new();
         internal readonly Owned doorSwings = new(),
             motionWatches = new(),
             pushContexts = new(),
