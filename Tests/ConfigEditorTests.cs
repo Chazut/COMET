@@ -35,13 +35,13 @@ internal static class ConfigEditorTests
         var editablePaths = DifficultyPresets.Values(original).Keys
             .Except(new[]
             {
-                "Schema", "OutdoorRelocation.RetryDelay", "SquadStorm.MinimumAttackers",
+                "Schema", "PushMaxDistance", "OutdoorRelocation.RetryDelay", "SquadStorm.MinimumAttackers",
                 "SquadStorm.PrepareTimeout", "SquadStorm.Duration",
             })
             .Select(path => path.Replace('[', '.').Replace("]", ""));
         Check(
             editor.Catalog.Fields.Keys.ToHashSet().SetEquals(editablePaths),
-            "each editable setting has a control while legacy M13 and S06 values stay in the preset format"
+            "the editor exposes all current controls and omits legacy preset fields"
         );
         Check(
             editor.Catalog.Fields.Keys.All(p =>

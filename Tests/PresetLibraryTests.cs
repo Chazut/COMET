@@ -49,6 +49,8 @@ internal static class PresetLibraryTests
         string unchanged = JsonSerializer.Serialize(hard);
         var config = DifficultyPresets.Create("Normal");
         config.CoverFeint.PeekChance = 19.75;
+        const double oldPushDistance = 37.5;
+        config.PushMaxDistance = oldPushDistance;
         const string oldDelayPath = "OutdoorRelocation.RetryDelay";
         const double oldDelay = 63.5;
         config.OutdoorRelocation.RetryDelay = oldDelay;
@@ -98,6 +100,9 @@ internal static class PresetLibraryTests
             "the retired attacker count stays hidden and the proximity control remains available");
         Check(preview.Changes.All(change => change.Path is not ("SquadStorm.PrepareTimeout" or "SquadStorm.Duration")),
             "loading a preset omits the retired S06 timers from the list of changes");
+        Check(preview.Changes.All(change => change.Path != nameof(CometConfig.PushMaxDistance))
+            && editor.Catalog.Fields.ContainsKey("Weights.Push"),
+            "the preset preview hides the legacy push distance and push preference remains editable");
         editor.Apply(preview);
         Check(
             editor.HasPending
@@ -127,6 +132,8 @@ internal static class PresetLibraryTests
         );
         Check(store.Read().OutdoorRelocation.RetryDelay == oldDelay,
             "saving another visible setting preserves the exact stored M13 delay");
+        Check(store.Read().PushMaxDistance == oldPushDistance,
+            "saving a visible edit preserves a custom push distance in the active config");
         Check(store.Read().SquadStorm.MinimumAttackers == oldAttackers,
             "saving a visible edit preserves the legacy S06 count in the active config");
         var storedStorm = store.Read().SquadStorm;
@@ -265,6 +272,16 @@ internal static class PresetLibraryTests
             && JsonNode.Parse(json)!["Settings"]!["OutdoorRelocation"]!["RetryDelay"]!.GetValue<double>() == oldDelay,
             "loading, editing and re-exporting a personal preset retains its legacy delay");
         var omitted = JsonNode.Parse(json)!.AsObject();
+        Check(omitted["Settings"]![nameof(CometConfig.PushMaxDistance)]!.GetValue<double>() == oldPushDistance
+            && imported.Config.PushMaxDistance == oldPushDistance,
+            "updating, exporting and reimporting a personal preset preserves the old push distance");
+        var missingPush = omitted.DeepClone().AsObject();
+        missingPush["Settings"]!.AsObject().Remove(nameof(CometConfig.PushMaxDistance));
+        var importedWithoutPush = PresetLibrary.PreviewImport(missingPush.ToJsonString());
+        Check(importedWithoutPush.Config.PushMaxDistance == 25
+            && importedWithoutPush.AddedSettings.SequenceEqual(new[] { nameof(CometConfig.PushMaxDistance) })
+            && !importedWithoutPush.AddedSettings.Any(editor.Catalog.ShowsAddedDefault),
+            "a preset without a push distance loads its default without prompting for review");
         Check(imported.Config.SquadStorm.MinimumAttackers == oldAttackers
             && omitted["Settings"]!["SquadStorm"]!["MinimumAttackers"]!.GetValue<int>() == oldAttackers,
             "import and re-export preserve a personal preset's non-default S06 attacker count");

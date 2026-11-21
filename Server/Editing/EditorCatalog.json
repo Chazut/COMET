@@ -8992,16 +8992,6 @@
       "Simple": false,
       "Unit": "s"
     },
-    "PushMaxDistance": {
-      "Label": "Maximum push distance",
-      "Help": "Related limits are checked together before saving.",
-      "Min": 3,
-      "Max": 50,
-      "Scale": 1,
-      "Section": "LostContact",
-      "Simple": false,
-      "Unit": "m"
-    },
     "GrenadeContactLifetime": {
       "Label": "Maximum grenade contact age",
       "Help": "How long a known position can be used for a throw. Grenade judgment subtracts 20 percentage points once the information is older than 10 seconds.",
