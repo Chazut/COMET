@@ -30,6 +30,7 @@ internal static class PostCombatTests
             AmmoPercent = 40,
             NeedsCover = true,
             MedicalUseful = true,
+            Regroup = true,
         };
         Check(
             p.Tick(f, c, 0, 0) && p.Trace!.State == "cover" && p.WantsReload,
@@ -44,6 +45,14 @@ internal static class PostCombatTests
             "keep moving before treatment while the native reload runs");
         p.Complete("cover", "arrived");
         f.NeedsCover = false;
+        f.Now = 10.375;
+        p.Tick(f, c, 0, 0);
+        Check(p.Trace!.State == "regroup" && p.Trace.Reloading && !p.WantsReload,
+            "after cover, regroup during the existing reload even when first aid is useful");
+        f.Regroup = false;
+        f.Now = 10.4375;
+        p.Tick(f, c, 0, 0);
+        Check(p.Trace!.State == "reload" && p.Trace.Reloading, "a close leader leaves the reload running");
         f.Reloading = false;
         f.Now = 10.5;
         p.Tick(f, c, 0, 0);

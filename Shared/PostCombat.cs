@@ -229,15 +229,15 @@ public sealed class PostCombat
             return Stage("cover", "post-combat-seek-protection");
         coverDone = true;
         if (f.Reloading)
-            return Stage("reload", "post-combat-native-reload-active");
+            return TryRegroup(f.Heard, f.Regroup) || Stage("reload", "post-combat-native-reload-active");
         if (WantsReload)
             return Stage("reload", "post-combat-top-up-magazine");
         if (f.MedicalUseful && !f.Coming)
             return Stage("medical", "post-combat-useful-treatment");
         if (t.Elapsed >= c.Duration && !f.Heard)
             return End("post-combat-time-budget-ended");
-        if (!f.Heard && !regroupDone && f.Regroup)
-            return Stage("regroup", "post-combat-rejoin-leader");
+        if (TryRegroup(f.Heard, f.Regroup))
+            return true;
         regroupDone = true;
         if (f.Now <= watchUntil)
             return Stage("watch", "post-combat-watch-last-threat");
@@ -245,6 +245,9 @@ public sealed class PostCombat
             return Stage("check", "post-combat-check-known-position");
         return End("post-combat-work-complete");
     }
+
+    internal bool TryRegroup(bool heard, bool leaderOutOfRange) =>
+        !heard && !regroupDone && leaderOutOfRange && Stage("regroup", "post-combat-rejoin-leader");
 
     public void RenewCoverWatch(double now, double duration)
     {

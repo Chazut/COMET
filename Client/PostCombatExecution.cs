@@ -57,8 +57,36 @@ public sealed partial class Plugin
     {
         var r = s.PostCombat;
         var t = r.Policy.Trace!;
+        if (t.State is "cover" or "reload")
+        {
+            if (PostTreatmentInUse(b))
+            {
+                if (r.Path != null || r.RouteStage == "cover")
+                    PostStopRoute(b, r);
+                return;
+            }
+            var reload = b.BotOwner.WeaponManager.Reload;
+            if (r.Policy.WantsReload && !reload.Reloading)
+            {
+                r.Policy.Complete("reload", "native reload attempted once");
+                if (reload.CanReload(true, out var magazine, out var rounds))
+                {
+                    b.BotOwner.ShootData.EndShoot();
+                    reload.Reloading = true;
+                    if (magazine != null)
+                        reload.ReloadMagazine(magazine);
+                    else if (rounds != null && rounds.Count > 0)
+                        reload.ReloadAmmo(rounds);
+                }
+            }
+            if (t.State == "reload" && !t.Reloading && reload.Reloading)
+                r.Policy.TryRegroup(r.Heard, PostRegroupTarget(b).HasValue);
+            t.Reloading = reload.Reloading;
+        }
         if (r.Path != null && t.State != r.RouteStage)
             PostStopRoute(b, r);
+        if (t.State == "reload")
+            return;
         if (t.State == "watch")
         {
             if (PostTreatmentInUse(b))
@@ -81,32 +109,6 @@ public sealed partial class Plugin
                     PostStopRoute(b, r);
                 return;
             }
-        }
-        if (t.State is "cover" or "reload")
-        {
-            if (PostTreatmentInUse(b))
-            {
-                if (r.RouteStage == "cover")
-                    PostStopRoute(b, r);
-                return;
-            }
-            var reload = b.BotOwner.WeaponManager.Reload;
-            if (r.Policy.WantsReload && !reload.Reloading)
-            {
-                r.Policy.Complete("reload", "native reload attempted once");
-                if (reload.CanReload(true, out var magazine, out var rounds))
-                {
-                    b.BotOwner.ShootData.EndShoot();
-                    reload.Reloading = true;
-                    if (magazine != null)
-                        reload.ReloadMagazine(magazine);
-                    else if (rounds != null && rounds.Count > 0)
-                        reload.ReloadAmmo(rounds);
-                }
-            }
-            t.Reloading = reload.Reloading;
-            if (t.State == "reload")
-                return;
         }
         if (r.RouteStage.Length > 0 && t.State == r.RouteStage)
         {

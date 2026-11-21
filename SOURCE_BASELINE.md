@@ -335,8 +335,11 @@ releases its prone request when the bot moves or hands off. The ordinary H04
 event distinguishes the sheltered watch from the prone fallback in `execution`.
 
 During regrouping, each movement order targets the live squad leader's current
-position. Orders are at least one second apart. Regrouping ends within the
-configured distance (25 m by default). At the start of recovery, the optional
+position. A quiet follower can start toward the leader during a native reload,
+including on the update that starts a top-up. A heard threat interrupts the
+regroup route while the reload continues. H04 events record `regroup` alongside
+the active reload. Orders are at least one second apart. Regrouping ends within
+the configured distance (25 m by default). At the start of recovery, the optional
 inspection uses the 3D distance to the remembered contact. SAIN's cached
 `BadlyInjured` or `Dying` status multiplies the personality's inspection chance
 by 0.2. H04 records that initial status in `advanceHealthStatus` alongside the

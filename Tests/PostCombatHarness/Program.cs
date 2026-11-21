@@ -826,6 +826,48 @@ foreach (float remaining in new[] { 41f, 4.01f, 4f, 3.5f, 3.01f, 3f, 2.99f })
     }
     Physics.BlocksSightTo = null;
 }
+foreach (bool alreadyReloading in new[] { true, false })
+{
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    b.Squad.IAmLeader = false;
+    b.Squad.LeaderComponent = new() { Position = new(30, 0, 0) };
+    SAIN.SAINEnableClass.Bots[b.ProfileId] = b;
+    var reload = b.BotOwner.WeaponManager.Reload;
+    reload.Reloading = alreadyReloading;
+    ((Player.FirearmController)b.Player.HandsController).Item.Magazine.Count = 5;
+    var hearing = new SAIN.Components.BotControllerSpace.Classes.BotHearingClass();
+    SourceSoundWatch.Attach(hearing);
+    try
+    {
+        C(layer.IsActive(), "a covered follower is eligible at the end of combat");
+        action.Start();
+        var r = p.states[b].PostCombat;
+        int requests = alreadyReloading ? 0 : 1;
+        C(r.RouteStage == "regroup" && b.Mover.Routes == 1 && b.Mover.LastWalkPoint.x == 30,
+            "rejoin the distant leader on the first action update, including when H04 starts the reload");
+        C(reload.Requests == requests && reload.Reloading, "the original native reload runs alongside movement");
+        b.Squad.LeaderComponent.Position = new(37, 0, 0);
+        Step(1.1f);
+        action.Update(new());
+        var trace = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last())["postCombat"]!;
+        C((string?)trace["state"] == "regroup" && (bool?)trace["reloading"] == true
+            && b.Mover.Routes == 2 && r.Goal.x == 37, "record regroup and reload while following the moving leader");
+        var path = (BotPathDataManual)r.Path!;
+        hearing.Emit(SAINSoundType.FootStep, new(5, 0, 0), new() { ProfileId = "stranger" });
+        Step(.5f);
+        action.Update(new());
+        C(r.Heard && r.RouteStage == "" && r.Path == null && path.Stops == 1 && b.Mover.Routes == 2,
+            "an audible enemy stops the regroup order during the reload");
+        action.Stop();
+        C(reload.Requests == requests && reload.Reloading, "releasing the layer leaves the reload alone");
+    }
+    finally
+    {
+        SourceSoundWatch.Detach(hearing);
+        Physics.BlocksSightTo = null;
+    }
+}
 foreach (bool regroup in new[] { false, true })
 {
     var (p, b, l, a) = Setup();
