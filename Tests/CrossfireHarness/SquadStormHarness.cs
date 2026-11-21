@@ -9,6 +9,11 @@ using UnityEngine.AI;
 
 internal static class SquadStormHarness
 {
+    private sealed class FixedRoll(double value) : Random
+    {
+        public override double NextDouble() => value;
+    }
+
     public static void CheckRushAdmission()
     {
         Time.time = 10;
@@ -63,7 +68,15 @@ internal static class SquadStormHarness
         Expect(first, true, "the same bot can rush again once eligible");
         second.Info.Personality = SAIN.Components.Personality.Coward;
         Expect(second, false, "an eligible teammate can decline the shared plan");
-        Console.WriteLine("S06 native rush admission: 9 checks passed.");
+        first.Info.Personality = Personality.Custom1;
+        second.Info.Personality = Personality.Custom5;
+        first.GoalEnemy.EnemyProfileId = second.GoalEnemy!.EnemyProfileId = "new-contact";
+        p.jumpRandom = new FixedRoll(.4999);
+        Expect(first, true, "Custom1 joins just below 50 percent");
+        p.jumpRandom = new FixedRoll(.5);
+        Expect(second, false, "Custom5 stays back at exactly 50 percent");
+        Expect(first, true, "the custom member keeps its original roll against the same enemy");
+        Console.WriteLine("S06 native rush admission: 12 checks passed.");
     }
 
     public static void Run()

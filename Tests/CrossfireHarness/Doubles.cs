@@ -468,6 +468,12 @@ namespace SAIN.Components
         Timmy,
         Coward,
         SnappingTurtle,
+        Custom1,
+        Custom2,
+        Custom3,
+        Custom4,
+        Custom5,
+        None,
     }
 
     public class ManualShooter
@@ -1057,7 +1063,7 @@ namespace Comet.Client
         internal Budget doorBudget = new();
         private readonly DoorReservationBoard doorReservations = new();
         private System.Diagnostics.Stopwatch doorClock = new();
-        private Random jumpRandom = new(3);
+        internal Random jumpRandom = new(3);
         private static System.Reflection.MethodInfo combatStopPath =
             typeof(BotPathDataManual).GetMethod("Stop")!;
         internal string Volume = "";

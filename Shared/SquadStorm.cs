@@ -36,7 +36,7 @@ public sealed class SquadStormConfig
             "Rat" => Rat,
             "SnappingTurtle" => SnappingTurtle,
             "Coward" => Coward,
-            _ => 0,
+            _ => 50,
         };
 
     public void Validate()

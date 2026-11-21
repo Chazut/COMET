@@ -41,7 +41,11 @@ internal static class SquadStormTests
             }
         )
             C(c.Chance(p) == v, p);
-        C(c.Chance("unknown") == 0, "unknown personality does not automatically charge");
+        foreach (string personality in new[] { "Custom1", "Custom2", "Custom3", "Custom4", "Custom5", "None", "unknown" })
+            C(c.Chance(personality) == 50, "unlisted personality uses the source rate: " + personality);
+        var tuned = new SquadStormConfig { Normal = 0, Rat = 73 };
+        C(tuned.Chance("Normal") == 0 && tuned.Chance("Rat") == 73 && tuned.Chance("Custom1") == 50,
+            "named overrides, including zero, are independent of the fallback");
         foreach (var v in new[] { double.NaN, double.PositiveInfinity, -1, 101 })
         {
             var bad = new SquadStormConfig { Normal = v };

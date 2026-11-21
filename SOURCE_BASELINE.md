@@ -39,6 +39,11 @@ cached until that assessment expires. Arrivals and departures update the
 available members without resetting either tactic. A transfer to a different
 SAIN squad releases the old S03 role. S03 traces include the SAIN squad ID.
 
+For S06, personalities without an individual rate (including SAIN's Custom1
+through Custom5 and None) use a 50% base chance to join. Named personalities
+use their configured rates, including a deliberate zero. The existing
+expected-escort adjustment applies before the personal roll.
+
 A new S03 requires the nearby squad members on that enemy to have lost sight
 of it. Someone still watching it can enable ordinary crossfire (S01). Members
 busy with a door tactic are excluded from this check. The sight check precedes
