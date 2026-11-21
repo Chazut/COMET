@@ -284,7 +284,7 @@ public sealed partial class Plugin
         }
         bool betweenSamples = Time.time < r.Next;
         string? previousStage = r.Policy.Trace?.State;
-        if (betweenSamples && previousStage is not ("watch" or "regroup"))
+        if (betweenSamples && previousStage != "regroup" && !IsPostCombatWatch(b.BotOwner, previousStage))
             return r.Policy.Active;
         bool leaderOutOfRange = PostRegroupTarget(b, out var leaderDistance).HasValue;
         if (betweenSamples && PostCombat.CanRegroup(r.Heard, leaderOutOfRange) == (previousStage == "regroup"))
@@ -414,7 +414,7 @@ public sealed partial class Plugin
                 || r.Policy.Trace!.State == "regroup" && Time.time > r.NextMoveOrder;
             if (movementDue)
                 r.MoveAt = Time.time + (float)p.config!.PostCombat.Interval;
-            if (movementDue || r.Policy.Trace!.State == "watch")
+            if (movementDue || IsPostCombatWatch(owner, r.Policy.Trace!.State))
                 p.ExecutePostCombat(b, s);
             if (movementDue)
                 p.RecordPostCombat(s, false);

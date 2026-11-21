@@ -17,6 +17,9 @@ public sealed partial class Plugin
     private static bool PostTreatmentInUse(BotComponent b) =>
         b.BotOwner.Medecine.Using || b.Player.HandsController is IMedsController;
 
+    private static bool IsPostCombatWatch(BotOwner owner, string? stage) =>
+        stage == "watch" || stage == "reload" && owner.WeaponManager.Reload.Reloading;
+
     private static bool AtPostCombatCover(BotComponent b, Vector3 point) =>
         Vector3.Distance(b.Position, point) <= 1f;
 
@@ -102,9 +105,7 @@ public sealed partial class Plugin
             }
             return;
         }
-        if (t.State == "reload")
-            return;
-        if (t.State == "watch")
+        if (IsPostCombatWatch(b.BotOwner, t.State))
         {
             if (PostTreatmentInUse(b))
                 return;
@@ -114,6 +115,8 @@ public sealed partial class Plugin
             t.Execution = r.ProneInOpen ? "watching prone in the open" : "stopped to watch at pose 0.75";
             return;
         }
+        if (t.State == "reload")
+            return;
         if (t.State == "check" && r.Threat is Vector3 contact)
         {
             float remaining = Vector3.Distance(b.Position, contact);

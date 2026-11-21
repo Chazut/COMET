@@ -348,7 +348,10 @@ At 1 m or closer the timer runs down from the last draw. An inspection can
 start once that deadline has passed. H04 events report the last cover draw in
 `lastCoverWatchDuration` and the current time left in `watchRemaining`.
 During the stationary watch, each action update stops the mover and requests
-pose 0.75. If no cover was found, H04 keeps the bot prone while watching and
+pose 0.75, including during a native reload. A reloading follower can leave
+this stance on the same update that a quiet regroup becomes eligible. The H04
+event keeps the reload state and records the watch posture in `execution`.
+If no cover was found, H04 keeps the bot prone while watching and
 releases its prone request when the bot moves or hands off. The ordinary H04
 event distinguishes the sheltered watch from the prone fallback in `execution`.
 

@@ -128,15 +128,18 @@ foreach (bool treatment in new[] { false, true })
     }
 }
 foreach (float initialPose in new[] { 1f, .6f })
+foreach (bool reloading in new[] { false, true })
 {
     var (p, b, layer, action) = Setup();
     Physics.BlocksSightTo = _ => true;
+    b.BotOwner.WeaponManager.Reload.Reloading = reloading;
     b.Mover.SetTargetPose(initialPose);
     C(layer.IsActive() && b.Mover.Stops == 0 && b.Mover.Pose == initialPose,
         "querying the layer leaves movement and pose alone");
     action.Start();
     var r = p.states[b].PostCombat;
-    C(r.Policy.Trace!.State == "watch" && b.Mover.Stops == 1 && b.Mover.Pose == .75f && !b.Mover.Prone.Value,
+    C(r.Policy.Trace!.State == (reloading ? "reload" : "watch")
+        && b.Mover.Stops == 1 && b.Mover.Pose == .75f && !b.Mover.Prone.Value,
         "a sheltered watcher stops and lowers to 0.75 regardless of its previous pose");
     b.Mover.SetTargetPose(1);
     Step(.125f);
@@ -153,9 +156,11 @@ foreach (float initialPose in new[] { 1f, .6f })
     C(!r.Policy.Active && b.Mover.Stops == 2 && b.Mover.Pose == 1, "combat takes immediate ownership of movement");
 }
 foreach (bool sheltered in new[] { false, true })
+foreach (bool reloading in new[] { false, true })
 {
     var (p, b, layer, action) = Setup();
     Physics.BlocksSightTo = _ => sheltered;
+    b.BotOwner.WeaponManager.Reload.Reloading = reloading;
     // A prone request from outside H04 must survive a sheltered watch and its release.
     b.Mover.Prone.SetProne(sheltered);
     C(layer.IsActive(), "stationary recovery starts with either form of protection");
@@ -163,14 +168,59 @@ foreach (bool sheltered in new[] { false, true })
     Step();
     action.Update(new());
     var r = p.states[b].PostCombat;
-    C(r.Policy.Trace!.State == "watch" && b.Mover.Prone.Value, "keep a native or H04 prone request while watching");
+    C(r.Policy.Trace!.State == (reloading ? "reload" : "watch")
+        && b.Mover.Prone.Value, "keep a native or H04 prone request while watching");
     var snapshot = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last())["postCombat"]!;
-    C((string?)snapshot["execution"] == (sheltered ? "stopped to watch at pose 0.75" : "watching prone in the open"),
+    C((bool?)snapshot["reloading"] == reloading
+        && (string?)snapshot["execution"] == (sheltered ? "stopped to watch at pose 0.75" : "watching prone in the open"),
         "ordinary H04 logs distinguish the watch orders");
     action.Stop();
     C(b.Mover.Prone.Value == sheltered, "release only H04's own prone request");
 }
 Physics.BlocksSightTo = null;
+foreach (bool alreadyReloading in new[] { true, false })
+{
+    var (p, b, layer, action) = Setup();
+    Physics.BlocksSightTo = _ => true;
+    var reload = b.BotOwner.WeaponManager.Reload;
+    var hands = (Player.FirearmController)b.Player.HandsController;
+    hands.Item.Magazine.Count = 5;
+    reload.Reloading = alreadyReloading;
+    b.Squad.IAmLeader = false;
+    b.Squad.LeaderComponent = new() { Position = new(25, 0, 0) };
+    SAIN.SAINEnableClass.Bots[b.ProfileId] = b;
+    b.Mover.SetTargetPose(1);
+    C(layer.IsActive() && b.Mover.Stops == 0, "observing a stationary reload issues no movement order");
+    action.Start();
+    C(b.Mover.Stops == 1 && b.Mover.Pose == .75f && b.Mover.Routes == 0 && !b.Mover.Prone.Value,
+        "a sheltered bot watches low on the update that starts or observes the native reload");
+    var snapshot = Newtonsoft.Json.Linq.JObject.Parse(p.diagnostics!.Lines.Last())["postCombat"]!;
+    C((string?)snapshot["state"] == "reload" && (bool?)snapshot["reloading"] == true
+        && (string?)snapshot["execution"] == "stopped to watch at pose 0.75", "log the native reload and the watch together");
+    // Consume the initial forced sample, then test action updates inside its interval.
+    Step(.0625f);
+    action.Update(new());
+    b.Mover.SetTargetPose(1);
+    int stops = b.Mover.Stops;
+    Step(.0625f);
+    action.Update(new());
+    C(b.Mover.Stops == stops + 1 && b.Mover.Pose == .75f, "maintain the reload watch between samples");
+    b.Squad.LeaderComponent.Position = new(40, 0, 0);
+    Step(.03125f);
+    action.Update(new());
+    C(b.Mover.Routes == 1 && b.Mover.LastWalkPoint.x == 40 && b.Mover.Pose == 1
+        && b.Mover.Stops == stops + 1, "a distant leader immediately replaces the reload watch with movement");
+    b.Squad.LeaderComponent.Position = new(25, 0, 0);
+    Step(.03125f);
+    action.Update(new());
+    C(b.Mover.Stops == stops + 2 && b.Mover.Pose == .75f && p.states[b].PostCombat.Path == null,
+        "resume the reload watch when the leader comes back within range");
+    action.Stop();
+    C(reload.Reloading && reload.Requests == (alreadyReloading ? 0 : 1)
+        && ReferenceEquals(b.Player.HandsController, hands) && hands.Item.Magazine.Count == 5,
+        "the watch leaves the native reload, hands and ammunition alone");
+    Physics.BlocksSightTo = null;
+}
 foreach (float fraction in new[] { 0f, 1f })
 {
     var (p, b, layer, action) = Setup();
@@ -561,6 +611,7 @@ foreach (var (alreadyReloading, spare, requests) in new[] { (false, true, 1), (t
     var r = p.states[b].PostCombat;
     C(r.RouteStage == "cover" && b.Mover.Routes == 1 && r.Goal.z >= 2.9f,
         "first action update orders a route to shelter");
+    C(b.Mover.Stops == 0 && b.Mover.Pose == .8f, "moving to nearby cover keeps its own stance during a reload");
     C(reload.Requests == requests && reload.Reloading == (alreadyReloading || spare),
         "cover order and native reload agree on the first update");
     C(r.Policy.Trace!.LastCoverWatchDuration == 3, "cover renews during a native reload or with idle hands");
@@ -1314,6 +1365,8 @@ foreach (bool alreadyReloading in new[] { true, false })
         action.Update(new());
         C(r.Heard && r.RouteStage == "" && r.Path == null && path.Stops == 1 && b.Mover.Routes == 2,
             "an audible enemy stops the regroup order during the reload");
+        C(b.Mover.Stops == 1 && b.Mover.Pose == .75f && r.Policy.Trace!.Reloading,
+            "a reloading follower watches low when the heard contact interrupts regrouping");
         action.Stop();
         C(reload.Requests == requests && reload.Reloading, "releasing the layer leaves the reload alone");
     }
