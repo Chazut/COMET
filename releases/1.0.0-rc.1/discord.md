@@ -1,21 +1,17 @@
-☄️ **COMET 1.0.0 RC1** | What's changed since Beta 4
+☄️ **COMET 1.0.0 RC1** + 🎬 **Raid Review 1.11.0 RC3**
 
-**Squad fights**
-- When a squad loses sight of you, one PMC can peel off to flank while the others cover. Larger groups can leave a rear guard. Once the flanker gets into position or spots you, the squad can push together.
-- A PMC watching a second entrance checks whether you're still inside. Fresh contact can make it wait a little longer. If it commits, it sprints through.
-- Squads check their route and ammo before a rush. Even the last teammate can react to a squadmate's death, pushing or holding an angle depending on personality.
+**COMET | Since Beta 4**
+- **Squads:** When they lose sight of you, one PMC can flank while the others cover or watch the rear. Once the flanker arrives or spots you, the squad can push together. Squads also check their route and ammo before rushing.
+- **Room entry:** A PMC at a second entrance can hold for fresh contact, then sprint through. At a doorway, nearby teammates, sounds, injuries and ammo all influence whether it clears, peeks or sets an ambush.
+- **Doors & cover:** Bots can route around open door panels. A bot moving to new cover outdoors can finish the move if its route changes, then hold the spot for 5-10 seconds.
+- **Feints:** Watch for the second peek. A PMC can pull back, change sides and peek at a different height. During a fake reload, it watches the last visible spot on your approach.
+- **Grenades & healing:** Bots try lower throws through doorways and favor shorter fuses up close. Personality affects whether a PMC hesitates over routine healing.
+- **After a fight:** PMCs can watch the last threat, turn towards a sound or reload on the move while catching up with their leader.
+- **Fixes:** Ammo checks count the chambered round, bots stop peeking if SAIN refuses the move, and seasonal footstep sounds play correctly.
 
-**Doors, cover & tricks**
-- Bots can route around open door panels. At a doorway, sounds, backup, injuries and ammo influence whether they clear, peek or set an ambush.
-- A PMC changing cover outdoors can finish the move even if its route changes, then hold the new spot for 5-10 seconds.
-- Watch for the second peek. A bot can sprint out, pull back, then try the opposite side at a different height. During a fake reload it keeps an eye on your last approach.
+**Raid Review | Since RC2**
+- Squad replays show when nobody took the flank, and how a survivor reacted when the squad identified a fallen teammate's attacker.
+- You can see when a bot actually held its new cover and whether it finished or was interrupted.
+- RR reconnects from the menu or hideout after a disconnect. Hourly cleanup protects active recordings and keeps imported raids.
 
-**Grenades, healing & regrouping**
-- Bots try lower grenade arcs through doorways and favor shorter fuses up close. What they actually have in their pockets matters when deciding to throw or fall back to heal.
-- Personality can make a PMC hesitate over routine healing. After a fight it can watch the last threat, turn towards a sound, or reload on the move while catching up with its leader.
-
-**Fixes**
-- A blocked shot and an out-of-range target now lead to different decisions. Ammo checks include the chambered round, and bots stop a peek if SAIN refuses the move.
-- Fixed seasonal footstep playback and cleaned up obsolete web settings. Your existing presets still work.
-
-I've spotted a few more things I'd like to improve and a few small bugs to fix. If RC1 goes well, those will be in the official 1.0.0 release. Let me know how your raids go 🙂
+I've spotted a few more things to improve and some small bugs to fix in COMET. If RC1 goes well, those will be in the official 1.0.0 release. Let me know how your raids go 🙂
