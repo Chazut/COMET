@@ -133,8 +133,7 @@ public sealed partial class Plugin
     private string CrossfireBlock(
         BotComponent b,
         BotState s,
-        bool maneuverCandidate = false,
-        bool supportCandidate = false
+        bool maneuverCandidate = false
     )
     {
         bool maneuver = maneuverCandidate || s.Crossfire.Maneuver != null;
@@ -152,8 +151,7 @@ public sealed partial class Plugin
         )
             return "crossfire-no-known-contact";
         bool supporting =
-            supportCandidate
-            || s.Crossfire.ManeuverRole?.Role == "support"
+            s.Crossfire.ManeuverRole?.Role == "support"
             || maneuverCandidate
                 && b.Squad.Members != null
                 && maneuverBoard.Get(ManeuverGroup(b)) is { Active: true } plan

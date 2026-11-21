@@ -53,6 +53,20 @@ internal static class SquadManeuverTests
                 })
                 .ToList();
         {
+            var admission = new SquadManeuverBoard();
+            var members = Team(3);
+            members[2].VisibleContact = true;
+            C(admission.TryStart("sight", "enemy", 10, 10, 0, members, c, 100) == null
+                && admission.LastReason == SquadManeuverBoard.SomeoneSees
+                && admission.LastAttempt == null, "sight veto precedes assigning roles");
+            members[2].VisibleContact = false;
+            var plan = admission.TryStart("sight", "enemy", 10, 10, 0, members, c, 100);
+            C(plan != null, "losing sight permits the same opportunity immediately");
+            members[2].VisibleContact = true;
+            C(ReferenceEquals(plan, admission.TryStart("sight", "enemy", 11, 10, 0, members, c, 100)),
+                "regaining sight preserves the existing plan");
+        }
+        {
             var jamTeam = Team();
             jamTeam[1].MovementBlock = "movement-awaiting-real-progress";
             var selected = new SquadManeuverBoard().TryStart(

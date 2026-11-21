@@ -69,7 +69,13 @@ public sealed partial class Plugin
                     continue;
                 if (Vector3.Distance(b.Position, mate.Position) > c.SquadDistance)
                     continue;
-                if (!states.TryGetValue(mate, out var ms))
+                states.TryGetValue(mate, out var ms);
+                if (ms != null
+                    && (ms.Door.SessionPlan.Length > 0 || DoorPlanActive(ms) || ms.Entry.Policy.Active))
+                    continue;
+                if (mate.GoalEnemy.IsVisible)
+                    return DeclineSquad(s, "S03", SquadManeuverBoard.SomeoneSees);
+                if (ms == null)
                 {
                     if (states.Count >= 512)
                         continue;
@@ -80,12 +86,7 @@ public sealed partial class Plugin
                     ms.Crossfire.Policy.Active
                     || ms.Crossfire.Fault
                     || Time.time < ms.Crossfire.Policy.RetryAt
-                    || CrossfireBlock(
-                        mate,
-                        ms,
-                        true,
-                        supportCandidate: mate.GoalEnemy.IsVisible
-                    ).Length > 0
+                    || CrossfireBlock(mate, ms, maneuverCandidate: true).Length > 0
                     || !CrossfireCanAcquire(mate)
                 )
                     continue;
@@ -105,18 +106,19 @@ public sealed partial class Plugin
                         Name = mate.Player.Profile.Nickname,
                         Personality = mate.Info.Personality.ToString(),
                         Ammo = ammo,
-                        VisibleContact = mate.GoalEnemy.IsVisible,
                         Score = SquadManeuverBoard.Score(
                             mate.Info.Personality.ToString(),
                             mate.Memory.Health.HealthStatus == ETagStatus.Healthy,
                             ammo,
                             c
                         ),
-                        Roll = jumpRandom.NextDouble(),
                         RearContact = ManeuverRearContact(mate, known, out _),
                     }
                 );
             }
+            // A later member can still see the target. Roll only after checking the whole squad.
+            foreach (var member in candidates)
+                member.Roll = jumpRandom.NextDouble();
             var previous = maneuverBoard.LastAttempt;
             plan = maneuverBoard.TryStart(
                 group,

@@ -266,6 +266,7 @@ public sealed class SquadManeuverPlan
 
 public sealed class SquadManeuverBoard
 {
+    public const string SomeoneSees = "maneuver-squad-member-sees-target";
     private readonly Dictionary<string, SquadManeuverPlan> plans = new();
     private readonly Dictionary<string, (double until, double evidence)> history = new();
     private int serial;
@@ -321,6 +322,11 @@ public sealed class SquadManeuverBoard
                 return null;
             }
         }
+        if (candidates.Exists(member => member.VisibleContact))
+        {
+            LastReason = SomeoneSees;
+            return null;
+        }
         if (candidates.Count < 2)
         {
             LastReason = "maneuver-insufficient-eligible-members";
@@ -341,7 +347,6 @@ public sealed class SquadManeuverBoard
         {
             m.SelectionReason =
                 m.MovementBlock.Length > 0 ? m.MovementBlock
-                : m.VisibleContact ? "visible-contact-anchor"
                 : m.Score < 0 ? "personality-holds-support"
                 : !MedicalChoice.Finite(m.Ammo) || m.Ammo < c.MinimumAmmo
                     ? "ammo-below-flank-threshold"
@@ -355,9 +360,7 @@ public sealed class SquadManeuverBoard
         }
         // Preserve the only willing flanker. A non-participant can still provide
         // support; selecting that flanker as support first used to waste this plan.
-        var support = members.Find(x => x.VisibleContact)
-            ?? members.Find(x => x.Role == "support")
-            ?? members[0];
+        var support = members.Find(x => x.Role == "support") ?? members[0];
         support.Role = "support";
         if (support.SelectionReason == "flank-eligible")
             support.SelectionReason = "selected-anchor-support";

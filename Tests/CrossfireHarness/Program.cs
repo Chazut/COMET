@@ -120,6 +120,8 @@ foreach (var (chance, contactAge, maneuverRange, crossfireOn, healing, storm, ex
     cfg.SquadManeuver.MaxDistance = maneuverRange;
     b.GoalEnemy!.KnownPlaces.LastKnownPosition = new(0, 0, 30);
     anchor.GoalEnemy!.KnownPlaces.LastKnownPosition = b.GoalEnemy.KnownPlaces.LastKnownPosition;
+    anchor.GoalEnemy.IsVisible = false;
+    anchor.Info.Personality = Personality.Rat;
     anchor.GoalEnemy.TimeSinceLastKnownUpdated = 0;
     b.GoalEnemy.TimeSinceLastKnownUpdated = contactAge;
     var patient = new BotComponent { Position = new(3, 0, 0), GoalEnemy = null };
@@ -236,8 +238,7 @@ foreach (bool mateSees in new[] { false, true })
     mate.GoalEnemy!.IsVisible = mateSees;
     b.GoalEnemy!.KnownPlaces.LastKnownPosition = new(0, 0, 30);
     mate.GoalEnemy.KnownPlaces.LastKnownPosition = b.GoalEnemy.KnownPlaces.LastKnownPosition;
-    // A 15s contact with visible support isolates crossfire. A fresh hidden contact isolates maneuver.
-    b.GoalEnemy.TimeSinceLastKnownUpdated = mateSees ? 15 : 1;
+    b.GoalEnemy.TimeSinceLastKnownUpdated = 1;
     p.Observe(b);
     var runtime = p.states.TryGetValue(b, out var state) ? state.Crossfire : null;
     bool expectManeuver = maneuverOn && !mateSees;
@@ -248,8 +249,10 @@ foreach (bool mateSees in new[] { false, true })
     );
     if (expectManeuver)
     {
+        mate.GoalEnemy.IsVisible = true;
         p.Observe(mate);
-        C(p.states[mate].Crossfire.Maneuver == runtime!.Maneuver, "support joins the same maneuver");
+        C(p.states[mate].Crossfire.Maneuver == runtime!.Maneuver,
+            "support that regained sight joins the existing maneuver");
         var supportAction = new CrossfireAction(mate.BotOwner);
         supportAction.Start();
         supportAction.OnSteeringTicked();
@@ -271,6 +274,49 @@ foreach (bool mateSees in new[] { false, true })
             !runtime.Policy.Active && !p.states[mate].Crossfire.Policy.Active && p.Claims == 0,
             "disabling maneuver releases both roles and their claims"
         );
+    }
+    p.EndAll();
+}
+foreach (var (observer, veto) in new[]
+{
+    ("at-radius", true), ("under-fire", true), ("outside-radius", false),
+    ("other-enemy", false), ("dead", false), ("door", false), ("door-session", false), ("entry", false),
+})
+{
+    var (p, b, anchor) = Setup();
+    var cfg = p.config!;
+    cfg.SquadManeuver.Chance = 100;
+    cfg.Crossfire.Enabled = cfg.CoverMate.Enabled = cfg.SquadTrade.Enabled = false;
+    anchor.GoalEnemy!.IsVisible = false;
+    anchor.Info.Personality = Personality.Rat;
+    anchor.GoalEnemy.KnownPlaces.LastKnownPosition = b.GoalEnemy!.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    var scout = new BotComponent { Squad = b.Squad };
+    scout.Position = b.Position + Vector3.up * (observer == "outside-radius" ? 35.01f : 35f);
+    scout.GoalEnemy!.IsVisible = true;
+    scout.GoalEnemy.KnownPlaces.LastKnownPosition = b.GoalEnemy.KnownPlaces.LastKnownPosition;
+    scout.IsDead = observer == "dead";
+    scout.BotOwner.Memory.IsUnderFire = observer == "under-fire";
+    if (observer == "other-enemy")
+        scout.GoalEnemy.EnemyProfileId = "someone-else";
+    b.Squad.Members.Add(scout.ProfileId, scout);
+    SAINEnableClass.Bots[scout.ProfileId] = scout;
+    var state = new BotState(scout, cfg, p.session);
+    p.states.Add(scout, state);
+    state.Door.Policy.Active = observer == "door";
+    state.Entry.Policy.Active = observer == "entry";
+    if (observer == "door-session")
+        state.Door.SessionPlan = "clear";
+
+    p.Observe(b);
+    C((p.states[b].Crossfire.Maneuver == null) == veto, "third member sight check: " + observer);
+    C(p.diagnostics!.Lines.Any(line => line.Contains(Comet.Core.SquadManeuverBoard.SomeoneSees)) == veto,
+        "S03 records the sight veto only for the relevant observer: " + observer);
+    if (veto)
+    {
+        scout.GoalEnemy.IsVisible = false;
+        Step((float)cfg.Crossfire.Interval + .01f);
+        p.Observe(b);
+        C(p.states[b].Crossfire.Maneuver != null, "sight veto did not consume the squad retry: " + observer);
     }
     p.EndAll();
 }

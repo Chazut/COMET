@@ -889,6 +889,7 @@ namespace Comet.Client
     internal class Other
     {
         public Flag Policy = new();
+        public string SessionPlan = "";
     }
 
     internal class Flag
@@ -920,6 +921,7 @@ namespace Comet.Client
         public SuppressionDisciplineRuntime SuppressionDiscipline = new();
         public CrossfireRuntime Crossfire = new();
         public Other Door = new(),
+            Entry = new(),
             Jump = new(),
             RunBy = new(),
             StepPeek = new(),

@@ -33,6 +33,12 @@ As in `SquadCombatClass.AssessManeuver`, a favorable S06 verdict for the
 group and contact blocks planning a new S03 flank. Members can still take
 their roles in an existing maneuver or choose another squad tactic.
 
+A new S03 requires the nearby squad members on that enemy to have lost sight
+of it. Someone still watching it can enable ordinary crossfire (S01). Members
+busy with a door tactic are excluded from this check. The sight check precedes
+participation rolls and records `maneuver-squad-member-sees-target`. Once the
+plan exists, its support can regain sight and continue in that role.
+
 ### M14 second bait peek (2026-11-21)
 
 During each outward and return leg, the accepted action renews its native

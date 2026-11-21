@@ -335,13 +335,10 @@ internal static class SquadManeuverHarness
             foreach (var b in bots)
                 p.Observe(b);
             C(
-                p.states[bots[1]].Crossfire.Maneuver?.Support == bots[0].ProfileId,
-                "visible teammate selected as anchor when hidden teammate starts plan"
+                p.states[bots[1]].Crossfire.Maneuver == null
+                    && p.states[bots[1]].Crossfire.Policy.Active,
+                "a teammate who already sees the target enables ordinary crossfire"
             );
-            Step(.6f);
-            p.Observe(bots[0]);
-            var a = Action(p, bots[0]);
-            C(a.NativeSteering > 0, "new visible anchor uses original SAIN fire hook");
             p.EndAll();
         }
         foreach (
