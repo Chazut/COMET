@@ -58,8 +58,21 @@ public sealed partial class Plugin
         string temporary = SquadTradeBlock(b, s);
         if (temporary.Length > 0)
             return DeclineSquad(s, "S05", "trade-memory-retained: " + temporary);
+        var chosen = b.GoalEnemy;
+        if (
+            chosen == null
+            || chosen.IsVisible
+            || b.BotOwner.Memory.IsUnderFire
+            || chosen.KnownPlaces.LastKnownPosition is not Vector3 known
+            || chosen.TimeSinceLastKnownUpdated > c.ContactAge
+            || Vector3.ProjectOnPlane(known - b.Position, Vector3.up).magnitude > c.MaxDistance
+        )
+            return DeclineSquad(s, "S05", "trade-contact-unavailable");
+        if (chosen.EnemyProfileId != loss.AssociatedContact && chosen.EnemyProfileId != loss.AimedAt)
+            return DeclineSquad(s, "S05", "tradeOtherEnemy");
         if (!r.Policy.Begin(Time.time, TradeMotionConfig(), 0))
             return false;
+        a.Memory.Consume(loss);
         RememberCrossfireHandoff(b, r);
         r.Maneuver = null;
         r.ManeuverRole = null;
@@ -72,9 +85,9 @@ public sealed partial class Plugin
         r.Support = loss.Mate;
         r.Reference = b.Position;
         r.Group = b.Squad.Members != null ? SquadRosterIdentity(b) : "";
-        r.Contact = "";
-        r.Known = b.Position;
-        r.ContactAt = Time.time;
+        r.Contact = chosen.EnemyProfileId;
+        r.Known = known;
+        r.ContactAt = Time.time - chosen.TimeSinceLastKnownUpdated;
         r.Route = null;
         r.Candidate = r.Sample = 0;
         r.Rejects.Clear();
@@ -92,38 +105,12 @@ public sealed partial class Plugin
         };
         t.Support = loss.Mate;
         t.SupportName = loss.Name;
-        string block = SquadTradeBlock(b, s);
-        if (block.Length > 0)
-        {
-            d.Reason = block;
-            EndCrossfire(b, s, block);
-            return false;
-        }
-        var chosen = b.GoalEnemy;
-        if (
-            chosen == null
-            || chosen.IsVisible
-            || b.BotOwner.Memory.IsUnderFire
-            || chosen.KnownPlaces.LastKnownPosition is not Vector3 known
-            || chosen.TimeSinceLastKnownUpdated > c.ContactAge
-            || Vector3.ProjectOnPlane(known - b.Position, Vector3.up).magnitude > c.MaxDistance
-            || chosen.EnemyProfileId != loss.AssociatedContact
-                && chosen.EnemyProfileId != loss.AimedAt
-        )
-        {
-            EndCrossfire(b, s, "tradeOtherEnemy-or-unavailable");
-            return false;
-        }
-        a.Memory.Consume(loss);
         bool aggressive = b.Info.PersonalitySettings.Rush.CanRushEnemyReloadHeal;
         d.Choice = aggressive ? "push" : "watch";
         d.Reason = "native personality";
         d.Chance = 100;
         d.Confidence = "squad attacker association";
         a.Push = aggressive;
-        r.Known = known;
-        r.Contact = chosen.EnemyProfileId;
-        r.ContactAt = Time.time - chosen.TimeSinceLastKnownUpdated;
         t.Contact = r.Contact;
         t.Source = NativeAdapter.Capture(b, chosen, true, false).ContactSource;
         t.X = known.x;

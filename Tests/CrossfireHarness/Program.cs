@@ -91,6 +91,43 @@ CrossfireAction Start(Plugin p, BotComponent b)
     return a;
 }
 void Save(Plugin p) => events.AddRange(p.diagnostics!.Lines);
+foreach (string next in new[] { "crossfire", "killer", "aimed-at" })
+{
+    var (p, b, support) = Setup();
+    p.config!.SquadManeuver.Enabled = false;
+    p.config.CoverMate.Enabled = false;
+    var casualty = new BotComponent { Squad = b.Squad, IsDead = true };
+    casualty.Player.HealthController.IsAlive = false;
+    casualty.GoalEnemy!.EnemyProfileId = "aimed-at";
+    b.Squad.Members.Add(casualty.ProfileId, casualty);
+    p.Death(casualty, b, new Player { ProfileId = "killer" });
+    support.GoalEnemy!.IsVisible = next == "crossfire";
+    Step(.1f);
+    p.Observe(b);
+    var r = p.states[b].Crossfire;
+    C(r.Policy.RetryAt == 0 && r.Trade.Memory.Peek(Time.time, p.config.SquadTrade) != null,
+        "an unrelated goal leaves the trade opportunity and squad cooldown untouched");
+    C(p.diagnostics!.Lines.Any(line => line.Contains("tradeOtherEnemy")),
+        "S05 reports why the current goal was skipped");
+    if (next == "crossfire")
+    {
+        C(r.Policy.Active && r.Policy.Trace!.Trade == null && r.Support == support.ProfileId
+            && r.Contact == b.GoalEnemy!.EnemyProfileId,
+            "ordinary crossfire starts against the other enemy on the same decision");
+    }
+    else
+    {
+        C(!r.Policy.Active, "no trade starts against the unrelated goal");
+        b.GoalEnemy = new Enemy { EnemyProfileId = next };
+        b.EnemyController.KnownEnemies.Add(b.GoalEnemy);
+        Step((float)p.config.Crossfire.Interval + .01f);
+        p.Observe(b);
+        C(r.Policy.Active && r.Policy.Trace!.Trade?.Mate == casualty.ProfileId
+            && r.Contact == next && r.Trade.Memory.Peek(Time.time, p.config.SquadTrade) == null,
+            "switching to the " + next + " starts the retained trade immediately");
+    }
+    p.EndAll();
+}
 void IssueStormOrder(Plugin p, BotComponent leader, BotComponent stayingBack)
 {
     var cfg = p.config!;
