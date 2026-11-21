@@ -245,6 +245,8 @@ a 3D throw distance strictly below 20 m favors the shortest eligible fuse.
 The target's indoor state belongs to G01's judgment of the throw. A new arc
 within the same opportunity can switch fuse preference when the thrower moves.
 The G03 selection event records the thrower's roof state and the arc distance.
+For equal optimal fuses, `PickFrag` keeps the first eligible fragmentation grenade
+in native equipment order. G03 records later matches as `same-fuse-later-in-inventory`.
 
 ### G01/G02 grenade contact age and throw range (2026-11-20)
 

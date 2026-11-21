@@ -132,7 +132,7 @@ public sealed partial class Plugin
             a.Category == "fragmentation"
             || !GrenadeFilterScope(b) && items[a.Item].ThrowType.ToString() == "frag_grenade"
         );
-        var pick = GrenadeChoiceRules.Choose(fragments, shortest, f.Item);
+        var pick = GrenadeChoiceRules.Choose(fragments, shortest);
         if (pick == null && GrenadeFilterScope(b) && config.GrenadeFilter.AllowFlash)
         {
             foreach (var a in r.Trace.Alternatives)
@@ -174,6 +174,7 @@ public sealed partial class Plugin
                 a.Reason =
                     a.Item == pick.Item ? "selected"
                     : a.Category == "flash" ? "flash-reserve"
+                    : a.Fuse == pick.Fuse ? "same-fuse-later-in-inventory"
                     : "less-preferred-fuse";
         // Fixed native mass currently makes power identical. Fail closed if a future mod changes that contract.
         if (!GrenadeChoiceRules.Finite(g.MaxPower) || Math.Abs(g.MaxPower - oldPower) > .001)

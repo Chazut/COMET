@@ -53,9 +53,16 @@ internal static class GrenadeChoiceTests
                 Fuse = 3,
             },
         };
-        C(GrenadeChoiceRules.Choose(a, true, "z")!.Item == "z");
-        C(GrenadeChoiceRules.Choose(a, true, "")!.Item == "a");
-        C(GrenadeChoiceRules.Choose(a, false, "")!.Item == "b");
+        C(GrenadeChoiceRules.Choose(a, true) == a[0]);
+        C(GrenadeChoiceRules.Choose(a, false) == a[1]);
+        Array.Reverse(a);
+        C(GrenadeChoiceRules.Choose(a, true) == a[0]);
+        a[0].Eligible = false;
+        C(GrenadeChoiceRules.Choose(a, true) == a[2]);
+        a[2].Fuse = a[1].Fuse;
+        C(GrenadeChoiceRules.Choose(a, false) == a[1]);
+        Array.Reverse(a);
+        C(GrenadeChoiceRules.Choose(a, false) == a[0]);
         foreach (
             var action in new Action<GrenadeChoiceConfig>[]
             {

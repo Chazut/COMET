@@ -97,8 +97,7 @@ public static class GrenadeChoiceRules
 
     public static GrenadeChoiceAlternative? Choose(
         IReadOnlyList<GrenadeChoiceAlternative> choices,
-        bool shortest,
-        string current
+        bool shortest
     )
     {
         GrenadeChoiceAlternative? best = null;
@@ -106,17 +105,7 @@ public static class GrenadeChoiceRules
         {
             if (!a.Eligible || !a.Fuse.HasValue || !Finite(a.Fuse.Value))
                 continue;
-            if (
-                best == null
-                || (shortest ? a.Fuse < best.Fuse : a.Fuse > best.Fuse)
-                || a.Fuse == best.Fuse
-                    && (
-                        a.Item == current && best.Item != current
-                        || a.Item != current
-                            && best.Item != current
-                            && string.CompareOrdinal(a.Item, best.Item) < 0
-                    )
-            )
+            if (best == null || (shortest ? a.Fuse < best.Fuse : a.Fuse > best.Fuse))
                 best = a;
         }
         return best;

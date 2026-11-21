@@ -86,6 +86,32 @@ foreach (bool g02 in new[] { false, true })
     );
     File.AppendAllLines(wire, p.Events);
 }
+foreach (bool shortest in new[] { true, false })
+foreach (bool laterTieSelected in new[] { true, false })
+{
+    var (p, b) = Setup(false, false);
+    b.Memory.Location.IsIndoors = shortest;
+    var grenades = b.BotOwner.WeaponManager.Grenades;
+    grenades.AIGreanageThrowData!.Target = new(25, 0, 0);
+    var otherFuse = new ThrowWeap { Id = "other", GetExplDelay = shortest ? 5 : 3 };
+    var first = new ThrowWeap { Id = "z-first", GetExplDelay = 4 };
+    var later = new ThrowWeap { Id = "a-later", GetExplDelay = 4 };
+    var inventory = b.Player.Inventory.Items;
+    inventory.Clear();
+    inventory.Add(otherFuse);
+    inventory.Add(first);
+    inventory.Add(later);
+    grenades.grenade = laterTieSelected ? later : otherFuse;
+
+    Check(Ready(p, b) && ReferenceEquals(grenades.grenade, first),
+        $"first optimal frag in equipment order for shortest={shortest}, later tie selected={laterTieSelected}");
+    var alternatives = p.State(b).GrenadeChoice.Trace!.Alternatives;
+    Check(alternatives.Single(a => a.Item == "a-later").Reason == "same-fuse-later-in-inventory"
+        && alternatives.Single(a => a.Item == "other").Reason == "less-preferred-fuse",
+        "the selection trace distinguishes an equal fuse from a less suitable one");
+    Check(p.Throw(b) && ReferenceEquals(grenades.grenade, first) && p.Requests == 1,
+        "the native throw uses the selected inventory item");
+}
 int mutation = 0;
 foreach (
     var changed in new Action<Plugin, BotComponent>[]
