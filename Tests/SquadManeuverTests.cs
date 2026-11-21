@@ -53,6 +53,67 @@ internal static class SquadManeuverTests
                 })
                 .ToList();
         {
+            var memory = new SquadManeuverBoard();
+            var preset = new SquadManeuverConfig { Chance = 60, Retry = 5 };
+            int draws = 0;
+            double Draw() => ++draws == 1 ? .60 : .20;
+            var first = memory.TryStart("squad", "enemy", 10, 10, Draw, Team(), preset);
+            var refusal = memory.LastAttempt;
+            C(first == null && refusal?.Trace("p0", 10, preset).RollValidUntil == 40, "refusal records the roll expiry");
+            preset.Chance = 100;
+            foreach (double time in new[] { 15, 35, 36, 40 })
+                C(memory.TryStart("squad", "enemy", time, time, Draw, Team(), preset) == null
+                    && memory.LastReason == "maneuver-cached-roll-declined" && memory.LastAttempt == refusal
+                    && draws == 1, "cached rejection survives fresh sightings and preset changes through " + time);
+            var next = memory.TryStart("squad", "enemy", 40.01, 40.01, Draw, Team(), preset);
+            C(next != null && draws == 2 && next.Roll == .20, "first eligible check after expiry draws again");
+        }
+        foreach (bool missingFlanker in new[] { false, true })
+        {
+            var memory = new SquadManeuverBoard();
+            var preset = new SquadManeuverConfig();
+            var missingRole = Team(2);
+            if (missingFlanker)
+                missingRole[1].Score = -10;
+            else
+                missingRole[0].Ammo = 0;
+            int draws = 0;
+            double Draw() => ++draws == 1 ? .25 : .95;
+            C(memory.TryStart("squad", "enemy", 10, 10, Draw, missingRole, preset) == null
+                && memory.LastReason == (missingFlanker ? "maneuver-no-willing-flanker" : "maneuver-no-suppressor"),
+                "the roll passed before role selection failed");
+            preset.Chance = 0;
+            C(memory.TryStart("squad", "enemy", 19.99, 19, Draw, Team(2), preset) == null
+                && memory.LastReason == "maneuver-retry-cooldown" && draws == 1, "role cooldown lasts ten seconds");
+            var plan = memory.TryStart("squad", "enemy", 20, 20, Draw, Team(2), preset);
+            C(plan != null && draws == 1 && plan.Roll == .25 && plan.Trace("p1", 20, preset).Chance == 60
+                && plan.RollValidUntil == 40, "retry uses the accepted roll and its original chance");
+            memory.Finish(plan!, 21, preset, "flank completed");
+            C(memory.TryStart("squad", "enemy", 45.99, 45, Draw, Team(2), preset) == null && draws == 1,
+                "post-plan cooldown lasts 25 seconds even when the original roll has expired");
+            C(memory.TryStart("squad", "enemy", 46, 46, Draw, Team(2), preset) == null
+                && draws == 2 && memory.LastReason == "maneuver-keep-current-plan",
+                "first opportunity at the end of the cooldown draws a fresh verdict");
+        }
+        {
+            var memory = new SquadManeuverBoard();
+            var preset = new SquadManeuverConfig { Retry = 5 };
+            var original = memory.TryStart("squad", "enemy", 10, 10, .2, Team(), preset)!;
+            memory.Finish(original, 12, preset, "flank completed");
+            C(memory.TryStart("squad", "enemy", 16.99, 16, .99, Team(), preset) == null,
+                "personal post-plan retry setting applies from the end of the plan");
+            var next = memory.TryStart("squad", "enemy", 17, 17, .99, Team(), preset);
+            C(next != null && next != original && next.Roll == .2 && next.RollValidUntil == 40,
+                "a short post-plan cooldown can expire while the favorable roll remains valid");
+            memory.Clear();
+            C(memory.TryStart("squad", "enemy", 10, 10, .99, Team(), preset) == null
+                && memory.LastReason == "maneuver-keep-current-plan", "raid reset clears both clocks");
+            C(memory.TryStart("another-squad", "enemy", 11, 11, .2, Team(), preset) != null,
+                "another squad rolls independently for the same enemy");
+            C(memory.TryStart("squad", "another-enemy", 11, 11, .2, Team(), preset) != null,
+                "the same squad rolls independently for another enemy");
+        }
+        {
             var admission = new SquadManeuverBoard();
             var members = Team(3);
             members[2].VisibleContact = true;

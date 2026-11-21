@@ -66,6 +66,12 @@ fire. If none qualify, the rear guard takes that duty when sufficiently loaded.
 A missing flanker or shooter delays the next attempt by ten seconds. Diagnostics
 record each role and the reason for the selection, alongside the single squad roll.
 
+S03 remembers its roll for each squad and enemy through 30 seconds after the draw.
+Both a refusal and an acceptance keep their original probability. Missing roles
+can be reassessed after 10 seconds using a still-valid acceptance. Ending a plan
+starts the separately configured same-enemy cooldown (25 seconds by default).
+The maneuver trace records the original roll, chance and deadline in game time.
+
 ### M14 second bait peek (2026-11-21)
 
 During each outward and return leg, the accepted action renews its native

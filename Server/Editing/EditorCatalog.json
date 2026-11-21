@@ -1456,8 +1456,8 @@
       "Unit": "s"
     },
     "SquadManeuver.Retry": {
-      "Label": "Same enemy retry delay",
-      "Help": "",
+      "Label": "Retry delay after a flank ends",
+      "Help": "How long the squad waits after a plan ends before trying another flank against the same enemy. The squad remembers its chance roll for 30 seconds from the draw.",
       "Min": 5.0,
       "Max": 120.0,
       "Scale": 1,

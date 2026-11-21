@@ -274,6 +274,29 @@ foreach (bool indoors in new[] { false, true })
     Step(.6f);
     p.Observe(mate);
     C(p.states[mate].Crossfire.Maneuver == null, "arrival cannot bypass a declined S03 roll");
+    Step(25.4f);
+    mate.GoalEnemy.TimeSinceLastKnownUpdated = 0;
+    p.Observe(mate);
+    C(p.states[mate].Crossfire.Maneuver == null &&
+        p.diagnostics!.Lines.Any(s => s.Contains("maneuver-cached-roll-declined")),
+        "S03 still honors the original refusal 26 seconds later");
+    Step(4);
+    b.GoalEnemy.TimeSinceLastKnownUpdated = 0;
+    p.Observe(b);
+    C(p.states[b].Crossfire.Maneuver == null, "at exactly 30 seconds the squad still keeps its verdict");
+    Step(.6f);
+    p.Observe(mate);
+    C(p.states[mate].Crossfire.Maneuver != null, "the next eligible proposal can start after 30 seconds");
+    p.EndAll();
+}
+{
+    var (p, b, mate) = Setup();
+    var cfg = p.config!;
+    cfg.SquadManeuver.Chance = 0;
+    mate.GoalEnemy!.IsVisible = false;
+    b.GoalEnemy!.KnownPlaces.LastKnownPosition = mate.GoalEnemy.KnownPlaces.LastKnownPosition = new(0, 0, 30);
+    p.Observe(b);
+    cfg.SquadManeuver.Chance = 100;
     mate.Squad.SquadInfo = b.Squad.SquadInfo = new();
     Step(.6f);
     p.Observe(mate);

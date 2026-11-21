@@ -75,6 +75,7 @@ public sealed class ManeuverTrace
     public double Remaining,
         Chance,
         Roll,
+        RollValidUntil,
         Shots;
     public string[] Members = Array.Empty<string>();
     public ManeuverSelection[] Selection = Array.Empty<ManeuverSelection>();
@@ -104,6 +105,8 @@ public sealed class SquadManeuverPlan
         Until,
         Evidence,
         Roll,
+        RollChance,
+        RollValidUntil,
         EndedAt = -1;
     public double MinimumAmmo;
     public readonly List<ManeuverMember> Members = new();
@@ -236,8 +239,9 @@ public sealed class SquadManeuverPlan
             Confirmed = m.Confirmed,
             SupportReady = SupportReady(now),
             Remaining = Math.Max(0, Until - now),
-            Chance = c.Chance,
+            Chance = RollChance,
             Roll = Roll * 100,
+            RollValidUntil = RollValidUntil,
             Shots = m.Shots,
             FireState =
                 m.Role == "unassigned" ? "no role assigned"
@@ -270,7 +274,8 @@ public sealed class SquadManeuverBoard
     public const string SomeoneSees = "maneuver-squad-member-sees-target";
     public const double SupportAmmo = 33;
     private readonly Dictionary<string, SquadManeuverPlan> plans = new();
-    private readonly Dictionary<string, (double until, double evidence)> history = new();
+    private readonly Dictionary<(string squad, string enemy), double> cooldowns = new();
+    private readonly Dictionary<(string squad, string enemy), (double value, double chance, double until)> rolls = new();
     private int serial;
     private double clock = -1;
     public SquadManeuverPlan? LastAttempt { get; private set; }
@@ -285,6 +290,16 @@ public sealed class SquadManeuverBoard
         double now,
         double evidence,
         double roll,
+        List<ManeuverMember> candidates,
+        SquadManeuverConfig c
+    ) => TryStart(group, enemy, now, evidence, () => roll, candidates, c);
+
+    public SquadManeuverPlan? TryStart(
+        string group,
+        string enemy,
+        double now,
+        double evidence,
+        Func<double> draw,
         List<ManeuverMember> candidates,
         SquadManeuverConfig c
     )
@@ -309,20 +324,17 @@ public sealed class SquadManeuverBoard
         }
         if (now - evidence > c.ContactAge)
             return null;
-        string key = group + "/" + enemy;
+        var key = (group, enemy);
         if (old != null)
         {
             if (old.EndedAt < 0)
                 Finish(old, now, c, old.Reason);
             plans.Remove(group);
         }
-        if (history.TryGetValue(key, out var h))
+        if (cooldowns.TryGetValue(key, out var cooldownUntil) && now < cooldownUntil)
         {
-            if (now < h.until)
-            {
-                LastReason = "maneuver-retry-cooldown";
-                return null;
-            }
+            LastReason = "maneuver-retry-cooldown";
+            return null;
         }
         if (candidates.Exists(member => member.VisibleContact))
         {
@@ -334,13 +346,22 @@ public sealed class SquadManeuverBoard
             LastReason = "maneuver-insufficient-eligible-members";
             return null;
         }
-        if (!MedicalChoice.Finite(roll) || roll < 0 || roll >= 1)
+        if (!rolls.TryGetValue(key, out var verdict) || now > verdict.until)
         {
-            LastReason = "maneuver-invalid-roll";
+            double value = draw();
+            if (!MedicalChoice.Finite(value) || value < 0 || value >= 1)
+            {
+                LastReason = "maneuver-invalid-roll";
+                return null;
+            }
+            verdict = (value, c.Chance, now + 30);
+            rolls[key] = verdict;
+        }
+        else if (verdict.value * 100 >= verdict.chance)
+        {
+            LastReason = "maneuver-cached-roll-declined";
             return null;
         }
-        // One roll for the whole opportunity; a failed roll also consumes this evidence.
-        history[key] = (now + c.Retry, evidence);
         var plan = new SquadManeuverPlan
         {
             Id = "maneuver-" + (++serial),
@@ -349,7 +370,9 @@ public sealed class SquadManeuverBoard
             Started = now,
             Until = now + c.Duration,
             Evidence = evidence,
-            Roll = roll,
+            Roll = verdict.value,
+            RollChance = verdict.chance,
+            RollValidUntil = verdict.until,
             MinimumAmmo = c.MinimumAmmo,
         };
         foreach (var m in candidates)
@@ -360,7 +383,7 @@ public sealed class SquadManeuverBoard
             plan.Members.Add(m);
         }
         LastAttempt = plan;
-        if (roll * 100 >= c.Chance)
+        if (verdict.value * 100 >= verdict.chance)
         {
             LastReason = "maneuver-keep-current-plan";
             plan.End(LastReason);
@@ -369,7 +392,7 @@ public sealed class SquadManeuverBoard
         string failure = AssignRoles(plan, c);
         if (failure.Length > 0)
         {
-            history[key] = (now + 10, evidence);
+            cooldowns[key] = now + 10;
             LastReason = failure;
             plan.End(LastReason);
             return null;
@@ -437,11 +460,12 @@ public sealed class SquadManeuverBoard
 
     public void Finish(SquadManeuverPlan p, double now, SquadManeuverConfig c, string why)
     {
+        if (p.EndedAt >= 0)
+            return;
         if (p.Active)
             p.End(why);
-        if (p.EndedAt < 0)
-            p.EndedAt = now;
-        history[p.Group + "/" + p.Enemy] = (p.EndedAt + c.Retry, p.Evidence);
+        p.EndedAt = now;
+        cooldowns[(p.Group, p.Enemy)] = now + c.Retry;
     }
 
     public static double Score(string personality, bool healthy, double ammo, SquadManeuverConfig c)
@@ -457,7 +481,8 @@ public sealed class SquadManeuverBoard
     public void Clear()
     {
         plans.Clear();
-        history.Clear();
+        rolls.Clear();
+        cooldowns.Clear();
         clock = -1;
         serial = 0;
         LastAttempt = null;

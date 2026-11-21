@@ -13,6 +13,7 @@ namespace Comet.Client;
 public sealed partial class Plugin
 {
     private readonly SquadManeuverBoard maneuverBoard = new();
+    private Func<double>? maneuverDraw;
 
     private static Vector3 ManeuverRearWatch(BotComponent b, Vector3 known)
     {
@@ -102,7 +103,7 @@ public sealed partial class Plugin
                 enemy.EnemyProfileId,
                 Time.time,
                 Time.time - enemy.TimeSinceLastKnownUpdated,
-                jumpRandom.NextDouble(),
+                maneuverDraw ??= jumpRandom.NextDouble,
                 candidates,
                 c
             );
@@ -172,7 +173,7 @@ public sealed partial class Plugin
         t.Z = known.z;
         t.ContactAge = enemy.TimeSinceLastKnownUpdated;
         t.Roll = plan.Roll * 100;
-        t.Chance = c.Chance;
+        t.Chance = plan.RollChance;
         if (role.Role == "flank")
         {
             role.Status = "planning";
