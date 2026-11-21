@@ -91,6 +91,55 @@ CrossfireAction Start(Plugin p, BotComponent b)
     return a;
 }
 void Save(Plugin p) => events.AddRange(p.diagnostics!.Lines);
+// Exercise the shared angle search through each tactic's own decision path.
+foreach (var (tactic, distance, indoor, radii) in new[]
+{
+    ("S01", 10f, false, new[] { 10f, 8f, 8f }),
+    ("S01", 5f, false, new[] { 10f, 8f, 8f }),
+    ("S01", 45f, false, new[] { 40f, 28f, 18f }),
+    ("S03", 16f, true, new[] { 4f, 6f, 8f, 11.2f }),
+    ("S05", 24f, false, new[] { 24f, 16.8f, 10.8f }),
+})
+foreach (float elevation in new[] { 0f, 10f, -10f })
+{
+    var (p, b, mate) = Setup();
+    // Both horizontal axes contribute to the distance (3:4:5 triangle).
+    var known = b.Position + new Vector3(.6f * distance, elevation, .8f * distance);
+    b.GoalEnemy!.KnownPlaces.LastKnownPosition = mate.GoalEnemy!.EnemyPosition = known;
+    mate.GoalEnemy.KnownPlaces.LastKnownPosition = known;
+    mate.GoalEnemy.IsVisible = tactic == "S01";
+    b.Player.Environment = indoor ? EnvironmentType.Indoor : EnvironmentType.Outdoor;
+    p.config!.SquadManeuver.Chance = 100;
+    mate.Info.Personality = Personality.Rat;
+    if (tactic == "S05")
+    {
+        b.Info.PersonalitySettings.Rush.CanRushEnemyReloadHeal = false;
+        var casualty = new BotComponent { Squad = b.Squad, IsDead = true };
+        casualty.Player.HealthController.IsAlive = false;
+        b.Squad.Members.Add(casualty.ProfileId, casualty);
+        p.Death(casualty, b, b.GoalEnemy.EnemyPlayer);
+        Step(.81f);
+    }
+    p.Observe(b);
+    var r = p.states[b].Crossfire;
+    var trace = r.Policy.Trace;
+    C(r.Policy.Active && trace?.SearchPass == "zzap-angle-search" && (tactic switch
+    {
+        "S01" => r.Maneuver == null && trace.Trade == null && r.Support == mate.ProfileId,
+        "S03" => r.ManeuverRole?.Role == "flank",
+        _ => trace.Trade?.Choice == "watch"
+    }), $"entered {tactic} angle search at elevation {elevation}");
+    int perRing = indoor ? 14 : 12;
+    C(r.Candidates.Count == perRing * radii.Length + 8, "complete rings and eight lateral positions");
+    for (int i = 0; i < radii.Length; i++)
+    {
+        var ring = r.Candidates.Skip(i * perRing).Take(perRing);
+        C(ring.All(point => Math.Abs(Vector3.Distance(point, known) - radii[i]) < .001f && point.y == known.y),
+            $"{tactic} ring {i + 1} has radius {radii[i]} at contact elevation {elevation}");
+    }
+    C(r.Candidates.TakeLast(8).All(point => point.y == b.Position.y), "sidesteps stay at bot elevation");
+    p.EndAll();
+}
 foreach (string next in new[] { "crossfire", "killer", "aimed-at" })
 {
     var (p, b, support) = Setup();

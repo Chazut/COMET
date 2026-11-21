@@ -17,6 +17,8 @@ public sealed partial class Plugin
         r.Candidate = 0;
         r.Route = null;
         r.Length = float.MaxValue;
+        var direction = r.Known - r.Origin;
+        direction.y = 0;
         var from = r.Reference - r.Known;
         from.y = 0;
         if (from.sqrMagnitude < 1)
@@ -24,7 +26,7 @@ public sealed partial class Plugin
             from = r.Origin - r.Known;
             from.y = 0;
         }
-        float range = Mathf.Clamp((r.Origin - r.Known).magnitude, 10, 40);
+        float range = Mathf.Clamp(direction.magnitude, 10, 40);
         float baseAngle = Mathf.Atan2(from.z, from.x) * Mathf.Rad2Deg;
         float minAngle = (float)(
             r.Indoor
@@ -43,8 +45,6 @@ public sealed partial class Plugin
                     r.Known + new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * radius
                 );
             }
-        var direction = r.Known - r.Origin;
-        direction.y = 0;
         if (direction.sqrMagnitude > 1)
             foreach (float step in new[] { 3f, 6f, 9f, 12f })
             {

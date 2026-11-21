@@ -55,6 +55,10 @@ plan exists, its support can regain sight and continue in that role.
 Indoors, an S03 flanker searches for an angle on its last known enemy position
 using the center of the supporting members as its reference. Only ordinary
 crossfire searches for a secondary entrance (S02) when a teammate sees the target.
+For S01, the S03 flanker and defensive S05, the horizontal distance to the
+contact determines the ring radii. Ring candidates start at the contact's
+elevation and lateral steps start at the bot's elevation before NavMesh sampling.
+
 If the entrance search fails, the same decision tries an ordinary crossfire
 angle. If neither search finds a position, the next eligible decision can try
 the same target again. Selecting either position starts a session whose end
