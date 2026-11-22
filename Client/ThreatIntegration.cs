@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
+using System.Reflection.Emit;
 using Comet.Core;
 using HarmonyLib;
-using Newtonsoft.Json;
 using SAIN.Components;
-using SAIN.Helpers;
 using SAIN.Preset.Shared.Enums;
 using SAIN.SAINComponent.Classes.Decision;
 using SAIN.SAINComponent.Classes.EnemyClasses;
@@ -39,27 +37,15 @@ internal sealed class ThreatRuntime
 
 public sealed partial class Plugin
 {
-    private static AccessTools.FieldRef<DogFightDecisionClass, Enemy> dogFightTarget = null!;
-    private static Func<DogFightDecisionClass, Enemy, bool> dogFightEligibility = null!;
     private int threatFrame = -1,
         threatSamples;
 
     private static void PatchThreatSelection(Harmony h)
     {
-        dogFightTarget = AccessTools.FieldRefAccess<DogFightDecisionClass, Enemy>(
-            "_lastDogFightTarget"
-        );
-        dogFightEligibility = AccessTools.MethodDelegate<Func<DogFightDecisionClass, Enemy, bool>>(
-            AccessTools.Method(
-                typeof(DogFightDecisionClass),
-                "ShallDogfightEnemy",
-                new[] { typeof(Enemy) }
-            ) ?? throw new MissingMethodException("SAIN dogfight eligibility")
-        );
         h.Patch(
             AccessTools.Method(typeof(SAINEnemyController), "SelectEnemy")
                 ?? throw new MissingMethodException("SAIN SelectEnemy"),
-            prefix: new HarmonyMethod(typeof(Plugin), nameof(SelectThreat))
+            transpiler: new HarmonyMethod(typeof(Plugin), nameof(RouteThreatSelection))
         );
         h.Patch(
             AccessTools.Method(typeof(SAINEnemyController), "ChooseEnemy")
@@ -108,13 +94,36 @@ public sealed partial class Plugin
         }
     }
 
-    private static bool ThreatNativeUrgency(BotComponent bot) =>
-        bot.Decision.CurrentSelfDecision != ESelfActionType.None
-        || bot.Decision.CurrentSquadDecision != ESquadDecision.None
-            && !TacticalPriority.OrdinarySquad(bot.Decision.CurrentSquadDecision.ToString())
-        || bot.Decision.CurrentCombatDecision == ECombatDecision.AvoidGrenade
-        || !VisibleAdapter.WeaponReady(bot)
-        || bot.BotOwner.WeaponManager.IsMelee;
+    private static IEnumerable<CodeInstruction> RouteThreatSelection(IEnumerable<CodeInstruction> instructions)
+    {
+        var original = AccessTools.Method(
+            typeof(DogFightDecisionClass),
+            nameof(DogFightDecisionClass.CheckShallDogFight),
+            new[] { typeof(EnemyList), typeof(Enemy).MakeByRefType() }
+        );
+        var code = instructions.ToList();
+        if (code.Count(i => i.Calls(original)) != 1)
+            throw new InvalidOperationException("A07 expected one native dogfight check in SAIN SelectEnemy.");
+        foreach (var instruction in code)
+        {
+            if (!instruction.Calls(original))
+            {
+                yield return instruction;
+                continue;
+            }
+            // SelectEnemy already supplied the decision, the full enemy list and its result slot.
+            yield return new CodeInstruction(instruction) { opcode = OpCodes.Ldarg_0, operand = null };
+            yield return new CodeInstruction(OpCodes.Call,
+                AccessTools.Method(typeof(Plugin), nameof(ChooseDogFightOrThreat)));
+        }
+    }
+
+    private static void NativeDogFightSelected(SAINEnemyController controller)
+    {
+        var p = Instance;
+        if (p != null && p.states.TryGetValue(controller.Bot, out var state) && state.Threat.Selected != null)
+            p.YieldThreat(controller.Bot, state, "threat-native-dogfight", trigger: "native-dogfight");
+    }
 
     private bool ThreatUsable(BotComponent bot, Enemy? e)
     {
@@ -171,14 +180,13 @@ public sealed partial class Plugin
         return s;
     }
 
-    private static bool SelectThreat(SAINEnemyController __instance, ref Enemy __result)
+    private static bool TrySelectThreat(BotComponent bot, SAINEnemyController controller, ref Enemy target)
     {
         var p = Instance;
         if (p?.config == null)
-            return true;
-        var bot = __instance.Bot;
+            return false;
         if (!NativeAdapter.IsSupportedAi(bot))
-            return true;
+            return false;
         try
         {
             if (
@@ -191,14 +199,14 @@ public sealed partial class Plugin
             {
                 if (p.states.TryGetValue(bot, out var prior))
                     p.ReleaseThreat(bot, prior, "threat-yield-to-sain");
-                return true;
+                return false;
             }
             // SAIN chooses a lone contact even if A07 still has a cached result from this frame.
-            if (__instance.KnownEnemies.Count < 2)
+            if (controller.KnownEnemies.Count < 2)
             {
                 if (p.states.TryGetValue(bot, out var prior))
                     p.YieldThreat(bot, prior, "threat-yield-to-sain", trigger: "fewer-than-two-contacts");
-                return true;
+                return false;
             }
             if (!p.states.TryGetValue(bot, out var state))
             {
@@ -207,12 +215,12 @@ public sealed partial class Plugin
             }
             var runtime = state.Threat;
             if (Time.time < runtime.FaultUntil)
-                return true;
+                return false;
             bool valid = p.CachedThreatUsable(bot, runtime.Selected);
             bool newHit = bot.Medical.TimeLastShot > runtime.LastHit;
             bool due =
                 !valid
-                || !ReferenceEquals(runtime.Selected, __instance.GoalEnemy)
+                || !ReferenceEquals(runtime.Selected, controller.GoalEnemy)
                 || Time.time >= runtime.Next
                 || newHit
                 || runtime.Nearby != null;
@@ -220,7 +228,7 @@ public sealed partial class Plugin
             {
                 if (runtime.Selected != null)
                     p.ReleaseThreat(bot, state, "threat-current-invalid");
-                return true;
+                return false;
             }
             if (due && runtime.Frame != Time.frameCount)
             {
@@ -233,19 +241,19 @@ public sealed partial class Plugin
                 {
                     if (valid)
                     {
-                        __result = runtime.Selected!;
-                        return false;
+                        target = runtime.Selected!;
+                        return true;
                     }
                     if (runtime.Selected != null)
                         p.ReleaseThreat(bot, state, "threat-budget-deferred");
-                    return true;
+                    return false;
                 }
                 p.threatSamples++;
                 runtime.Frame = Time.frameCount;
                 var frame = new ThreatFrame
                 {
                     Now = Time.time,
-                    Current = __instance.GoalEnemy?.EnemyProfileId ?? "",
+                    Current = controller.GoalEnemy?.EnemyProfileId ?? "",
                     IsAi = true,
                     IsSupportedBot = true,
                     IsAuthority = true,
@@ -265,7 +273,7 @@ public sealed partial class Plugin
                     runtime.References.Add(enemy.EnemyProfileId, enemy);
                     frame.Contacts.Add(p.CaptureThreat(bot, enemy));
                 }
-                foreach (var enemy in __instance.KnownEnemies)
+                foreach (var enemy in controller.KnownEnemies)
                     Add(enemy);
                 var trace = runtime.Selector.Evaluate(frame);
                 runtime.Pending = trace;
@@ -275,20 +283,19 @@ public sealed partial class Plugin
                 if (trace.Selected.Length == 0)
                 {
                     p.YieldThreat(bot, state, trace.Reason, trace);
-                    return true;
+                    return false;
                 }
                 if (!runtime.References.TryGetValue(trace.Selected, out var selected))
                 {
                     p.ReleaseThreat(bot, state, "threat-current-invalid");
-                    return true;
+                    return false;
                 }
                 runtime.Selected = selected;
             }
             if (runtime.Selected == null)
-                return true;
-            // Returning the cached choice also prevents native SAIN from immediately undoing A07's hold.
-            __result = runtime.Selected;
-            return false;
+                return false;
+            target = runtime.Selected;
+            return true;
         }
         catch (Exception ex)
         {
@@ -298,7 +305,7 @@ public sealed partial class Plugin
                 state.Threat.FaultUntil = Time.time + 10;
             }
             p.Logger.LogWarning("COMET target selection yielded: " + ex.Message);
-            return true;
+            return false;
         }
     }
 
@@ -318,20 +325,6 @@ public sealed partial class Plugin
                 p.ReleaseThreat(bot, state, "threat-native-refused");
                 return;
             }
-            // Native dogfight remains native behavior, but can only use the accepted A07 target.
-            // Its private selector never runs over the full known list or sorts it while A07 owns attention.
-            bool dogfight =
-                __result.IsVisible
-                && !ThreatNativeUrgency(bot)
-                && bot.Decision.CurrentCombatDecision != ECombatDecision.RushEnemy
-                && !(
-                    (
-                        bot.Decision.CurrentCombatDecision == ECombatDecision.Retreat
-                        || bot.Cover.SprintingToCover
-                    ) && bot.Decision.SelfActionDecisions.LowOnAmmo(.3f)
-                )
-                && dogFightEligibility(bot.Decision.DogFightDecision, __result);
-            dogFightTarget(bot.Decision.DogFightDecision) = dogfight ? __result : null!;
             runtime.Owned = true;
             var trace = runtime.Pending;
             runtime.Pending = null;
@@ -368,18 +361,6 @@ public sealed partial class Plugin
     )
     {
         var r = state.Threat;
-        if (r.Owned && bot != null)
-        {
-            try
-            {
-                if (bot.Decision != null)
-                    dogFightTarget(bot.Decision.DogFightDecision) = null!;
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning("COMET target cleanup: " + ex.Message);
-            }
-        }
         if (r.Owned || trace != null)
         {
             trace ??= new ThreatTrace
@@ -391,13 +372,14 @@ public sealed partial class Plugin
             };
             trace.Reason = reason;
             trace.Selected = "";
-            EmitThreat(state, "released", trace);
         }
         r.Owned = false;
         r.Selected = r.Nearby = null;
         r.Pending = null;
         r.LastTrace = null;
         r.References.Clear();
+        if (trace != null)
+            EmitThreat(state, "released", trace);
     }
 
     private void EmitThreat(BotState state, string stage, ThreatTrace trace)

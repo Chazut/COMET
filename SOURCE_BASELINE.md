@@ -14,6 +14,13 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### A07 target selection order
+
+Like remix 7.6, the native close-combat check gets the full known-enemy list
+first. An accepted enemy wins even during an A07 hold. If native close combat
+declines, A07 can select a target. When both decline, SAIN continues its stock
+selection in the same call. Only SAIN writes its close-combat target.
+
 ### A07 target memory with one known enemy
 
 When fewer than two enemies are known, A07 yields target selection to SAIN,

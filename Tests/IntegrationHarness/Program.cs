@@ -94,7 +94,13 @@ static class Audit
         var yieldThreat = plugin.GetMethod("YieldThreat", instance)!;
         var releaseThreat = plugin.GetMethod("ReleaseThreat", instance)!;
         var resetThreat = typeof(ThreatSelection).GetMethod(nameof(ThreatSelection.Reset))!;
-        var selectThreatCalls = Calls(plugin.GetMethod("SelectThreat", BindingFlags.NonPublic | BindingFlags.Static)!).ToList();
+        var nativeSelectionHooks = probe.Hooks.Where(h => h.Target.Contains("SAINEnemyController.SelectEnemy")).ToList();
+        var dogFightHandoff = plugin.GetMethod("NativeDogFightSelected", BindingFlags.NonPublic | BindingFlags.Static)!;
+        if (nativeSelectionHooks.Count != 1 || nativeSelectionHooks[0].Kind != "transpiler"
+            || nativeSelectionHooks[0].Callback != "RouteThreatSelection" || !Calls(dogFightHandoff).Contains(yieldThreat)
+            || Calls(dogFightHandoff).Contains(releaseThreat))
+            throw new Exception("A07 must preserve the native selector and yield its cached choice without resetting target memory.");
+        var selectThreatCalls = Calls(plugin.GetMethod("TrySelectThreat", BindingFlags.NonPublic | BindingFlags.Static)!).ToList();
         int yieldIndex = selectThreatCalls.IndexOf(yieldThreat);
         int cacheIndex = selectThreatCalls.FindIndex(m => m.Name == "CachedThreatUsable");
         if (yieldIndex < 0 || cacheIndex <= yieldIndex || Calls(yieldThreat).Contains(resetThreat)

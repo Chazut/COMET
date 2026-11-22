@@ -97,6 +97,7 @@ checks += DecisionVarietyTests.Run();
 checks += TacticalMistakeTests.Run();
 checks += FearTests.Run();
 checks += ThreatSelectionTests.Run();
+checks += ThreatTargetOrderTests.Run();
 checks += LoadoutTests.Run();
 checks += OpponentTests.Run();
 checks += OpportunityTests.Run();
@@ -500,7 +501,7 @@ foreach (
         ("PlayerComponent", "OnMakingShot", 2),
         ("SAINEnemyController", "SelectEnemy", 0),
         ("SAINEnemyController", "ChooseEnemy", 0),
-        ("DogFightDecisionClass", "ShallDogfightEnemy", 1),
+        ("DogFightDecisionClass", "CheckShallDogFight", 2),
         ("EnemyList", "AddEnemy", 1),
         ("SAINSteeringClass", "SteerByPriority", 3),
         ("SAINSteeringClass", "LookToEnemy", 1),
