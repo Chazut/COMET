@@ -58,6 +58,24 @@ static class TranspilerAudit
             throw new Exception("Refusals and first acquisition must keep their native instructions and branch targets.");
     }
 
+    static void CheckCloseFightScan(MethodBase target, CodeInstruction[] before, CodeInstruction[] after)
+    {
+        var hook = typeof(Comet.Client.Plugin).GetMethod("CloseFightScanInterval", BindingFlags.Static | BindingFlags.NonPublic)!;
+        int call = Array.FindIndex(after, i => i.Calls(hook));
+        var deadline = target.DeclaringType!.GetField("_changeDFTargetTime", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var parameters = hook.GetParameters();
+        if (call < 5 || call + 2 >= after.Length || after.Count(i => i.Calls(hook)) != 1
+            || !after[call - 3].Calls(typeof(UnityEngine.Time).GetProperty("time")!.GetMethod!)
+            || !after[call - 2].LoadsConstant(0.5f) || !after[call - 1].IsLdarg(0)
+            || after[call + 1].opcode != OpCodes.Add || !after[call + 2].StoresField(deadline)
+            || after[call - 1].labels.Count != 0 || after[call].labels.Count != 0
+            || parameters.Length != 2 || parameters[0].ParameterType != typeof(float)
+            || parameters[1].ParameterType != target.DeclaringType || hook.ReturnType != typeof(float))
+            throw new Exception("The close-fight interval must feed only the native scan's next deadline.");
+        // The existing test verifies every original instruction and label after both insertions are removed.
+        CheckCloseFightRetarget(target, before, after.Take(call - 1).Concat(after.Skip(call + 1)).ToArray());
+    }
+
     static void CheckVariant(MethodBase target, MethodInfo transpiler, string variant)
     {
         var input = Read(target);
@@ -96,8 +114,8 @@ static class TranspilerAudit
                 e
             );
         }
-        if (transpiler.Name == "InsertCloseFightRetarget")
-            CheckCloseFightRetarget(target, before, after);
+        if (transpiler.Name == "RouteCloseFightChecks")
+            CheckCloseFightScan(target, before, after);
         if (transpiler.Name == "MovementAudioTranspiler")
         {
             CheckMovementPlayback(target, before, after);

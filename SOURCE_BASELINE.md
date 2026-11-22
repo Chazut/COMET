@@ -21,6 +21,11 @@ first. An accepted enemy wins even during an A07 hold. If native close combat
 declines, A07 can select a target. When both decline, SAIN continues its stock
 selection in the same call.
 
+At each native acquisition scan, the next interval is 0.1 seconds with a
+visible goal enemy and 0.5 seconds with a hidden or absent goal. A visibility
+change between scans takes effect at the next scan. The native deadline must
+have passed before another scan can run.
+
 When SAIN accepts its existing close-combat target, COMET rechecks visible
 known enemies every 0.25 seconds per decision instance, including after an
 unsuccessful scan. The shortest eligible path strictly below 60% of the held

@@ -37,7 +37,22 @@ internal static class ThreatTargetOrderTests
         if (Plugin.SelectForTest(decision, controller) != close || controller.Fallbacks != 1
             || controller.Evaluations != 3 || decision.Calls != 5)
             throw new Exception("A lone contact after native refusal must reach ordinary SAIN selection.");
-        return 5;
+        decision.Bot.GoalEnemy = null;
+        CheckInterval(0.5f);
+        decision.Bot.GoalEnemy = attacker;
+        attacker.Contact.Visible = false;
+        CheckInterval(0.5f);
+        attacker.Contact.Visible = true;
+        CheckInterval(0.1f);
+        decision.Bot.InScope = false;
+        CheckInterval(0.5f);
+        return 9;
+
+        void CheckInterval(float expected)
+        {
+            if (Plugin.ScanIntervalForTest(decision) != expected)
+                throw new Exception($"Expected the native close-fight scan to wait {expected} seconds.");
+        }
     }
 }
 
@@ -63,8 +78,15 @@ namespace SAIN.SAINComponent.Classes.EnemyClasses
 
 namespace SAIN.SAINComponent.Classes.Decision
 {
+    internal sealed class DogFightBot
+    {
+        public Enemy? GoalEnemy;
+        public bool InScope = true;
+    }
+
     internal sealed class DogFightDecisionClass(EnemyList expected)
     {
+        public DogFightBot Bot { get; } = new();
         public int Calls;
         public Enemy? Accepted;
         public bool CheckShallDogFight(EnemyList known, out Enemy target)
@@ -82,6 +104,10 @@ namespace Comet.Client
 {
     public sealed partial class Plugin
     {
+        private static readonly Plugin Instance = new();
+        private bool NativeFixScope(DogFightBot bot) => bot.InScope;
+        internal static float ScanIntervalForTest(DogFightDecisionClass decision) => CloseFightScanInterval(0.5f, decision);
+
         internal static Enemy SelectForTest(DogFightDecisionClass decision, SAINEnemyController controller)
         {
             if (ChooseDogFightOrThreat(decision, controller.KnownEnemies, out var target, controller))

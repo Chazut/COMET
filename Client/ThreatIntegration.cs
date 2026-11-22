@@ -53,7 +53,7 @@ public sealed partial class Plugin
         h.Patch(
             AccessTools.Method(typeof(DogFightDecisionClass), nameof(DogFightDecisionClass.CheckShallDogFight),
                 new[] { typeof(EnemyList), typeof(Enemy).MakeByRefType() }),
-            transpiler: new HarmonyMethod(typeof(Plugin), nameof(InsertCloseFightRetarget))
+            transpiler: new HarmonyMethod(typeof(Plugin), nameof(RouteCloseFightChecks))
         );
         h.Patch(
             AccessTools.Method(typeof(SAINEnemyController), "SelectEnemy")
@@ -131,8 +131,7 @@ public sealed partial class Plugin
         }
     }
 
-    // Run only on the fallthrough where SAIN just accepted its already-held target.
-    private static IEnumerable<CodeInstruction> InsertCloseFightRetarget(IEnumerable<CodeInstruction> instructions)
+    private static IEnumerable<CodeInstruction> RouteCloseFightChecks(IEnumerable<CodeInstruction> instructions)
     {
         var code = instructions.ToList();
         var held = AccessTools.Field(typeof(DogFightDecisionClass), "_lastDogFightTarget");
@@ -152,6 +151,7 @@ public sealed partial class Plugin
         if (branch < 0)
             throw new InvalidOperationException("Missing SAIN held close-combat target branch.");
 
+        // Fall through here only when SAIN accepts the already-held target.
         code.InsertRange(branch + 1, new[]
         {
             new CodeInstruction(OpCodes.Ldarg_0),
@@ -159,6 +159,19 @@ public sealed partial class Plugin
             new CodeInstruction(OpCodes.Ldarg_0),
             new CodeInstruction(OpCodes.Ldflda, held),
             new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(Plugin), nameof(RecheckDogFightTarget))),
+        });
+        // SAIN owns the deadline and its strict time comparison. Adjust only the interval
+        // used when the native acquisition scan actually runs.
+        var deadline = AccessTools.Field(typeof(DogFightDecisionClass), "_changeDFTargetTime");
+        int store = code.FindIndex(i => i.StoresField(deadline));
+        if (store < 3 || store != code.FindLastIndex(i => i.StoresField(deadline))
+            || !code[store - 3].Calls(AccessTools.PropertyGetter(typeof(Time), nameof(Time.time)))
+            || !code[store - 2].LoadsConstant(0.5f) || code[store - 1].opcode != OpCodes.Add)
+            throw new InvalidOperationException("Expected one native close-combat scan interval.");
+        code.InsertRange(store - 1, new[]
+        {
+            new CodeInstruction(OpCodes.Ldarg_0),
+            new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(Plugin), nameof(CloseFightScanInterval))),
         });
         return code;
     }
