@@ -57,10 +57,13 @@ namespace Comet.Client
                         && !available.Unavailable.ContainsKey(Tactic.Search),
                     "A01 push and search accept actual endpoint"
                 );
+                var reads = path.CornerReads;
+                Check(Probe.Opportunity(enemy, complete:false) == 0 && Probe.Opportunity(enemy, ready:false) == 0
+                    && reads == path.CornerReads, "rejected or pending route never reads the native corner buffer");
                 var metric = Probe.Opportunity(enemy);
                 Check(
-                    metric.Count == 3 && Near(metric.Length, 7) && Near(metric.Vertical, 4),
-                    "A10 travel length and vertical travel exclude tail"
+                    Near(metric, 7),
+                    "A10 travel length excludes tail"
                 );
                 var quiet = Probe.Quiet(bot, enemy);
                 Check(
@@ -76,7 +79,7 @@ namespace Comet.Client
                     "shortened route ignores previous endpoint"
                 );
                 Check(
-                    Near(Probe.Opportunity(enemy).Length, 3)
+                    Near(Probe.Opportunity(enemy), 3)
                         && Near(Probe.Quiet(bot, enemy).Length, 3),
                     "shorter route not measured using old tail"
                 );
@@ -191,7 +194,9 @@ namespace SAIN.SAINComponent.Classes.EnemyClasses
 {
     internal sealed class SAINEnemyPath
     {
-        internal Vector3[]? PathCorners;
+        private Vector3[]? corners;
+        internal int CornerReads;
+        internal Vector3[]? PathCorners { get { CornerReads++; return corners; } set => corners = value; }
         internal int PathCornerCount;
         internal float PathLength;
         internal NavMeshPath? PathToEnemy = new();

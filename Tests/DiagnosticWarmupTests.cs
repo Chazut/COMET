@@ -52,6 +52,12 @@ internal static class DiagnosticWarmupTests
                 throw new Exception("diagnostic warmup: " + why);
         }
         producerCalls = getterCalls = 0;
+        var combat = new DiagnosticWarmup.Report();
+        var entry = typeof(CombatWarmupProbe).GetMethod(nameof(CombatWarmupProbe.Entry))!;
+        DiagnosticWarmup.PrepareCombat(new[] { entry, entry }, combat);
+        Check(combat.CombatMethods == 3 && combat.Failed == 0,
+            "duplicate roots and calls compile each managed method once through depth two");
+        Check(CombatWarmupProbe.Calls == 0, "warming a combat method never executes it");
         var resolver = new CountingResolver();
         var report = DiagnosticWarmup.Prepare(
             typeof(DiagnosticWarmupTests).Assembly,
@@ -438,5 +444,17 @@ internal static class DiagnosticWarmupTests
     private sealed class ReentrantPayload
     {
         public string Value => Diagnostics.Serialize(new { nested = true });
+    }
+}
+
+namespace Comet.Client
+{
+    internal static class CombatWarmupProbe
+    {
+        internal static int Calls;
+        public static void Entry() { Middle(); Middle(); }
+        private static void Middle() => Leaf();
+        private static void Leaf() => BeyondDepth();
+        private static void BeyondDepth() => Calls++;
     }
 }

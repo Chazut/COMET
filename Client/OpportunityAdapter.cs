@@ -105,54 +105,20 @@ public sealed partial class Plugin
                 return t.Episode == 0 ? null : t;
             // Reuse the A02 bounded, shared-budget probe. No extra path query, scene scan or hidden transform access.
             var v = visible ?? VisibleAdapter.Capture(bot, enemy, s, state, config);
-            var corners = EnemyPathCorners.Read(enemy.Path);
-            double length = 0,
-                vertical = 0;
-            int count = corners.Length;
-            if (count > 128)
+            var travel = new OpportunityTravel
             {
-                count = 0;
-            }
-            else
-                for (int i = 1; i < count; i++)
-                {
-                    length += Vector3.Distance(corners[i - 1], corners[i]);
-                    vertical += Math.Abs(corners[i].y - corners[i - 1].y);
-                }
-            var own = bot.Player.MovementContext;
-            OpportunityModel.Assess(
-                t,
-                s,
-                new OpportunityTravel
-                {
-                    Ready = v.ProbeReady,
-                    Complete = v.PushReachable,
-                    WeaponReady = v.WeaponReady,
-                    ThreatCount = v.ThreatCount,
-                    ImmediateThreats = OpportunityImmediateThreats(bot, enemy),
-                    ThreatsTruncated = v.ThreatsTruncated,
-                    Risk = v.PushRouteRisk,
-                    RiskLimit = config.VisibleCombat.RiskTolerance,
-                    PathLength = length,
-                    Corners = count,
-                    VerticalTravel = vertical,
-                    PositionError = Vector3.Distance(
-                        new Vector3((float)s.KnownX, (float)s.KnownY, (float)s.KnownZ),
-                        new Vector3((float)t.X, (float)t.Y, (float)t.Z)
-                    ),
-                    WalkSpeed = own.MaxSpeed,
-                    SprintSpeed = own.SprintSpeed,
-                    Stamina = bot.Player.Physical.Stamina.NormalValue,
-                    CanSprint =
-                        own.CanSprint
-                        && bot.BotOwner.CanSprintPlayer
-                        && length > bot.BotOwner.Settings.FileSettings.Move.RUN_TO_COVER_MIN,
-                    DoorBusy = bot.BotOwner.DoorOpener.Interacting,
-                    Visible = enemy.InLineOfSight,
-                    UnderFire = bot.BotOwner.Memory.IsUnderFire,
-                },
-                config.Opportunity
-            );
+                Ready = v.ProbeReady,
+                Complete = v.PushReachable,
+                ThreatCount = v.ThreatCount,
+                ImmediateThreats = OpportunityImmediateThreats(bot, enemy),
+                Risk = v.PushRouteRisk,
+                UnderFire = bot.BotOwner.Memory.IsUnderFire,
+            };
+            // Assess rejects incomplete routes before using distance. In that case
+            // SAIN can still have corners from the previous route.
+            if (travel.Ready && travel.Complete)
+                travel.PathLength = EnemyPathCorners.OpportunityLength(enemy.Path);
+            OpportunityModel.Assess(t, s, travel, config.Opportunity);
             return t;
         }
         catch (Exception ex)

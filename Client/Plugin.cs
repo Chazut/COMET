@@ -295,7 +295,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 var readers =
                     Diagnostics.SnapshotJson.ContractResolver as PreparedDiagnosticResolver;
                 Logger.LogInfo(
-                    $"Diagnostics prepared before raids: {warm.Contracts} contracts, {warm.Methods} methods, {warm.Failed} unavailable, {readers?.ReadersPrepared ?? 0} readers, {readers?.ReadersFallback ?? 0} reader fallbacks, {(Diagnostics.SnapshotJson.ContractResolver as SnapshotDiagnosticResolver)?.WritersPrepared ?? 0} typed writers, {warm.Milliseconds:F1} ms."
+                    $"Diagnostics prepared before raids: {warm.Contracts} contracts, {warm.Methods} prepared methods, {warm.CombatMethods} native combat entry points, {warm.Failed} unavailable, {readers?.ReadersPrepared ?? 0} readers, {readers?.ReadersFallback ?? 0} reader fallbacks, {(Diagnostics.SnapshotJson.ContractResolver as SnapshotDiagnosticResolver)?.WritersPrepared ?? 0} typed writers, {warm.Milliseconds:F1} ms."
                 );
                 if (warm.Failed > 0)
                     Logger.LogWarning(

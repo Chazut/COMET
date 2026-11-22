@@ -19,12 +19,8 @@ var capabilities = Method("NativeAdapter", "Capabilities").Body!.Statements;
 static bool Declares(StatementSyntax statement, string name) =>
     statement is LocalDeclarationStatementSyntax local
     && local.Declaration.Variables.Any(variable => variable.Identifier.ValueText == name);
-var opportunity = Method("OpportunityAdapter", "ReadOpportunity")
-    .DescendantNodes()
-    .OfType<TryStatementSyntax>()
-    .First()
-    .Block.Statements.SkipWhile(s => !Declares(s, "corners"))
-    .TakeWhile(s => !Declares(s, "own"));
+var opportunity = Method("OpportunityAdapter", "ReadOpportunity").DescendantNodes()
+    .OfType<IfStatementSyntax>().Single(s => s.Statement.ToString().Contains("EnemyPathCorners.OpportunityLength"));
 var quiet = Method("QuietApproachAdapter", "CaptureQuiet")
     .Body!.Statements.TakeWhile(s => !Declares(s, "threat"));
 string probe =
@@ -42,9 +38,9 @@ internal static class Probe {
     + "internal static Situation Capabilities(Bot bot, Enemy enemy, Config config) { var s=new Situation(); var state=new State();\n"
     + string.Join("\n", capabilities)
     + "\nreturn s; }\n"
-    + "internal static (int Count, double Length, double Vertical) Opportunity(Enemy enemy) {\n"
-    + string.Join("\n", opportunity)
-    + "\nreturn (count,length,vertical); }\n"
+    + "internal static double Opportunity(Enemy enemy, bool ready = true, bool complete = true) { var travel = new Travel { Ready = ready, Complete = complete };\n"
+    + opportunity + "\nreturn travel.PathLength; }\n"
+    + "private class Travel { internal bool Ready, Complete; internal double PathLength; }\n"
     + "internal static (bool Complete,double Length) Quiet(Bot b, Enemy e) {\n"
     + string.Join("\n", quiet)
     + "\nreturn (complete,length); }\n"

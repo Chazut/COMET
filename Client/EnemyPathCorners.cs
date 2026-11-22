@@ -6,6 +6,16 @@ namespace Comet.Client;
 
 internal static class EnemyPathCorners
 {
+    internal static double OpportunityLength(SAINEnemyPath? path)
+    {
+        var corners = Read(path);
+        if (corners.Length > 128) return 0;
+        double length = 0;
+        for (int i = 1; i < corners.Length; i++)
+            length += Vector3.Distance(corners[i - 1], corners[i]);
+        return length;
+    }
+
     // SAIN reuses an oversized array. Its tail can contain zeroes or an older
     // route, and Clear() resets the count without clearing that array.
     // Consume this view synchronously; never retain it across a path update.
