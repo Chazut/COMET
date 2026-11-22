@@ -1032,7 +1032,7 @@ foreach (bool projectionFails in new[] { true, false })
         p.EndAll();
     }
 }
-foreach (string scenario in new[] { "crossed", "order refused", "foreign path", "renewal refused" })
+foreach (string scenario in new[] { "crossed", "order refused", "renewal refused" })
 {
     var (p, b, action) = BeginEntranceWatch(shortApproach: true);
     var r = p.states[b].Crossfire;
@@ -1043,12 +1043,6 @@ foreach (string scenario in new[] { "crossed", "order refused", "foreign path", 
     b.Info.Personality = Personality.Chad;
     Step(15.25f);
     b.GoalEnemy!.TimeSinceLastKnownUpdated = 0;
-    var foreignPath = new BotPathDataManual { Destination = new(100, 0, 100) };
-    if (scenario == "foreign path")
-    {
-        b.Mover.ActivePath = foreignPath;
-        b.Mover.Observe = false;
-    }
     b.Mover.Accept = scenario != "order refused";
     int ordersBefore = b.Mover.Walks;
     int traceOrdersBefore = trace.MoveOrders;
@@ -1058,14 +1052,11 @@ foreach (string scenario in new[] { "crossed", "order refused", "foreign path", 
     C(trace.SprintRequested && !trace.SprintObserved && b.Mover.SprintRequiresCompletePath
         && b.Mover.SprintUrgency == SAIN.Models.Enums.ESprintUrgency.High && b.Mover.SprintReach == .56f,
         "the short crossing requests the source sprint parameters; actual speed remains observational");
-    if (scenario is "order refused" or "foreign path")
+    if (scenario == "order refused")
     {
-        C(!r.Policy.Active && !entrance.Crossed, "an unexecuted order cannot confirm a crossing");
-        if (scenario == "foreign path")
-            C(ReferenceEquals(b.Mover.ActivePath, foreignPath) && foreignPath.Stops == 0, "entry cleanup preserves unrelated movement");
-        else
-            C(!trace.MoveAccepted && !entrance.Extended && trace.Reason == "secondary-entrance-native-entry-refused",
-                "a refused sprint ends entry immediately even with fresh contact");
+        C(!r.Policy.Active && !entrance.Crossed && !trace.MoveAccepted && !entrance.Extended
+            && trace.Reason == "secondary-entrance-native-entry-refused",
+            "a refused sprint ends entry immediately even with fresh contact");
     }
     else
     {
@@ -1091,6 +1082,72 @@ foreach (string scenario in new[] { "crossed", "order refused", "foreign path", 
                 && b.Mover.SprintOrders == 2, "arrival records the crossing and stops issuing orders");
         }
     }
+    p.EndAll();
+}
+foreach (string scenario in new[] { "foreign", "delayed", "recycled", "interrupted", "already there", "already there with foreign path", "renewal refused" })
+{
+    var (p, b, action) = BeginEntranceWatch(shortApproach: true);
+    var r = p.states[b].Crossfire;
+    var trace = r.Policy.Trace!;
+    var destination = r.Entrance.Center + r.Entrance.Normal * 2.5f;
+    // Even an independently assigned route to exactly the same point is not ours to stop.
+    var foreign = new BotPathDataManual { Destination = destination, NavMeshPath = new() };
+    b.Mover.ActivePath = scenario == "already there" ? null : foreign;
+    b.Mover.Observe = scenario is "delayed" or "recycled" or "interrupted";
+    b.Mover.QueueNextOrder = b.Mover.Observe;
+    bool alreadyThere = scenario is "already there" or "already there with foreign path";
+    b.Position = alreadyThere ? destination : r.Entrance.Center - r.Entrance.Normal * 2.5f;
+    Step(15.25f);
+    b.GoalEnemy!.TimeSinceLastKnownUpdated = 0;
+    action.Update(new());
+    C(trace.MoveAccepted && r.Policy.Active && r.Entrance.Entering && r.Path == null && !trace.Entrance!.Crossed,
+        $"the accepted order starts entry without claiming the old path or reporting a crossing: {scenario}");
+    if (!alreadyThere)
+        C(trace.Execution == "native secondary entry accepted, route not observed", "telemetry distinguishes acceptance from movement");
+    if (alreadyThere)
+    {
+        Step(.02f);
+        action.Update(new());
+        C(!r.Policy.Active && trace.Entrance!.Crossed && trace.Reason == "secondary-entrance-crossed-and-reached"
+            && b.Mover.SprintOrders == 1, "arrival uses the bot position even when SAIN never creates a path");
+    }
+    else if (scenario is "delayed" or "recycled" or "interrupted")
+    {
+        var queued = (BotPathDataManual)b.Mover.QueuedPath!;
+        b.Mover.ActivePath = queued;
+        b.Mover.QueuedPath = null;
+        Step(.1f);
+        queued.TimeStarted = Time.time;
+        if (scenario != "interrupted")
+        {
+            action.Update(new());
+            C(ReferenceEquals(r.Path, queued) && trace.Execution == "native secondary entry route observed"
+                && !trace.Entrance!.Crossed && b.Mover.SprintOrders == 1, "the queued route becomes visible before a renewal");
+        }
+        if (scenario == "recycled")
+            queued.NavMeshPath = new(); // SAIN reuses the same container for someone else's route.
+        if (scenario == "delayed")
+        {
+            b.Position = destination;
+            Step(.02f);
+            action.Update(new());
+            C(!r.Policy.Active && trace.Entrance!.Crossed && trace.Reason == "secondary-entrance-crossed-and-reached",
+                "a delayed route completes on reaching the inside point");
+        }
+        else
+            action.Stop();
+        C(queued.Stops == (scenario == "recycled" ? 0 : 1), $"cleanup identifies the exact promoted route: {scenario}");
+    }
+    else
+    {
+        Step(.76f);
+        b.Mover.Accept = scenario != "renewal refused";
+        action.Update(new());
+        C(b.Mover.SprintOrders == 2 && r.Policy.Active == b.Mover.Accept && r.Path == null,
+            "renewal follows SAIN's answer even when the active route still belongs to someone else");
+        action.Stop();
+    }
+    C(foreign.Stops == 0, "the foreign path is never stopped");
     p.EndAll();
 }
 foreach (string outcome in new[] { "upstairs", "radius boundary", "age boundary", "missing position", "under fire" })

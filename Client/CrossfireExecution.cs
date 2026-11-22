@@ -238,6 +238,8 @@ public sealed partial class Plugin
     {
         try
         {
+            if (b != null && r.Entrance.Entering)
+                ObserveEntrancePath(b, r);
             if (
                 b != null
                 && OwnCrossfirePath(b, r)
@@ -311,8 +313,10 @@ public sealed partial class Plugin
             bool orderDue = r.Entrance.Entering ? Time.time > r.NextMoveOrder : Time.time >= r.NextMoveOrder;
             if (t.State == "moving" && orderDue)
             {
-                bool sprint = r.Entrance.Entering || t.Trade?.Choice == "push" || t.DistanceToGoal > 8;
-                if (!IssueCrossfireMove(b, r, sprint))
+                bool accepted = r.Entrance.Entering
+                    ? IssueEntranceSprint(b, r)
+                    : IssueCrossfireMove(b, r, sprint: t.Trade?.Choice == "push" || t.DistanceToGoal > 8);
+                if (!accepted)
                 {
                     EndCrossfire(b, s, "crossfire-noPath");
                     return;
@@ -325,6 +329,15 @@ public sealed partial class Plugin
             }
             if (t.State == "holding" && r.ManeuverRole?.Role == "flank")
                 r.Maneuver!.BeginConvergence(Time.time, "maneuver-angle-reached");
+        }
+        if (r.Entrance.Entering)
+        {
+            ObserveEntrancePath(b, r);
+            if (t.State == "moving")
+                t.Execution = r.Path == null ? "native secondary entry accepted, route not observed"
+                    : "native secondary entry route observed";
+            else if (r.Path == null)
+                return;
         }
         if (t.State == "holding")
         {

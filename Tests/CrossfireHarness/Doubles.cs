@@ -668,6 +668,7 @@ namespace SAIN.Components
         public bool Reachable = true,
             Accept = true,
             Observe = true,
+            QueueNextOrder,
             Throw;
         public NavMeshPathStatus Status;
         public int Queries,
@@ -691,12 +692,19 @@ namespace SAIN.Components
             if (Throw)
                 throw new Exception("native refusal");
             if (Accept && Observe)
-                ActivePath = new BotPathDataManual
+            {
+                var next = new BotPathDataManual
                 {
                     Destination = path.corners[^1],
+                    NavMeshPath = path,
                     TimeStarted = Time.time,
                     OnStop = () => ActivePath = null,
                 };
+                if (QueueNextOrder)
+                    QueuedPath = next;
+                else
+                    ActivePath = next;
+            }
             return Accept;
         }
     }
@@ -708,12 +716,14 @@ namespace SAIN.SAINComponent.Classes.Mover
     {
         float TimeStarted { get; }
         Vector3 Destination { get; }
+        NavMeshPath? NavMeshPath { get; }
     }
 
     public class BotPathDataManual : IBotPathData
     {
         public float TimeStarted { get; set; }
         public Vector3 Destination { get; set; }
+        public NavMeshPath? NavMeshPath { get; set; }
         public int Stops;
         public Action? OnStop;
 

@@ -81,6 +81,10 @@ seconds old allows one extra watch. At the next decision, an entry-enabled
 bot makes a fresh personality roll. The trace retains both entry rolls.
 Failure to sample or reach the inward point before issuing movement uses the
 same one-time extension with fresh room evidence. A refused sprint ends entry.
+An accepted sprint starts entry even when SAIN still shows its previous path
+or the bot is already in reach. The trace distinguishes acceptance from the
+entry route becoming active. Cleanup identifies that route by its native
+NavMeshPath, including after SAIN promotes it from the queue.
 Once entry is approved and the inward point is reachable, S02 requests a
 high-urgency sprint even for a short crossing. While still moving, it renews
 that sprint on the first update more than 0.75 seconds after the last order.

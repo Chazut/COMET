@@ -33,7 +33,7 @@ internal sealed class EntranceRuntime
     internal DoorGeometry? PrimaryGeometry;
     internal float OpenAt,
         Started;
-    internal NavMeshPath? PrimaryPath;
+    internal NavMeshPath? PrimaryPath, EntryRoute;
     internal DoorReservationLease? Lease;
     internal double NextRenew;
 
@@ -44,6 +44,7 @@ internal sealed class EntranceRuntime
         Chosen = null;
         PrimaryGeometry = null;
         PrimaryPath = null;
+        EntryRoute = null;
         Lease = null;
         Entering = Preparing = Opening = Virtual = false;
         Stage = Index = 0;
@@ -553,15 +554,9 @@ public sealed partial class Plugin
             r.Length = (float)Length(cs);
             r.Samples.Clear();
             r.Samples.AddRange(cs);
-            if (!IssueCrossfireMove(b, r, sprint: true))
+            if (!IssueEntranceSprint(b, r))
             {
                 EndCrossfire(b, s, "secondary-entrance-native-entry-refused");
-                return;
-            }
-            if (!OwnCrossfirePath(b, r))
-            {
-                r.Path = null;
-                EndCrossfire(b, s, "secondary-entrance-native-entry-unobserved");
                 return;
             }
             r.Policy.Ready(r.Goal.x, r.Goal.y, r.Goal.z, r.Angle, r.Length);
@@ -571,12 +566,38 @@ public sealed partial class Plugin
             t.State = "entering";
             r.LastSafety = Time.time;
             r.Policy.Trace!.Reason = "secondary-entrance-entry-approved";
-            r.Policy.Trace.Execution = "native secondary entry route observed";
         }
         finally
         {
             doorClock.Stop();
             doorBudget.Charge(doorClock.Elapsed.TotalMilliseconds);
         }
+    }
+
+    private static bool IssueEntranceSprint(BotComponent b, CrossfireRuntime r)
+    {
+        var previousActive = b.Mover.ActivePath?.NavMeshPath;
+        var previousQueued = CrossfireQueuedPath(b)?.NavMeshPath;
+        if (!IssueCrossfireMove(b, r, sprint: true))
+            return false;
+
+        // SAIN reuses two path containers. Each new calculation has its own NavMeshPath.
+        NavMeshPath? NewEntryRoute(IBotPathData? path) =>
+            path?.NavMeshPath is { } mesh
+            && !ReferenceEquals(mesh, previousActive) && !ReferenceEquals(mesh, previousQueued)
+            && Vector3.Distance(path.Destination, r.Goal) < .5f ? mesh : null;
+
+        r.Entrance.EntryRoute = NewEntryRoute(b.Mover.ActivePath)
+            ?? NewEntryRoute(CrossfireQueuedPath(b)) ?? r.Entrance.EntryRoute;
+        return true;
+    }
+
+    private static void ObserveEntrancePath(BotComponent b, CrossfireRuntime r)
+    {
+        var active = b.Mover.ActivePath;
+        r.Path = r.Entrance.EntryRoute != null && ReferenceEquals(active?.NavMeshPath, r.Entrance.EntryRoute)
+            && Vector3.Distance(active!.Destination, r.Goal) < .5f ? active : null;
+        if (r.Path != null)
+            r.PathStarted = r.Path.TimeStarted;
     }
 }
