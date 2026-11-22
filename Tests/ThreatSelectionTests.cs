@@ -59,7 +59,7 @@ internal static class ThreatSelectionTests
         Check(score.Hit == 100, "source flat recent-hit bonus");
         Check(p.Score(b, 13).Hit == 0, "hit expires at source memory boundary");
         b.IsPmc = true;
-        Check(p.Score(b, 10).Score == score.Score + 30, "source PMC bonus restored");
+        Check(Math.Abs(p.Score(b, 10).Score - score.Score - 30) < .00005, "PMC bonus in RR score units");
         var ids = f.Contacts.Select(x => x.Id).ToArray();
         p.Evaluate(f);
         Check(
@@ -68,6 +68,42 @@ internal static class ThreatSelectionTests
         );
         f.Ghost = true;
         Check(p.Evaluate(f).Selected == "", "ghost remains outside active AI");
+
+        var current = Contact("current", 25);
+        var challenger = Contact("challenger", 15);
+        var pair = new ThreatFrame { Now = 10, Current = current.Id, IsAi = true, IsSupportedBot = true, IsAuthority = true, Active = true };
+        pair.Contacts.AddRange(new[] { current, challenger });
+        ThreatTrace Compare() => new ThreatSelection(c).Evaluate(pair);
+        Check(Compare().Selected == challenger.Id, "visible 15 m challenger against a 25 m goal receives the flank bonus");
+        challenger.Distance = MathF.BitIncrement(15f);
+        Check(Compare().Selected == "", "the next representable distance is outside the visible flank range");
+
+        current.Distance = 10;
+        challenger.Distance = 6;
+        Check(Compare().Selected == "", "visible flank uses a strict comparison at the 60 percent boundary");
+        challenger.Visible = false;
+        challenger.Footsteps = true;
+        challenger.HeardAge = 1.5;
+        challenger.HeardDistance = 6;
+        Check(Compare().Selected == challenger.Id, "heard flank includes equality with 60 percent of goal distance");
+        challenger.HeardDistance = MathF.BitIncrement(6f);
+        Check(Compare().Selected == "", "heard flank excludes the next representable distance");
+
+        current.Distance = 38;
+        current.HitAt = 10;
+        current.ShotAt = 6;
+        current.IsPmc = current.BadlyInjured = true;
+        challenger.Distance = 13;
+        challenger.HitAt = 6;
+        challenger.Visible = challenger.LookingAtMe = challenger.IsPmc = true;
+        var closeScores = Compare();
+        Check(closeScores.Selected == challenger.Id && closeScores.Candidates[1].Score > closeScores.Candidates[0].Score,
+            "fork's 38 m / 13 m near-tie also exposes the winning score to RR");
+        var equalChallenger = Contact("equal", 13);
+        equalChallenger.HitAt = 6;
+        equalChallenger.LookingAtMe = equalChallenger.IsPmc = true;
+        pair.Contacts.Insert(1, equalChallenger);
+        Check(Compare().Selected == equalChallenger.Id, "equal challengers keep their original SAIN list order");
 
         foreach (string outcome in new[] { "return", "expired", "other goal", "ghost", "disabled", "authority lost", "reset" })
         {

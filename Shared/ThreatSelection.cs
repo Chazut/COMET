@@ -101,13 +101,15 @@ public sealed class ThreatSelection
 
     public static bool Finite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
 
-    private static double Ago(double? time, double now) =>
-        time.HasValue && time.Value > 0 ? now - time.Value : 999;
+    private static float Ago(double? time, double now) =>
+        time.HasValue && time.Value > 0 ? (float)now - (float)time.Value : 999f;
 
     public static bool Scope(ThreatFrame f) =>
         f.IsAi && f.IsSupportedBot && f.IsAuthority && f.Active && !f.Ghost;
 
-    public ThreatScore Score(ThreatContact e, double now)
+    public ThreatScore Score(ThreatContact e, double now) => Score(e, now, out _);
+
+    private ThreatScore Score(ThreatContact e, double now, out float threat)
     {
         var c = config.ThreatSelection;
         var s = new ThreatScore
@@ -124,24 +126,27 @@ public sealed class ThreatSelection
         };
         if (!e.Valid)
         {
+            threat = 0f;
             s.Reason = "threat-invalid-contact";
             return s;
         }
-        double hit = Ago(e.HitAt, now),
+        float hit = Ago(e.HitAt, now),
             shot = Ago(e.ShotAt, now);
+        bool recentHit = hit < c.HitMemory;
+        bool recentShot = shot < c.ShotMemory;
+        bool facing = e.Visible && e.LookingAtMe;
+        float distance = (float)(e.Distance ?? 60);
+        float proximity = .6f * Math.Max(0f, Math.Min(1f, 1f - distance / 60f));
+        // Keep native units and addition order for the choice. RR displays points on a 100x scale.
+        threat = (e.Visible ? .5f : 0f) + (recentHit ? 1f : 0f) + (recentShot ? .6f : 0f)
+            + (facing ? .2f : 0f) + proximity + (hit < 10f || shot < 10f ? .25f : 0f)
+            + (e.IsPmc ? .3f : 0f);
         s.Sight = e.Visible ? 50 : 0;
-        s.Hit = hit < c.HitMemory ? 100 : 0;
-        s.Fire = shot < c.ShotMemory ? 60 : 0;
-        s.Facing = e.Visible && e.LookingAtMe ? 20 : 0;
-        s.Proximity = 60 * Math.Max(0, Math.Min(1, 1 - (e.Distance ?? 60) / 60));
-        s.Score =
-            s.Sight
-            + s.Hit
-            + s.Fire
-            + s.Facing
-            + s.Proximity
-            + (hit < 10 || shot < 10 ? 25 : 0)
-            + (e.IsPmc ? 30 : 0);
+        s.Hit = recentHit ? 100 : 0;
+        s.Fire = recentShot ? 60 : 0;
+        s.Facing = facing ? 20 : 0;
+        s.Proximity = proximity * 100d;
+        s.Score = threat * 100d;
         s.HitAt = s.Hit > 0 ? e.HitAt : null;
         s.Reason =
             s.Hit > 0 ? "threat-recent-attacker"
@@ -150,23 +155,24 @@ public sealed class ThreatSelection
         return s;
     }
 
-    private double Flank(ThreatContact e, ThreatContact? goal)
+    private float Flank(ThreatContact e, ThreatContact? goal)
     {
         if (goal == null || goal.Id == e.Id)
             return 0;
         var c = config.ThreatSelection;
-        double d = e.Distance ?? 999,
-            g = goal.Distance ?? 999;
+        float d = (float)(e.Distance ?? 999);
+        float flankDistance = (float)(goal.Distance ?? 999) * .6f;
+        float closeBonus = d < c.ImmediateDistance ? .5f : 0f;
         if (e.Visible)
-            return d <= c.CloseDistance && (d < c.ImmediateDistance || d < g * .6)
-                ? 120 + (d < c.ImmediateDistance ? 50 : 0)
+            return d <= c.CloseDistance && (d < c.ImmediateDistance || d < flankDistance)
+                ? 1.2f + closeBonus
                 : 0;
         return
             e.Footsteps
             && e.HeardAge <= c.FootstepMemory
             && e.HeardDistance <= c.FootstepDistance
-            && e.HeardDistance <= g * .6
-            ? 100 + (d < c.ImmediateDistance ? 50 : 0)
+            && (float)e.HeardDistance <= flankDistance
+            ? 1f + closeBonus
             : 0;
     }
 
@@ -194,14 +200,21 @@ public sealed class ThreatSelection
         }
         var goal = f.Contacts.Find(x => x.Id == f.Current);
         ThreatContact? best = null;
-        double bestValue = double.NegativeInfinity;
+        ThreatScore? goalScore = null;
+        float bestValue = float.NegativeInfinity;
+        float goalValue = float.NegativeInfinity;
         foreach (var e in f.Contacts)
         {
-            var score = Score(e, f.Now);
+            var score = Score(e, f.Now, out float value);
             t.Candidates.Add(score);
+            if (ReferenceEquals(e, goal) && score.Eligible)
+            {
+                goalScore = score;
+                goalValue = value;
+            }
             if (!score.Eligible || e.Id == f.Current)
                 continue;
-            double flank = Flank(e, goal),
+            float flank = Flank(e, goal),
                 hit = Ago(e.HitAt, f.Now),
                 shot = Ago(e.ShotAt, f.Now);
             if (hit > c.HitMemory && shot > c.ShotMemory && flank == 0)
@@ -215,21 +228,22 @@ public sealed class ThreatSelection
                 score.Reason = "threat-keep-visible-duel";
                 continue;
             }
-            score.Steps = flank;
-            score.Score += flank;
-            if (score.Score > bestValue)
+            value += flank;
+            score.Steps = flank * 100d;
+            score.Score = value * 100d;
+            if (value > bestValue)
             {
                 best = e;
-                bestValue = score.Score;
+                bestValue = value;
             }
         }
-        double goalValue = double.NegativeInfinity;
-        if (goal?.Valid == true)
+        if (goalScore != null && goal != null)
         {
-            var score = t.Candidates.Find(x => x.Target == goal.Id)!;
-            score.Steps = Flank(goal, best);
-            score.Score += 35 + (goal.Visible && goal.BadlyInjured ? 30 : 0) + score.Steps;
-            goalValue = score.Score;
+            float flank = Flank(goal, best);
+            goalValue = goalValue + .35f + (goal.Visible && goal.BadlyInjured ? .3f : 0f);
+            goalValue += flank;
+            goalScore.Steps = flank * 100d;
+            goalScore.Score = goalValue * 100d;
         }
         if (best != null && bestValue > goalValue)
         {

@@ -22,6 +22,11 @@ If the other contact returns, the usual scoring and hold rules run again.
 The release event reports the remaining time. Leaving scope or ending the
 encounter still clears the memory.
 
+A07 ranks enemies in the fork's native single-precision units. The distance
+comparison for a visible flanker is strict, while heard footsteps include
+equality. The existing RR events convert the resulting scores to points after
+the decision.
+
 ### Chambered rounds in tactical decisions
 
 S02 entry, S03 flank and support roles, the S06 squad ammo threshold, the
