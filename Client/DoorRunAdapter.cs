@@ -166,7 +166,7 @@ public sealed partial class Plugin
         var target = settle ? r.Angle : outward ? r.Far : r.Stack;
         bool arrived = SupportHorizontal(b.Position, target) < .6f || settle && Time.time - r.SpecialAt > 1.5f;
         b.Steering.LookToPoint(r.Look);
-        string why = r.SpecialMove.Check(t.State, DP(b.Position), arrived, Time.time, out double remaining);
+        string why = r.SpecialMove.Check(t.State, DP(b.Position), arrived, r.SpecialAt, Time.time, out double remaining);
         t.Remaining = remaining;
         t.ActualX = b.Position.x; t.ActualY = b.Position.y; t.ActualZ = b.Position.z;
         if (why.Length > 0) { EndDoorRun(s, why); return true; }

@@ -446,6 +446,12 @@ Conditional peeks, clears and
 traps share the selection. Existing installations migrate the previous default
 personality chances while retaining individually tuned values.
 
+D02, D03 and D04 use the movement phase start recorded by the tactic. During
+the first 100 ms each movement check records the current position and sets
+the next progress check 2.5 seconds ahead. Once that deadline has passed,
+less than 40 cm of horizontal progress ends the move. The 12-second phase
+timeout is independent of this check.
+
 COMET applies repetition and outcome scores within the current encounter. It
 continues to use equipment when estimating human target weakness. The latter
 is an intentional difference from the fork.

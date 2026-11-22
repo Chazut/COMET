@@ -274,7 +274,7 @@ public sealed class DoorRunBy
         t.Elapsed = DoorPolicy.Finite(started) ? Math.Max(0, now - started) : 0;
         if (t.State is "across" or "returning")
         {
-            string failure = movement.Check(t.State, position, arrived, now, out double remaining);
+            string failure = movement.Check(t.State, position, arrived, phaseAt, now, out double remaining);
             t.Remaining = remaining;
             if (failure.Length > 0)
             {

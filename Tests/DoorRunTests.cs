@@ -108,9 +108,31 @@ internal static class DoorRunTests
         string Move(string state, double x, double time) => phase.Check(state, new(x, 0, 0), false, time, out _);
         Check(Move("out", 0, 0) == "" && Move("out", .2, 2.51) == "move-stalled", "wedged bot exits after 2.5s");
         phase.Reset();
+        Check(Move("out", 0, 20) == "" && Move("out", .3, 20.05f) == ""
+            && Move("out", .5, 22.51f) == "" && Move("out", .5, 20.05f + 2.5f) == ""
+            && Move("out", .5, 22.56f) == "move-stalled",
+            "an early update restarts the 2.5s window and measures progress from the new position");
+        phase.Reset();
+        Check(Move("out", 0, 0) == "" && Move("out", 0, .1f) == ""
+            && Move("out", 0, 2.51f) == "move-stalled", "exactly 100 ms is outside the rearm window");
+        phase.Reset();
+        Check(Move("out", 0, 0) == "" && Move("out", 0, .05f) == ""
+            && Move("out", .4f, 2.56f) == "" && Move("out", .4f, 5.07f) == "move-stalled",
+            "40 cm counts as progress and starts a fresh check");
+        phase.Reset();
         Check(Move("out", 0, 0) == "" && Move("out", 1, 3) == "" && Move("out", 2, 6) == ""
             && Move("out", 3, 9) == "" && Move("out", 4, 12.01) == "move-timeout"
             && Move("back", 4, 12.02) == "" && Move("back", 4.5, 15) == "", "each leg has its own movement budget");
+        p.Begin(new DoorRunTrace(), 20);
+        p.Start(default, 20);
+        bool ObserveRun(float now) => p.Observe(default, 0, 100, true, true, false, true, false, 0, now, c);
+        Check(ObserveRun(20.3f) && ObserveRun(20.37f) && !ObserveRun(22.84f)
+            && p.Trace!.Reason == "run-by-move-stalled",
+            "late first observation arms the check but does not restart the phase's first 100 ms");
+        p.Begin(new DoorRunTrace(), 20);
+        p.Start(default, 20);
+        Check(!ObserveRun(32.01f) && p.Trace!.Reason == "run-by-move-timeout",
+            "a late first observation still respects the movement phase timeout");
         return n;
     }
 }

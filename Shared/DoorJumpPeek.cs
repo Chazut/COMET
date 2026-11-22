@@ -272,7 +272,7 @@ public sealed class DoorJumpPeek
         t.Elapsed = DoorPolicy.Finite(started) ? Math.Max(0, now - started) : 0;
         if (t.State is "run-up" or "returning")
         {
-            string failure = movement.Check(t.State, position, arrived, now, out double remaining);
+            string failure = movement.Check(t.State, position, arrived, phaseAt, now, out double remaining);
             t.Remaining = remaining;
             if (failure.Length > 0)
             {
