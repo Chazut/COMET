@@ -31,6 +31,33 @@ static class TranspilerAudit
         }
     }
 
+    static void CheckCloseFightRetarget(MethodBase target, CodeInstruction[] before, CodeInstruction[] after)
+    {
+        var hook = typeof(Comet.Client.Plugin).GetMethod("RecheckDogFightTarget", BindingFlags.Static | BindingFlags.NonPublic)!;
+        int call = Array.FindIndex(after, i => i.Calls(hook));
+        if (call < 8 || call + 5 >= after.Length || after.Length != before.Length + 5)
+            throw new Exception("Missing dogfight retarget insertion.");
+        var held = target.DeclaringType!.GetField("_lastDogFightTarget", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var eligible = target.DeclaringType.GetMethod("ShallDogfightEnemy", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var branch = after[call - 5];
+        if (!after[call - 7].LoadsField(held) || !after[call - 6].Calls(eligible)
+            || (branch.opcode != OpCodes.Brfalse && branch.opcode != OpCodes.Brfalse_S)
+            || !after[call - 4].IsLdarg(0) || !after[call - 3].IsLdarg(1) || !after[call - 2].IsLdarg(0)
+            || after[call - 1].opcode != OpCodes.Ldflda || !Equals(after[call - 1].operand, held)
+            || !after[call + 1].IsLdarg(2) || !after[call + 2].IsLdarg(0) || !after[call + 3].LoadsField(held)
+            || after[call + 4].opcode != OpCodes.Stind_Ref)
+            throw new Exception("Only a retained eligible dogfight target can invoke the closer-target scan.");
+        var pars = hook.GetParameters();
+        if (hook.ReturnType != typeof(void) || pars.Length != 3 || pars[0].ParameterType != target.DeclaringType
+            || pars[1].ParameterType != target.GetParameters()[0].ParameterType || pars[2].ParameterType != held.FieldType.MakeByRefType())
+            throw new Exception("The dogfight hook must write back the native held enemy.");
+        var original = after.Take(call - 4).Concat(after.Skip(call + 1));
+        if (!original.Zip(before).All(p => p.First.opcode == p.Second.opcode && Equals(p.First.operand, p.Second.operand)
+            && p.First.labels.SequenceEqual(p.Second.labels)) ||
+            after.Skip(call - 4).Take(5).Any(i => i.labels.Count != 0))
+            throw new Exception("Refusals and first acquisition must keep their native instructions and branch targets.");
+    }
+
     static void CheckVariant(MethodBase target, MethodInfo transpiler, string variant)
     {
         var input = Read(target);
@@ -69,6 +96,8 @@ static class TranspilerAudit
                 e
             );
         }
+        if (transpiler.Name == "InsertCloseFightRetarget")
+            CheckCloseFightRetarget(target, before, after);
         if (transpiler.Name == "MovementAudioTranspiler")
         {
             CheckMovementPlayback(target, before, after);

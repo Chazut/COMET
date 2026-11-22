@@ -151,6 +151,7 @@
     <Compile Include="../Server/SourceBaselineMigration.cs" Link="SourceBaselineMigration.cs" />
     <Compile Include="../Server/PresetLibrary.cs" Link="PresetLibrary.cs" />
     <Compile Include="../Client/Diagnostics.cs" Link="Diagnostics.cs" />
+    <Compile Include="../Client/CloseFightRetarget.cs" Link="CloseFightRetarget.cs" />
     <Compile Include="../Client/ThreatTargetOrder.cs" Link="ThreatTargetOrder.cs" />
     <Compile Include="../Client/TacticCounters.cs" Link="TacticCounters.cs" />
     <Compile Include="../Client/CombatReport.cs" Link="CombatReport.cs" />

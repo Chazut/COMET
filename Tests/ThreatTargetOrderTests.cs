@@ -45,6 +45,9 @@ namespace SAIN.SAINComponent.Classes.EnemyClasses
 {
     internal sealed class Enemy(string id, float distance)
     {
+        public Enemy Path => this;
+        public float PathLength { get; set; } = distance;
+        public bool IsVisible => Contact.Visible;
         public ThreatContact Contact { get; } = new() { Id = id, Distance = distance, Visible = true, Valid = true };
     }
 

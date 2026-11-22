@@ -94,6 +94,9 @@ static class Audit
         var yieldThreat = plugin.GetMethod("YieldThreat", instance)!;
         var releaseThreat = plugin.GetMethod("ReleaseThreat", instance)!;
         var resetThreat = typeof(ThreatSelection).GetMethod(nameof(ThreatSelection.Reset))!;
+        if (probe.Hooks.Count(h => h.Target.Contains("DogFightDecisionClass.CheckShallDogFight")
+            && h.Kind == "transpiler" && h.Callback == "InsertCloseFightRetarget") != 1)
+            throw new Exception("The held-target recheck must be attached once to the native decision.");
         var nativeSelectionHooks = probe.Hooks.Where(h => h.Target.Contains("SAINEnemyController.SelectEnemy")).ToList();
         var dogFightHandoff = plugin.GetMethod("NativeDogFightSelected", BindingFlags.NonPublic | BindingFlags.Static)!;
         if (nativeSelectionHooks.Count != 1 || nativeSelectionHooks[0].Kind != "transpiler"

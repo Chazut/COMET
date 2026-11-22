@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using Comet.Core;
 using HarmonyLib;
 using SAIN.Components;
@@ -37,11 +38,23 @@ internal sealed class ThreatRuntime
 
 public sealed partial class Plugin
 {
+    private static Func<DogFightDecisionClass, Enemy, bool> dogFightEligible = null!;
+    private readonly ConditionalWeakTable<DogFightDecisionClass, CloseFightRetarget> closeFightRetargets = new();
+
     private int threatFrame = -1,
         threatSamples;
 
     private static void PatchThreatSelection(Harmony h)
     {
+        dogFightEligible = AccessTools.MethodDelegate<Func<DogFightDecisionClass, Enemy, bool>>(
+            AccessTools.Method(typeof(DogFightDecisionClass), "ShallDogfightEnemy", new[] { typeof(Enemy) })
+                ?? throw new MissingMethodException("SAIN close-combat eligibility")
+        );
+        h.Patch(
+            AccessTools.Method(typeof(DogFightDecisionClass), nameof(DogFightDecisionClass.CheckShallDogFight),
+                new[] { typeof(EnemyList), typeof(Enemy).MakeByRefType() }),
+            transpiler: new HarmonyMethod(typeof(Plugin), nameof(InsertCloseFightRetarget))
+        );
         h.Patch(
             AccessTools.Method(typeof(SAINEnemyController), "SelectEnemy")
                 ?? throw new MissingMethodException("SAIN SelectEnemy"),
@@ -116,6 +129,55 @@ public sealed partial class Plugin
             yield return new CodeInstruction(OpCodes.Call,
                 AccessTools.Method(typeof(Plugin), nameof(ChooseDogFightOrThreat)));
         }
+    }
+
+    // Run only on the fallthrough where SAIN just accepted its already-held target.
+    private static IEnumerable<CodeInstruction> InsertCloseFightRetarget(IEnumerable<CodeInstruction> instructions)
+    {
+        var code = instructions.ToList();
+        var held = AccessTools.Field(typeof(DogFightDecisionClass), "_lastDogFightTarget");
+        var eligible = AccessTools.Method(typeof(DogFightDecisionClass), "ShallDogfightEnemy", new[] { typeof(Enemy) });
+        int branch = -1;
+        for (int i = 1; i + 5 < code.Count; i++)
+        {
+            if (!code[i - 1].LoadsField(held) || !code[i].Calls(eligible)
+                || (code[i + 1].opcode != OpCodes.Brfalse && code[i + 1].opcode != OpCodes.Brfalse_S)
+                || !code[i + 2].IsLdarg(2) || !code[i + 3].IsLdarg(0)
+                || !code[i + 4].LoadsField(held) || code[i + 5].opcode != OpCodes.Stind_Ref)
+                continue;
+            if (branch >= 0)
+                throw new InvalidOperationException("Ambiguous SAIN held close-combat target branch.");
+            branch = i + 1;
+        }
+        if (branch < 0)
+            throw new InvalidOperationException("Missing SAIN held close-combat target branch.");
+
+        code.InsertRange(branch + 1, new[]
+        {
+            new CodeInstruction(OpCodes.Ldarg_0),
+            new CodeInstruction(OpCodes.Ldarg_1),
+            new CodeInstruction(OpCodes.Ldarg_0),
+            new CodeInstruction(OpCodes.Ldflda, held),
+            new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(Plugin), nameof(RecheckDogFightTarget))),
+        });
+        return code;
+    }
+
+    private static void RecheckDogFightTarget(DogFightDecisionClass decision, EnemyList known, ref Enemy current)
+    {
+        Instance?.RetargetCloseFight(decision.Bot, decision, known, ref current);
+    }
+
+    private void RetargetCloseFight(
+        BotComponent bot, DogFightDecisionClass decision, EnemyList known, ref Enemy current)
+    {
+        if (!NativeFixScope(bot))
+            return;
+        var closer = closeFightRetargets.GetOrCreateValue(decision).Find(decision, known, current, Time.time, dogFightEligible);
+        if (closer == null)
+            return;
+        current = closer;
+        CountNativeFix(NativeFix.DogFightSwitchCloser, bot);
     }
 
     private static void NativeDogFightSelected(SAINEnemyController controller)

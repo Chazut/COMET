@@ -35,6 +35,7 @@ public sealed partial class Plugin
         WoundVoiceRoll,
         OffMeshStart,
         DoorCoverRejected,
+        DogFightSwitchCloser,
         Count,
     }
 
@@ -56,6 +57,7 @@ public sealed partial class Plugin
         "WoundVoiceRoll",
         "OffMeshStart",
         "DoorCoverRejected",
+        "DogFightSwitchCloser",
     };
     private readonly string[] nativeFixBots = new string[(int)NativeFix.Count];
     private bool nativeFixDirty;

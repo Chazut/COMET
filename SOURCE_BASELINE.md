@@ -19,7 +19,13 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 Like remix 7.6, the native close-combat check gets the full known-enemy list
 first. An accepted enemy wins even during an A07 hold. If native close combat
 declines, A07 can select a target. When both decline, SAIN continues its stock
-selection in the same call. Only SAIN writes its close-combat target.
+selection in the same call.
+
+When SAIN accepts its existing close-combat target, COMET rechecks visible
+known enemies every 0.25 seconds per decision instance, including after an
+unsuccessful scan. The shortest eligible path strictly below 60% of the held
+target's path wins. The accepted branch returns and retains that enemy as
+SAIN's close-combat target. The raid diagnostic counter is `DogFightSwitchCloser`.
 
 ### A07 target memory with one known enemy
 

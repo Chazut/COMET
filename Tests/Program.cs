@@ -98,6 +98,7 @@ checks += TacticalMistakeTests.Run();
 checks += FearTests.Run();
 checks += ThreatSelectionTests.Run();
 checks += ThreatTargetOrderTests.Run();
+checks += CloseFightRetargetTests.Run();
 checks += LoadoutTests.Run();
 checks += OpponentTests.Run();
 checks += OpportunityTests.Run();
