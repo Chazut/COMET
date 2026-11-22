@@ -256,6 +256,9 @@ within the same opportunity can switch fuse preference when the thrower moves.
 The G03 selection event records the thrower's roof state and the arc distance.
 For equal optimal fuses, `PickFrag` keeps the first eligible fragmentation grenade
 in native equipment order. G03 records later matches as `same-fuse-later-in-inventory`.
+If no replacement is available, G03 preserves SAIN's selected grenade and
+accepted arc, including impact and short-fuse frags. It records
+`choice-native-fuse-retained` and leaves the native throw type intact.
 
 ### G01/G02 grenade contact age and throw range (2026-11-20)
 

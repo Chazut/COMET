@@ -112,6 +112,64 @@ foreach (bool laterTieSelected in new[] { true, false })
     Check(p.Throw(b) && ReferenceEquals(grenades.grenade, first) && p.Requests == 1,
         "the native throw uses the selected inventory item");
 }
+foreach (bool impact in new[] { false, true })
+foreach (bool g01 in new[] { false, true })
+foreach (bool g02 in new[] { false, true })
+{
+    var (p, b) = Setup(g01, g02);
+    var grenades = b.BotOwner.WeaponManager.Grenades;
+    var native = grenades.grenade!;
+    native.GetExplDelay = impact ? 3 : 2;
+    native.MinTimeToContactExplode = impact ? 0 : -1;
+    b.Player.Inventory.Items.RemoveAt(1);
+    var arc = grenades.AIGreanageThrowData!;
+    var nativeType = arc.GrenadeType;
+    Check(Ready(p, b), $"native fuse retained for impact={impact}, G01={g01}, G02={g02}");
+    var prepared = grenades.AIGreanageThrowData!;
+    var preparedType = prepared.GrenadeType;
+    if (!g02)
+        Check(ReferenceEquals(arc, prepared) && preparedType == nativeType, "SAIN keeps its original arc and type");
+    Check(p.Throw(b) && p.Requests == 1, $"native execution accepts impact={impact}, G01={g01}, G02={g02}");
+    Check(grenades.Selections == 0 && ReferenceEquals(grenades.grenade, native),
+        "execution keeps the native grenade");
+    var executed = grenades.AIGreanageThrowData!;
+    Check((g02 ? (executed.Target - prepared.Target).sqrMagnitude == 0 && executed.Ang == prepared.Ang
+               : ReferenceEquals(executed, prepared)) && executed.GrenadeType == preparedType,
+        $"execution preserves the prepared native throw data for G01={g01}, G02={g02}");
+    var trace = p.State(b).GrenadeChoice.Trace!;
+    Check(trace.State == "ended" && trace.Reason == "choice-native-fuse-retained" && trace.Item == "",
+        "G03 records no override or projectile release for a native choice");
+    p.End(b);
+    Check(!p.State(b).GrenadeChoice.UseNativeFuse, "raid cleanup clears the native choice");
+}
+{
+    var (p, b) = Setup(false, false);
+    var grenades = b.BotOwner.WeaponManager.Grenades;
+    var inventory = b.Player.Inventory.Items;
+    Check(Ready(p, b), "first prepare a timed frag override");
+    var impact = new ThrowWeap { Id = "impact", MinTimeToContactExplode = 0 };
+    inventory.Clear();
+    inventory.Add(impact);
+    grenades.grenade = impact;
+    p.Tick(b, 10.05);
+    Check(p.Find(b) && p.State(b).GrenadeChoice.UseNativeFuse, "a new native item replaces an old override");
+    var timed = new ThrowWeap { Id = "timed", GetExplDelay = 4 };
+    inventory.Add(timed);
+    Check(p.Find(b) && ReferenceEquals(grenades.grenade, timed) && !p.State(b).GrenadeChoice.UseNativeFuse,
+        "a newly available timed frag can replace the impact grenade in the same opportunity");
+    Check(p.Throw(b) && p.Requests == 1, "mixed inventory executes the override normally");
+}
+{
+    var (p, b) = Setup(false, false);
+    foreach (var item in b.Player.Inventory.Items.OfType<ThrowWeap>())
+        item.GetExplDelay = 2;
+    Check(!p.Find(b, false) && !p.Throw(b) && p.Requests == 0, "a refused native arc stays refused");
+    p.Tick(b, 10.1);
+    Check(Ready(p, b) && !p.Throw(b, nativeAccepted: false) && p.Requests == 1,
+        "a native refusal to execute remains a refusal");
+    b.Player.Inventory.Items.Remove(b.BotOwner.WeaponManager.Grenades.grenade!);
+    Check(!p.Throw(b) && p.Requests == 1, "a retained native grenade must still be carried at execution");
+}
 int mutation = 0;
 foreach (
     var changed in new Action<Plugin, BotComponent>[]
@@ -288,11 +346,6 @@ foreach (
                 b.Player.Inventory.Items.Add(new Item());
         },
         (p, b) => b.Player.Inventory.Items.Add(new ThrowWeap { Id = "short" }),
-        (p, b) =>
-        {
-            foreach (var item in b.Player.Inventory.Items.OfType<ThrowWeap>())
-                item.GetExplDelay = 1;
-        },
     }
 )
 {

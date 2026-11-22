@@ -18,6 +18,7 @@ internal sealed class GrenadeChoiceRuntime
     internal int Enemy;
     internal long Revision;
     internal bool ShortFusePreferred;
+    internal bool UseNativeFuse;
     internal double ChosenAt,
         Power,
         LogAt = -1000;
@@ -74,6 +75,8 @@ public sealed partial class Plugin
         bool shortest = shortUnderRoof || distance < config.GrenadeChoice.ShortFuseDistance;
         if (
             r.Item.Length > 0
+            && !r.UseNativeFuse
+            && r.Item == f.Item
             && r.ShortFusePreferred == shortest
             && r.Enemy == f.Instance
             && r.Revision == config.Revision
@@ -99,9 +102,9 @@ public sealed partial class Plugin
             Preference = shortUnderRoof ? "short-indoors" : shortest ? "short-close" : "long-outdoors",
         };
         r.Item = "";
+        r.UseNativeFuse = false;
         flight ??= 0;
         var items = new Dictionary<string, ThrowWeap>();
-        int count = 0;
         foreach (var carried in b.Player.Inventory.GetPlayerItems(EPlayerItems.Equipment))
         {
             if (carried is not ThrowWeap item)
@@ -149,20 +152,27 @@ public sealed partial class Plugin
             if (pick != null)
                 r.Trace.Preference = "flash-fallback";
         }
-        if (pick == null)
-        {
-            StopGrenadeChoice(s, "choice-no-safe-item", "blocked");
-            return false;
-        }
-        var chosen = items[pick.Item];
         float oldPower = g.MaxPower;
-        g.SetThrowParams(chosen); // Native inventory/animation/Fika execution stays intact.
-        r.Item = pick.Item;
         r.ShortFusePreferred = shortest;
         r.Enemy = f.Instance;
         r.Revision = config.Revision;
         r.Known = new((float)f.X, (float)f.Y, (float)f.Z);
         r.ChosenAt = f.Now;
+        if (pick == null)
+        {
+            r.UseNativeFuse = true;
+            r.Item = f.Item;
+            r.Power = oldPower;
+            if (!ValidateGrenadeChoice(b, e, s, false))
+                return false;
+            r.Trace.State = "ended";
+            r.Trace.Reason = "choice-native-fuse-retained";
+            r.Trace.ValidFor = 0;
+            RecordGrenadeChoice(s);
+            return true;
+        }
+        g.SetThrowParams(items[pick.Item]); // Native inventory/animation/Fika execution stays intact.
+        r.Item = pick.Item;
         r.Power = g.MaxPower;
         r.Trace.Item = pick.Item;
         r.Trace.Template = pick.Template;
@@ -262,27 +272,28 @@ public sealed partial class Plugin
             && (!GrenadeChoiceRules.Finite(g.MaxPower) || Math.Abs(g.MaxPower - r.Power) > .001)
         )
             why = "choice-throw-power-changed";
-        double? flight = null;
-        if (why.Length == 0)
+        double flight = 0;
+        if (why.Length == 0 && !r.UseNativeFuse)
         {
             var flat = d!.Target - d.Position;
             flat.y = 0;
-            flight = GrenadeChoiceRules.Flight(flat.magnitude, d.Force, d.Ang);
-            flight ??= 0;
+            flight = GrenadeChoiceRules.Flight(flat.magnitude, d.Force, d.Ang) ?? 0;
         }
         if (why.Length == 0)
         {
             bool carried = false;
-            int count = 0;
             foreach (var item in b.Player.Inventory.GetPlayerItems(EPlayerItems.Equipment))
             {
                 if (ReferenceEquals(item, g.grenade))
+                {
                     carried = true;
+                    break;
+                }
             }
-            if (why.Length == 0)
-                why = !carried
-                    ? "choice-item-no-longer-carried"
-                    : ChoiceReject(b, g.grenade!, flight!.Value);
+            if (!carried)
+                why = "choice-item-no-longer-carried";
+            else if (!r.UseNativeFuse)
+                why = ChoiceReject(b, g.grenade!, flight);
         }
         if (why.Length == 0)
             why = GrenadeSafety(b, s, f);
@@ -293,10 +304,12 @@ public sealed partial class Plugin
             StopGrenadeChoice(s, why, "blocked");
             return false;
         }
+        if (r.UseNativeFuse)
+            return true;
         d!.GrenadeType = null;
-        r.Trace!.Flight = flight!.Value;
+        r.Trace!.Flight = flight;
         r.Trace.Fuse = g.grenade!.GetExplDelay;
-        r.Trace.Margin = r.Trace.Fuse - flight.Value;
+        r.Trace.Margin = r.Trace.Fuse - flight;
         if (execution)
         {
             r.Trace.State = "validated";
@@ -311,6 +324,7 @@ public sealed partial class Plugin
     {
         var r = s.GrenadeChoice;
         r.Item = "";
+        r.UseNativeFuse = false;
         if (r.Trace == null)
             return;
         r.Trace.State = state;

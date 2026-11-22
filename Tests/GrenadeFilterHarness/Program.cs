@@ -70,6 +70,19 @@ bool Ready(Plugin p, BotComponent b)
     return false;
 }
 void Save(Plugin p) => File.AppendAllLines(wire, p.Events);
+foreach (bool impact in new[] { false, true })
+{
+    var native = Frag();
+    native.GetExplDelay = impact ? 3 : 2;
+    native.MinTimeToContactExplode = impact ? 0 : -1;
+    var (p, b) = Setup(native, Smoke());
+    Check(Ready(p, b) && p.State(b).GrenadeChoice.Trace!.Reason == "choice-native-fuse-retained",
+        "G03 defers to the native frag while G07 excludes the smoke");
+    p.Tick(b, Time.timeAsDouble + .01);
+    Check(p.NativeThrow(b) && p.Throw(b) && ReferenceEquals(b.BotOwner.WeaponManager.Grenades.grenade, native),
+        "the G07 execution guard accepts the retained frag");
+    Save(p);
+}
 foreach (bool g01 in new[] { false, true })
 foreach (bool g02 in new[] { false, true })
 foreach (bool g03 in new[] { false, true })
