@@ -91,6 +91,15 @@ static class Audit
         VerifyDoorStateEvent();
         var plugin = typeof(Comet.Client.Plugin);
         const BindingFlags instance = BindingFlags.NonPublic | BindingFlags.Instance;
+        var yieldThreat = plugin.GetMethod("YieldThreat", instance)!;
+        var releaseThreat = plugin.GetMethod("ReleaseThreat", instance)!;
+        var resetThreat = typeof(ThreatSelection).GetMethod(nameof(ThreatSelection.Reset))!;
+        var selectThreatCalls = Calls(plugin.GetMethod("SelectThreat", BindingFlags.NonPublic | BindingFlags.Static)!).ToList();
+        int yieldIndex = selectThreatCalls.IndexOf(yieldThreat);
+        int cacheIndex = selectThreatCalls.FindIndex(m => m.Name == "CachedThreatUsable");
+        if (yieldIndex < 0 || cacheIndex <= yieldIndex || Calls(yieldThreat).Contains(resetThreat)
+            || !Calls(releaseThreat).Contains(resetThreat) || !Calls(releaseThreat).Contains(yieldThreat))
+            throw new Exception("A07 must yield a single contact before consulting its cache and preserve memory until full release.");
         var readAmmo = plugin.GetMethod("TacticalAmmoCounts", BindingFlags.NonPublic | BindingFlags.Static)!;
         var chaseFrame = plugin.GetMethod("ChaseFrame", instance)!;
         var prefireCalls = Calls(plugin.GetMethod("PrefireFrame", instance)!).ToArray();

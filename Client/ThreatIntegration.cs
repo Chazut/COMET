@@ -193,6 +193,13 @@ public sealed partial class Plugin
                     p.ReleaseThreat(bot, prior, "threat-yield-to-sain");
                 return true;
             }
+            // SAIN chooses a lone contact even if A07 still has a cached result from this frame.
+            if (__instance.KnownEnemies.Count < 2)
+            {
+                if (p.states.TryGetValue(bot, out var prior))
+                    p.YieldThreat(bot, prior, "threat-yield-to-sain", trigger: "fewer-than-two-contacts");
+                return true;
+            }
             if (!p.states.TryGetValue(bot, out var state))
             {
                 state = new BotState(bot, p.config, p.session);
@@ -211,7 +218,8 @@ public sealed partial class Plugin
                 || runtime.Nearby != null;
             if (!valid && runtime.Frame == Time.frameCount)
             {
-                p.ReleaseThreat(bot, state, "threat-current-invalid");
+                if (runtime.Selected != null)
+                    p.ReleaseThreat(bot, state, "threat-current-invalid");
                 return true;
             }
             if (due && runtime.Frame != Time.frameCount)
@@ -228,7 +236,8 @@ public sealed partial class Plugin
                         __result = runtime.Selected!;
                         return false;
                     }
-                    p.ReleaseThreat(bot, state, "threat-budget-deferred");
+                    if (runtime.Selected != null)
+                        p.ReleaseThreat(bot, state, "threat-budget-deferred");
                     return true;
                 }
                 p.threatSamples++;
@@ -263,12 +272,14 @@ public sealed partial class Plugin
                 runtime.Next = Time.time + p.config.ThreatSelection.Interval;
                 runtime.LastHit = bot.Medical.TimeLastShot;
                 runtime.Nearby = null;
-                if (
-                    trace.Selected.Length == 0
-                    || !runtime.References.TryGetValue(trace.Selected, out var selected)
-                )
+                if (trace.Selected.Length == 0)
                 {
-                    p.ReleaseThreat(bot, state, trace.Reason, trace);
+                    p.YieldThreat(bot, state, trace.Reason, trace);
+                    return true;
+                }
+                if (!runtime.References.TryGetValue(trace.Selected, out var selected))
+                {
+                    p.ReleaseThreat(bot, state, "threat-current-invalid");
                     return true;
                 }
                 runtime.Selected = selected;
@@ -342,11 +353,18 @@ public sealed partial class Plugin
         }
     }
 
-    private void ReleaseThreat(
+    private void ReleaseThreat(BotComponent bot, BotState state, string reason)
+    {
+        state.Threat.Selector.Reset();
+        YieldThreat(bot, state, reason);
+    }
+
+    private void YieldThreat(
         BotComponent bot,
         BotState state,
         string reason,
-        ThreatTrace? trace = null
+        ThreatTrace? trace = null,
+        string trigger = "released"
     )
     {
         var r = state.Threat;
@@ -368,7 +386,8 @@ public sealed partial class Plugin
             {
                 At = Time.time,
                 Previous = r.Selected?.EnemyProfileId ?? "",
-                Trigger = "released",
+                Trigger = trigger,
+                HoldRemaining = r.Selector.HoldRemaining(Time.time),
             };
             trace.Reason = reason;
             trace.Selected = "";
@@ -378,7 +397,6 @@ public sealed partial class Plugin
         r.Selected = r.Nearby = null;
         r.Pending = null;
         r.LastTrace = null;
-        r.Selector.Reset();
         r.References.Clear();
     }
 

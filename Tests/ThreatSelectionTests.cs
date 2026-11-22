@@ -69,6 +69,50 @@ internal static class ThreatSelectionTests
         f.Ghost = true;
         Check(p.Evaluate(f).Selected == "", "ghost remains outside active AI");
 
+        foreach (string outcome in new[] { "return", "expired", "other goal", "ghost", "disabled", "authority lost", "reset" })
+        {
+            var settings = new CometConfig();
+            var selector = new ThreatSelection(settings);
+            var first = Contact("first", 50);
+            var attacker = Contact("attacker", 25);
+            attacker.HitAt = 9.9;
+            var frame = new ThreatFrame
+            {
+                Now = 10, Current = first.Id, IsAi = true, IsSupportedBot = true, IsAuthority = true, Active = true
+            };
+            frame.Contacts.AddRange(new[] { first, attacker });
+            Check(selector.Evaluate(frame).Selected == attacker.Id, "initial attack establishes priority");
+            frame.Current = attacker.Id;
+            frame.Contacts.Remove(first);
+            foreach (double time in new[] { 10.5, 11.75 })
+            {
+                frame.Now = time;
+                var gap = selector.Evaluate(frame);
+                Check(gap.Selected == "" && gap.Candidates.Count == 0 && gap.Reason == "threat-yield-to-sain",
+                    "SAIN selects the sole enemy");
+                Check(gap.HoldRemaining == 12 - time, "the original deadline keeps running during the gap");
+            }
+            if (outcome is "ghost" or "disabled" or "authority lost")
+            {
+                frame.Ghost = outcome == "ghost";
+                settings.ThreatSelection.Enabled = outcome != "disabled";
+                frame.IsAuthority = outcome != "authority lost";
+                Check(selector.Evaluate(frame).HoldRemaining == 0, "scope cleanup also applies with only one contact");
+                frame.Ghost = false;
+                settings.ThreatSelection.Enabled = true;
+                frame.IsAuthority = true;
+            }
+            if (outcome == "reset")
+                selector.Reset();
+            attacker.HitAt = null;
+            frame.Contacts.Add(first);
+            frame.Now = outcome == "expired" ? 12 : 11.875;
+            frame.Current = outcome == "other goal" ? first.Id : attacker.Id;
+            var result = selector.Evaluate(frame);
+            Check(outcome == "return" ? result.Selected == attacker.Id && result.Reason == "threat-keep-held"
+                                      : result.Selected == "",
+                $"two contacts after the gap: {outcome}");
+        }
         return n;
     }
 }

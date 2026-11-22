@@ -97,6 +97,8 @@ public sealed class ThreatSelection
         holdUntil = 0;
     }
 
+    internal double HoldRemaining(double now) => Math.Max(0, holdUntil - now);
+
     public static bool Finite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
 
     private static double Ago(double? time, double now) =>
@@ -178,10 +180,16 @@ public sealed class ThreatSelection
             Trigger = f.Trigger,
             Truncated = f.Truncated,
         };
-        if (!config.Enabled || !c.Enabled || !Scope(f) || f.Contacts.Count < 2)
+        if (!config.Enabled || !c.Enabled || !Scope(f))
         {
             Reset();
             t.Reason = "threat-yield-to-sain";
+            return t;
+        }
+        if (f.Contacts.Count < 2)
+        {
+            t.Reason = "threat-yield-to-sain";
+            t.HoldRemaining = HoldRemaining(f.Now);
             return t;
         }
         var goal = f.Contacts.Find(x => x.Id == f.Current);
@@ -246,7 +254,7 @@ public sealed class ThreatSelection
             Reset();
         if (t.Selected.Length == 0)
             t.Reason = "threat-yield-to-sain";
-        t.HoldRemaining = Math.Max(0, holdUntil - f.Now);
+        t.HoldRemaining = HoldRemaining(f.Now);
         return t;
     }
 }

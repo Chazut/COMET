@@ -14,6 +14,14 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### A07 target memory with one known enemy
+
+When fewer than two enemies are known, A07 yields target selection to SAIN,
+releases the cached native target and keeps its existing commitment deadline.
+If the other contact returns, the usual scoring and hold rules run again.
+The release event reports the remaining time. Leaving scope or ending the
+encounter still clears the memory.
+
 ### Chambered rounds in tactical decisions
 
 S02 entry, S03 flank and support roles, the S06 squad ammo threshold, the
