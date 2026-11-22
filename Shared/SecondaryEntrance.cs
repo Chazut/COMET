@@ -185,19 +185,24 @@ public sealed class SecondaryEntrance
             : !selected ? "entry roll declined"
             : status == "injured" ? "self injured"
             : "insufficient loaded ammunition";
-        if (!t.Extended && c.Extension > 0)
+        return TryExtendWatch(now, recentContact, c) ? "wait" : "end";
+    }
+
+    internal bool TryExtendWatch(double now, bool recentContact, SecondaryEntranceConfig c)
+    {
+        var t = Trace!;
+        if (t.Extended || c.Extension <= 0)
+            return false;
+        if (!recentContact)
         {
-            if (!recentContact)
-            {
-                t.EntryReason = "no recent contact to extend watch";
-                return "end";
-            }
-            t.Extended = true;
-            watchUntil = now + c.Extension;
-            t.WatchRemaining = c.Extension;
-            return "wait";
+            t.EntryReason = "no recent contact to extend watch";
+            return false;
         }
-        return "end";
+        t.Extended = true;
+        t.State = "watching";
+        watchUntil = now + c.Extension;
+        t.WatchRemaining = c.Extension;
+        return true;
     }
 
     public void End()

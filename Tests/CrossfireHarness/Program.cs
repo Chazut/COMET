@@ -976,6 +976,62 @@ foreach (string search in new[] { "direct route", "missing navmesh", "same entra
     NavMesh.Route = null;
     p.EndAll();
 }
+foreach (bool projectionFails in new[] { true, false })
+{
+    foreach (string outcome in new[] { "route recovers", "still blocked", "contact aged", "contact moved", "extension disabled" })
+    {
+        var (p, b, action) = BeginEntranceWatch(shortApproach: true);
+        var r = p.states[b].Crossfire;
+        var entrance = r.Policy.Trace!.Entrance!;
+        var rolls = new EntryRollSequence(0, 0);
+        p.jumpRandom = rolls;
+        b.Info.Personality = Personality.Chad;
+        if (outcome == "extension disabled")
+            p.config!.SecondaryEntrance.Extension = 0;
+        Step(15.25f);
+        b.GoalEnemy!.TimeSinceLastKnownUpdated = 7f;
+        b.GoalEnemy.KnownPlaces.LastKnownPosition = r.Entrance.Center;
+        p.doorBudget.Available = false;
+        action.Update(new());
+        C(r.Entrance.Preparing && rolls.Draws == 1, "entry selected before its route can be checked");
+
+        Step(.1f);
+        p.doorBudget.Available = true;
+        b.GoalEnemy.TimeSinceLastKnownUpdated = outcome == "contact aged" ? 8f : 7.99f;
+        if (outcome == "contact moved")
+            b.GoalEnemy.KnownPlaces.LastKnownPosition = r.Entrance.Center + new Vector3(12, 0, 0);
+        NavMesh.Sample = _ => !projectionFails;
+        b.Mover.Reachable = projectionFails;
+        action.Update(new());
+        bool extends = outcome is "route recovers" or "still blocked";
+        C(r.Policy.Active == extends && entrance.Extended == extends && b.Mover.SprintOrders == 0,
+            $"preparation failure uses fresh room evidence and never issues a sprint: {projectionFails}, {outcome}");
+        if (extends)
+        {
+            C(entrance.State == "watching" && !r.Entrance.Preparing && !r.Entrance.Entering
+                && entrance.WatchRemaining == 15 && entrance.EntryReason == (projectionFails
+                    ? "no navigable point inside" : "inside point unreachable"), "watch resumed with the recorded failure");
+            Step(15);
+            action.Update(new());
+            C(r.Policy.Active && rolls.Draws == 1 && b.Mover.SprintOrders == 0, "no retry through the exact watch deadline");
+            if (outcome == "route recovers")
+            {
+                NavMesh.Sample = null;
+                b.Mover.Reachable = true;
+            }
+            Step(.02f);
+            b.GoalEnemy.TimeSinceLastKnownUpdated = 0;
+            action.Update(new());
+            C(rolls.Draws == 2, $"entry reconsidered after renewed contact at the end of the watch: {outcome}");
+            if (outcome == "route recovers")
+                C(r.Policy.Active && r.Entrance.Entering && b.Mover.SprintOrders == 1, "recovered route starts a single sprint");
+            else
+                C(!r.Policy.Active && r.Policy.Trace.Reason == "secondary-entrance-no-path", "no second extension on failure");
+        }
+        NavMesh.Sample = null;
+        p.EndAll();
+    }
+}
 foreach (string scenario in new[] { "crossed", "order refused", "foreign path", "renewal refused" })
 {
     var (p, b, action) = BeginEntranceWatch(shortApproach: true);
@@ -1008,7 +1064,8 @@ foreach (string scenario in new[] { "crossed", "order refused", "foreign path", 
         if (scenario == "foreign path")
             C(ReferenceEquals(b.Mover.ActivePath, foreignPath) && foreignPath.Stops == 0, "entry cleanup preserves unrelated movement");
         else
-            C(!trace.MoveAccepted, "the trace records a refused sprint");
+            C(!trace.MoveAccepted && !entrance.Extended && trace.Reason == "secondary-entrance-native-entry-refused",
+                "a refused sprint ends entry immediately even with fresh contact");
     }
     else
     {

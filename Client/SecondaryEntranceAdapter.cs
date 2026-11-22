@@ -426,6 +426,11 @@ public sealed partial class Plugin
         return b.GoalEnemy.TimeSinceLastKnownUpdated < SecondaryEntrance.RecentContactSeconds ? "ready" : "stale";
     }
 
+    private static bool EntranceContactInside(BotComponent b, Vector3 doorway, float maxAge) =>
+        b.GoalEnemy.TimeSinceLastKnownUpdated < maxAge
+        && b.GoalEnemy.KnownPlaces.LastKnownPosition is Vector3 known
+        && Vector3.ProjectOnPlane(known - doorway, Vector3.up).sqrMagnitude < 12f * 12f;
+
     private bool ValidateEntranceActive(BotComponent b, BotState s, bool callback)
     {
         var a = s.Crossfire.Entrance;
@@ -489,16 +494,11 @@ public sealed partial class Plugin
         {
             a.Policy.Arrived(Time.time);
             t.State = "watching";
-            var enemy = b.GoalEnemy;
-            float contactAge = enemy.TimeSinceLastKnownUpdated;
-            bool stillInside = a.Policy.WatchElapsed(Time.time)
-                && contactAge < 15f
-                && enemy.KnownPlaces.LastKnownPosition is Vector3 known
-                && Vector3.ProjectOnPlane(known - a.Center, Vector3.up).sqrMagnitude < 12f * 12f;
+            bool stillInside = a.Policy.WatchElapsed(Time.time) && EntranceContactInside(b, a.Center, 15f);
             string choice = a.Policy.Decide(
                 Time.time,
                 stillInside,
-                contactAge < SecondaryEntrance.RecentContactSeconds,
+                b.GoalEnemy.TimeSinceLastKnownUpdated < SecondaryEntrance.RecentContactSeconds,
                 t.SupportStatus,
                 t.Ammo,
                 b.Info.Personality.ToString(),
@@ -536,12 +536,15 @@ public sealed partial class Plugin
             }
             t.OpenObserved = true;
             var raw = a.Center + a.Normal * 2.5f;
-            if (
-                !NavMesh.SamplePosition(raw, out var nav, 1, NavMesh.AllAreas)
-                || !b.Mover.CanGoToPoint(nav.position, out var route, true)
-            )
+            bool sampled = NavMesh.SamplePosition(raw, out var nav, 1, NavMesh.AllAreas);
+            if (!sampled || !b.Mover.CanGoToPoint(nav.position, out var route, true))
             {
-                EndCrossfire(b, s, "secondary-entrance-no-path");
+                a.Preparing = false;
+                bool extended = a.Policy.TryExtendWatch(Time.time,
+                    EntranceContactInside(b, a.Center, SecondaryEntrance.RecentContactSeconds), c);
+                t.EntryReason = sampled ? "inside point unreachable" : "no navigable point inside";
+                if (!extended)
+                    EndCrossfire(b, s, "secondary-entrance-no-path");
                 return;
             }
             var cs = route.corners;

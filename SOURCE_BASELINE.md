@@ -79,6 +79,8 @@ from the doorway. The next room check after an extension is at its expiry.
 If the bot decides against entering, a sign from the target less than eight
 seconds old allows one extra watch. At the next decision, an entry-enabled
 bot makes a fresh personality roll. The trace retains both entry rolls.
+Failure to sample or reach the inward point before issuing movement uses the
+same one-time extension with fresh room evidence. A refused sprint ends entry.
 Once entry is approved and the inward point is reachable, S02 requests a
 high-urgency sprint even for a short crossing. While still moving, it renews
 that sprint on the first update more than 0.75 seconds after the last order.
