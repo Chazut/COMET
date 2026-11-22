@@ -11,7 +11,7 @@ namespace Comet.Server;
 
 public record Metadata : IModMetadata, IModBlazorMetadata
 {
-    public string ModGuid { get; init; } = "com.chazut.comet.server";
+    public string ModGuid { get; init; } = CometIdentity.Guid;
     public string Name { get; init; } = "COMET";
     public string Author { get; init; } = "Chazut";
     public List<string>? Contributors { get; init; } = ["R_F"];

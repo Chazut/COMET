@@ -34,7 +34,7 @@
             </nav>
         }
         <div class="sidebar-note">
-            <span class="status-dot"></span> @(brand.Slop ? "Secret menu unlocked" : "Development preview")<p>Built on SAIN.<br />@(brand.Slop ? "Blame Snoops." : "Made to work with your raid.")</p>
+            <span class="status-dot"></span> @(brand.Slop ? "Secret menu unlocked" : $"COMET {CometVersion.Release}")<p>Built on SAIN.<br />@(brand.Slop ? "Blame Snoops." : "Made to work with your raid.")</p>
             @if (brand.Slop) {
                 <button class="text-button" @onclick="RestoreComet">Back to COMET <UiIcon Name="arrow" /></button>
             }

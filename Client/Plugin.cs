@@ -26,7 +26,7 @@ using UnityEngine;
 
 namespace Comet.Client;
 
-[BepInPlugin("com.chazut.comet", "COMET", CometVersion.Plugin)]
+[BepInPlugin(CometIdentity.Guid, "COMET", CometVersion.Plugin)]
 [BepInDependency("me.sol.sain", "4.5.1")]
 [BepInDependency("com.manimal.csgas", BepInDependency.DependencyFlags.SoftDependency)]
 [BepInDependency("com.fika.core", BepInDependency.DependencyFlags.SoftDependency)]
@@ -109,7 +109,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 {
                     "ORBIT is installed but its Ghost API is unavailable. COMET will not control bots until this is resolved.",
                 };
-            harmony = new Harmony("com.chazut.comet");
+            harmony = new Harmony(CometIdentity.Guid);
             ConnectControlIntegrations(harmony);
             integration.Report.Phase = "core-decision-hooks";
             harmony.Patch(

@@ -4,11 +4,16 @@ using System.Linq;
 
 namespace Comet.Core;
 
+public static class CometIdentity
+{
+    public const string Guid = "com.chazut.comet";
+}
+
 public static class CometVersion
 {
     // BepInEx 5 uses System.Version; the release label is carried by the DLL and reports.
     public const string Plugin = "1.0.0";
-    public const string Release = "1.0.0-rc.1";
+    public const string Release = "1.0.0";
 }
 
 // Startup evidence, not a claim of successful live combat or a heartbeat.

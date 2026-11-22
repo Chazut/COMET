@@ -203,8 +203,8 @@ if (args.Length == 3)
             a.AttributeType.Name == "AssemblyInformationalVersionAttribute"
         );
         Check(
-            Equals(version.ConstructorArguments[0].Value, "1.0.0-rc.1"),
-            assembly.Name.Name + " has the RC1 version"
+            Equals(version.ConstructorArguments[0].Value, "1.0.0"),
+            assembly.Name.Name + " reports the stable 1.0.0 version"
         );
     }
     foreach (var assembly in new[] { main, server })

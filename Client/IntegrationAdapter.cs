@@ -100,7 +100,7 @@ public sealed partial class Plugin
                 continue;
             void Add(IEnumerable<Patch> patches, string kind)
             {
-                foreach (var patch in patches.Where(p => p.owner == "com.chazut.comet"))
+                foreach (var patch in patches.Where(p => p.owner == CometIdentity.Guid))
                 {
                     if (patch.PatchMethod.DeclaringType?.Assembly != typeof(Plugin).Assembly)
                         throw new InvalidOperationException("Unexpected COMET patch owner.");
