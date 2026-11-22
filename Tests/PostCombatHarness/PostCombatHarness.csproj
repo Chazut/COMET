@@ -7,6 +7,7 @@
     <NoWarn>CS0649;CS9113</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../Support/MedicalCoverPointDouble.cs" />
     <Compile Include="../../Client/ExternalSurgeryAdapter.cs" Link="ExternalSurgeryAdapter.cs" />
     <Compile Include="../../Client/ContactHearing.cs" Link="ContactHearing.cs" />
     <Compile Include="../Support/ContactHearingDoubles.cs" Link="ContactHearingDoubles.cs" />

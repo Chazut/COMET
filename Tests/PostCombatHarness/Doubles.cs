@@ -607,17 +607,11 @@ namespace SAIN.Components
     public class Cover
     {
         public Point? CoverInUse;
+        public Point? CoverPoint_MovingTo;
         public List<Point> CoverPoints = new();
     }
 
-    public class Point
-    {
-        public Vector3 Position;
-        public CoverData CoverData = new();
-        public bool BotInThisCover = true,
-            Spotted;
-        public UnityEngine.Collider Collider = new();
-    }
+    public class Point : SAIN.SAINComponent.SubComponents.CoverFinder.CoverPoint { }
 
     public class EnemyController
     {

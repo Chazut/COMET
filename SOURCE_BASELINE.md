@@ -282,6 +282,14 @@ At execution, COMET checks the selected item, actual injury, native cooldowns
 and ownership of the hands. A new emergency returns the bot to medical selection.
 External surgery continues to use its native kit and callback.
 
+In Ground Zero raid 494, two PMCs abandoned 55 surgeries before drawing a kit.
+SAIN clears its current cover point when SeekCover stops. For a pending treatment,
+COMET can still recognize that point if the bot is physically there, it is valid
+and SAIN has not picked a new destination. The reference expires on request or
+refusal. Surgery still uses zzap's enemy, kit and personality checks. Urgent and
+out-of-combat treatment scores use the current medicine count at execution.
+H01 records the cover used at startup and the surgery verdict at each check.
+
 ### D07/D08 room entry choice (2026-11-20)
 
 Both clear modes use the remix 7.6 `BuildClear` weights and feint count when

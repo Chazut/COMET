@@ -697,6 +697,123 @@ C(
     !p.states[b].Medical.ExternalSurgery && externalKit.Cancels == 0,
     "ghost handoff releases monitoring without touching native operation"
 );
+// SeekCoverAction.Stop clears SAIN's current point before the surgery action runs.
+(p, b) = Setup();
+Surgery(b);
+C(p.Choose(b).decision == ESelfActionType.Surgery, "relaxed surgery chosen at occupied cover");
+b.Cover.CoverInUse = null;
+Time.time += 1;
+p.SurgeryAction(b);
+C(b.BotOwner.Medecine.SurgicalKit.Requests == 1 && T(p, b).Started,
+    "releasing the seek-cover action at the same spot must start the selected kit");
+p.SurgeryAction(b);
+C(b.BotOwner.Medecine.SurgicalKit.Requests == 1 && p.states[b].Medical.PendingCover == null,
+    "a second update cannot reuse the cover or start a second kit");
+var startLog = JObject.Parse(p.diagnostics!.Lines.Last())["medicalChoice"]!;
+C((string?)startLog["startCover"] == "retained" && (string?)startLog["surgeryAtSelection"] == "relaxed-cover"
+    && (string?)startLog["surgeryAtStart"] == "relaxed-cover", "log explains both gates and the handoff");
+events.AddRange(p.diagnostics.Lines);
+
+foreach (var (change, reason) in new (Action<BotComponent, Point>, string)[]
+{
+    ((bot, point) => bot.Position = new(6, 0, 0), "cover-not-reached"),
+    ((bot, point) => point.Spotted = true, "cover-not-reached"),
+    ((bot, point) => point.CoverData.IsBad = true, "cover-not-reached"),
+    ((bot, point) => point.Collider = null!, "cover-not-reached"),
+    ((bot, point) => bot.Cover.CoverInUse = new() { BotInThisCover = false }, "cover-not-reached"),
+    ((bot, point) => bot.Cover.CoverPoint_MovingTo = new(), "cover-not-reached"),
+    ((bot, point) => bot.EnemyController.KnownEnemies[0].IsVisible = true, "enemy-visible"),
+    ((bot, point) => bot.EnemyController.KnownEnemies[0].Path.PathLength = 1, "enemy-too-close"),
+    ((bot, point) => bot.EnemyController.KnownEnemies[0].TimeSinceSeen = 1, "recent-sighting"),
+    ((bot, point) => bot.EnemyController.KnownEnemies[0].KnownPlaces.LastSeenPlace!.TimeSincePositionUpdated = 1, "recent-contact"),
+    ((bot, point) => bot.BotOwner.Medecine.FirstAid.IsBleeding = true, "bleeding"),
+    ((bot, point) => bot.BotOwner.Medecine.SurgicalKit.HaveWork = false, "no-native-surgery-work"),
+    ((bot, point) => bot.BotOwner.WeaponManager.Grenades.ThrowindNow = true, "throwing-grenade"),
+    ((bot, point) => bot.BotOwner.Medecine.SurgicalKit._nextPosibleUseTime = 12, "kit-cooldown"),
+})
+{
+    (p, b) = Setup();
+    Surgery(b);
+    C(p.Choose(b).result, "select before " + reason);
+    var oldCover = b.Cover.CoverInUse!;
+    b.Cover.CoverInUse = null;
+    Time.time += 1;
+    change(b, oldCover);
+    p.SurgeryAction(b);
+    C(T(p, b).SurgeryAtStart == reason && T(p, b).State == "ended"
+        && b.BotOwner.Medecine.SurgicalKit.Requests == 0 && p.states[b].Medical.PendingCover == null,
+        "genuine refusal releases the pending operation: " + reason);
+    // The old cover cannot admit a new selection. Remove the danger and enter
+    // a new, valid cover: the normal decision tick can start the same kit again.
+    var enemy = b.EnemyController.KnownEnemies[0];
+    enemy.IsVisible = false;
+    enemy.Path.PathLength = 60;
+    enemy.TimeSinceSeen = 100;
+    enemy.KnownPlaces.LastSeenPlace!.TimeSincePositionUpdated = 30;
+    b.BotOwner.Medecine.FirstAid.IsBleeding = false;
+    b.BotOwner.Medecine.SurgicalKit.HaveWork = true;
+    b.BotOwner.WeaponManager.Grenades.ThrowindNow = false;
+    b.BotOwner.Medecine.SurgicalKit._nextPosibleUseTime = Time.time;
+    b.Cover.CoverInUse = null;
+    b.Cover.CoverPoint_MovingTo = null;
+    C(!p.Choose(b).result && T(p, b).SurgeryAtSelection == "cover-not-reached", "old point not reused for selection");
+    Time.time += .5f;
+    b.Cover.CoverInUse = new() { Position = b.Position };
+    C(p.Choose(b).result, "same limb can be retried at the next evaluation after " + reason);
+    p.Start(b);
+    C(T(p, b).Started && b.BotOwner.Medecine.SurgicalKit.Requests == 1, "retry reaches the real kit once");
+}
+
+// Even a previously quiet raid can gain a contact while the bot is getting ready.
+(p, b) = Setup();
+b.EnemyController.KnownEnemies.Clear();
+b.Cover.CoverInUse = null;
+Surgery(b);
+C(p.Choose(b).result && T(p, b).SurgeryAtSelection == "strict-area-clear", "clear area permits surgery in the open");
+b.EnemyController.KnownEnemies.Add(new(b) { IsVisible = true });
+p.Start(b);
+C(T(p, b).SurgeryAtStart == "enemy-visible" && !T(p, b).Started, "new contact rechecked on the no-enemy branch");
+
+(p, b) = CloseCall();
+Aid(b, "third");
+b.Memory.Health.HealthStatus = ETagStatus.BadlyInjured;
+b.EnemyController.KnownEnemies[0].Path.PathLength = 19;
+b.EnemyController.KnownEnemies[0].KnownPlaces.LastSeenPlace!.TimeSincePositionUpdated = 10;
+Physics.Block = true;
+C(p.Choose(b).decision == ESelfActionType.FirstAid, "available supplies favor urgent aid over waiting");
+p.Start(b);
+C(T(p, b).Started, "same supplies and danger give the same first aid decision at execution");
+C(T(p, b).StartTreatmentScore > T(p, b).StartWaitScore, "logs report comparable scores at execution");
+(p, b) = CloseCall();
+var spare = Aid(b, "third");
+b.Memory.Health.HealthStatus = ETagStatus.BadlyInjured;
+b.EnemyController.KnownEnemies[0].Path.PathLength = 19;
+b.EnemyController.KnownEnemies[0].KnownPlaces.LastSeenPlace!.TimeSincePositionUpdated = 10;
+C(p.Choose(b).result, "initial supplies favor aid");
+b.Player.InventoryController.Items.Remove(spare);
+p.Start(b);
+C(T(p, b).Reason == "medical-start-no-longer-safe" && T(p, b).StartTreatmentScore < T(p, b).StartWaitScore,
+    "real inventory change is reflected when re-ranking the pending first aid");
+foreach (bool foliage in new[] { false, true })
+{
+    (p, b) = CloseCall();
+    var extra = Aid(b, "third");
+    var cover = new Point();
+    if (foliage)
+        cover.Collider.gameObject.layer = 7;
+    b.Cover.CoverInUse = cover;
+    b.Memory.Health.HealthStatus = ETagStatus.BadlyInjured;
+    b.EnemyController.KnownEnemies[0].Path.PathLength = 19;
+    b.EnemyController.KnownEnemies[0].KnownPlaces.LastSeenPlace!.TimeSincePositionUpdated = 10;
+    C(p.Choose(b).result, "aid chosen before handing off cover");
+    b.Cover.CoverInUse = null;
+    b.Player.InventoryController.Items.Remove(extra);
+    p.Start(b);
+    C(T(p, b).StartCover == "retained" && T(p, b).Started == !foliage,
+        "first aid rechecks the same spot and only solid cover earns protection");
+}
+Physics.Block = originalBlock;
+
 string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
 Directory.CreateDirectory(Path.Combine(root, "artifacts"));
 File.WriteAllLines(Path.Combine(root, "artifacts/h01-adapter-events.jsonl"), events);

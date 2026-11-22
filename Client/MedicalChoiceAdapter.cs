@@ -12,6 +12,7 @@ using Newtonsoft.Json;
 using SAIN.Components;
 using SAIN.Preset.Shared.Enums;
 using SAIN.SAINComponent.Classes.Decision;
+using SAIN.SAINComponent.SubComponents.CoverFinder;
 using UnityEngine;
 
 namespace Comet.Client;
@@ -34,6 +35,7 @@ internal sealed class MedicalRuntime
         bool
     )[7];
     internal WeakReference<Meds>? Item;
+    internal CoverPoint? PendingCover;
     internal EBodyPart Part;
     internal int Token;
     internal float Next,
@@ -231,6 +233,8 @@ public sealed partial class Plugin
                 {
                     r.Item = new(chosen.item);
                     r.Part = chosen.part;
+                    var cover = b.Cover.CoverInUse;
+                    r.PendingCover = cover?.BotInThisCover == true ? cover : null;
                     r.Callback = false;
                     r.Token++;
                     Decision = MedicalAction(t.Choice);
@@ -268,7 +272,7 @@ public sealed partial class Plugin
         _ => 1,
     };
 
-    private MedicalFrame MedicalFrame(BotComponent b, BotState s)
+    private MedicalFrame MedicalFrame(BotComponent b, BotState s, CoverPoint? retainedCover = null)
     {
         var health = b.Player.HealthController;
         var f = new MedicalFrame
@@ -287,8 +291,9 @@ public sealed partial class Plugin
         if (config!.Aggression.TryGetValue(f.Personality, out var aggression))
             f.Aggression = aggression;
         bool postCover = PostReachedCover(b, s);
-        f.ReachedCover = b.Cover.CoverInUse?.BotInThisCover == true || postCover;
-        f.ProtectiveCover = NativeCoverProtects(b) || postCover;
+        f.ReachedCover = b.Cover.CoverInUse?.BotInThisCover == true || postCover || retainedCover != null;
+        f.ProtectiveCover = NativeCoverProtects(b) || postCover
+            || retainedCover != null && !FoliageCoverCollider(retainedCover.Collider);
         f.RunningToCover =
             !f.ReachedCover
             && b.Player.Velocity.magnitude > .5f
@@ -411,6 +416,7 @@ public sealed partial class Plugin
         best.Clear();
         chosen.Clear();
         f.Meds = r.Items.Count;
+        bool? surgeryAllowed = null;
         // All candidates in this synchronous evaluation use the same body state.
         // Read it once, without caching health between decisions or changing ranks.
         for (int i = 0; r.Items.Count > 0 && i < medicalParts.Length; i++)
@@ -470,7 +476,7 @@ public sealed partial class Plugin
                             && slot != EquipmentSlot.SecuredContainer
                     )
                         continue;
-                    if (!SourceSurgeryAllowed(b, s))
+                    if (!(surgeryAllowed ??= SourceSurgeryAllowed(b, s)))
                         continue;
                     action = "Surgery";
                     need = "destroyed-limb";
@@ -551,6 +557,8 @@ public sealed partial class Plugin
                 }
             }
         }
+        if (surgeryAllowed.HasValue)
+            f.SurgeryCheck = r.SourceSurgery.LastCheck;
         foreach (var action in medicalActions)
             f.Options.Add(
                 best.TryGetValue(action, out var o) ? o : new MedicalOption { Action = action }
@@ -695,6 +703,18 @@ public sealed partial class Plugin
         }
     }
 
+    // SeekCoverAction.Stop releases CoverInUse as SAIN switches to surgery.
+    // Only bridge that handoff for this selection. Ask SAIN about the actual
+    // distance rather than using BotInThisCover, which requires point.IsCurrent.
+    private static CoverPoint? RetainedMedicalCover(BotComponent bot, CoverPoint? point)
+    {
+        if (point == null || bot.Cover.CoverInUse != null || bot.Cover.CoverPoint_MovingTo != null
+            || point.Collider == null || point.CoverData.IsBad || point.Spotted)
+            return null;
+        return point.GetStraightDistanceStatus(point.GetDistance(bot.Position)) == CoverStatus.InCover
+            ? point : null;
+    }
+
     private void StartMedical(BotComponent b, BotState s)
     {
         var r = s.Medical;
@@ -748,21 +768,39 @@ public sealed partial class Plugin
             r.Next = Time.time;
             return;
         }
-        // Outside the ordinary combat verdict, keep the existing H01 start check.
+        var retainedCover = RetainedMedicalCover(b, r.PendingCover);
+        t.StartCover = b.Cover.CoverInUse?.BotInThisCover == true ? "current"
+            : retainedCover != null ? "retained" : r.PendingCover != null ? "lost" : "none";
+        if (t.Choice == "Surgery")
+        {
+            bool allowed = SourceSurgeryAllowed(b, s, retainedCover != null);
+            t.SurgeryAtStart = r.SourceSurgery.LastCheck;
+            if (!allowed)
+            {
+                EndMedical(s, "medical-surgery-no-longer-allowed");
+                return;
+            }
+        }
+        // Outside the ordinary combat verdict, re-score against current supplies and danger.
         if (t.Urgent || !t.HasKnownEnemy)
         {
-            var frame = MedicalFrame(b, s);
+            var frame = MedicalFrame(b, s, retainedCover);
+            r.Items.Clear();
+            b.Player.InventoryController.GetAcceptableItemsNonAlloc<Meds>(LoadoutAdapter.Carried, r.Items);
+            frame.Meds = r.Items.Count;
+            r.Items.Clear();
             frame.Options.Add(new MedicalOption { Action = t.Choice, Need = t.Need, Duration = t.Duration, Usable = true });
-            if (new MedicalChoice().Evaluate(frame, config!.MedicalChoice).Choice != t.Choice)
+            var check = new MedicalChoice().Evaluate(frame, config!.MedicalChoice);
+            foreach (var option in check.Alternatives)
+                if (option.Action == "Wait")
+                    t.StartWaitScore = option.Score;
+                else
+                    t.StartTreatmentScore = option.Score;
+            if (check.Choice != t.Choice)
             {
                 EndMedical(s, "medical-start-no-longer-safe");
                 return;
             }
-        }
-        else if (t.Choice == "Surgery" && !SourceSurgeryAllowed(b, s))
-        {
-            EndMedical(s, "medical-surgery-no-longer-allowed");
-            return;
         }
         var med = b.BotOwner.Medecine;
         if (
@@ -777,6 +815,7 @@ public sealed partial class Plugin
         r.BeforeHealth = b.Player.HealthController.GetBodyPartHealth(r.Part, false).Current;
         r.BeforeDestroyed = b.Player.HealthController.IsBodyPartDestroyed(r.Part);
         r.BeforeResource = item.MedKitComponent?.HpResource ?? 0;
+        r.PendingCover = null;
         r.Policy.Request(Time.time);
         RecordMedical(s, true);
         var weak = new WeakReference<MedicalRuntime>(r);
@@ -911,6 +950,7 @@ public sealed partial class Plugin
         r.Policy.End(Time.time, reason, config?.MedicalChoice ?? new(), outcome);
         RecordMedical(s, true);
         r.Token++;
+        r.PendingCover = null;
         r.Item = null;
         r.Items.Clear();
     }

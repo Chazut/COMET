@@ -118,7 +118,7 @@ namespace EFT
         public BotOwner(Player p)
         {
             GetPlayer = p;
-            Medecine = new(p);
+            Medecine = new(p, WeaponManager.Grenades);
         }
     }
 
@@ -318,10 +318,10 @@ public class BotMedecine
     public BotSurgicalKit SurgicalKit;
     public BotStimulators Stimulators;
 
-    public BotMedecine(Player p)
+    public BotMedecine(Player p, Grenades grenades)
     {
         FirstAid = new(p);
-        SurgicalKit = new(p);
+        SurgicalKit = new(p, grenades);
         Stimulators = new(p);
     }
 
@@ -408,9 +408,10 @@ public class BotFirstAid(Player p) : NativeMed(p)
         Begin(CurUsingMeds, callback);
 }
 
-public class BotSurgicalKit(Player p) : NativeMed(p)
+public class BotSurgicalKit(Player p, Grenades grenades) : NativeMed(p)
 {
-    public bool ShallStartUse() => true;
+    public bool HaveWork = true;
+    public bool ShallStartUse() => HaveWork && !Using && !grenades.ThrowindNow && Time.time >= _nextPosibleUseTime;
 
     public void ApplyToCurrentPart(Action? callback = null) => Begin(CurUsingMeds, callback);
 }
@@ -503,16 +504,10 @@ namespace SAIN.Components
     public class Cover
     {
         public Point? CoverInUse = new();
+        public Point? CoverPoint_MovingTo;
     }
 
-    public class Point
-    {
-        public CoverData CoverData = new();
-        public Vector3 Position;
-        public bool BotInThisCover = true,
-            Spotted;
-        public UnityEngine.Collider Collider = new();
-    }
+    public class Point : SAIN.SAINComponent.SubComponents.CoverFinder.CoverPoint { }
 
     public class EnemyController
     {

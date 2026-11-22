@@ -41,6 +41,7 @@ public sealed class SurgeryFrame
 {
     public double Now;
     public bool SourceAllowed = true;
+    public string? SourceCheck;
     public bool Hit,
         Grenade,
         NativeCancelled,
@@ -56,6 +57,7 @@ public sealed class SurgeryInterruptionTrace
     public string Origin { get; set; } = "comet";
     public string State { get; set; } = "monitoring";
     public string Reason { get; set; } = "surgery-continue-safe";
+    public string? SourceRefusal { get; set; }
     public string Item { get; set; } = "";
     public string Part { get; set; } = "";
     public bool Requested { get; set; }
@@ -124,7 +126,10 @@ public sealed class SurgeryInterruption
         if (f.NativeCancelled)
             t.Reason = "surgery-native-cancel-observed";
         else if (!f.SourceAllowed)
+        {
             t.Reason = "surgery-source-area-not-clear";
+            t.SourceRefusal = f.SourceCheck;
+        }
         t.Applied = f.Hands;
         t.ValidFor = t.Applied ? 1 : 0;
         if (t.Reason.StartsWith("surgery-continue", StringComparison.Ordinal))

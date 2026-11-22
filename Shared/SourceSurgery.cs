@@ -8,6 +8,13 @@ public sealed class SourceSurgery
     private bool relaxed,
         rollHit;
     private double rollUntil;
+    public string LastCheck { get; private set; } = "";
+
+    private bool Verdict(string reason, bool allowed = false)
+    {
+        LastCheck = reason;
+        return allowed;
+    }
 
     public static (double chance, double quiet, double distance) Limits(string p) =>
         p switch
@@ -34,32 +41,42 @@ public sealed class SourceSurgery
         double seenAge,
         double knownAge,
         double sinceHit,
-        Func<double> roll
+        Func<double> roll,
+        string unavailableReason = "native-kit-not-ready"
     )
     {
         if (!usable)
-            return false;
+            return Verdict(unavailableReason);
         if (strictClear)
-            return true;
+            return Verdict("strict-area-clear", true);
         var c = Limits(personality);
         if (usingKit && relaxed)
         {
             bool keep = sinceHit >= 1 && !visible && nearest >= c.distance * .5;
             if (!keep)
                 relaxed = false;
-            return keep;
+            return keep ? Verdict("relaxed-in-progress", true)
+                : Verdict(sinceHit < 1 ? "recent-hit" : visible ? "enemy-visible" : "enemy-too-close");
         }
         relaxed = false;
-        if (!inCover || visible || nearest < c.distance || seenAge < c.quiet || knownAge < c.quiet)
-            return false;
+        if (visible)
+            return Verdict("enemy-visible");
+        if (!inCover)
+            return Verdict("cover-not-reached");
+        if (nearest < c.distance)
+            return Verdict("enemy-too-close");
+        if (seenAge < c.quiet)
+            return Verdict("recent-sighting");
+        if (knownAge < c.quiet)
+            return Verdict("recent-contact");
         if (now >= rollUntil)
         {
             rollUntil = now + 20;
             rollHit = roll() < c.chance;
         }
         if (!rollHit)
-            return false;
+            return Verdict("personality-roll");
         relaxed = true;
-        return true;
+        return Verdict("relaxed-cover", true);
     }
 }

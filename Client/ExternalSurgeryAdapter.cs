@@ -82,6 +82,7 @@ public sealed partial class Plugin
             ),
             SourceAllowed =
                 !config!.SurgeryInterruption.Enabled || SourceSurgeryAllowed(bot, state),
+            SourceCheck = runtime.SourceSurgery.LastCheck,
         };
         if (runtime.Interruption.Tick(frame, config.SurgeryInterruption))
             kit.CancelCurrent(); // BHF patches this method; do not replace it or force the hands state.

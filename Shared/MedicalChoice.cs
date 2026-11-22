@@ -73,6 +73,7 @@ public sealed class MedicalFrame
     public string Contact = "",
         Priority = "";
     public string Personality = "";
+    public string? SurgeryCheck;
     public bool HasKnownEnemy;
     public double? X,
         Y,
@@ -116,6 +117,11 @@ public sealed class MedicalTrace
     public double Distance { get; set; }
     public double SinceHit { get; set; }
     public bool Started { get; set; }
+    public string? StartCover { get; set; }
+    public string? SurgeryAtSelection { get; set; }
+    public string? SurgeryAtStart { get; set; }
+    public double? StartTreatmentScore { get; set; }
+    public double? StartWaitScore { get; set; }
     public bool Applied { get; set; }
     public double ValidFor { get; set; }
     public string Outcome { get; set; } = "unconfirmed";
@@ -166,6 +172,7 @@ public sealed class MedicalChoice
             Distance = f.Nearest,
             SinceHit = f.SinceHit,
             ThreatsIncomplete = f.ThreatsIncomplete,
+            SurgeryAtSelection = f.SurgeryCheck,
         };
         var options = f.Options.Select(o => o.Copy()).ToList();
         // HealUtility (zzap): pressure changes utility, it does not ban a treatment.

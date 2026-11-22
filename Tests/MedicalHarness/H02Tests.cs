@@ -58,6 +58,15 @@ internal static class H02Tests
             }
             p.Sample(b);
             C(kit.Cancels == 1, reason + " native cancellation");
+            string? expected = reason switch
+            {
+                "hit" => "recent-hit",
+                "visible" => "enemy-visible",
+                "close" => "enemy-too-close",
+                _ => null,
+            };
+            C(p.states[b].Medical.Interruption.Trace!.SourceRefusal == expected,
+                "interruption retains the source refusal separately from a native cancel");
             p.Sample(b);
             C(kit.Cancels == 1, "no duplicate cancellation");
             C(p.states[b].Medical.Interruption.RetryAt == 0, "no custom retry ban");

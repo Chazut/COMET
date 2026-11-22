@@ -10,11 +10,17 @@ namespace Comet.Client;
 
 public sealed partial class Plugin
 {
-    private bool SourceSurgeryAllowed(BotComponent b, BotState s)
+    private bool SourceSurgeryAllowed(BotComponent b, BotState s, bool retainedCover = false)
     {
         var med = b.BotOwner.Medecine;
         var kit = med.SurgicalKit;
         bool usable = !med.FirstAid.IsBleeding && (kit.Using || kit.ShallStartUse());
+        string unavailable = "native-kit-not-ready";
+        if (!usable)
+            unavailable = med.FirstAid.IsBleeding ? "bleeding"
+                : Time.time < kit._nextPosibleUseTime ? "kit-cooldown"
+                : b.BotOwner.WeaponManager.Grenades.ThrowindNow ? "throwing-grenade"
+                : !kit.HaveWork ? "no-native-surgery-work" : unavailable;
         bool visible = false;
         double nearest = double.MaxValue,
             seen = double.MaxValue,
@@ -34,13 +40,14 @@ public sealed partial class Plugin
             kit.Using,
             usable,
             strict,
-            b.Cover.CoverInUse?.BotInThisCover == true,
+            b.Cover.CoverInUse?.BotInThisCover == true || retainedCover,
             visible,
             nearest,
             seen,
             known,
             b.Medical.TimeSinceShot,
-            () => UnityEngine.Random.Range(0f, 100f)
+            () => UnityEngine.Random.Range(0f, 100f),
+            unavailable
         );
     }
 
@@ -70,6 +77,7 @@ public sealed partial class Plugin
             Completed = !b.Player.HealthController.IsBodyPartDestroyed(r.Part),
             WeaponReady = WeaponHandsReady(b, b.Player.HandsController as Player.FirearmController),
             SourceAllowed = SourceSurgeryAllowed(b, s),
+            SourceCheck = r.SourceSurgery.LastCheck,
         };
         if (p.Tick(f, c))
             kit.CancelCurrent();
