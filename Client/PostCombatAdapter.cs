@@ -357,7 +357,7 @@ public sealed partial class Plugin
         }
         f.AmmoPercent = TacticalAmmoPercent(b.BotOwner);
         f.Personality = b.Info.Personality.ToString();
-        f.NeedsCover = r.Threat.HasValue && !r.Protected;
+        f.NeedsCover = !r.Protected;
         bool active = r.Policy.Tick(
             f,
             config.PostCombat,

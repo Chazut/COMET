@@ -387,6 +387,51 @@ foreach (var scenario in new[] { "incoming-fire", "none", "last-fight", "current
     action.Stop();
     Physics.BlocksSightTo = null;
 }
+foreach (string terrain in new[] { "open", "near cover", "far cover", "enclosed", "native cover" })
+{
+    var (p, b, layer, action) = Setup(false);
+    b.GoalEnemy = null;
+    b.ActiveLayer = ESAINLayer.Combat;
+    p.Observe(b);
+    Step(1.5f);
+    p.Observe(b);
+    b.ActiveLayer = ESAINLayer.Squad;
+    if (terrain == "native cover")
+    {
+        b.Cover.CoverInUse = new() { BotInThisCover = true };
+        b.Cover.CoverInUse.Collider.gameObject.layer = 4;
+    }
+    Physics.EnclosedAt = point => terrain switch
+    {
+        "enclosed" => true,
+        "near cover" => point.z >= 2.9f,
+        "far cover" => point.z >= 15.9f,
+        _ => false,
+    };
+    C(layer.IsActive(), "recovery without a known threat: " + terrain);
+    action.Start();
+    var r = p.states[b].PostCombat;
+    C(r.Threat == null && r.Policy.Trace is { ThreatSource: "none", AdvanceSelected: false },
+        "terrain alone must not create an enemy to inspect");
+    C(b.Mover.Prone.Value == (terrain == "open"), "only exposed bots without reachable shelter go prone: " + terrain);
+    if (terrain is "near cover" or "far cover")
+    {
+        C(b.Mover.Routes == 1 && r.RouteStage == "cover"
+            && r.CoverRange == (terrain == "near cover" ? PostCombatCoverRange.Near : PostCombatCoverRange.Far),
+            "use reachable shelter without an enemy position: " + terrain);
+    }
+    else
+    {
+        int rays = Physics.Rays;
+        Step();
+        action.Update(new());
+        C(b.Mover.Routes == 0 && r.Policy.Trace!.State == "watch" && Physics.Rays == rays,
+            "watch without repeating the terrain search: " + terrain);
+    }
+    action.Stop();
+    C(!b.Mover.Prone.Value, "release the post-combat stance on handoff: " + terrain);
+    Physics.EnclosedAt = null;
+}
 foreach (var kind in new[] { "bush", "moving", "bad", "spotted", "solid" })
 {
     var (p, b, l, a) = Setup();

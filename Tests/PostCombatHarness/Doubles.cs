@@ -1017,6 +1017,7 @@ namespace UnityEngine
             Raycast(a, d, out _, max, mask, QueryTriggerInteraction.Ignore);
 
         public static Func<Vector3, bool>? BlocksSightTo;
+        public static Func<Vector3, bool>? EnclosedAt;
         public static bool Linecast(Vector3 a, Vector3 b, int mask) => BlocksSightTo?.Invoke(b) == true;
 
         public static int Rays;
@@ -1032,7 +1033,7 @@ namespace UnityEngine
         {
             Rays++;
             hit = new();
-            return false;
+            return EnclosedAt?.Invoke(start) == true;
         }
     }
 }

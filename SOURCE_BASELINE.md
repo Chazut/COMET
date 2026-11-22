@@ -411,6 +411,11 @@ for the episode. The H04 event identifies its `threatSource` as
 `current-enemy`, `last-fight`, `incoming-fire` or `none`. An incoming-fire
 position has no associated enemy ID or known contact age.
 
+With no remembered position or incoming-fire origin, H04 still evaluates
+the surrounding terrain. An exposed bot moves to reachable shelter or goes
+prone if the search finds none. Its event keeps `threatSource` set to `none`
+and the bot has no position to inspect.
+
 H04 steering follows remix 7.6 `PostCombatAction.OnSteeringTicked`. Actual
 movement toward the leader or a far cover in quiet conditions faces travel.
 An audible contact and a planned advance use level aim at the sound or the
