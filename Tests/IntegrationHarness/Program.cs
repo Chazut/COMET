@@ -36,6 +36,7 @@ static class Audit
         var probe = new Comet.IntegrationProbe.ProbeHarmony();
         Comet.IntegrationProbe.Plugin.Run(probe);
         Comet.IntegrationProbe.TranspilerAudit.CheckNativeCoverFallback();
+        Comet.IntegrationProbe.TranspilerAudit.CheckPistolSwitchTimer();
         if (probe.Errors.Count > 0)
             throw new Exception(string.Join("\n", probe.Errors.Distinct()));
         var selectDoorLeg = typeof(Comet.Client.Plugin).GetMethod("SelectDoorLeg", BindingFlags.NonPublic | BindingFlags.Static)!;

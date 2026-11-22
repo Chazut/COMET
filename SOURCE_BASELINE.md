@@ -45,6 +45,13 @@ comparison for a visible flanker is strict, while heard footsteps include
 equality. The existing RR events convert the resulting scores to points after
 the decision.
 
+### W02 pistol switch timer
+
+Both W02 entry paths clear the native selector's next-change time before
+requesting the holster. After the call, EFT owns the resulting value. A refusal
+that leaves it at zero keeps it at zero. W02 uses its own retry delay for a
+refused pistol draw (three seconds by default), as in remix 7.6.
+
 ### Chambered rounds in tactical decisions
 
 S02 entry, S03 flank and support roles, the S06 squad ammo threshold, the

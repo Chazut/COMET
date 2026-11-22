@@ -109,16 +109,13 @@ public sealed partial class Plugin
         }
         r.Policy.Request(Time.time);
         RecordPistolSwap(b, s, true);
-        float previousTimer = selector._nextChangeTime;
-        float temporary = 0;
-        bool accepted = false;
+        bool accepted;
         string previousIntent = s.WeaponReturn.Intent;
         try
         {
-            // Bypass only this deliberate attempt's distance-choice throttle, preserving the native timer on success.
-            selector._nextChangeTime = temporary;
             invoked = true;
             s.WeaponReturn.Intent = "W02";
+            selector._nextChangeTime = 0f;
             accepted = selector.TryChangeToSlot(EquipmentSlot.Holster, true);
         }
         catch (Exception ex)
@@ -132,8 +129,6 @@ public sealed partial class Plugin
         finally
         {
             s.WeaponReturn.Intent = previousIntent;
-            if (!accepted && selector._nextChangeTime == temporary)
-                selector._nextChangeTime = previousTimer;
         }
         r.Policy.Result(accepted, Time.time, config.PistolSwap);
         RecordPistolSwap(b, s, true);

@@ -31,6 +31,19 @@ static class TranspilerAudit
         }
     }
 
+    public static void CheckPistolSwitchTimer()
+    {
+        var request = typeof(Comet.Client.Plugin).GetMethod("TrySourcePistol", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var code = Read(request);
+        var timer = typeof(BotWeaponSelector).GetField("_nextChangeTime", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!;
+        int reset = code.FindIndex(i => i.StoresField(timer));
+        int change = code.FindIndex(i => i.operand is MethodInfo m
+            && m.DeclaringType == typeof(BotWeaponSelector) && m.Name == nameof(BotWeaponSelector.TryChangeToSlot));
+        if (reset < 1 || change <= reset || code.FindLastIndex(i => i.StoresField(timer)) != reset
+            || !code[reset - 1].LoadsConstant(0f))
+            throw new Exception("W02 must clear the selector timer before the request and leave the native outcome intact.");
+    }
+
     static void CheckCloseFightRetarget(MethodBase target, CodeInstruction[] before, CodeInstruction[] after)
     {
         var hook = typeof(Comet.Client.Plugin).GetMethod("RecheckDogFightTarget", BindingFlags.Static | BindingFlags.NonPublic)!;
