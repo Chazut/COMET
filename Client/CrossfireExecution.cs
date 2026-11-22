@@ -298,14 +298,11 @@ public sealed partial class Plugin
             // Observations only: retain the source's 12-second move timeout.
             t.SprintObserved = b.Player.IsSprintEnabled;
             t.MoveSpeed = b.Player.Velocity.magnitude;
-            t.DistanceToGoal = Vector3.ProjectOnPlane(r.Goal - b.Position, Vector3.up).magnitude;
-            if (
-                !r.Policy.Progress(
-                    Time.time,
-                    Vector3.ProjectOnPlane(b.Position - r.Goal, Vector3.up).magnitude,
-                    c
-                )
-            )
+            float distance = r.Entrance.Entering
+                ? Vector3.Distance(b.Position, r.Goal)
+                : Vector3.ProjectOnPlane(r.Goal - b.Position, Vector3.up).magnitude;
+            t.DistanceToGoal = distance;
+            if (!r.Policy.Progress(Time.time, distance, c, holdOnArrival: !r.Entrance.Entering))
             {
                 EndCrossfire(b, s, t.Reason);
                 return;

@@ -1106,6 +1106,8 @@ foreach (string scenario in new[] { "foreign", "delayed", "recycled", "interrupt
         C(trace.Execution == "native secondary entry accepted, route not observed", "telemetry distinguishes acceptance from movement");
     if (alreadyThere)
     {
+        C(trace.State == "moving" && trace.Entrance!.State == "entering",
+            "an inward order already in reach never starts another watch");
         Step(.02f);
         action.Update(new());
         C(!r.Policy.Active && trace.Entrance!.Crossed && trace.Reason == "secondary-entrance-crossed-and-reached"
@@ -1148,6 +1150,56 @@ foreach (string scenario in new[] { "foreign", "delayed", "recycled", "interrupt
         action.Stop();
     }
     C(foreign.Stops == 0, "the foreign path is never stopped");
+    p.EndAll();
+}
+foreach (float height in new[] { -4f, 4f })
+{
+    var (p, b, action) = BeginEntranceWatch(shortApproach: true);
+    var r = p.states[b].Crossfire;
+    var trace = r.Policy.Trace!;
+    Step(15.25f);
+    b.GoalEnemy!.TimeSinceLastKnownUpdated = 0;
+    b.GoalEnemy.KnownPlaces.LastKnownPosition = r.Entrance.Center;
+    action.Update(new());
+    C(r.Entrance.Entering, "the PMC committed to the inward leg before testing floor separation");
+    b.Position = r.Goal + new Vector3(0, height, 0);
+    int orders = b.Mover.SprintOrders;
+    Step(.76f);
+    action.Update(new());
+    C(trace.State == "moving" && trace.Entrance!.State == "entering" && trace.DistanceToGoal == 4
+        && b.Mover.SprintOrders == orders + 1, "the PMC on a different floor keeps moving toward the inward point");
+    b.Position = r.Goal + new Vector3(.7f, .7f, 0);
+    Step();
+    action.Update(new());
+    C(trace.State == "moving" && Math.Abs(trace.DistanceToGoal - Math.Sqrt(.98)) < .0001,
+        "the entry radius measures the whole 3D offset");
+    b.Position = r.Goal + new Vector3(0, .801f, 0);
+    Step();
+    action.Update(new());
+    C(trace.State == "moving", "just outside the entry radius still requires movement");
+    b.Position = r.Goal + new Vector3(0, .8f, 0);
+    Step();
+    action.Update(new());
+    C(!r.Policy.Active && trace.Reason == "secondary-entrance-crossed-and-reached"
+        && Math.Abs(trace.DistanceToGoal - .8) < .0001 && b.Mover.SprintOrders == orders + 1,
+        "the radius includes its boundary and the final trace records the actual distance");
+    p.EndAll();
+}
+{
+    var (p, b, action) = BeginEntranceWatch(shortApproach: true);
+    var r = p.states[b].Crossfire;
+    Step(15.25f);
+    b.GoalEnemy!.TimeSinceLastKnownUpdated = 0;
+    b.GoalEnemy.KnownPlaces.LastKnownPosition = r.Entrance.Center;
+    action.Update(new());
+    b.Position = r.Goal + new Vector3(0, 4, 0);
+    Step(.8f);
+    action.Update(new());
+    Step((float)p.config!.Crossfire.MoveTimeout);
+    b.GoalEnemy.TimeSinceLastKnownUpdated = 0;
+    action.Update(new());
+    C(!r.Policy.Active && r.Policy.Trace!.Reason == "crossfire-move-timeout",
+        "an unreachable floor expires on the movement timeout");
     p.EndAll();
 }
 foreach (string outcome in new[] { "upstairs", "radius boundary", "age boundary", "missing position", "under fire" })
@@ -1295,10 +1347,11 @@ foreach (var (age, mateSees, indoors, maneuverAge, crossfireAge, expected) in ne
     a.OnSteeringTicked();
     C(b.Steering.Moves == 1, "steering follows native route");
     var path = (BotPathDataManual)b.Mover.ActivePath!;
-    b.Position = r.Goal;
+    b.Position = r.Goal + new Vector3(0, 4, 0);
     Step();
     a.Update(new());
-    C(r.Policy.Trace.State == "holding" && path.Stops == 1, "arrival stops route and holds angle");
+    C(r.Policy.Trace.State == "holding" && path.Stops == 1 && r.Policy.Trace.DistanceToGoal == 0,
+        "ordinary crossfire still measures arrival horizontally and holds its angle");
     b.GoalEnemy!.IsVisible = true;
     p.Sample(b);
     C(r.Policy.Active, "visibility does not cancel source angle");

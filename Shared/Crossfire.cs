@@ -235,13 +235,16 @@ public sealed class Crossfire
         && now >= progressAt
         && now - movingAt < c.MoveTimeout;
 
-    public bool Progress(double now, double distance, CrossfireConfig c)
+    public bool Progress(double now, double distance, CrossfireConfig c) =>
+        Progress(now, distance, c, holdOnArrival: true);
+
+    internal bool Progress(double now, double distance, CrossfireConfig c, bool holdOnArrival)
     {
         if (Trace?.State != "moving")
             return Active;
         if (!MedicalChoice.Finite(distance))
             return End(now, c, "crossfire-invalid-progress");
-        if (distance <= .8)
+        if (holdOnArrival && distance <= .8)
         {
             Trace.State = "holding";
             Trace.Reason = "crossfire-angle-reached";

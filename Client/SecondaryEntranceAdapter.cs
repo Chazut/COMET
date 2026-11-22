@@ -479,8 +479,10 @@ public sealed partial class Plugin
         {
             if (Vector3.Dot(b.Position - a.Center, a.Normal) > .25)
                 t.Crossed = true;
-            if (Vector3.Distance(b.Position, r.Goal) <= .8)
+            float distance = Vector3.Distance(b.Position, r.Goal);
+            if (distance <= .8f)
             {
+                r.Policy.Trace!.DistanceToGoal = distance;
                 EndCrossfire(
                     b,
                     s,

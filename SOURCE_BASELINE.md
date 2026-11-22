@@ -85,6 +85,10 @@ An accepted sprint starts entry even when SAIN still shows its previous path
 or the bot is already in reach. The trace distinguishes acceptance from the
 entry route becoming active. Cleanup identifies that route by its native
 NavMeshPath, including after SAIN promotes it from the queue.
+For the inward leg only, COMET intentionally measures the distance to the
+destination in 3D. It reports that distance while moving and on arrival, and
+completes entry within 0.8 m. Remix 7.6 measures horizontal distance here.
+A PMC directly above or below the goal therefore keeps moving in COMET.
 Once entry is approved and the inward point is reachable, S02 requests a
 high-urgency sprint even for a short crossing. While still moving, it renews
 that sprint on the first update more than 0.75 seconds after the last order.
