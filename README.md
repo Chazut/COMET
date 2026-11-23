@@ -9,86 +9,156 @@
 
 **Coordinated Opponents, Movement & Engagement Tactics**
 
-Lose sight of a PMC in Dorms and you might hear a reload at the next doorway. It could be a feint. If you keep watching that door, their teammate might be the one you meet at the other entrance.
+**COMET builds on SAIN to make AI PMCs fight more like real players, whether they're running solo or moving as a squad.**
 
-**COMET 1.0.0** builds on **official SAIN 4.5.1** to make PMCs fight more like real players. Its tactics apply to PMCs and AI player scavs, including when they fight each other. Ordinary scavs and bosses keep their usual combat behavior. [Full feature list](MODPAGE.md#features)
+A PMC's kit, personality and what they've actually seen or heard shape their next move. Some will take a chance when they hear you reload. Others would rather change cover, watch a squadmate's flank or let you walk into an ambush. They can panic, miss an opening or get a little too confident, too.
 
-## What you'll see in a raid
+These tactics apply to **PMCs and AI player scavs**, including fights between bots. Ordinary scavs and bosses keep their usual behavior. Bring your favorite SAIN preset.
 
-| In the raid | What changes |
-| --- | --- |
-| A squad sees an enemy enter a building | **Siege.** If squadmates outside can cover every identified exit from their positions, each watches an exit for a limited time. A lone PMC watching a second entrance is a separate tactic. |
-| You open fire on a squad | **Grenade suppression.** A member out of your sight can throw a grenade while a teammate holds an angle on the same contact. |
-| A PMC spots a guard early in the raid | **Boss and faction recognition.** A guard can be enough to make a cautious PMC expect company and reconsider a rush. This also applies to factions such as RUAF, UNTAR, ISB and Black Division. The expectation fades later in the raid. The PMC still has to find the escorts. |
-| A squad decides to push | **Individual commitment.** One member can stay back while the others go. Personality, nearby support and the kind of enemy they spotted influence that choice. |
-| You or another bot step into shadow | **Local lighting.** Shade can slow first detection. A PMC that saw the target in the last 10 seconds uses normal SAIN timing on a repeat peek. Close range, recent hits, active night vision or the target's white light also preserve normal timing. Bots looking at the same AI target share a reading, with at most one new AI lighting measurement per frame. |
-| A PMC takes fire in a bush | **Seasonal and exposed cover.** In autumn and winter, bots skip bare foliage when choosing cover. A solid trunk or wall still counts if it shields the bot from the threat. In any season, once incoming hits make SAIN flag a position as exposed, COMET releases it so the bot can choose another. |
-| A bot drops its magazine in a hurry | **Magazine recovery.** After combat the owner can go back for the actual magazine. A pickup only counts as recovered once that item is back in its inventory. Recovery is enabled by default under **Quick reload**. |
+**COMET 1.0.0 requires SPT 4.1.6 and official SAIN 4.5.1.**
 
-## The combat tactics
+## Features
 
-- **Doors and corners.** A bot can run past an opening for a look, jump-peek, watch a doorway from the side, or fake a grenade pull or a heal to draw you out. Injuries, ammo and signs of someone in the room influence whether it goes in.
-- **Squad roles.** When a squad loses sight of its target, one member can break off to flank while the others cover. A larger group can leave a rear guard. A survivor can react to the loss of a teammate by pushing or watching the attacker's angle.
-- **Reading an opponent.** A PMC can notice gear it has actually seen and learn that you keep peeking the same corner. That adaptation lasts for the encounter. Personality and occasional mistakes keep two bots from always making the same choice.
-- **Following sound.** PMCs can hear other bots walk, jump and land. Footsteps on another floor are harder to hear. A PMC following a sound can crouch for the last few metres, check the spot and call off the search if it finds nothing.
-- **Moving under fire.** A PMC can lean out, strafe, bait a shot and peek from a different height. Outdoors it can change cover after contact, keep its weapon on the threat while backing away or sprint in a zigzag.
-- **Weapons and survival.** Bots weigh an emergency reload against drawing a sidearm, choose grenades for the space they're fighting in, and decide when there's time to treat an injury. After contact, one can watch the last threat while reloading or catch up with its leader.
+**Combat decisions**
 
-## Installation and settings
+- PMCs choose whether to shoot, push, flank, hold, throw a grenade, search or fall back. Their SAIN personality, weapon, ammo, injuries and nearby allies all weigh in.
+- They prioritize known threats, remember gear they've seen and listen for openings such as a reload or a heal. A boss, guard or faction soldier can mean backup, especially early in the raid.
+- Heavy suppression and squad losses can cause fear or panic. Bots can make mistakes, remember repeated peeks and retry tactics that worked earlier in the same fight.
 
-1. Install **SPT 4.1.6**, the **official SAIN 4.5.1** and its dependencies. COMET checks the official SAIN files at startup and disables itself on a modified fork, including zzap. [Download SAIN 4.5.1](https://github.com/ArchangelWTF/SAIN/releases/tag/v4.5.1).
-2. Extract **both folders** from the [release ZIP](https://github.com/Chazut/COMET/releases) into the SPT root. The client goes in `BepInEx/plugins/COMET` and the server mod in `SPT_Runtime/user/mods/COMET`.
-3. Start the SPT server and open the [COMET web settings](https://127.0.0.1:6969/comet). For a remote server, use its address and port followed by `/comet`.
+**Sight, sound & search**
 
-**Hard** is the default COMET preset. Choose **Normal** or **Easy** to dial the tactics back, or tune individual features and save your own preset. You can import and export presets in the web editor. Saved changes apply next raid. SAIN's preset has its own controls.
+- Local light affects first detection for players and AI alike. Recent contact, close range, active NVGs and weapon lights matter. Bots can switch off lamps and lasers while waiting in ambush or at rest.
+- PMCs hear footsteps, jumps and landings, including those of other bots. Floors muffle movement sounds. Distant gunfire, close threats, bullet impacts and nearby explosions get different reactions.
+- A bot can keep watching through a brief loss of sight, approach the last sound quietly, check the area and give up an empty search.
 
-## Playing with other mods
+**Movement & cover**
+
+- Combat strafing, pauses to steady a shot, head movement, leaning, quick peeks and short prefires. A PMC can chase around a corner, jump-peek or fire during a tactical jump.
+- Bots can step out just far enough to see a watched angle, bait a shot with a peek or fake reload, and switch cover outdoors. On the way to safety they can lower their sights, face the threat or sprint away in a zigzag.
+- Bots reconsider cover when hits expose it. They skip bare bushes in autumn and winter, still use protective trunks and walls, and check doorframes before trusting them as cover.
+
+**Doors & room clearing**
+
+- Approach from the side, step-peek, jump-peek, run past the opening or ambush the exit. Bots can fake a grenade pull, heal or stim to draw someone out.
+- Squadmates take turns at the door and cover the rear. A bot can open or breach, clear a room during a search, or send a grenade in first and wait for the blast. An enemy coming out can interrupt the plan.
+- Bots route around open door panels, retry stalled interactions and recover from blocked movement. Closing a door to clear a route is optional.
+
+**Squad tactics**
+
+- Crossfires, a detached flanker with covering fire, rear guards and second-entrance watches. Squads can lay siege to a building when they can cover every identified exit.
+- Coordinated pushes against a vulnerable enemy. Each member can join or stay back. When a player engages the squad, a hidden thrower can use a grenade while a teammate holds the angle.
+- Cover for teammates who heal or reload, reactions to a witnessed squadmate death, and fire discipline when a friendly crosses the barrel. Squad callouts are configurable.
+
+**Weapons, reloads & grenades**
+
+- Weapon choice accounts for distance, sights, ammo and newly looted guns. PMCs can draw a loaded pistol under pressure, switch back to their primary, fire short suppression bursts and check that their muzzle clears cover. Faster aim recovery for DMRs and sniper rifles is optional.
+- Bots time their reloads, drop a mag for an emergency reload, and can return after combat for that same magazine with its remaining rounds.
+- Grenade choice considers the target's last position, fuse, range, roof and doorway. PMCs distinguish frags from flashes, avoid their own throws and scatter to separate safe spots according to personality. Flash effects persist, and supported CS gas accounts for exposure and protection.
+
+**Treatment & regrouping**
+
+- First aid, bleeding control, stims and surgery. Bots tuck back into cover for treatment and can stop surgery when a threat closes in.
+- After combat they can keep their weapon up, watch the last threat, reload, check the last known position or rejoin their leader.
+
+**Settings, replays & reliability**
+
+- Separate COMET difficulty presets, per-tactic settings and a web editor to save, import or share personal presets. COMET respects your SAIN preset and hands control back when its tactics finish.
+- Fika support, ORBIT Ghost Mode and Questing Bots sleep handoffs, Raid Review squad and action events, and live action labels with HORIZON.
+- Recovery for stuck hands, stale reloads, cover searches and failed plans. SAIN fixes cover sight checks, grenade paths, surgery, recoil and animation timing. Per-bot recovery handles interrupted actions, downing, revives and raid cleanup.
+
+## How PMCs fight
+
+- **Personality.** When you reload, a Chad might push while a Rat holds the stairs. Wounds, low ammo or a dead squadmate can change either one's mind.
+- **Memory.** Keep peeking the same window and a PMC may be ready for your next peek. That memory ends with the fight.
+- **Bosses and factions.** A guard or a RUAF, UNTAR, ISB or Black Division patrol means possible backup, especially early in the raid.
+- **Movement.** PMCs can strafe, jump-peek, bait a shot, then peek from a different angle or change cover entirely.
+- **Doorways.** A PMC might fake a heal or a grenade pull to draw you out, hold the exit, or clear the room while a teammate covers.
+
+## Squad tactics
+
+- **Crossfires and flanks.** While one PMC has eyes on you, another can move for a second angle. If the squad loses you, one member can break off to flank while the others cover. A larger group can leave someone watching the rear.
+- **Covering a teammate.** One PMC can watch the approach while another heals or reloads. They give firing teammates room and can hold fire when a friend crosses their sights.
+- **Coordinated pushes.** A squad can rush an enemy it thinks is vulnerable. Each PMC decides whether to go. Hurt one member of a duo and you might get one attacker and one still holding the angle.
+- **Grenade suppression.** When you open fire on a squad, a member out of your sight can throw a grenade while another holds the angle you're fighting from.
+- **Second entrances and sieges.** One PMC can watch a side entrance and decide whether to go in. If a squad outside can cover every exit it's identified, each member can take an exit and wait you out.
+- **Losing a squadmate.** A witness can go after the attacker if they've identified them. With only a rough idea of where the shot came from, a survivor can stay behind cover and watch that direction.
+
+## Sight, sound & cover
+
+- **Light.** Shadows can buy you or another bot time on first contact. Ambushing PMCs can switch off their lights and lasers.
+- **Sound.** PMCs can follow footsteps, hear less between floors, and crouch for the last few metres of a search.
+- **Cover.** Bare bushes lose their value in autumn and winter. Solid trunks still work, and taking hits can make a PMC change cover.
+
+## Gear & survival
+
+- **Weapons.** PMCs choose a gun for the distance, fire short bursts to save ammo, and can draw a pistol when their rifle runs dry.
+- **Dropped magazines.** A PMC can ditch a mag for a faster reload, then come back after the fight for that same mag and its remaining rounds.
+- **Grenades.** PMCs pick a frag or flash to suit the throw, adjust their arc indoors, and scatter when a grenade lands among them.
+- **Field care.** Wounded PMCs prioritize bleeding, use stims, and seek cover for surgery. After the fight they can reload, keep watch or rejoin their squad.
+
+## Install & configure
+
+1. Install [official SAIN 4.5.1](https://github.com/ArchangelWTF/SAIN/releases/tag/v4.5.1) and its dependencies on SPT 4.1.6. COMET disables itself if it detects a modified SAIN build.
+2. Extract the [COMET release ZIP](https://github.com/Chazut/COMET/releases) into your SPT root. Let both `BepInEx` and `SPT_Runtime` merge with the existing folders. The client goes in `BepInEx/plugins/COMET` and the server mod in `SPT_Runtime/user/mods/COMET`.
+3. Start the SPT server and open the editor. On a hosted server, use the host's address and port followed by `/comet`. [Open COMET settings locally](https://127.0.0.1:6969/comet)
+
+**Hard** is the default. **Normal** and **Easy** dial back how often some of the more demanding tactics happen. The web editor lets you change individual behaviors, from doorway jumps to squad callouts, and save or share your own presets. Saved settings take effect next raid.
+
+## Compatibility
 
 **Recommended mods**
 
-- [Bot Healing Fixes](https://sp-mod.com/mod/3140/bot-healing-fixes) helps bots finish treatment after interruptions.
-- [Separate Hostility](https://sp-mod.com/mod/2248/separate-hostility) fixes cases where bots that should be enemies ignore each other.
-- [Twitch Players](https://sp-mod.com/mod/1895/sain-twitch-players) is a SAIN preset for tougher fights. A GigaChad PMC can line up a shot faster than a Normal PMC.
-- [SAIN Personality Mixer](https://sp-mod.com/index.php/addon/177/sain-personality-mixer) lets you choose how often each PMC personality appears, so you can still run into Rats and Timmies at higher levels.
+- **[SAIN Personality Mixer](https://sp-mod.com/index.php/addon/177/sain-personality-mixer)** lets you choose how often each PMC personality appears, so you can still run into Rats and Timmies at higher levels.
+- **[Bot Healing Fixes](https://sp-mod.com/mod/3140/bot-healing-fixes)** helps wounded bots finish healing and recover when treatment gets interrupted.
+- **[Separate Hostility](https://sp-mod.com/mod/2248/separate-hostility)** fixes cases where bots that should be enemies ignore each other.
+- **[Twitch Players](https://sp-mod.com/mod/1895/sain-twitch-players)** is a SAIN preset for tougher fights. A GigaChad PMC can line up a shot faster than a Normal PMC.
+- **[Satellite](https://sp-mod.com/mod/3373/satellite)** shows the raid live on a map. Raid replay is planned.
 
-| Setup | What to expect |
-| --- | --- |
-| [ORBIT](https://sp-mod.com/mod/2706/orbit-30), [Questing Bots](https://sp-mod.com/mod/1109/questing-bots), [Looting Bots](https://sp-mod.com/mod/812/looting-bots) | Your existing mods handle quests, loot and travel. COMET yields for ORBIT Ghost Mode and Questing Bots sleep. |
-| [Fika](https://sp-mod.com/mod/2326/project-fika) | The client DLL detects Fika automatically. Use matching client builds on the AI host or headless and each playing client. Install the server folder on the SPT server. When upgrading from the split plugin, remove the old `COMET.Fika.dll`. |
-| [Winter Outbreak](https://sp-mod.com/mod/3392/winter-outbreak) | COMET preserves seasonal footstep sounds. |
-| [Manimal's CS Gas](https://sp-mod.com/mod/2864/manimals-cs-gas) 2.0.0 or 2.0.1 | Time spent in the gas and the bot's protective gear affect its vision. |
-| [Raid Review](https://sp-mod.com/mod/1479/raid-review) | The replay can show squad assignments, cover changes and magazine recovery. A chosen tactic and a completed action can appear as separate events. |
-| [HORIZON](https://sp-mod.com/mod/3362/horizon) | After you die, Bot Info shows what each bot is doing while you spectate. |
+**Other supported mods**
+
+- **[Fika](https://sp-mod.com/mod/2326/project-fika).** Install the matching COMET client on each player's PC and on the host or headless. Fika support is built in. Install the server folder on the SPT server. If you're upgrading from the split plugin, remove the old `COMET.Fika.dll`.
+- **[ORBIT](https://sp-mod.com/mod/2706/orbit-30), [Questing Bots](https://sp-mod.com/mod/1109/questing-bots) and [Looting Bots](https://sp-mod.com/mod/812/looting-bots).** These are optional. Your usual mods still handle travel, quests and loot. COMET yields when ORBIT puts a bot in Ghost Mode or Questing Bots puts it to sleep.
+- **[Winter Outbreak](https://sp-mod.com/mod/3392/winter-outbreak).** COMET keeps the seasonal footstep sounds.
+- **[Manimal's CS Gas](https://sp-mod.com/mod/2864/manimals-cs-gas) 2.0.0 or 2.0.1.** Time spent in a gas cloud and the protection a bot is wearing affect its vision.
+- **[Raid Review](https://sp-mod.com/mod/1479/raid-review) and [HORIZON](https://sp-mod.com/mod/3362/horizon).** Raid Review shows squad roles, cover changes and magazine pickups in the replay. HORIZON's Bot Info shows each bot's current action live after you die.
 
 ## FAQ
 
-**Which diagnostics should I enable?** **Combat journal** is on by default so Raid Review can show contacts, damage and time spent on each action. You can turn it off and still replay the raid, including squad tactics and magazine pickups. The other four options are off by default. Enable **Decision counters** for tactic statistics, or **Weapon changes and loops**, **Control transitions** or **Performance capture** to investigate a specific issue. Changes apply next raid.
+**Will COMET cost me FPS?**
+
+Yes. Keeping the impact on FPS as low as possible is a top priority. COMET spreads work across frames to limit stutters. The extra AI still takes some CPU time, so the impact depends on your setup and how many bots are fighting.
+
+**Can I keep my SAIN preset?**
+
+Yes. Keep the SAIN preset you like and use COMET's web editor to tune how often PMCs try its tactics.
+
+**How should I set SAIN's AI vs AI limits?**
+
+In SAIN's F6 menu, I recommend turning all three AI vs AI limits **OFF** (Global Toggle, Vision and Hearing). Distant squads can then spot and hear each other at your preset's usual ranges, which is especially noticeable in freecam. COMET also works with the limits on.
+
+**Which diagnostics should I enable?**
+
+**Combat journal** is on by default so Raid Review can show contacts, damage and time spent on each action. You can turn it off and still replay the raid, including squad tactics and magazine pickups. The other four options are off by default. Enable **Decision counters** for tactic statistics, or **Weapon changes and loops**, **Control transitions** or **Performance capture** to investigate a specific issue. Changes apply next raid.
 
 On upgrade, COMET applies these five settings once and backs up the previous config if it changes. You can then switch any of them on or off for future raids.
-
-**Will COMET cost me FPS?** Keeping the performance impact as low as possible is a top priority. COMET spreads work across frames to limit stutters. When several bots look at the same AI target, they reuse its lighting measurement. The extra combat decisions still take CPU time, so the impact depends on your setup and how many bots are fighting.
-
-**Can I keep my SAIN preset?** Yes. Use SAIN for your usual AI settings. COMET's own web editor lets you adjust individual tactics or change how often PMCs try them.
-
-**How should I set SAIN's AI vs AI limits?** In SAIN's F6 menu, I recommend turning all three AI vs AI limits **OFF** (Global Toggle, Vision and Hearing). Distant squads can then spot and hear each other at your preset's usual ranges, which is especially noticeable in freecam. COMET also works with the limits on.
 
 ## AI
 
 Yep, I used AI to make the AI feel less like AI 😂
 
-We spent hundreds of hours testing and tweaking COMET across hundreds of raids. If you want to see how it plays, give it a shot. And if you're looking for SLOP, there might be something in there for you 👀
+If that's a dealbreaker for you, skip this one. If you judge a mod by what it does in a raid, give COMET a shot.
+
+We spent hundreds of hours of our free time iterating, testing and tweaking it across hundreds of raids. Ask me how many of those hours I spent watching the same PMC try to open a door. Actually, please don't.
+
+And if you're here looking for SLOP... well, I did leave some in there for you to find 👀
 
 ## Credits
 
-**R_F** designed most of the combat tactics in his SAIN fork and gave permission to port them. His developer kit also helped with testing. **Chazut** created the standalone port, the COMET additions, the web editor and the integrations. [R_F](https://sp-mod.com/user/15954/r-f) · [Chazut](https://sp-mod.com/user/53567/chazut)
-
-Thanks to **Solarint**, the SAIN contributors and fork maintainers for their work, and to everyone who tested COMET, reported a bug or sent a clip. [Solarint](https://sp-mod.com/user/27463/solarint)
-
-Thanks to **[liquidwarp](https://github.com/liquidwarp/SPT-SAIN)** for identifying and fixing native SAIN issues with raycasts, enemy checks, surgery, recoil and animation timing. COMET adapts these fixes while keeping Bot Healing Fixes compatible.
+[**R_F**](https://sp-mod.com/user/15954/r-f) designed most of the combat tactics and gave me permission to bring them to official SAIN. [**Chazut**](https://sp-mod.com/user/53567/chazut) built the standalone mod, added original features and integrations, and made the web editor. Thanks to **[Solarint](https://sp-mod.com/user/27463/solarint) and the SAIN contributors/forkers**, [**liquidwarp**](https://sp-mod.com/user/120411/liquidwarp) for the SAIN fixes, and to everyone who sent clips of PMCs doing brilliant or deeply questionable things.
 
 ## Support
 
-**Found a bug?** Open the **Issues** tab on Forge or GitHub. Include the map, bot name and approximate raid time. For detailed logs, turn **Diagnostics > Quiet logging** off before the raid and attach the relevant files from `BepInEx/COMET/diagnostics`. With Fika, collect the AI host's logs. Quiet mode still allows Raid Review events. [GitHub issues](https://github.com/Chazut/COMET/issues)
+**Found a bug?** Open a report in the **Issues** tab on Forge or on [GitHub](https://github.com/Chazut/COMET/issues). Include the map, bot name and approximate raid time. For detailed logs, turn off **Diagnostics > Quiet logging** before the raid and attach the files from `BepInEx/COMET/diagnostics`. With Fika, use the AI host's logs. Quiet mode still allows Raid Review events.
 
 Local storage keeps the latest 20 raids by default and archives older logs within a 5 GB budget. You can adjust this under **F12 > COMET > Diagnostics storage**. [Storage details](DIAGNOSTIC_STORAGE.md)
 
