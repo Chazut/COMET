@@ -101,6 +101,18 @@ static class Audit
         // Metadata preparation runs against the actual built client, without JITing Unity
         // callbacks on the .NET test host or executing any game action.
         var client = typeof(Comet.Client.Plugin).Assembly;
+        var shootData = typeof(SAIN.SAINComponent.Classes.SAINShootData);
+        const BindingFlags nativeInstance = BindingFlags.NonPublic | BindingFlags.Instance;
+        var directAim = Calls(shootData.GetMethod("AimAndShootAtEnemy", nativeInstance)!).Select(m => m.Name).ToList();
+        int point = directAim.IndexOf("GetAimTarget");
+        int ready = directAim.IndexOf("AimAtTarget");
+        int trigger = directAim.IndexOf("ShootWhenAimComplete");
+        if (point < 0 || ready <= point || trigger <= ready
+            || !Calls(shootData.GetMethod("ShootWhenAimComplete", nativeInstance)!).Any(m => m.Name == "Shoot")
+            || !probe.Hooks.Any(h => h.Callback == "OpeningAimPoint" && h.Target.Contains("SAINShootData.GetAimTarget"))
+            || !probe.Hooks.Any(h => h.Callback == "OpeningTrigger" && h.Target.Contains("SAINShootData.ShootWhenAimComplete"))
+            || !probe.Hooks.Any(h => h.Callback == "OpeningObservedShot" && h.Target.Contains("PlayerComponent.OnMakingShot")))
+            throw new Exception("Opening shot must use native aim, native readiness and a real shot observation.");
         if (probe.Hooks.Count(h => h.Callback == "ObserveContactSound" && h.Target.Contains("EnemyHearing.UpdateHeardPosition")) != 1)
             throw new Exception("H01 and M14 must share one native hearing registration.");
         VerifyFeintHearing(client);

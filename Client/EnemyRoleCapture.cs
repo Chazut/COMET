@@ -66,6 +66,9 @@ internal static class EnemyRoleCapture
             : null;
     }
 
+    internal static EnemyIdentity IdentityOf(Player player) =>
+        identifications.GetValue(player, p => new Identification(p)).Identity;
+
     internal static void Observe(Enemy enemy, Situation s, BotState state)
     {
         if (state.BotKind != "pmc" || !s.HasContact)
@@ -84,9 +87,7 @@ internal static class EnemyRoleCapture
             && enemy.EnemyPlayer is Player player
         )
         {
-            s.RecognizedEnemy = identifications
-                .GetValue(player, p => new Identification(p))
-                .Identity;
+            s.RecognizedEnemy = IdentityOf(player);
             if (enemy.IsVisible || sight != null)
             {
                 var position = enemy.IsVisible ? enemy.EnemyPosition : sight!.Position;

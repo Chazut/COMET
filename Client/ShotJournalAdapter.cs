@@ -94,6 +94,11 @@ public sealed partial class Plugin
                             bothParts++;
                     }
                 var light = enemy?.EnemyPlayerComponent?.Flashlight;
+                OpeningAim? planned = null;
+                bool opening = intent == "direct" && enemy != null
+                    && p.openingShots.TryGetValue(enemy, out planned)
+                    && ReferenceEquals(planned.Weapon, __0)
+                    && planned.Shot.OwnsTrigger(b.BotOwner.ShootData.LastTriggerPressd);
                 r.Detailed++;
                 p.JournalWrite(
                     s,
@@ -120,7 +125,8 @@ public sealed partial class Plugin
                             ? (double?)enemy.TimeSinceSeen
                             : null,
                         contactAge = (double?)enemy?.TimeSinceLastKnownUpdated,
-                        chosenPart = enemy?.AimTarget.ChosenPart?.ToString(),
+                        openingShot = opening,
+                        chosenPart = opening && planned!.Shot.Head ? "Head" : enemy?.AimTarget.ChosenPart?.ToString(),
                         partsAvailable = parts != null,
                         seenParts,
                         shootParts,

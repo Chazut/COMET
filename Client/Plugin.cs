@@ -234,6 +234,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             RunIntegration("PatchRetreatWeave", () => PatchRetreatWeave(harmony));
 
             RunIntegration("PatchTacticalJump", () => PatchTacticalJump(harmony));
+            RunIntegration("PatchOpeningShot", () => PatchOpeningShot(harmony));
 
             RunIntegration("PatchOutdoorRelocation", () => PatchOutdoorRelocation(harmony));
 
