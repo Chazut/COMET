@@ -354,7 +354,7 @@ sealed class Boundaries(string file, Dictionary<string, string> callbacks, List<
             : file == "CloseDetectionAdapter" && name == "CloseVisibleAfter"
                 ? "if (__state || !__instance.IsVisible) return;"
             : file == "SearchAbandonmentAdapter" && name == "CheckSearchedPlace"
-                ? "if (!NeedsAbandonment(__instance, false)) return;"
+                ? "if (!__result || !NeedsAbandonment(__instance, false)) return;"
             : file == "SearchAbandonmentAdapter" && name == "SearchForgetObserved"
                 ? "if (!NeedsAbandonment(__instance, true)) return;"
             : file == "WeaponSyncAdapter" && name == "EnsureWeaponSyncTracked"

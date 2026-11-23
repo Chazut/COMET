@@ -88,6 +88,9 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
             : File == "Diagnostics" && name == "Dispatch" ? "Diagnostics.Subscribers"
             : File == "Diagnostics" && name == "Write" ? "Diagnostics.Queue"
             : File.Replace("Adapter", "").Replace("Integration", "");
+        if (File == "CombatLeanAdapter" && name is "SelectCombatLean" or "LeanFrame" or "ApplyCombatLeanAnimation" or "GuardCombatLean"
+            || File == "SearchAbandonmentAdapter" && name is "CheckSearchedPlace" or "SearchForgetObserved")
+            module += "." + name;
         if (module == "Plugin")
             module = "DecisionCoordinator." + name;
         if (evidence)

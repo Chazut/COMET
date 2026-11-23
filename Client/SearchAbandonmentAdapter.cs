@@ -59,7 +59,9 @@ public sealed partial class Plugin
             return false;
         var e = abandonmentEnemy(checker);
         return p.states.TryGetValue(e.Bot, out var s)
-            && (!pending || s.AbandonPending?.Target == e.EnemyProfileId);
+            && (pending
+                ? s.AbandonPending?.Target == e.EnemyProfileId
+                : e.KnownPlaces?.LastKnownPlace != null);
     }
 
     private static void CheckSearchedPlace(

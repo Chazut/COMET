@@ -58,7 +58,11 @@ public sealed class CombatLeanConfig
 
 public sealed class CombatLeanFrame
 {
-    public CombatStepFrame Combat = new();
+    public CombatStepFrame Combat;
+
+    public CombatLeanFrame() : this(new CombatStepFrame()) { }
+
+    internal CombatLeanFrame(CombatStepFrame combat) => Combat = combat;
     public bool NativeLeanEnabled = true,
         NativeLeanOwned,
         CornerPeek,
@@ -145,9 +149,8 @@ public sealed class CombatLean
 
     private int episode;
 
-    public static string Gate(CombatLeanFrame f, CombatLeanConfig c)
+    internal static string ContactGate(CombatStepFrame b, CombatLeanConfig c)
     {
-        var b = f.Combat;
         if (!c.Enabled || !b.Enabled || !b.Pmc || !b.Authority || !b.Active || b.Ghost)
             return "lean-out-of-scope";
         if (b.Action != "StandAndShoot" && b.Action != "DogFight")
@@ -163,9 +166,18 @@ public sealed class CombatLean
             || !Finite(b.ContactAge)
             || b.ContactAge < 0
             || !Point(b.Known)
-            || !Finite(f.HeadLateral)
-            || !Finite(f.SmoothedTilt)
         )
+            return "lean-invalid-observation";
+        return "";
+    }
+
+    public static string Gate(CombatLeanFrame f, CombatLeanConfig c)
+    {
+        var b = f.Combat;
+        var contact = ContactGate(b, c);
+        if (contact.Length > 0)
+            return contact;
+        if (!Finite(f.HeadLateral) || !Finite(f.SmoothedTilt))
             return "lean-invalid-observation";
         if (!f.NativeLeanEnabled)
             return "lean-native-lean-priority";

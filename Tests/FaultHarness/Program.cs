@@ -236,6 +236,11 @@ Check(
 );
 int recorded = events.Count;
 hot.ThrowPreflight = true;
+int guardsBeforeRefusal = hot.GuardCalls;
+for (int i = 0; i < 1000; i++)
+    hot.CheckSearchedPlace(search, ref nativeKnown);
+Check(!nativeKnown && hot.GuardCalls == guardsBeforeRefusal && events.Count == recorded && hot.SearchChecks == 1,
+    "1000 native rejections bypass both contact lookup and lifecycle checks");
 nativeKnown = true;
 hot.CheckSearchedPlace(search, ref nativeKnown);
 Check(

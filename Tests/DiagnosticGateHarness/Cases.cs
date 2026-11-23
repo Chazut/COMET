@@ -53,8 +53,11 @@ class BotComponent
     public Enemy? GoalEnemy;
 }
 
+class KnownPlacesDouble { public object? LastKnownPlace = new(); }
+
 class Enemy
 {
+    public KnownPlacesDouble KnownPlaces = new();
     public BotComponent Bot = new();
     public string EnemyProfileId = "target";
     public EnemyPathDouble Path = new();
@@ -270,6 +273,10 @@ partial class Probe
         );
         s.AbandonPending = new SearchAbandonmentFrame { Target = "target" };
         Check(NeedsAbandonment(checker, true), "native forget confirmation immediate");
+        e.KnownPlaces.LastKnownPlace = null;
+        Check(!NeedsAbandonment(checker, false), "no place needs no evaluation");
+        Check(NeedsAbandonment(checker, true), "a forgotten place still confirms the pending contact");
+        e.KnownPlaces.LastKnownPlace = new();
         e.EnemyProfileId = "other";
         b.GoalEnemy = null;
         Check(

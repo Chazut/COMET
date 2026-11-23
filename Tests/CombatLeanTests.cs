@@ -34,6 +34,19 @@ internal static class CombatLeanTests
             CombatLean.Gate(f, c) == "",
             "source does not require geometry or full skeleton evidence"
         );
+        var denied = new CombatLeanFrame(new CombatStepFrame { Action = "other" })
+        {
+            HeadLateral = double.NaN,
+        };
+        Check(CombatLean.ContactGate(denied.Combat, c) == "lean-native-action-changed"
+            && CombatLean.Gate(denied, c) == "lean-native-action-changed",
+            "rejecting native action takes priority over physical observation");
+        denied.Combat.Action = "DogFight";
+        denied.Combat.Target = "enemy";
+        denied.Combat.Distance = 10;
+        Check(CombatLean.ContactGate(denied.Combat, c) == ""
+            && CombatLean.Gate(denied, c) == "lean-invalid-observation",
+            "an eligible action still requires a finite physical observation");
         var p = new CombatLean();
         Check(p.Begin(f, c, 0, 0, 0, 0, 0, 0), "native tilt start");
         f.Combat.Now = 20;

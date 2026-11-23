@@ -121,9 +121,9 @@ public sealed partial class Plugin
             r.CallbackAt = Time.time;
             if (!r.Policy.Active && Time.time < r.Policy.NextAttempt)
                 return true;
-            var f = p.LeanFrame(b, s, __instance);
-            if (!r.Policy.Active && f.FirePause)
+            if (!r.Policy.Active && s.CombatStep.Pause.Pausing)
                 return true;
+            var f = p.LeanFrame(b, s, __instance, observePose: true);
             // Cheap scope checks always precede geometry or RNG work.
             f.GeometryFresh = f.LeftSafe = f.RightSafe = true;
             string gate = CombatLean.Gate(f, p.config.CombatLean);
@@ -204,16 +204,25 @@ public sealed partial class Plugin
         }
     }
 
-    private CombatLeanFrame LeanFrame(BotComponent b, BotState s, LeanClass lean)
+    private CombatLeanFrame LeanFrame(BotComponent b, BotState s, LeanClass lean, bool observePose = false)
     {
-        var f = CombatStepFrame(b, s);
+        var f = new CombatLeanFrame(CombatStepFrame(b, s, CombatFrameUse.Lean))
+        {
+            FirePause = s.CombatStep.Pause.Pausing,
+        };
+        if (CombatLean.ContactGate(f.Combat, config!.CombatLean).Length > 0)
+            return f;
+
+        var root = b.Position;
         var right = b.Player.Transform.right;
-        var head = b.Player.PlayerBones.Head;
-        var position = head.position;
+        var bones = b.Player.PlayerBones;
+        var head = bones.Head;
+        var bonePosition = head.position;
+        var position = bonePosition;
         var source = "bone";
         // Prefer the enabled physical hit volume. BifacialTransform can return
         // an imitated/accumulated position instead of the animated head.
-        var colliders = b.Player.PlayerBones.BodyPartCollidersDictionary;
+        var colliders = bones.BodyPartCollidersDictionary;
         if (
             colliders != null
             && colliders.TryGetValue(EBodyPartColliderType.HeadCommon, out var part)
@@ -225,32 +234,28 @@ public sealed partial class Plugin
             position = sphere.transform.TransformPoint(sphere.center);
             source = "head-collider";
         }
-        return new()
+        f.HeadLateral = Vector3.Dot(position - root, right);
+        f.SmoothedTilt = lean.LeanAngleValue.LastSmoothedValue;
+        f.NativeLeanEnabled = b.Info.FileSettings.Move.LEAN_TOGGLE && SainPresetAccess.AllowsLean;
+        f.CornerPeek = s.CornerPeek.Policy.Active;
+        if (!observePose)
+            return f;
+
+        f.HeadSource = source;
+        f.BoneHeadLateral = Vector3.Dot(bonePosition - root, right);
+        f.HeadImitated = head.UseImitation;
+        f.HeadAccumulated = head.AccumulatePositionAndRotation;
+        f.NativeTilt = b.Player.MovementContext.Tilt;
+        f.NativeSmoothedTilt = b.Player.MovementContext.SmoothedTilt;
+        f.SimplifiedSkeleton = b.Player.UsedSimplifiedSkeleton;
+        f.BodyAnimationCulling = b.Player.GetBodyAnimatorCommon()?.cullingMode switch
         {
-            Combat = f,
-            NativeLeanEnabled = b.Info.FileSettings.Move.LEAN_TOGGLE && SainPresetAccess.AllowsLean,
-            NativeLeanOwned = lean.IsHoldingLean || b.Cover.CoverInUse != null,
-            CornerPeek = s.CornerPeek.Policy.Active,
-            FirePause = s.CombatStep.Pause.Pausing,
-            SmoothedTilt = lean.LeanAngleValue.LastSmoothedValue,
-            HeadLateral = Vector3.Dot(position - b.Position, right),
-            HeadSource = source,
-            BoneHeadLateral = Vector3.Dot(head.position - b.Position, right),
-            HeadImitated = head.UseImitation,
-            HeadAccumulated = head.AccumulatePositionAndRotation,
-            NativeTilt = b.Player.MovementContext.Tilt,
-            NativeSmoothedTilt = b.Player.MovementContext.SmoothedTilt,
-            SimplifiedSkeleton = b.Player.UsedSimplifiedSkeleton,
-            // Native EFT may stop updating transforms for distant/off-screen bots.
-            // Record the mode, without forcing expensive animation or claiming motion.
-            BodyAnimationCulling = b.Player.GetBodyAnimatorCommon()?.cullingMode switch
-            {
-                AnimatorCullingMode.AlwaysAnimate => "always-animate",
-                AnimatorCullingMode.CullUpdateTransforms => "cull-update-transforms",
-                AnimatorCullingMode.CullCompletely => "cull-completely",
-                _ => "unknown",
-            },
+            AnimatorCullingMode.AlwaysAnimate => "always-animate",
+            AnimatorCullingMode.CullUpdateTransforms => "cull-update-transforms",
+            AnimatorCullingMode.CullCompletely => "cull-completely",
+            _ => "unknown",
         };
+        return f;
     }
 
     private void GuardCombatLean(BotComponent b, BotState s)

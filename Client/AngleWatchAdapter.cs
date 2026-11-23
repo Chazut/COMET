@@ -112,7 +112,7 @@ public sealed partial class Plugin
         var r = s.AngleWatch;
         var c = config!.AngleWatch;
         var e = b.GoalEnemy;
-        var combat = CombatStepFrame(b, s);
+        var combat = CombatStepFrame(b, s, CombatFrameUse.AngleScope);
         var f = new AngleWatchFrame
         {
             Now = Time.time,

@@ -138,6 +138,12 @@ static class Audit
         if (yieldIndex < 0 || cacheIndex <= yieldIndex || Calls(yieldThreat).Contains(resetThreat)
             || !Calls(releaseThreat).Contains(resetThreat) || !Calls(releaseThreat).Contains(yieldThreat))
             throw new Exception("A07 must yield a single contact before consulting its cache and preserve memory until full release.");
+        var stepInputs = Calls(plugin.GetMethod("CombatStepFrame", instance)!).ToArray();
+        var leanInputs = Calls(plugin.GetMethod("LeanFrame", instance)!).Select(m => m.Name).ToList();
+        if (stepInputs.Any(m => m.Name is "WeaponReady" or "get_HaveBullets" or "IsAmmoCompatible")
+            || leanInputs.IndexOf("ContactGate") < 0
+            || leanInputs.IndexOf("get_PlayerBones") <= leanInputs.IndexOf("ContactGate"))
+            throw new Exception("Movement sampling must not query ammo, and M04 must reject the contact before reading the skeleton.");
         var readAmmo = plugin.GetMethod("TacticalAmmoCounts", BindingFlags.NonPublic | BindingFlags.Static)!;
         var chaseFrame = plugin.GetMethod("ChaseFrame", instance)!;
         var prefireCalls = Calls(plugin.GetMethod("PrefireFrame", instance)!).ToArray();

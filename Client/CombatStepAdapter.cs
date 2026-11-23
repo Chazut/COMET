@@ -295,13 +295,27 @@ public sealed partial class Plugin
             START_SLOW_DIST = .15f; // Short native route: brake at the real endpoint, not 0.85 m before a sub-metre step.
     }
 
-    private CombatStepFrame CombatStepFrame(BotComponent b, BotState s)
+    private enum CombatFrameUse { Movement, Lean, AngleScope }
+
+    private CombatStepFrame CombatStepFrame(BotComponent b, BotState s, CombatFrameUse use = CombatFrameUse.Movement)
     {
         var e = b.GoalEnemy;
+        var f = new CombatStepFrame
+        {
+            Enabled = config?.Enabled == true && ContactSafety.Allows(b, e),
+            Pmc = NativeAdapter.IsSupportedAi(b),
+            Authority = Authority,
+            Ghost = Ghost(b.ProfileId),
+            Active = b.BotActive && !b.IsDead && !b.GameEnding && b.SAINLayersActive,
+        };
+        if (use == CombatFrameUse.AngleScope)
+            return f;
+
         var seen = e?.KnownPlaces.LastSeenPlace;
-        var known = seen?.Position ?? b.Position;
+        var position = b.Position;
+        var known = seen?.Position ?? position;
         var action = b.CurrentAction?.GetType().Name;
-        string name =
+        f.Action =
             action == "StandAndShootAction"
             && b.Decision.CurrentCombatDecision == ECombatDecision.StandAndShoot
                 ? "StandAndShoot"
@@ -309,35 +323,22 @@ public sealed partial class Plugin
             && b.Decision.CurrentCombatDecision == ECombatDecision.DogFight
                 ? "DogFight"
             : "other";
-        var movement = b.Player.MovementContext;
-        return new()
+        f.Now = Time.time;
+        f.Target = e?.EnemyProfileId ?? "";
+        f.Visible = e?.IsVisible == true && seen != null;
+        f.Known = DP(known);
+        f.ContactAge = seen?.TimeSincePositionUpdated ?? 0;
+        f.Distance = Vector3.Distance(position, known);
+        f.Immobile = b.Player.IsInPronePose;
+        f.Busy = b.Player.HandsController is IMedsController || b.BotOwner.Medecine?.Using == true;
+        if (use == CombatFrameUse.Movement)
         {
-            Now = Time.time,
-            Enabled = config?.Enabled == true && ContactSafety.Allows(b, e),
-            Pmc = NativeAdapter.IsSupportedAi(b),
-            Authority = Authority,
-            Ghost = Ghost(b.ProfileId),
-            Active = b.BotActive && !b.IsDead && !b.GameEnding && b.SAINLayersActive,
-            Action = name,
-            Target = e?.EnemyProfileId ?? "",
-            Personality = b.Info.Personality.ToString(),
-            Visible = e?.IsVisible == true && seen != null,
-            Source = seen != null ? "personal-vision" : "",
-            Known = DP(known),
-            ContactAge = seen?.TimeSincePositionUpdated ?? 0,
-            Position = DP(b.Position),
-            Distance = Vector3.Distance(b.Position, known),
-            Grounded = movement.IsGrounded,
-            Sprinting = b.Player.IsSprintEnabled || b.Mover.Running,
-            Immobile = b.Player.IsInPronePose,
-            Ready =
-                b.Player.HandsController is Player.FirearmController
-                && VisibleAdapter.WeaponReady(b),
-            ProtectedCover = b.Cover.CoverInUse != null,
-            Busy =
-                b.Player.HandsController is IMedsController || b.BotOwner.Medecine?.Using == true,
-            Urgent = false,
-        };
+            f.Position = DP(position);
+            f.Personality = b.Info.Personality.ToString();
+            f.Source = seen != null ? "personal-vision" : "";
+            f.Grounded = b.Player.MovementContext.IsGrounded;
+        }
+        return f;
     }
 
     private void RefreshCombatStep(BotComponent b, BotState s, bool mayPlan)
