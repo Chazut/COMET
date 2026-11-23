@@ -41,6 +41,9 @@ public sealed class PerformanceReport
     public long DurationMismatchFrames { get; set; }
     public long UnobservedFrames { get; set; }
     public long SlowFrames { get; set; }
+    public double FrameBudgetMs => PerformanceConfig.FrameBudgetMs;
+    public long CometFramesOverBudget { get; set; }
+    public long GameFramesOverBudget { get; set; }
     public long OmittedSlowFrames { get; set; }
     public long ScopeOverflows { get; set; }
     public long CoalescedScopes { get; set; }
@@ -95,6 +98,8 @@ public sealed class PerformanceRecorder
             Unknown,
             Missing,
             Slow,
+            CometOverBudget,
+            GameOverBudget,
             Omitted,
             Mismatches;
         public double CometMs,
@@ -127,6 +132,7 @@ public sealed class PerformanceRecorder
     private readonly Totals raid;
     private Totals window;
     private readonly List<PerformanceFrame> hitches = new(64);
+    private int lowestPriorityHitch = -1;
     private long serial,
         overflows;
     private int depth,
@@ -292,6 +298,7 @@ public sealed class PerformanceRecorder
         var report = Snapshot(window, false);
         window = new Totals(names.Length);
         hitches.Clear();
+        lowestPriorityHitch = -1;
         windowStart = now;
         return report;
     }
@@ -353,11 +360,15 @@ public sealed class PerformanceRecorder
             {
                 window.Omitted++;
                 raid.Omitted++;
-                for (int i = 0; i < hitches.Count; i++)
-                    if (replace < 0 || HitchCost(hitches[i]) < HitchCost(hitches[replace]))
-                        replace = i;
-                if (Math.Max(duration ?? 0, cost) <= HitchCost(hitches[replace]))
-                    replace = -2;
+                if (lowestPriorityHitch < 0)
+                {
+                    lowestPriorityHitch = 0;
+                    for (int i = 1; i < hitches.Count; i++)
+                        if (HitchPriority(hitches[i]).CompareTo(HitchPriority(hitches[lowestPriorityHitch])) < 0)
+                            lowestPriorityHitch = i;
+                }
+                replace = HitchPriority(cost, duration).CompareTo(HitchPriority(hitches[lowestPriorityHitch])) > 0
+                    ? lowestPriorityHitch : -2;
             }
             if (replace != -2)
             {
@@ -367,10 +378,13 @@ public sealed class PerformanceRecorder
                 var selected = new List<PerformanceModule>(18);
                 for (int i = 0; i < Math.Min(12, top.Length); i++)
                     selected.Add(top[i]);
-                Array.Sort(top, (a, b) => (b.SelfBytes ?? 0).CompareTo(a.SelfBytes ?? 0));
-                for (int i = 0; i < Math.Min(6, top.Length); i++)
-                    if (!selected.Contains(top[i]))
-                        selected.Add(top[i]);
+                if (allocations)
+                {
+                    Array.Sort(top, (a, b) => (b.SelfBytes ?? 0).CompareTo(a.SelfBytes ?? 0));
+                    for (int i = 0; i < Math.Min(6, top.Length); i++)
+                        if (!selected.Contains(top[i]))
+                            selected.Add(top[i]);
+                }
                 var f = new PerformanceFrame
                 {
                     Frame = id,
@@ -389,7 +403,10 @@ public sealed class PerformanceRecorder
                     TopModules = selected.ToArray(),
                 };
                 if (replace >= 0)
+                {
                     hitches[replace] = f;
+                    lowestPriorityHitch = -1;
+                }
                 else
                     hitches.Add(f);
             }
@@ -398,7 +415,11 @@ public sealed class PerformanceRecorder
         first = false;
     }
 
-    private static double HitchCost(PerformanceFrame f) => Math.Max(f.FrameMs ?? 0, f.CometMs);
+    private static (bool cometOverBudget, double ms) HitchPriority(PerformanceFrame f) =>
+        HitchPriority(f.CometMs, f.FrameMs);
+
+    private static (bool cometOverBudget, double ms) HitchPriority(double cost, double? duration) =>
+        cost > PerformanceConfig.FrameBudgetMs ? (true, cost) : (false, Math.Max(cost, duration ?? 0));
 
     private void AddFrame(Totals t, int id, double? duration, double cost, bool slow)
     {
@@ -410,6 +431,10 @@ public sealed class PerformanceRecorder
             t.Unknown++;
         if (slow)
             t.Slow++;
+        if (cost > PerformanceConfig.FrameBudgetMs)
+            t.CometOverBudget++;
+        if (duration > PerformanceConfig.FrameBudgetMs)
+            t.GameOverBudget++;
         t.CometMs += cost;
         t.MaxCometMs = Math.Max(t.MaxCometMs, cost);
         t.MaxFrameMs = Math.Max(t.MaxFrameMs, duration ?? 0);
@@ -442,6 +467,8 @@ public sealed class PerformanceRecorder
             DurationMismatchFrames = t.Mismatches,
             UnobservedFrames = t.Missing,
             SlowFrames = t.Slow,
+            CometFramesOverBudget = t.CometOverBudget,
+            GameFramesOverBudget = t.GameOverBudget,
             OmittedSlowFrames = t.Omitted,
             ScopeOverflows = overflows,
             CoalescedScopes = coalesced,

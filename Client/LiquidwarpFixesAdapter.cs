@@ -135,13 +135,12 @@ public sealed partial class Plugin
 
     private struct PathCacheSnapshot
     {
-        internal bool Scoped;
+        internal bool Captured;
         internal Vector3? Enemy;
         internal Vector3 Bot;
     }
 
     private static void SavePathCache(
-        SAINEnemyPath __instance,
         Vector3? ____enemyLastPosChecked,
         Vector3 ____botLastPosChecked,
         out PathCacheSnapshot __state
@@ -149,7 +148,7 @@ public sealed partial class Plugin
     {
         __state = new()
         {
-            Scoped = Instance?.NativeFixScope(__instance.Bot) == true,
+            Captured = true,
             Enemy = ____enemyLastPosChecked,
             Bot = ____botLastPosChecked,
         };
@@ -163,7 +162,13 @@ public sealed partial class Plugin
         PathCacheSnapshot __state
     )
     {
-        if (!__state.Scoped || __result)
+        if (!__state.Captured || __result
+            || Nullable.Equals(____enemyLastPosChecked, __state.Enemy) && ____botLastPosChecked.Equals(__state.Bot))
+            return;
+        // SAIN only writes these positions after a real move. Check ownership
+        // at the write-back, avoiding a bot/ghost lookup on every poll.
+        var p = Instance;
+        if (p == null || !p.NativeFixScope(__instance.Bot))
             return;
         // Same result as moving the existing time gate before checkPositionsChanged:
         // a refused calculation must not consume a change of position.
@@ -172,7 +177,7 @@ public sealed partial class Plugin
         ____enemyLastPosChecked = __state.Enemy;
         ____botLastPosChecked = __state.Bot;
         if (changed)
-            Instance?.CountNativeFix(NativeFix.DeferredPathCache, __instance.Bot);
+            p.CountNativeFix(NativeFix.DeferredPathCache, __instance.Bot);
     }
 
     private static void ClearPathCache(
@@ -189,13 +194,15 @@ public sealed partial class Plugin
 
     private static bool FixEnemyActivity(Enemy enemy, ref bool __result)
     {
+        // Official SAIN already produces the corrected answer when these flags agree.
+        if (enemy == null || (enemy.EnemyPlayerComponent?.IsActive == true) == enemy.PlayerComponent.IsActive)
+            return true;
         var p = Instance;
-        if (enemy == null || p == null || !p.NativeFixScope(enemy.Bot))
+        if (p == null || !p.NativeFixScope(enemy.Bot))
             return true;
         // Original SAIN checks retained, using the target instead of the observer.
         bool active = enemy.EnemyPlayerComponent?.IsActive == true;
-        if (active != enemy.PlayerComponent.IsActive)
-            p.CountNativeFix(NativeFix.TargetActivity, enemy.Bot);
+        p.CountNativeFix(NativeFix.TargetActivity, enemy.Bot);
         if (active && enemy.IsAI)
         {
             var owner = enemy.EnemyPlayerComponent?.BotOwner;
@@ -214,21 +221,19 @@ public sealed partial class Plugin
         ref bool __result
     )
     {
+        if (!__result || !enemyPlayerComp.IsAI || enemyPlayerComp.BotOwner?.ProfileId != botProfileId)
+            return;
         var p = Instance;
         if (
-            !__result
-            || p == null
+            p == null
             || !SAINEnableClass.GetSAIN(botProfileId, out var observer)
             || !p.NativeFixScope(observer)
         )
             return;
         // Native null/health checks have already run. Its AI/self check was
         // unreachable because the enclosing condition required BotOwner == null.
-        if (enemyPlayerComp.IsAI && enemyPlayerComp.BotOwner?.ProfileId == botProfileId)
-        {
-            __result = false;
-            p.CountNativeFix(NativeFix.SelfTarget, observer);
-        }
+        __result = false;
+        p.CountNativeFix(NativeFix.SelfTarget, observer);
     }
 
     private sealed class GrenadePrediction
@@ -288,9 +293,9 @@ public sealed partial class Plugin
         var prediction = grenadePrediction;
         if (
             p == null
-            || !p.NativeFixScope(__instance.Bot)
             || prediction == null
             || !ReferenceEquals(prediction.Grenade, grenade)
+            || !p.NativeFixScope(__instance.Bot)
         )
             return;
         if (!prediction.Calculated)

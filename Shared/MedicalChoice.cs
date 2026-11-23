@@ -117,6 +117,8 @@ public sealed class MedicalTrace
     public double Distance { get; set; }
     public double SinceHit { get; set; }
     public bool Started { get; set; }
+    public bool? TargetDestroyedAtStart { get; set; }
+    public bool? TargetBleedCleared { get; set; }
     public string? StartCover { get; set; }
     public string? SurgeryAtSelection { get; set; }
     public string? SurgeryAtStart { get; set; }

@@ -9267,7 +9267,7 @@
     },
     "Performance.SlowFrameMs": {
       "Label": "Slow frame threshold",
-      "Help": "Include detailed module costs for slow frames. Keep up to 64 worst frames per report window; omitted details are counted.",
+      "Help": "Record details when a frame reaches this threshold. Each window keeps up to 64 detailed traces, prioritizing COMET overruns. Totals count every measured COMET and game frame over 16.67 ms, even with a custom trace threshold.",
       "Section": "Performance",
       "Simple": false,
       "Min": 16,

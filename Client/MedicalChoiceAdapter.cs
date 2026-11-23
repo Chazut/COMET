@@ -463,30 +463,21 @@ public sealed partial class Plugin
                     need = f.Vital ? "vital" : "low-health";
                     rank = 1;
                 }
-                else if (
-                    destroyed
-                    && part != EBodyPart.Head
-                    && part != EBodyPart.Chest
-                    && Treats(item, EDamageEffectType.DestroyedPart)
-                )
-                {
-                    if (
-                        Time.time < med.SurgicalKit._nextPosibleUseTime
-                        || b.BotOwner.Settings.FileSettings.Mind.SURGE_KIT_ONLY_SAFE_CONTAINER
-                            && slot != EquipmentSlot.SecuredContainer
-                    )
-                        continue;
-                    if (!(surgeryAllowed ??= SourceSurgeryAllowed(b, s)))
-                        continue;
-                    action = "Surgery";
-                    need = "destroyed-limb";
-                    rank = 1;
-                }
                 else
                 {
+                    // Some kits support both surgery and bleeding treatment.
+                    if (destroyed && part != EBodyPart.Head && part != EBodyPart.Chest
+                        && Treats(item, EDamageEffectType.DestroyedPart)
+                        && Time.time >= med.SurgicalKit._nextPosibleUseTime
+                        && (!b.BotOwner.Settings.FileSettings.Mind.SURGE_KIT_ONLY_SAFE_CONTAINER
+                            || slot == EquipmentSlot.SecuredContainer)
+                        && (surgeryAllowed ??= SourceSurgeryAllowed(b, s)))
+                        Consider(item, part, "Surgery", "destroyed-limb", 1);
+
+                    if (destroyed && !heavy && !light)
+                        continue;
                     if (
                         !med.FirstAid.CanUseByTime()
-                        || destroyed
                         || b.BotOwner.Settings.FileSettings.Mind.MEDS_ONLY_SAFE_CONTAINER
                             && slot != EquipmentSlot.SecuredContainer
                     )
@@ -497,7 +488,7 @@ public sealed partial class Plugin
                         rank = 5;
                     }
                     else if (
-                        (part == EBodyPart.Head || part == EBodyPart.Chest)
+                        !destroyed && (part == EBodyPart.Head || part == EBodyPart.Chest)
                         && body.health <= .25
                     )
                     {
@@ -509,8 +500,9 @@ public sealed partial class Plugin
                         need = "light-bleed";
                         rank = 3;
                     }
+                    // EFT can stop bleeding on a blacked limb, but only surgery can restore it.
                     else if (
-                        body.health < b.BotOwner.Settings.FileSettings.Mind.PART_PERCENT_TO_HEAL
+                        !destroyed && body.health < b.BotOwner.Settings.FileSettings.Mind.PART_PERCENT_TO_HEAL
                     )
                     {
                         need = "injury";
@@ -526,35 +518,7 @@ public sealed partial class Plugin
                         continue;
                     action = "FirstAid";
                 }
-                double resource = item.MedKitComponent?.HpResource ?? 1;
-                if (
-                    !(
-                        resource > 0
-                        && MedicalChoice.Finite(resource)
-                        && b.Player.HealthController.CanApplyItem(item, part)
-                    )
-                )
-                    continue;
-                double duration = item.HealthEffectsComponent.UseTimeFor(part);
-                if (
-                    !best.TryGetValue(action, out var old)
-                    || rank > old.Score
-                    || rank == old.Score && duration < old.Duration
-                )
-                {
-                    best[action] = new MedicalOption
-                    {
-                        Action = action,
-                        Item = item.Id.ToString(),
-                        Part = part.ToString(),
-                        Need = need,
-                        Usable = true,
-                        Duration = duration,
-                        Resource = item.MedKitComponent?.HpResource ?? 0,
-                        Score = rank,
-                    };
-                    chosen[action] = (item, part);
-                }
+                Consider(item, part, action, need, rank);
             }
         }
         if (surgeryAllowed.HasValue)
@@ -563,6 +527,39 @@ public sealed partial class Plugin
             f.Options.Add(
                 best.TryGetValue(action, out var o) ? o : new MedicalOption { Action = action }
             );
+
+        void Consider(Meds item, EBodyPart part, string action, string need, int rank)
+        {
+            double resource = item.MedKitComponent?.HpResource ?? 1;
+            if (
+                !(
+                    resource > 0
+                    && MedicalChoice.Finite(resource)
+                    && b.Player.HealthController.CanApplyItem(item, part)
+                )
+            )
+                return;
+            double duration = item.HealthEffectsComponent.UseTimeFor(part);
+            if (
+                !best.TryGetValue(action, out var old)
+                || rank > old.Score
+                || rank == old.Score && duration < old.Duration
+            )
+            {
+                best[action] = new MedicalOption
+                {
+                    Action = action,
+                    Item = item.Id.ToString(),
+                    Part = part.ToString(),
+                    Need = need,
+                    Usable = true,
+                    Duration = duration,
+                    Resource = item.MedKitComponent?.HpResource ?? 0,
+                    Score = rank,
+                };
+                chosen[action] = (item, part);
+            }
+        }
     }
 
     private static bool ContinueMedical(
@@ -726,6 +723,8 @@ public sealed partial class Plugin
             || !r.Item.TryGetTarget(out var item)
             || item.Id.ToString() != t.Item
             || !MedicalUsable(b, item, r.Part)
+            || t.Need == "heavy-bleed" && !Treats(item, EDamageEffectType.HeavyBleeding)
+            || t.Need == "light-bleed" && !Treats(item, EDamageEffectType.LightBleeding)
         )
         {
             EndMedical(s, "medical-item-no-longer-usable");
@@ -748,8 +747,8 @@ public sealed partial class Plugin
                     health.FindExistingEffect<IHeavyBleeding>() != null
                         || health.FindExistingEffect<ILightBleeding>() != null
                 )
-            : health.GetBodyPartHealth(r.Part, false).Normalized
-                < b.BotOwner.Settings.FileSettings.Mind.PART_PERCENT_TO_HEAL;
+            : !health.IsBodyPartDestroyed(r.Part)
+                && health.GetBodyPartHealth(r.Part, false).Normalized < b.BotOwner.Settings.FileSettings.Mind.PART_PERCENT_TO_HEAL;
         if (!stillNeeded)
         {
             EndMedical(s, "medical-need-resolved");
@@ -814,6 +813,7 @@ public sealed partial class Plugin
         }
         r.BeforeHealth = b.Player.HealthController.GetBodyPartHealth(r.Part, false).Current;
         r.BeforeDestroyed = b.Player.HealthController.IsBodyPartDestroyed(r.Part);
+        t.TargetDestroyedAtStart = r.BeforeDestroyed;
         r.BeforeResource = item.MedKitComponent?.HpResource ?? 0;
         r.PendingCover = null;
         r.Policy.Request(Time.time);
@@ -898,13 +898,16 @@ public sealed partial class Plugin
             : b.BotOwner.Medecine.Stimulators.Using;
         if ((r.Callback || !usingMed) && !hands)
         {
-            bool improved =
-                b.Player.HealthController.GetBodyPartHealth(r.Part, false).Current > r.BeforeHealth
-                || r.BeforeDestroyed && !b.Player.HealthController.IsBodyPartDestroyed(r.Part)
-                || t.Need == "heavy-bleed"
-                    && b.Player.HealthController.FindExistingEffect<IHeavyBleeding>(r.Part) == null
-                || t.Need == "light-bleed"
-                    && b.Player.HealthController.FindExistingEffect<ILightBleeding>(r.Part) == null;
+            var health = b.Player.HealthController;
+            t.TargetBleedCleared = t.Need switch
+            {
+                "heavy-bleed" => health.FindExistingEffect<IHeavyBleeding>(r.Part) == null,
+                "light-bleed" => health.FindExistingEffect<ILightBleeding>(r.Part) == null,
+                _ => null,
+            };
+            bool improved = t.TargetBleedCleared == true
+                || health.GetBodyPartHealth(r.Part, false).Current > r.BeforeHealth
+                || r.BeforeDestroyed && !health.IsBodyPartDestroyed(r.Part);
             var outcome =
                 improved ? "health-improved"
                 : item.MedKitComponent?.HpResource < r.BeforeResource ? "resource-consumed"

@@ -331,6 +331,17 @@ sealed class Boundaries(string file, Dictionary<string, string> callbacks, List<
                         : "return " + m.ExpressionBody!.Expression + ";"
                 )
             );
+        // These callbacks start with a read-only no-op test. Run that same test
+        // inside the catch boundary, before binding a bot to the fault registry.
+        string nativePreflight = "";
+        if (file == "LiquidwarpFixesAdapter" && name is "FixEnemyActivity" or "FixEnemyIdentity"
+            or "RestoreDeferredPathCache" or "FixGrenadeSegment")
+        {
+            if (original.Statements.FirstOrDefault() is not IfStatementSyntax { Statement: ReturnStatementSyntax } guard)
+                throw new InvalidOperationException($"Missing native fast path in {name}");
+            nativePreflight = guard.NormalizeWhitespace().ToFullString();
+            original = original.WithStatements(original.Statements.RemoveAt(0));
+        }
         var body = new Catches().Visit(original)!.NormalizeWhitespace().ToFullString();
         // Read-only rejection gates stay inside the exception boundary, but do not
         // resolve/validate a bot when this callback has no work for it. Relevant work
@@ -358,6 +369,7 @@ sealed class Boundaries(string file, Dictionary<string, string> callbacks, List<
              global::Comet.Client.Plugin.FaultScope __faultScope = default;
              bool __faultEntered = false;
              try {
+              {{nativePreflight}}
               {{preflight}}
               __faultScope = global::Comet.Client.Plugin.EnterFault("{{module}}", "{{name}}", null, {{cleanup.ToString().ToLower()}}, {{telemetry.ToString().ToLower()}});
               __faultEntered = true;

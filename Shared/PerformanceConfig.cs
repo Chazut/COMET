@@ -2,9 +2,11 @@ namespace Comet.Core;
 
 public sealed class PerformanceConfig
 {
+    public const double FrameBudgetMs = 16.67;
+
     public bool Enabled { get; set; }
     public bool MeasureAllocations { get; set; } = true;
-    public double SlowFrameMs { get; set; } = 50;
+    public double SlowFrameMs { get; set; } = FrameBudgetMs;
     public double ReportIntervalSeconds { get; set; } = 10;
 
     public void Validate()

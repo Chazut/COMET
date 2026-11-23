@@ -67,6 +67,7 @@ internal static class PerformanceTests
             }
             Check(rejected, "invalid threshold rejected");
         }
+        Check(c.Performance.SlowFrameMs == 16.67, "default trace threshold targets 60 FPS");
         var ui = new ConfigEditor(c);
         Check(ui.Set(ui.Catalog.Fields["Performance.Enabled"], "true"), "server UI can enable");
         Check(
@@ -181,6 +182,22 @@ internal static class PerformanceTests
         );
         r = new PerformanceRecorder(new[] { "Combat" }, 1000, true, 50, 10);
         r.Advance(1, 0, 0, 0, 0, 0);
+        var budget = new PerformanceRecorder(new[] { "Combat" }, 100000, false, c.Performance.SlowFrameMs, 60);
+        budget.Advance(1, 0, 0, 0, 0, 0);
+        for (int i = 1; i <= 70; i++)
+        {
+            // Many long game frames crowd the window; COMET exceeds its own budget only once.
+            long cost = i == 70 ? 1668 : 1667;
+            long token = budget.Enter(0, 0, 0);
+            budget.Leave(token, cost, 0);
+            budget.Advance(i + 1, i * .1, i == 70 ? 17 : 110, 0, 0, 0);
+        }
+        var totals = budget.Finish(0, 0, 0);
+        Check(totals.CometFramesOverBudget == 1 && totals.GameFramesOverBudget == 70
+            && totals.OmittedSlowFrames == 6 && totals.Hitches.Any(h => h.Frame == 70),
+            "exact independent budget counters and small COMET spike survives crowded window");
+        Check(end.CometFramesOverBudget == 0 && end.GameFramesOverBudget == 100,
+            "custom trace threshold does not change the budget counters");
         var tokens = Enumerable.Range(0, 257).Select(i => r.Enter(0, i, 0)).ToArray();
         Check(tokens.Last() == 0, "scope depth bounded");
         foreach (var t in tokens.Reverse())

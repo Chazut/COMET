@@ -164,8 +164,12 @@ namespace SAIN
     {
         public static readonly Dictionary<string, BotComponent> Bots = new();
 
-        public static bool GetSAIN(string id, out BotComponent bot) =>
-            Bots.TryGetValue(id, out bot!);
+        public static int Lookups;
+        public static bool GetSAIN(string id, out BotComponent bot)
+        {
+            Lookups++;
+            return Bots.TryGetValue(id, out bot!);
+        }
     }
 
     public static class SAINPlugin
@@ -443,7 +447,12 @@ namespace Comet.Client
 {
     public static class NativeAdapter
     {
-        public static bool IsSupportedAi(BotComponent b) => b.Supported;
+        public static int ScopeChecks;
+        public static bool IsSupportedAi(BotComponent b)
+        {
+            ScopeChecks++;
+            return b.Supported;
+        }
     }
 
     public sealed class Diagnostic

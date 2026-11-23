@@ -60,6 +60,22 @@ static class Audit
         route.SetValue(queued, old);
         if (Pick(queued, active) != null)
             throw new Exception("A recycled door buffer may no longer be claimed.");
+        using var performanceManifest = JsonDocument.Parse(
+            File.ReadAllText(root + "Client/obj/fault-boundaries/performance-manifest.json"));
+        var nativeTimers = performanceManifest.RootElement.EnumerateArray()
+            .Where(x => x.GetProperty("file").GetString() == "LiquidwarpFixesAdapter")
+            .ToDictionary(x => x.GetProperty("method").GetString()!, x => x.GetProperty("module").GetString());
+        foreach (var hook in new[] { "FixPathVision", "SavePathCache", "RestoreDeferredPathCache", "ClearPathCache",
+            "FixEnemyActivity", "FixEnemyIdentity", "BeginGrenadePrediction", "EndGrenadePrediction",
+            "FixGrenadePrediction", "FixGrenadeSegment", "FlushNativeFixes" })
+            if (nativeTimers[hook] != "LiquidwarpFixes." + hook)
+                throw new Exception("Missing native performance timer for " + hook);
+        var smoothing = performanceManifest.RootElement.EnumerateArray()
+            .Single(x => x.GetProperty("method").GetString() == "SmoothingElapsed");
+        if (nativeTimers.ContainsKey("NativeFixScope") || nativeTimers.ContainsKey("CountNativeFix")
+            || smoothing.GetProperty("module").GetString() != "NativeTiming.PoseStep"
+            || smoothing.GetProperty("alternateModule").GetString() != "NativeTiming.LeanStep")
+            throw new Exception("Shared helpers must be billed to their caller and pose/lean measured separately.");
         using var manifest = JsonDocument.Parse(
             File.ReadAllText(root + "Client/obj/fault-boundaries/integration-manifest.json")
         );

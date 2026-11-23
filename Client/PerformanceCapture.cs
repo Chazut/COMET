@@ -178,7 +178,7 @@ internal static class PerformanceCapture
                     nesting = "Inclusive includes children; add SelfMs, not InclusiveMs. Instrumentation overhead remains in measured frames.",
                     coverage = "Synchronous COMET entry points and adapters; suspended iterators, async continuations and Fika addon internals are excluded. Background diagnostics reported separately.",
                     frames = "Unity frame number and realtime. Delta observed at N is assigned to N-1. First frame partial; last duration unknown. GC counters indicate coincidence, not causation.",
-                    limits = "8 queued windows; 64 worst hitches per window; 64 MiB plus final totals. Interrupted sessions have no performance-end footer.",
+                    limits = "8 queued windows; 64 detailed hitches per window, prioritizing COMET over budget; exact COMET and game budget counts in totals; 64 MiB plus final totals. Interrupted sessions have no performance-end footer.",
                 },
                 warning,
                 allocations

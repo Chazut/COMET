@@ -19,6 +19,8 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
         if (
             File.StartsWith("Performance")
             || File == "FaultIsolationAdapter"
+            // Charge shared guards and counter increments to the calling fix.
+            || File == "LiquidwarpFixesAdapter" && name is "NativeFixScope" or "CountNativeFix"
             || File is "TacticCounters" or "CombatReport"
             || File.StartsWith("Lifecycle") && name is not ("SampleLifecycles" or "RetireLife")
             || File.StartsWith("RaidCleanup") && name == "GuardRaid"
@@ -68,8 +70,11 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
             || File == "SiegeRoomCatalog" && name is "Refresh" or "RoomAt"
             || File == "SiegeBuilding" && name == "Read"
             || File == "Diagnostics" && name == "Serialize";
+        bool smoothing = File == "NativeTimingAdapter" && name == "SmoothingElapsed";
+        bool nativeSummary = File == "LiquidwarpFixesAdapter" && name == "FlushNativeFixes";
         if (
-            !body.Contains("Plugin.EnterFault(")
+            !smoothing && !nativeSummary
+            && !body.Contains("Plugin.EnterFault(")
             && !telemetry
             && !diagnostic
             && !observer
@@ -85,12 +90,12 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
             module = "DecisionCoordinator." + name;
         if (evidence)
             module = "DecisionEvidence." + File.Replace("Adapter", "") + "." + name;
-        int id = modules.IndexOf(module);
-        if (id < 0)
-        {
-            id = modules.Count;
-            modules.Add(module);
-        }
+        if (File is "LiquidwarpFixesAdapter" or "NativeTimingAdapter")
+            module += "." + (smoothing ? "PoseStep" : name);
+        int id = ModuleId(module);
+        string scopeId = smoothing
+            ? $"owner is PoseClass ? {id} : {ModuleId("NativeTiming.LeanStep")}"
+            : id.ToString();
         var original = m.Body
             ?? SyntaxFactory.Block(
                 SyntaxFactory.ParseStatement(
@@ -100,7 +105,7 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
                 )
             );
         var enter = SyntaxFactory.ParseStatement(
-            $"using var __cometPerformanceScope = global::Comet.Client.PerformanceCapture.Enter({id});"
+            $"using var __cometPerformanceScope = global::Comet.Client.PerformanceCapture.Enter({scopeId});"
         );
         methods.Add(
             new
@@ -108,11 +113,21 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
                 file = File,
                 method = name,
                 module,
+                alternateModule = smoothing ? "NativeTiming.LeanStep" : null,
             }
         );
         return m.WithBody(original.WithStatements(original.Statements.Insert(0, enter)))
             .WithExpressionBody(null)
             .WithSemicolonToken(default);
+    }
+
+    private int ModuleId(string name)
+    {
+        int id = modules.IndexOf(name);
+        if (id >= 0)
+            return id;
+        modules.Add(name);
+        return modules.Count - 1;
     }
 
     public void Save(string output)

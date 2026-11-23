@@ -282,6 +282,13 @@ At execution, COMET checks the selected item, actual injury, native cooldowns
 and ownership of the hands. A new emergency returns the bot to medical selection.
 External surgery continues to use its native kit and callback.
 
+Customs raid 500 recorded three HP treatments during a heavy bleed. The trace
+did not identify the bleeding limb. The adapter had been skipping all first aid
+on destroyed parts, although EFT allows treating a bleeding effect there.
+H01 now considers dressings with enough charge on those parts and leaves limb
+restoration to surgery. Its trace records whether the target was destroyed at
+start and whether the selected bleeding effect was gone at completion.
+
 In Ground Zero raid 494, two PMCs abandoned 55 surgeries before drawing a kit.
 SAIN clears its current cover point when SeekCover stops. For a pending treatment,
 COMET can still recognize that point if the bot is physically there, it is valid

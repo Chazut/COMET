@@ -431,6 +431,62 @@ C(
         && b.BotOwner.Medecine.FirstAid._bodyPartToHeal == EBodyPart.LeftArm,
     "selected usable item/part sent to native"
 );
+foreach (bool heavy in new[] { true, false })
+{
+    (p, b) = Setup();
+    b.EnemyController.KnownEnemies.Clear();
+    var health = b.Player.HealthController;
+    health.Destroyed.Add(EBodyPart.LeftArm);
+    health.Parts[EBodyPart.LeftArm].Current = 0;
+    health.Parts[EBodyPart.Chest].Current = 45;
+    var damage = heavy ? EDamageEffectType.HeavyBleeding : EDamageEffectType.LightBleeding;
+    int cost = heavy ? 170 : 30;
+    var low = new MedKit { Id = "used-AFAK" };
+    var full = new MedKit { Id = "full-AFAK" };
+    foreach (var kit in new[] { low, full })
+    {
+        kit.HealthEffectsComponent.DamageEffects[damage] = new() { Cost = cost };
+        b.Player.InventoryController.Items.Add(kit);
+    }
+    low.MedKitComponent!.HpResource = heavy ? 111 : 29;
+    full.MedKitComponent!.HpResource = 400;
+    health.Effects.Add(heavy ? new Heavy(EBodyPart.LeftArm) : new Light(EBodyPart.LeftArm));
+    var aid = p.Supplies(b).Options.Single(o => o.Action == "FirstAid");
+    C(aid.Item == full.Id && aid.Part == "LeftArm" && aid.Need == (heavy ? "heavy-bleed" : "light-bleed"),
+        "charged kit treats bleeding on blacked arm ahead of chest HP");
+    full.Applicable = false;
+    C(p.Supplies(b).Options.Single(o => o.Action == "FirstAid").Part == "Chest",
+        "native refusal and exhausted charge do not enable HP healing on blacked arm");
+    full.Applicable = true;
+    C(p.Choose(b).decision == ESelfActionType.FirstAid, "bleeding kit selected");
+    p.Start(b);
+    C(b.BotOwner.Medecine.FirstAid.CurUsingMeds == full && T(p, b).TargetDestroyedAtStart == true,
+        "native request targets blacked arm with correct kit");
+    health.Effects.Clear();
+    b.BotOwner.Medecine.FirstAid.Finish(improve: false);
+    p.Sample(b);
+    C(T(p, b).TargetBleedCleared == true && health.Destroyed.Contains(EBodyPart.LeftArm)
+        && health.Parts[EBodyPart.LeftArm].Current == 0, "hemostasis recorded without restoring the limb");
+    C(p.Supplies(b).Options.Single(o => o.Action == "FirstAid").Part == "Chest",
+        "without a bleed, first aid skips the blacked arm");
+}
+{
+    (p, b) = Setup();
+    b.EnemyController.KnownEnemies.Clear();
+    var hybridKit = Surgery(b);
+    hybridKit.HealthEffectsComponent.DamageEffects[EDamageEffectType.HeavyBleeding] = new() { Cost = 40 };
+    b.Player.HealthController.Effects.Add(new Heavy(EBodyPart.LeftLeg));
+    var options = p.Supplies(b).Options;
+    C(options.Any(o => o.Action == "Surgery" && o.Item == hybridKit.Id)
+        && options.Any(o => o.Action == "FirstAid" && o.Item == hybridKit.Id && o.Need == "heavy-bleed"),
+        "multi-purpose kit can supply surgery and first aid independently");
+    b.BotOwner.Medecine.SurgicalKit._nextPosibleUseTime = Time.time + 30;
+    C(p.Choose(b).decision == ESelfActionType.FirstAid, "surgery cooldown cannot veto a dressing");
+    hybridKit.MedKitComponent!.HpResource = 39;
+    p.Start(b);
+    C(b.BotOwner.Medecine.FirstAid.Requests == 0 && T(p, b).Reason == "medical-item-no-longer-usable",
+        "charge lost between selection and execution releases pending first aid");
+}
 foreach (var mode in new[] { "new", "near", "no-cover", "not-protective", "incomplete", "feet" })
 {
     (p, b) = Setup();

@@ -112,6 +112,17 @@ foreach (
 {
     var (p, b) = Setup();
     var e = new Enemy(b);
+    SAINEnableClass.Lookups = NativeAdapter.ScopeChecks = 0;
+    for (int i = 0; i < 10000; i++)
+    {
+        if (!Enemy.IsEnemyActive(e) || !Enemy.IsEnemyValid(b.ProfileId, e.EnemyPlayerComponent))
+            throw new Exception("ordinary target rejected");
+    }
+    Check(SAINEnableClass.Lookups == 0 && NativeAdapter.ScopeChecks == 0,
+        "10000 ordinary targets need no observer lookup or COMET scope evaluation");
+    b.PlayerComponent.IsActive = false;
+    Check(Enemy.IsEnemyActive(e), "active target still observed by inactive player component");
+    b.PlayerComponent.IsActive = true;
     e.EnemyPlayerComponent.BotOwner!.StandBy.StandByType = BotStandByType.sleep;
     Check(!Enemy.IsEnemyActive(e), "target standby still rejected");
     e.EnemyPlayerComponent.BotOwner = null;
@@ -122,7 +133,11 @@ foreach (
     e.EnemyPlayerComponent.Alive = false;
     Check(!Enemy.IsEnemyValid(b.ProfileId, e.EnemyPlayerComponent), "native health check retained");
     var path = new SAINEnemyPath(b) { Known = false };
-    Check(!path.ShallCalcNewPath(20), "unknown path rejected natively");
+    NativeAdapter.ScopeChecks = 0;
+    for (int i = 0; i < 1000; i++)
+        if (path.ShallCalcNewPath(20))
+            throw new Exception("unknown path accepted");
+    Check(NativeAdapter.ScopeChecks == 0, "unmodified native path polls need no bot/ghost lookup");
     path.Known = true;
     path.InRange = false;
     Check(!path.ShallCalcNewPath(20), "native path range retained");
