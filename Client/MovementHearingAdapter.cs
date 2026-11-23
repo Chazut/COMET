@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using Stopwatch = System.Diagnostics.Stopwatch;
 using Audio.AmbientSubsystem;
 using Audio.AudioWeatherSystem;
 using Comet.Core;
@@ -36,6 +37,10 @@ public sealed partial class Plugin
     private readonly Dictionary<string, int> movementCounts = new Dictionary<string, int>();
     private readonly Dictionary<string, (float At, int Suppressed)> movementLog =
         new Dictionary<string, (float, int)>();
+    // Only the head signal is dispatched. Its snapshot survives budget yields until dequeue.
+    private readonly List<PlayerComponent> movementRecipients = new(MovementRecipientsLimit);
+    private readonly List<MovementDelivery> expiredDeliveries = new();
+    private readonly List<string> expiredMovementLogs = new();
     private MovementDelivery? movementInjection,
         movementReaction;
     private long movementSequence;
@@ -48,8 +53,7 @@ public sealed partial class Plugin
     {
         public long Id;
         public SoundEvent Sound;
-        public PlayerComponent[]? Recipients;
-        public int Cursor;
+        public int Cursor = -1;
     }
 
     private sealed class MovementDelivery
@@ -305,33 +309,15 @@ public sealed partial class Plugin
                     ClearMovementHearing();
                 return;
             }
+            long started = Stopwatch.GetTimestamp();
             if (Time.time >= nextMovementCleanup)
             {
                 nextMovementCleanup = Time.time + .25f;
-                foreach (var pair in movementPending.ToArray())
-                {
-                    var d = pair.Value;
-                    if (
-                        !MovementHearingGate.Fresh(Time.time, d.Signal.Sound.TimeCreated)
-                        || !MovementListener(d.Bot)
-                        || !MovementSource(d.Signal.Sound.PlayerComponent)
-                    )
-                        RemoveMovement(d, "movement-expired-or-inactive");
-                }
-                movementSources.Prune(Time.time);
-                movementListeners.Prune(Time.time);
-                foreach (
-                    var key in movementLog
-                        .Where(x => Time.time - x.Value.At > 10)
-                        .Select(x => x.Key)
-                        .ToArray()
-                )
-                    movementLog.Remove(key);
+                PruneMovementHearing();
             }
-            int budget = MovementPairsPerFrame,
-                snapshots = 0;
-            var clock = System.Diagnostics.Stopwatch.StartNew();
-            while (movementQueue.Count > 0 && budget > 0 && clock.Elapsed.TotalMilliseconds < 1)
+            int budget = MovementPairsPerFrame, snapshots = 0;
+            while (movementQueue.Count > 0 && budget > 0
+                && Stopwatch.GetTimestamp() - started < Stopwatch.Frequency / 1000d)
             {
                 var signal = movementQueue.Peek();
                 var sound = signal.Sound;
@@ -340,36 +326,28 @@ public sealed partial class Plugin
                     || !MovementHearingGate.Fresh(Time.time, sound.TimeCreated)
                 )
                 {
+                    movementRecipients.Clear();
                     movementQueue.Dequeue();
                     CountMovement("source-expired-or-inactive");
                     continue;
                 }
-                if (signal.Recipients == null)
+                if (signal.Cursor < 0)
                 {
                     if (++snapshots > 8)
                         break;
-                    // Existing SAIN distance cache, never a scene scan or a new raycast. Snapshot once;
-                    // do not hold a live collection enumerator across frames/spawns/despawns.
-                    var cache = sound.PlayerComponent.OtherPlayersData.DataHashSet;
-                    if (cache.Count > MovementRecipientsLimit)
-                        CountMovement("recipient-snapshot-truncated");
-                    signal.Recipients = cache
-                        .Take(MovementRecipientsLimit)
-                        .Where(x =>
-                            x?.OtherPlayerComponent?.BotComponent != null
-                            && x.IsInHearingRadius_Footsteps
-                            && x.DistanceData.Distance <= sound.BaseRangeWithVolume
-                            && MovementListener(x.OtherPlayerComponent.BotComponent)
-                        )
-                        .Select(x => x.OtherPlayerComponent)
-                        .ToArray();
+                    SnapshotMovementRecipients(sound);
+                    signal.Cursor = 0;
+                    // A large snapshot may itself consume the remaining frame budget.
+                    if (Stopwatch.GetTimestamp() - started >= Stopwatch.Frequency / 1000d)
+                        break;
                 }
-                if (signal.Cursor >= signal.Recipients.Length)
+                if (signal.Cursor >= movementRecipients.Count)
                 {
+                    movementRecipients.Clear();
                     movementQueue.Dequeue();
                     continue;
                 }
-                var listener = signal.Recipients[signal.Cursor++];
+                var listener = movementRecipients[signal.Cursor++];
                 budget--;
                 var bot = listener?.BotComponent;
                 if (
@@ -386,21 +364,7 @@ public sealed partial class Plugin
                     CountMovement("listener-queue-full");
                     continue;
                 }
-                var delivery = new MovementDelivery
-                {
-                    Signal = signal,
-                    Bot = bot,
-                    Distance = distance,
-                };
-                movementInjection = delivery;
-                try
-                {
-                    bot.Hearing.HearingInput.CheckAddSoundToCache(sound, distance);
-                }
-                finally
-                {
-                    movementInjection = null;
-                }
+                DeliverMovementSound(signal, bot, distance);
             }
             if (Time.time >= nextMovementSummary)
             {
@@ -412,6 +376,55 @@ public sealed partial class Plugin
         {
             MovementError(ex);
             ClearMovementHearing();
+        }
+    }
+
+    private void PruneMovementHearing()
+    {
+        float now = Time.time;
+        foreach (var d in movementPending.Values)
+        {
+            if (!MovementHearingGate.Fresh(now, d.Signal.Sound.TimeCreated)
+                || !MovementListener(d.Bot) || !MovementSource(d.Signal.Sound.PlayerComponent))
+                expiredDeliveries.Add(d);
+        }
+        foreach (var d in expiredDeliveries)
+            RemoveMovement(d, "movement-expired-or-inactive");
+        expiredDeliveries.Clear();
+        movementSources.Prune(now);
+        movementListeners.Prune(now);
+        foreach (var pair in movementLog)
+            if (now - pair.Value.At > 10) expiredMovementLogs.Add(pair.Key);
+        foreach (var key in expiredMovementLogs) movementLog.Remove(key);
+        expiredMovementLogs.Clear();
+    }
+
+    private void SnapshotMovementRecipients(SoundEvent sound)
+    {
+        movementRecipients.Clear();
+        var cache = sound.PlayerComponent.OtherPlayersData.DataHashSet;
+        if (cache.Count > MovementRecipientsLimit)
+            CountMovement("recipient-snapshot-truncated");
+        int examined = 0;
+        foreach (var data in cache)
+        {
+            if (examined++ == MovementRecipientsLimit) break;
+            if (data?.OtherPlayerComponent?.BotComponent is { } bot && data.IsInHearingRadius_Footsteps
+                && data.DistanceData.Distance <= sound.BaseRangeWithVolume && MovementListener(bot))
+                movementRecipients.Add(data.OtherPlayerComponent);
+        }
+    }
+
+    private void DeliverMovementSound(MovementSignal signal, BotComponent bot, float distance)
+    {
+        movementInjection = new MovementDelivery { Signal = signal, Bot = bot, Distance = distance };
+        try
+        {
+            bot.Hearing.HearingInput.CheckAddSoundToCache(signal.Sound, distance);
+        }
+        finally
+        {
+            movementInjection = null;
         }
     }
 
@@ -612,6 +625,9 @@ public sealed partial class Plugin
         foreach (var delivery in movementPending.Values.ToArray())
             RemoveMovement(delivery, "movement-cleared");
         movementQueue.Clear();
+        movementRecipients.Clear();
+        expiredDeliveries.Clear();
+        expiredMovementLogs.Clear();
         movementPending.Clear();
         movementSources.Clear();
         movementListeners.Clear();

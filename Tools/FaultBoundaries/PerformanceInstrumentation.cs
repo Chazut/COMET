@@ -70,10 +70,12 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
             || File == "SiegeRoomCatalog" && name is "Refresh" or "RoomAt"
             || File == "SiegeBuilding" && name == "Read"
             || File == "Diagnostics" && name == "Serialize";
+        bool hearingPhase = File == "MovementHearingAdapter" && name is
+            "PruneMovementHearing" or "SnapshotMovementRecipients" or "DeliverMovementSound" or "FlushMovementSummary";
         bool smoothing = File == "NativeTimingAdapter" && name == "SmoothingElapsed";
         bool nativeSummary = File == "LiquidwarpFixesAdapter" && name == "FlushNativeFixes";
         if (
-            !smoothing && !nativeSummary
+            !hearingPhase && !smoothing && !nativeSummary
             && !body.Contains("Plugin.EnterFault(")
             && !telemetry
             && !diagnostic
@@ -90,7 +92,7 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
             module = "DecisionCoordinator." + name;
         if (evidence)
             module = "DecisionEvidence." + File.Replace("Adapter", "") + "." + name;
-        if (File is "LiquidwarpFixesAdapter" or "NativeTimingAdapter" or "ReloadInventoryAdapter")
+        if (File is "MovementHearingAdapter" or "LiquidwarpFixesAdapter" or "NativeTimingAdapter" or "ReloadInventoryAdapter")
             module += "." + (smoothing ? "PoseStep" : name);
         int id = ModuleId(module);
         string scopeId = smoothing

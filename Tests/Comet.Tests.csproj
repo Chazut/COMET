@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <Compile Remove="HiddenExecutionHarness/**/*.cs" />
+    <Compile Remove="HiddenExecutionHarness/**/*.cs;MovementHearingHarness/**/*.cs" />
     <None
       Include="fixtures/back4streetz-hidden.json"
       Link="back4streetz-hidden.json"
