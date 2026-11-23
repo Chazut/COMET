@@ -51,7 +51,7 @@ These tactics apply to **PMCs and AI player scavs**, including fights between bo
 
 **Weapons, reloads & grenades**
 
-- A PMC can take an extra moment for a single opening shot on an unsuspecting AI scav or an opponent facing away. If the head is exposed and the SAIN preset allows it, the PMC can aim for it. Incoming fire cuts the wait short.
+- A PMC who catches any AI opponent looking away can take a single opening shot, even against a boss or guard. Once SAIN is ready to fire, the PMC takes another second to aim at 10 m or closer, rising to two seconds at 100 m. An exposed head is a possible target if the SAIN preset allows it. The PMC reacts immediately if the target turns toward them or they come under fire.
 - Weapon choice accounts for distance, sights, ammo and newly looted guns. PMCs can draw a loaded pistol under pressure, switch back to their primary, fire short suppression bursts and check that their muzzle clears cover. Faster aim recovery for DMRs and sniper rifles is optional.
 - Bots time their reloads, drop a mag for an emergency reload, and can return after combat for that same magazine with its remaining rounds.
 - Grenade choice considers the target's last position, fuse, range, roof and doorway. PMCs distinguish frags from flashes, avoid their own throws and scatter to separate safe spots according to personality. Flash effects persist, and supported CS gas accounts for exposure and protection.

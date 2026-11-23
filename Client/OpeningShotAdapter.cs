@@ -77,7 +77,7 @@ public sealed partial class Plugin
                 && enemy.Vision.EnemyParts.Parts.TryGetValue(EBodyPart.Head, out var part)
                 && part.CanBeSeen && part.ShootPoint.HasValue
                 && MyExtensions.RandomBool(preset.AimForHeadChance);
-            aim = new OpeningAim(weapon!, new OpeningShot(now, sightStart, head));
+            aim = new OpeningAim(weapon!, new OpeningShot(now, sightStart, head, enemy.RealDistance));
             p.openingShots.Add(enemy, aim);
         }
         if (aim.Shot.Head)
@@ -116,8 +116,7 @@ public sealed partial class Plugin
             || enemy.Status.ShotAtMeRecently || enemy.Status.ShotMeRecently
             || bot.EnemyController.VisibleEnemies.Count > 1 || bot.Player.IsSprintEnabled
             || (bot.Medical.TimeLastShot > 0f && bot.Medical.TimeSinceShot < 3f);
-        return OpeningShot.LowThreat(EnemyRoleCapture.IdentityOf(enemy.EnemyPlayer).Role,
-            Vector3.Dot(toBot.normalized, look.normalized), pressure);
+        return OpeningShot.LowThreat(Vector3.Dot(toBot.normalized, look.normalized), pressure);
     }
 
     private static void OpeningTrigger(Enemy Enemy, BotComponent bot, ref bool AimComplete)
@@ -146,6 +145,6 @@ public sealed partial class Plugin
             return;
         bot.Shoot.EndShoot();
         if (p.config?.QuietLogging == false)
-            p.Logger.LogInfo($"Opening shot fired by {bot.ProfileId} at {target.EnemyProfileId} (aim: {(aim.Shot.Head ? "head" : "SAIN")})");
+            p.Logger.LogInfo($"Opening shot fired by {bot.ProfileId} at {target.EnemyProfileId} (aim: {(aim.Shot.Head ? "head" : "SAIN")}, settle target: {aim.Shot.SettleSeconds:F2}s)");
     }
 }

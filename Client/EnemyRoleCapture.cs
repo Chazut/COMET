@@ -66,7 +66,7 @@ internal static class EnemyRoleCapture
             : null;
     }
 
-    internal static EnemyIdentity IdentityOf(Player player) =>
+    private static EnemyIdentity IdentityOf(Player player) =>
         identifications.GetValue(player, p => new Identification(p)).Identity;
 
     internal static void Observe(Enemy enemy, Situation s, BotState state)

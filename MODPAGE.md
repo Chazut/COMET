@@ -44,7 +44,7 @@ These tactics apply to **PMCs and AI player scavs**, including fights between bo
 
 **Weapons, reloads & grenades**
 
-- A PMC who catches a scav off guard can line up a single shot and go for the head. Another AI caught with its back turned can get the same treatment.
+- A PMC who catches an enemy looking away can take a second or two to line up a single headshot. It works against any AI, from a scav to a boss. If the target turns toward the PMC or the PMC comes under fire, the wait ends.
 - Weapon choice accounts for distance, sights, ammo and newly looted guns. PMCs can draw a loaded pistol under pressure, switch back to their primary, fire short suppression bursts and check that their muzzle clears cover. Faster aim recovery for DMRs and sniper rifles is optional.
 - Bots time their reloads, drop a mag for an emergency reload, and can return after combat for that same magazine with its remaining rounds.
 - Grenade choice considers the target's last position, fuse, range, roof and doorway. PMCs distinguish frags from flashes, avoid their own throws and scatter to separate safe spots according to personality. Flash effects persist, and supported CS gas accounts for exposure and protection.
