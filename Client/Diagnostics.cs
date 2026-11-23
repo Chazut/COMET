@@ -597,11 +597,13 @@ namespace Comet.Client
         {
             internal readonly string Json;
             internal readonly bool Persist;
+            internal readonly bool Observe;
 
-            internal LogEntry(string json, bool persist)
+            internal LogEntry(string json, bool persist, bool observe)
             {
                 Json = json;
                 Persist = persist;
+                Observe = observe;
             }
         }
 
@@ -614,6 +616,8 @@ namespace Comet.Client
         private int closed;
         private int completed;
         private int quiet = Comet.Core.CometConfig.DefaultQuietLogging ? 1 : 0;
+        private int skipOrdinaryReports;
+        private long skippedBeforeQueue;
         internal Task Completion => writer;
 
         // Optional per-raid worker measurements. No profiler dependency in journal harnesses.
@@ -660,6 +664,19 @@ namespace Comet.Client
                     }
                 )
             );
+        }
+
+        internal void ConfigureRaidReports(Comet.Core.CometConfig config, bool authority, string session)
+        {
+            bool host = config.Enabled && authority;
+            bool combat = host && config.CombatJournal.Enabled;
+            bool weapons = host && config.WeaponJournal.Enabled;
+            bool control = host && config.ControlJournal.Enabled;
+            bool counters = host && config.TacticCounters.Enabled;
+            ConfigureJournal(combat, weapons, config.Revision, session);
+            ConfigureControlJournal(control, config.Revision, session);
+            ConfigureCounters(counters, config.TacticCounters.MaxOpportunities, config.Revision, session);
+            Volatile.Write(ref skipOrdinaryReports, combat || weapons || control || counters ? 0 : 1);
         }
 
         internal void ConfigureJournal(
@@ -818,9 +835,9 @@ namespace Comet.Client
                             sample != null ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
                         long allocated =
                             sample != null ? (PerformanceAllocation?.Invoke() ?? 0) : 0;
-                        // Quiet only filters the local copy. Counters/reports still
-                        // consume all events, and RR's separate publisher is untouched.
-                        eventReader.Observe(entry.Json, counters, journal);
+                        // Enabled reports also consume events omitted from the local file.
+                        if (entry.Observe)
+                            eventReader.Observe(entry.Json, counters, journal);
                         if (entry.Persist)
                             Line(entry.Json);
                         else
@@ -875,7 +892,7 @@ namespace Comet.Client
                                 stage = "diagnostics-end",
                                 segments = segment + 1,
                                 quietLogging = Volatile.Read(ref quiet) != 0,
-                                quietSuppressed,
+                                quietSuppressed = quietSuppressed + Interlocked.Read(ref skippedBeforeQueue),
                                 summaryReader = new
                                 {
                                     mode = "shared-projection-v1",
@@ -912,18 +929,27 @@ namespace Comet.Client
             });
         }
 
-        public void Write(string json) => Enqueue(json, Volatile.Read(ref quiet) == 0);
+        public void Write(string json)
+        {
+            bool persist = Volatile.Read(ref quiet) == 0;
+            bool observe = Volatile.Read(ref skipOrdinaryReports) == 0;
+            if (persist || observe)
+                Enqueue(json, persist, observe);
+            else
+                Interlocked.Increment(ref skippedBeforeQueue);
+        }
 
-        public void WriteEssential(string json) => Enqueue(json, true);
+        // Configuration, errors and raid cleanup always reach the writer and the reports.
+        public void WriteEssential(string json) => Enqueue(json, true, true);
 
-        private void Enqueue(string json, bool persist)
+        private void Enqueue(string json, bool persist, bool observe)
         {
             if (Volatile.Read(ref closed) != 0)
                 return;
             // Capture the mode on enqueue, not later when the worker catches up.
             try
             {
-                if (!queue.TryAdd(new LogEntry(json, persist)))
+                if (!queue.TryAdd(new LogEntry(json, persist, observe)))
                 {
                     long count = Interlocked.Increment(ref dropped);
                     if (count == 1)

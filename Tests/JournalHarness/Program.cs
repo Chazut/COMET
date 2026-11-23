@@ -37,6 +37,15 @@ JObject[] Events() => Comet.Api.Decisions.Events.Select(JObject.Parse).ToArray()
 string? WeaponState(JObject x) => (string?)(x["weaponJournal"] as JObject)?["change"]?["state"];
 string? CombatKind(JObject x) => (string?)(x["combatJournal"] as JObject)?["kind"];
 var bot = Bot("pmc");
+p.Track(bot);
+Check(p.states.Count == 0, "default settings do not enroll bots for diagnostics");
+p.config!.ControlJournal.Enabled = true;
+p.Track(bot);
+p.Sample(bot);
+Check(!p.states[bot].Journal.Scoped && Events().Length == 0, "control-only collection skips combat and weapon sampling");
+p.states.Clear();
+p.config.ControlJournal.Enabled = false;
+p.config.CombatJournal.Enabled = p.config.WeaponJournal.Enabled = true;
 p.Authority = false;
 p.Track(bot);
 Check(p.states.Count == 0, "Fika replica never enrolls");

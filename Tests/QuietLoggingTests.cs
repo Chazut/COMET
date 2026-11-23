@@ -29,11 +29,16 @@ static class QuietLoggingTests
             var freshStore = new ConfigStore(freshPath);
             var first = freshStore.Read();
             Check(first.QuietLogging && !File.Exists(freshPath), "new installs start quiet");
+            foreach (var profile in new[] { first, DifficultyPresets.Create("Easy"), DifficultyPresets.Create("Normal"), DifficultyPresets.Create("Hard") })
+                Check(!profile.TacticCounters.Enabled && !profile.CombatJournal.Enabled && !profile.WeaponJournal.Enabled
+                    && !profile.ControlJournal.Enabled && !profile.Performance.Enabled, "player defaults collect no optional reports");
             first.QuietLogging = false;
             freshStore.Save(first, first.Revision);
             Check(!new ConfigStore(freshPath).Read().QuietLogging, "first explicit opt-out survives restart");
 
             var legacy = new CometConfig { Revision = 42 };
+            legacy.TacticCounters.Enabled = legacy.ControlJournal.Enabled =
+                legacy.CombatJournal.Enabled = legacy.WeaponJournal.Enabled = true;
             legacy.Performance.Enabled = true;
             var saved = JsonNode
                 .Parse(System.Text.Json.JsonSerializer.Serialize(legacy))!
@@ -60,6 +65,8 @@ static class QuietLoggingTests
             );
             var restarted = new ConfigStore(path);
             var game = JObject.Parse(restarted.ForGame());
+            Check(new[] { "TacticCounters", "CombatJournal", "WeaponJournal", "ControlJournal", "Performance" }
+                .All(name => (bool?)game[name]?["Enabled"] == true), "saved personal opt-ins reach the raid after migration");
             Check((bool?)game["QuietLogging"] == true && game["QuietLoggingDefaultApplied"] == null
                 && File.ReadAllText(path) == migratedText, "game receives quiet without metadata or another write");
             bool staleRejected = false;
@@ -253,9 +260,10 @@ static class QuietLoggingTests
                 }
             );
             var warnings = new List<string>();
-            async Task<(string[] Decisions, string[] Reports, JObject[] Files)> Capture(bool quiet)
+            async Task<(string[] Decisions, string[] Reports, JObject[] Files)> Capture(
+                bool quiet, bool reportsOn = true, bool authority = true, bool countersOnly = false)
             {
-                string folder = Path.Combine(directory, quiet ? "quiet" : "detailed");
+                string folder = Path.Combine(directory, Guid.NewGuid().ToString("N"));
                 var decisions = new List<string>();
                 var reports = new List<string>();
                 Action<string> receive = decisions.Add,
@@ -268,13 +276,11 @@ static class QuietLoggingTests
                 {
                     var journal = new Diagnostics(folder, "raid", warnings.Add, 2048);
                     journal.ConfigureLogging(quiet, 44, "raid");
-                    journal.ConfigureSnapshot(
-                        new CometConfig { QuietLogging = quiet, Revision = 44 },
-                        "raid"
-                    );
-                    journal.ConfigureJournal(true, true, 44, "raid");
-                    journal.ConfigureControlJournal(true, 44, "raid");
-                    journal.ConfigureCounters(true, 16384, 44, "raid");
+                    var settings = new CometConfig { QuietLogging = quiet, Revision = 44 };
+                    settings.CombatJournal.Enabled = settings.WeaponJournal.Enabled = settings.ControlJournal.Enabled = reportsOn;
+                    settings.TacticCounters.Enabled = reportsOn || countersOnly;
+                    journal.ConfigureSnapshot(settings, "raid");
+                    journal.ConfigureRaidReports(settings, authority, "raid");
                     foreach (string e in events)
                     {
                         journal.Write(e);
@@ -303,6 +309,22 @@ static class QuietLoggingTests
             }
             var full = await Capture(false);
             var quiet = await Capture(true);
+            foreach (var (silence, authority) in new[] { (true, true), (false, true), (true, false) })
+            {
+                var off = await Capture(silence, reportsOn: !authority, authority: authority);
+                var footer = off.Files.Single(e => (string?)e["stage"] == "diagnostics-end");
+                Check((int?)footer["summaryReader"]?["parsedEvents"] == 7
+                    && (int?)footer["quietSuppressed"] == (silence ? events.Count : 0),
+                    "only configuration, fault and cleanup parsed with all reports off or on a replica");
+                Check(off.Files.Count(e => (long?)e["sequence"] > 0) == (silence ? 0 : events.Count)
+                    && off.Decisions.SequenceEqual(full.Decisions), "detailed file and ordinary RR delivery remain independent");
+                var summaries = off.Reports.Select(JObject.Parse).Select(e => e["tacticCounters"] ?? e["journalReport"]).ToArray();
+                Check(summaries.Length == 4 && summaries.All(r => (bool?)r?["enabled"] == false && (bool?)r?["sawCleanup"] == true),
+                    "disabled reports still receive cleanup and tell RR that collection was off");
+            }
+            var countersOnly = await Capture(true, reportsOn: false, countersOnly: true);
+            Check(countersOnly.Reports.Select(JObject.Parse).Any(e => e["tacticCounters"]?["rows"]?.Any() == true),
+                "one active report keeps receiving ordinary events in quiet mode");
             Check(
                 full.Decisions.SequenceEqual(events.Concat(new[] { fault, cleanup })),
                 "full RR stream contains every original action, score, contact, squad event and fault"

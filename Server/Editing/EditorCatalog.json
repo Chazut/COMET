@@ -9150,7 +9150,7 @@
     },
     "TacticCounters.Enabled": {
       "Label": "Collect raid decision counters",
-      "Help": "Record a bounded end-of-raid summary in COMET diagnostics and Raid Review. No extra replay or gameplay effect.",
+      "Help": "Count tactical choices and confirmed starts for the end-of-raid report in Raid Review. Off by default.",
       "Section": "TacticCounters",
       "Simple": false
     },
@@ -9165,7 +9165,7 @@
     },
     "CombatJournal.Enabled": {
       "Label": "Record combat journal",
-      "Help": "Write a bounded raid report and combat events for RR.",
+      "Help": "Record observed actions, contacts, shots, hits and deaths for the detailed combat journal in Raid Review. Off by default.",
       "Section": "CombatJournal",
       "Simple": false
     },
@@ -9180,7 +9180,7 @@
     },
     "WeaponJournal.Enabled": {
       "Label": "Record weapon diagnostics",
-      "Help": "Track AI PMC weapon changes on the AI host only.",
+      "Help": "Compare requested weapon switches with the weapon actually in hand and flag repeated swaps in Raid Review. Off by default.",
       "Section": "WeaponJournal",
       "Simple": false
     },
@@ -9213,7 +9213,7 @@
     },
     "ControlJournal.Enabled": {
       "Label": "Record control transitions",
-      "Help": "AI host only. Disabling this report leaves the I02 compatibility boundary active.",
+      "Help": "Record which mod controls each PMC and flag long waits or repeated handoffs in Raid Review. Off by default.",
       "Section": "ControlJournal",
       "Simple": false
     },

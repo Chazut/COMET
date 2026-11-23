@@ -190,6 +190,8 @@ internal static class DifficultyPresetTests
             foreach (var level in new[] { "Easy", "Normal", "Hard" })
             {
                 var previous = DifficultyPresets.Create(level);
+                previous.CombatJournal.Enabled = previous.WeaponJournal.Enabled =
+                    previous.ControlJournal.Enabled = previous.TacticCounters.Enabled = true;
                 previous.QuietLogging = false;
                 previous.BehaviorBaseline = "zzap-d8655293-1";
                 previous.GrenadeContactLifetime = 8;
@@ -199,7 +201,8 @@ internal static class DifficultyPresetTests
                 File.WriteAllText(path, oldJson);
                 var updated = JsonSerializer.Deserialize<CometConfig>(store.ForGame())!;
                 Check(updated.GrenadeContactLifetime == 20 && updated.GrenadeTrajectory.Distance == 45
-                    && updated.DifficultyPreset == level && !DifficultyPresets.Describe(updated).Customized,
+                    && updated.DifficultyPreset == level && DifficultyPresets.Describe(updated).ChangedSettings == 4
+                    && updated.CombatJournal.Enabled && updated.WeaponJournal.Enabled && updated.ControlJournal.Enabled && updated.TacticCounters.Enabled,
                     $"the stock {level} config reaches the client with the new grenade defaults");
                 int backupsBeforeRead = Directory.GetFiles(dir, "*.before-zzap-*.bak").Length;
                 Check(store.Read().BehaviorBaseline == CometConfig.SourceBaseline
@@ -212,7 +215,15 @@ internal static class DifficultyPresetTests
                 Check(custom.QuietLogging && custom.GrenadeContactLifetime == 8 && custom.GrenadeTrajectory.Distance == 40
                     && custom.DoorRoomClear.GrenadePreference == 50,
                     "a customized profile can intentionally retain the previous grenade values");
+                previous.QuietLogging = false;
+                previous.ControlJournal.Enabled = false;
+                File.WriteAllText(path, JsonSerializer.Serialize(previous));
+                custom = store.Read();
+                Check(!custom.ControlJournal.Enabled && custom.CombatJournal.Enabled && custom.GrenadeContactLifetime == 8,
+                    "an old opt-out still distinguishes a custom profile during tactical migration");
                 var last = DifficultyPresets.Create(level);
+                last.CombatJournal.Enabled = last.WeaponJournal.Enabled =
+                    last.ControlJournal.Enabled = last.TacticCounters.Enabled = true;
                 last.QuietLogging = false;
                 last.BehaviorBaseline = "zzap-d8655293-2";
                 foreach (int savedPreference in new[] { 0, 1, 50 })

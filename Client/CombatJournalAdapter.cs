@@ -315,17 +315,18 @@ public sealed partial class Plugin
 
     private void SampleCombatJournal(BotComponent b, BotState s)
     {
-        if (s.Journal.Fault)
+        if (config == null || (!config.CombatJournal.Enabled && !config.WeaponJournal.Enabled) || s.Journal.Fault)
             return;
         try
         {
             var r = s.Journal;
-            FlushShotJournal(s);
+            if (config.CombatJournal.Enabled)
+                FlushShotJournal(s);
             if (!JournalScope(b))
             {
                 if (r.Scoped)
                 {
-                    if (config?.CombatJournal.Enabled == true)
+                    if (config.CombatJournal.Enabled)
                         JournalWrite(
                             s,
                             "T01",
@@ -333,18 +334,15 @@ public sealed partial class Plugin
                             "observation-suspended",
                             new { kind = "pause" }
                         );
-                    JournalWeaponEvents(
-                        s,
-                        r.Weapons.Suspend(Time.time, "observation-suspended"),
-                        true
-                    );
+                    if (config.WeaponJournal.Enabled)
+                        JournalWeaponEvents(s, r.Weapons.Suspend(Time.time, "observation-suspended"), true);
                     r.Scoped = false;
                     r.Context = "";
                 }
                 return;
             }
             r.Scoped = true;
-            if (config!.WeaponJournal.Enabled && Time.time >= r.WeaponAt)
+            if (config.WeaponJournal.Enabled && Time.time >= r.WeaponAt)
             {
                 r.WeaponAt = Time.time + .1;
                 var gun = b.Player.HandsController as Player.FirearmController;
@@ -534,12 +532,17 @@ public sealed partial class Plugin
 
     partial void EndJournalBot(BotState s, string reason)
     {
+        if (config == null || (!config.CombatJournal.Enabled && !config.WeaponJournal.Enabled))
+            return;
         try
         {
-            FlushShotJournal(s, true);
-            if (config?.CombatJournal.Enabled == true)
+            if (config.CombatJournal.Enabled)
+            {
+                FlushShotJournal(s, true);
                 JournalWrite(s, "T01", "pause", reason, new { kind = "pause" });
-            JournalWeaponEvents(s, s.Journal.Weapons.Suspend(Time.time, reason), true);
+            }
+            if (config.WeaponJournal.Enabled)
+                JournalWeaponEvents(s, s.Journal.Weapons.Suspend(Time.time, reason), true);
             if (s.Journal.Omitted > 0)
             {
                 diagnostics?.Write(
@@ -828,11 +831,15 @@ public sealed partial class Plugin
 
     partial void FinishCombatJournal()
     {
+        if (config == null || (!config.CombatJournal.Enabled && !config.WeaponJournal.Enabled))
+            return;
         foreach (var s in states.Values)
             try
             {
-                FlushShotJournal(s, true);
-                JournalWeaponEvents(s, s.Journal.Weapons.Suspend(Time.time, "raid-ended"));
+                if (config.CombatJournal.Enabled)
+                    FlushShotJournal(s, true);
+                if (config.WeaponJournal.Enabled)
+                    JournalWeaponEvents(s, s.Journal.Weapons.Suspend(Time.time, "raid-ended"));
                 if (s.Journal.Omitted > 0)
                     diagnostics?.Write(
                         Diagnostics.Serialize(

@@ -445,23 +445,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             if (loaded != null)
             {
                 config = loaded;
-                diagnostics?.ConfigureJournal(
-                    config.Enabled && config.CombatJournal.Enabled && Authority,
-                    config.Enabled && config.WeaponJournal.Enabled && Authority,
-                    config.Revision,
-                    session
-                );
-                diagnostics?.ConfigureControlJournal(
-                    config.Enabled && config.ControlJournal.Enabled && Authority,
-                    config.Revision,
-                    session
-                );
-                diagnostics?.ConfigureCounters(
-                    config.Enabled && config.TacticCounters.Enabled && Authority,
-                    config.TacticCounters.MaxOpportunities,
-                    config.Revision,
-                    session
-                );
+                diagnostics?.ConfigureRaidReports(config, Authority, session);
                 Logger.LogInfo(
                     "COMET raid config revision " + config.Revision + ", enabled=" + config.Enabled
                 );
@@ -492,8 +476,10 @@ public sealed partial class Plugin : BaseUnityPlugin
             foreach (var pair in states)
             {
                 SampleDecisionExecution(pair.Key, pair.Value);
-                SampleCombatJournal(pair.Key, pair.Value);
-                SampleCounterExecution(pair.Key, pair.Value);
+                if (config.CombatJournal.Enabled || config.WeaponJournal.Enabled)
+                    SampleCombatJournal(pair.Key, pair.Value);
+                if (config.TacticCounters.Enabled)
+                    SampleCounterExecution(pair.Key, pair.Value);
                 SampleOutcome(pair.Key, pair.Value);
                 SampleEncounter(pair.Key, pair.Value);
                 try
@@ -1940,7 +1926,8 @@ internal sealed class BotState
     internal int CounterEncounter,
         CounterOpportunity;
     internal bool CounterObserverFailed;
-    internal readonly CombatJournalRuntime Journal = new();
+    private CombatJournalRuntime? journal;
+    internal CombatJournalRuntime Journal => journal ??= new();
     internal bool Retired;
     internal readonly BotComponent Owner;
     internal readonly MagazineRecoveryRuntime MagazineRecovery = new();

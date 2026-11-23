@@ -62,6 +62,8 @@ Lose sight of a PMC in Dorms and you might hear a reload at the next doorway. It
 
 ## FAQ
 
+**Which diagnostics should I enable?** For normal play, leave the five optional collectors off. Raid Review still records regular COMET events such as squad assignments and magazine pickups. Enable **Combat journal** for extra contact and damage details, or **Decision counters** for tactic statistics. **Weapon changes and loops**, **Control transitions** and **Performance capture** help investigate specific issues. Changes apply next raid.
+
 **Will COMET cost me FPS?** Keeping the performance impact as low as possible is a top priority. COMET spreads work across frames to limit stutters. When several bots look at the same AI target, they reuse its lighting measurement. The extra combat decisions still take CPU time, so the impact depends on your setup and how many bots are fighting.
 
 **Can I keep my SAIN preset?** Yes. Use SAIN for your usual AI settings. COMET's own web editor lets you adjust individual tactics or change how often PMCs try them.

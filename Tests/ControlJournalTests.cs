@@ -58,7 +58,7 @@ internal static class ControlJournalTests
         var c = new ControlJournalConfig();
         c.Validate();
         Check(
-            c.Enabled
+            !c.Enabled
                 && c.LongWait == 30
                 && c.RapidReturn == 5
                 && c.CycleThreshold == 3
@@ -86,6 +86,7 @@ internal static class ControlJournalTests
             }
             Check(rejected, "configuration bounds");
         }
+        c.Enabled = true;
         var model = new ControlJournal();
         double time = 0;
         var all = new List<ControlJournalEvent>();

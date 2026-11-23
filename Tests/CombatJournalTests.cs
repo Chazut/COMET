@@ -19,7 +19,7 @@ static class CombatJournalTests
         c.Validate();
         new CombatJournalConfig().Validate();
         Check(
-            c.Enabled && c.Window == 20 && c.ChangeThreshold == 3 && c.ConfirmationTimeout == 5,
+            !c.Enabled && !new CombatJournalConfig().Enabled && c.Window == 20 && c.ChangeThreshold == 3 && c.ConfirmationTimeout == 5,
             "accepted defaults"
         );
         foreach (
@@ -43,6 +43,7 @@ static class CombatJournalTests
             }
             Check(threw, "invalid configuration rejected");
         }
+        c.Enabled = true;
         var j = new WeaponJournal();
         Check(
             j.Observe(0, "rifle", true, c).Count == 0,

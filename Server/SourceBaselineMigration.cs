@@ -8,6 +8,12 @@ namespace Comet.Server;
 // behavioural limits. The caller archives the original file before persisting.
 internal static class SourceBaselineMigration
 {
+    private static readonly string[] LegacyReports =
+    [
+        nameof(CometConfig.CombatJournal), nameof(CometConfig.WeaponJournal),
+        nameof(CometConfig.ControlJournal), nameof(CometConfig.TacticCounters),
+    ];
+
     internal static string Key(JsonObject target, string name) =>
         target.FirstOrDefault(p => p.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Key ?? name;
 
@@ -23,13 +29,25 @@ internal static class SourceBaselineMigration
         var distance = trajectory?[Key(trajectory, nameof(GrenadeTrajectoryConfig.Distance))]?.Deserialize<double>();
         var room = original[Key(original, nameof(CometConfig.DoorRoomClear))] as JsonObject;
         var preference = room?[Key(room, nameof(DoorRoomClearConfig.GrenadePreference))]?.Deserialize<double>();
+        var retained = (age ?? MissingGrenadeLifetime(memory), distance ?? GrenadeTrajectoryConfig.DefaultDistance, false);
         bool formerWindows = priorWindows && (age == 8 || distance == 40) && age is (null or 8) && distance is (null or 40);
         // Stock presets from these baselines used detailed logging (including when omitted).
         if (!personalPreset && original[Key(original, nameof(CometConfig.PresetSource))] == null
             && original[Key(original, nameof(CometConfig.QuietLogging))]?.GetValue<bool>() != true
             && (formerWindows || preference == 50) && preference is (null or 50))
         {
-            var comparison = original.Deserialize<CometConfig>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+            // Compare against the historical stock profile without changing the saved report choices.
+            var candidate = original.DeepClone().AsObject();
+            foreach (string name in LegacyReports)
+            {
+                if (candidate[Key(candidate, name)] is not JsonObject report)
+                    continue;
+                string key = Key(report, "Enabled");
+                if (report[key]?.GetValue<bool>() == false)
+                    return retained;
+                report.Remove(key);
+            }
+            var comparison = candidate.Deserialize<CometConfig>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
             comparison.QuietLogging = CometConfig.DefaultQuietLogging;
             if (comparison.DoorRoomClear != null && comparison.GrenadeTrajectory != null && DifficultyPresets.IsKnown(comparison.DifficultyPreset))
             {
@@ -43,7 +61,7 @@ internal static class SourceBaselineMigration
                     return (comparison.GrenadeContactLifetime, comparison.GrenadeTrajectory.Distance, true);
             }
         }
-        return (age ?? MissingGrenadeLifetime(memory), distance ?? GrenadeTrajectoryConfig.DefaultDistance, false);
+        return retained;
     }
 
     internal static bool Upgrade(JsonObject document, JsonObject? importedSettings = null)

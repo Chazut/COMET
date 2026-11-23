@@ -28,7 +28,7 @@ public sealed partial class Plugin
         internal Action Detach = () => { };
         internal BotState State = null!;
         internal bool Cleaning;
-        internal ControlJournal Journal = new();
+        internal ControlJournal? Journal;
         internal MovementObserver Movement = new();
         internal bool MovementFailed;
         internal bool JournalFailed;
@@ -152,7 +152,7 @@ public sealed partial class Plugin
             {
                 existing.State = s;
                 existing.Policy = new();
-                existing.Journal = new();
+                existing.Journal = null;
                 existing.JournalFailed = false;
             }
             return existing;
@@ -275,7 +275,8 @@ public sealed partial class Plugin
                     : s.Decision,
                 reason
             );
-            watch.Journal.Release(reason);
+            if (config?.ControlJournal.Enabled == true)
+                (watch.Journal ??= new()).Release(reason);
             if (trace != null)
                 RecordControl(s, trace);
         }

@@ -39,8 +39,7 @@ foreach (
     {
         Mixing = new() { Encounter = 1, Opportunity = 1 },
     };
-    if (gate == "disabled")
-        cp.config!.TacticCounters.Enabled = false;
+    cp.config!.TacticCounters.Enabled = gate != "disabled";
     if (gate == "client")
         cp.Authority = false;
     if (gate == "scav")

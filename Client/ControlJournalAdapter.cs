@@ -82,7 +82,8 @@ public sealed partial class Plugin
                 if (s.Reservation.Lease != null && s.Reservation.Lease.Until > Time.time)
                     o.Residual += " unexpired-door-lease-record";
             }
-            var events = watch.Journal.Observe(Time.time, o, config.ControlJournal);
+            var journal = watch.Journal ??= new();
+            var events = journal.Observe(Time.time, o, config.ControlJournal);
             // A native Search can crouch even when P02's optional quiet caps were
             // declined. Record actual locomotion separately from plan ownership.
             // No raycasts, movement commands or per-frame serialization.
