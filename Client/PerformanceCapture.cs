@@ -13,6 +13,15 @@ internal static class PerformanceCapture
 {
     private static Session? active;
 
+    internal static CombatWorkCounts? Work
+    {
+        get
+        {
+            var s = active;
+            return s != null && s.Thread == Environment.CurrentManagedThreadId ? s.Work : null;
+        }
+    }
+
     internal readonly struct Scope : IDisposable
     {
         private readonly Session? owner;
@@ -121,6 +130,7 @@ internal static class PerformanceCapture
     internal sealed class Session
     {
         internal readonly int Thread = Environment.CurrentManagedThreadId;
+        internal readonly CombatWorkCounts Work = new();
         internal readonly PerformanceRecorder Recorder;
         internal readonly PerformanceWriter Writer;
         internal bool Closing;
@@ -177,6 +187,7 @@ internal static class PerformanceCapture
                     timing = "Main-thread elapsed time, including native callees and synchronous subscribers. Not GPU time or whole-game CPU time.",
                     nesting = "Inclusive includes children; add SelfMs, not InclusiveMs. Instrumentation overhead remains in measured frames.",
                     coverage = "Synchronous COMET entry points and adapters; suspended iterators, async continuations and Fika addon internals are excluded. Background diagnostics reported separately.",
+                    combatWorkTotals = "Cumulative main-thread counts since capture start. Difference successive windows; do not sum. RangeKnownCandidates counts known-list entries on goal lookup, RangeGoalDetailReads includes fallback goals. SearchReports includes confirmations and forced events.",
                     frames = "Unity frame number and realtime. Delta observed at N is assigned to N-1. First frame partial; last duration unknown. GC counters indicate coincidence, not causation.",
                     limits = "8 queued windows; 64 detailed hitches per window, prioritizing COMET over budget; exact COMET and game budget counts in totals; 64 MiB plus final totals. Interrupted sessions have no performance-end footer.",
                 },
@@ -217,6 +228,7 @@ internal static class PerformanceCapture
 
         private void AddSummaryMetrics(PerformanceReport report)
         {
+            report.CombatWorkTotals = Work.Snapshot();
             report.Serialization = Diagnostics.SerializerMetrics();
             report.AiLightingMaxSamplesPerFrame = lighting.MaxSamplesPerFrame;
             report.AiLightingFramesOverBudget = lighting.FramesOverBudget;

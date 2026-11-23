@@ -199,6 +199,7 @@ public sealed partial class Plugin
         var second = ReadReturnGun(b, resources, EquipmentSlot.SecondPrimaryWeapon);
         var pistol = ReadReturnGun(b, resources, EquipmentSlot.Holster);
         var e = b.GoalEnemy;
+        string heldId = firearm.Item.Id.ToString();
         var f = new WeaponReturnFrame
         {
             Now = Time.time,
@@ -206,8 +207,8 @@ public sealed partial class Plugin
             Other = selector._mainWeapon == EquipmentSlot.SecondPrimaryWeapon ? first : second,
             Pistol = pistol,
             Current =
-                firearm.Item.Id.ToString() == first.Id ? first
-                : firearm.Item.Id.ToString() == second.Id ? second
+                heldId == first.Id ? first
+                : heldId == second.Id ? second
                 : pistol,
             Ready = WeaponHandsReady(b, firearm),
             Reloading = wm.Reload.Reloading,
@@ -248,13 +249,27 @@ public sealed partial class Plugin
 
     private void ObserveWeaponReturn(BotComponent b, BotState s)
     {
-        var firearm = b.Player.HandsController as Player.FirearmController;
-        s.WeaponReturn.Policy.Observe(
-            Time.time,
-            firearm?.Item?.Id.ToString() ?? "",
-            b.BotOwner.WeaponManager.Selector.EquipmentSlot.ToString(),
-            WeaponHandsReady(b, firearm),
-            RangeArbiterConfig()
+        var policy = s.WeaponReturn.Policy;
+        var slot = b.BotOwner.WeaponManager.Selector.EquipmentSlot;
+        string slotName = slot switch
+        {
+            EquipmentSlot.FirstPrimaryWeapon => nameof(EquipmentSlot.FirstPrimaryWeapon),
+            EquipmentSlot.SecondPrimaryWeapon => nameof(EquipmentSlot.SecondPrimaryWeapon),
+            EquipmentSlot.Holster => nameof(EquipmentSlot.Holster),
+            _ => slot.ToString(),
+        };
+        bool active = policy.Active;
+        var counts = PerformanceCapture.Work;
+        if (counts != null)
+        {
+            counts.WeaponSlotObservations++;
+            if (active)
+                counts.WeaponTransitionReads++;
+        }
+        var firearm = active ? b.Player.HandsController as Player.FirearmController : null;
+        policy.Observe(
+            Time.time, firearm?.Item?.Id.ToString() ?? "", slotName,
+            active && WeaponHandsReady(b, firearm), RangeArbiterConfig()
         );
     }
 

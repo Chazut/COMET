@@ -140,6 +140,10 @@ try
         warnings.Add
     );
     Check(sink != null, "capture starts");
+    PerformanceCapture.Work!.CoverCandidates += 7;
+    var priorWork = PerformanceCapture.Work.Snapshot();
+    PerformanceCapture.Work.CoverCandidates++;
+    Check(priorWork.CoverCandidates == 7, "queued work snapshots do not share mutable counters");
     for (int sample = 0; sample < 3; sample++)
         lighting.Record(Clock.Frame);
     Fixture.EmitRoot(false);
@@ -185,7 +189,10 @@ try
             && (int?)report["aiLightingFramesOverBudget"] == 2,
         "three samples then two on the final frame count two distinct over-budget frames"
     );
-    Check(lines.Length == 3, "lighting samples add no log records");
+    Check((long?)report["combatWorkTotals"]?["coverCandidates"] == 8
+        && (long?)report["combatWorkTotals"]?["weaponSlotObservations"] == 0
+        && PerformanceCapture.Work == null, "raid totals serialized, disabled after stop");
+    Check(lines.Length == 3, "work and lighting measurements add no log records");
     Check(
         report["serialization"]?["snapshotContracts"] != null
             && report["serialization"]?["compatibilityPreparationMs"] != null,

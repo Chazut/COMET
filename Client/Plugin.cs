@@ -2004,7 +2004,7 @@ internal sealed class BotState
     internal float EnvironmentLogAt = -1000;
     internal string EnvironmentLogKey = "";
     internal readonly SearchAbandonment Abandonment = new();
-    internal SearchAbandonmentFrame? AbandonPending;
+    internal string? AbandonPending;
     internal float AbandonProbeAt;
     internal bool AbandonFault;
     internal readonly ContactDiagnosticGate AbandonLogs = new();

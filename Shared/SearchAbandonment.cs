@@ -42,6 +42,14 @@ public sealed class SearchAbandonmentFrame
         Facing = true;
 }
 
+// Value snapshot for the native hook. Callers of the public frame API keep its reference semantics.
+internal struct SearchContactSample
+{
+    internal string Target;
+    internal double Silence, X, Y, Z, Distance;
+    internal bool Visible, Visited;
+}
+
 public sealed class SearchAbandonmentTrace
 {
     public string State { get; set; } = "inactive";
@@ -71,7 +79,24 @@ public sealed class SearchAbandonmentTrace
 // Source EnemyKnownChecker: forget a visited place after 20 seconds without news.
 public sealed class SearchAbandonment
 {
-    public SearchAbandonmentTrace? Current { get; private set; }
+    private SearchContactSample sample;
+    private double requiredSilence;
+    private string? state;
+    private string reason = "";
+    private bool requested;
+    private SearchAbandonmentTrace? trace;
+
+    internal string? CurrentState => trace?.State ?? state;
+
+    public SearchAbandonmentTrace? Current => state == null ? null : trace ??= new SearchAbandonmentTrace
+    {
+        Target = sample.Target, Silence = sample.Silence, RequiredSilence = requiredSilence,
+        X = sample.X, Y = sample.Y, Z = sample.Z, Distance = sample.Distance,
+        PlaceVisited = sample.Visited, State = state, Reason = reason, ForgetRequested = requested,
+    };
+
+    internal string CurrentTarget => trace?.Target ?? sample.Target;
+    internal string CurrentReason => trace?.Reason ?? reason;
     public int RememberedCount => 0;
 
     public bool Remembers(string target) => false;
@@ -80,7 +105,12 @@ public sealed class SearchAbandonment
 
     public void ForgetFailure(string target) { }
 
-    public void Clear() => Current = null;
+    public void Clear()
+    {
+        sample = default;
+        state = null;
+        trace = null;
+    }
 
     public void Interrupt(string reason)
     {
@@ -94,49 +124,52 @@ public sealed class SearchAbandonment
 
     public SearchAbandonmentTrace Evaluate(SearchAbandonmentFrame f, SearchAbandonmentConfig c)
     {
-        var t = Current = new SearchAbandonmentTrace
+        EvaluateContact(new SearchContactSample
         {
-            Target = f.Target,
-            RequiredSilence = c.Silence,
-            Silence = f.Now - f.Stamp,
-            X = f.X,
-            Y = f.Y,
-            Z = f.Z,
-            Distance = f.Distance,
-            PlaceVisited = f.PersonalSearch,
-        };
-        if (!c.Enabled || !f.Scoped || !f.NativeKnown)
+            Target = f.Target, Silence = f.Now - f.Stamp, X = f.X, Y = f.Y, Z = f.Z,
+            Visible = f.Visible, Visited = f.PersonalSearch, Distance = f.Distance,
+        }, c, f.Scoped && f.NativeKnown);
+        return Current!;
+    }
+
+    internal bool EvaluateContact(in SearchContactSample contact, SearchAbandonmentConfig c, bool inScope)
+    {
+        sample = contact;
+        requiredSilence = c.Silence;
+        trace = null; // Previously published traces remain independent snapshots.
+        requested = false;
+        if (!c.Enabled || !inScope)
         {
-            t.State = "ended";
-            t.Reason = "search-check-out-of-scope";
-            return t;
+            state = "ended";
+            reason = "search-check-out-of-scope";
         }
-        if (!f.Visible && f.PersonalSearch && t.Silence >= c.Silence)
+        else if (!contact.Visible && contact.Visited && contact.Silence >= c.Silence)
         {
-            t.State = "requested";
-            t.Reason = "search-check-position-empty";
-            t.ForgetRequested = true;
+            state = "requested";
+            reason = "search-check-position-empty";
+            requested = true;
         }
         else
         {
-            t.State = "watching";
-            t.Reason =
-                f.Visible ? "search-check-visible"
-                : !f.PersonalSearch ? "search-place-not-visited"
-                : "search-check-waiting-for-silence";
+            state = "watching";
+            reason = contact.Visible ? "search-check-visible"
+                : !contact.Visited ? "search-place-not-visited" : "search-check-waiting-for-silence";
         }
-        return t;
+        return requested;
     }
 
     public bool ObserveForgotten(
         SearchAbandonmentFrame f,
         SearchAbandonmentConfig c,
         bool nativeUnknown
-    )
+    ) => ObserveForgotten(f.Target, nativeUnknown);
+
+    internal bool ObserveForgotten(string target, bool nativeUnknown)
     {
-        if (!nativeUnknown || Current?.ForgetRequested != true || Current.Target != f.Target)
+        if (!nativeUnknown || !(trace?.ForgetRequested ?? requested) || state == null
+            || (trace?.Target ?? sample.Target) != target)
             return false;
-        Current.State = "abandoned";
+        Current!.State = "abandoned";
         Current.ForgetObserved = true;
         Current.ValidFor = 3;
         return true;

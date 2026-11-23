@@ -70,13 +70,18 @@ internal static class VisibleAdapter
                     : enemy.KnownPlaces.LastKnownPosition ?? bot.Position
             )
             + Vector3.up * 1.5f;
+        var counts = PerformanceCapture.Work;
         foreach (var p in bot.Cover.CoverPoints)
         {
-            if (p == null || !Plugin.SeasonalCoverUsable(bot, p))
+            if (p == null)
                 continue;
+            if (counts != null) counts.CoverCandidates++;
             float d = Vector3.Distance(p.Position, bot.Position);
+            if (d >= distance)
+                continue;
+            if (counts != null) counts.CoverSeasonalChecks++;
             if (
-                d >= distance
+                !Plugin.SeasonalCoverUsable(bot, p)
                 || !Physics.Linecast(
                     eye,
                     p.Position + Vector3.up,

@@ -28,8 +28,20 @@ public sealed class PerformanceFrame
     public PerformanceModule[] TopModules { get; set; } = Array.Empty<PerformanceModule>();
 }
 
+// Cumulative main-thread operations. Each emitted report owns its snapshot.
+public sealed class CombatWorkCounts
+{
+    public long WeaponSlotObservations, WeaponTransitionReads;
+    public long RangeEvaluations, RangeHolsterIdReads;
+    public long RangeKnownCandidates, RangeGoalDetailReads, RangeOtherContactScans, RangeOtherContactsExamined;
+    public long CoverCandidates, CoverSeasonalChecks;
+    public long SearchEvaluations, SearchReports;
+    internal CombatWorkCounts Snapshot() => (CombatWorkCounts)MemberwiseClone();
+}
+
 public sealed class PerformanceReport
 {
+    public CombatWorkCounts? CombatWorkTotals { get; set; }
     public object? Serialization { get; set; }
     public int? AiLightingMaxSamplesPerFrame { get; set; }
     public int? AiLightingFramesOverBudget { get; set; }

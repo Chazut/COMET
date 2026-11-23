@@ -36,5 +36,13 @@ public sealed class ContactDiagnosticGate
         return true;
     }
 
+    public SearchAbandonmentTrace? ReportFor(SearchAbandonment policy, double now, bool force)
+    {
+        var state = policy.CurrentState;
+        if (state == null || !Allow(policy.CurrentTarget, state, policy.CurrentReason, now, force))
+            return null;
+        return policy.Current;
+    }
+
     public void Clear() => entries.Clear();
 }

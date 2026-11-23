@@ -45,6 +45,36 @@ static class SearchAbandonmentTests
         );
         f.Stamp = 1;
         Check(!p.Evaluate(f, c).ForgetRequested, "new evidence resets source age");
+        var observation = new SearchContactSample { Target = "a", Distance = 12, Silence = 21 };
+        var gate = new ContactDiagnosticGate();
+        p.EvaluateContact(observation, c, true);
+        var first = gate.ReportFor(p, 1, false)!;
+        observation.Target = "b";
+        p.EvaluateContact(observation, c, true);
+        var second = gate.ReportFor(p, 1, false)!;
+        Check(first.Target == "a" && second.Target == "b" && first != second, "independent report snapshots");
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100000; i++)
+        {
+            observation.Target = i % 2 == 0 ? "a" : "b";
+            if (p.EvaluateContact(observation, c, true) || gate.ReportFor(p, 2, false) != null)
+                throw new Exception("watching contacts do not request a forget or repeat reports");
+        }
+        long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        Check(bytes == 0, "no allocations for unreported evaluations: " + bytes);
+        Console.WriteLine($"P09: {bytes} bytes for 100000 alternating, throttled evaluations.");
+        observation.Visited = true;
+        observation.Silence = c.Silence - .00000001;
+        Check(!p.EvaluateContact(observation, c, true), "just below the silence threshold");
+        observation.Silence = c.Silence;
+        Check(p.EvaluateContact(observation, c, true), "exact silence threshold");
+        string pending = observation.Target;
+        observation.Target = "a";
+        p.EvaluateContact(observation, c, true);
+        Check(!p.ObserveForgotten(pending, true) && !p.ObserveForgotten("a", false)
+            && p.ObserveForgotten("a", true), "native acknowledgement belongs to the current matching request");
+        p.Clear();
+        Check(gate.ReportFor(p, 3, true) == null && p.Current == null, "clearing releases latest observation");
         var watch = new StalledCoverContact();
         var sniper = new object();
         var other = new object();

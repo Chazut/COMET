@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.CompilerServices;
 using Comet.Core;
 using HarmonyLib;
 using EFT;
@@ -60,7 +59,7 @@ public sealed partial class Plugin
         var e = abandonmentEnemy(checker);
         return p.states.TryGetValue(e.Bot, out var s)
             && (pending
-                ? s.AbandonPending?.Target == e.EnemyProfileId
+                ? s.AbandonPending != null && s.AbandonPending == e.EnemyProfileId
                 : e.KnownPlaces?.LastKnownPlace != null);
     }
 
@@ -102,25 +101,24 @@ public sealed partial class Plugin
                 return;
             }
             var point = place.Position;
-            var f = new SearchAbandonmentFrame
+            var contact = new SearchContactSample
             {
-                Now = currentTime,
-                Stamp = e.KnownPlaces.TimeLastKnownUpdated,
+                Silence = (double)currentTime - e.KnownPlaces.TimeLastKnownUpdated,
                 Target = e.EnemyProfileId,
-                Instance = RuntimeHelpers.GetHashCode(e),
                 X = point.x,
                 Y = point.y,
                 Z = point.z,
                 Distance = Vector3.Distance(b.Position, point),
-                NativeKnown = __result,
                 Visible = e.IsVisible,
-                PersonalSearch = place.HasArrivedPersonal || place.HasArrivedSquad,
+                Visited = place.HasArrivedPersonal || place.HasArrivedSquad,
             };
-            var t = s.Abandonment.Evaluate(f, p.config.SearchAbandonment);
+            var counts = PerformanceCapture.Work;
+            if (counts != null) counts.SearchEvaluations++;
+            bool forget = s.Abandonment.EvaluateContact(contact, p.config.SearchAbandonment, true);
             p.RecordAbandonment(s);
-            if (t.ForgetRequested)
+            if (forget)
             {
-                s.AbandonPending = f;
+                s.AbandonPending = contact.Target;
                 __result = false;
             }
         }
@@ -140,15 +138,14 @@ public sealed partial class Plugin
         var e = abandonmentEnemy(__instance);
         if (
             !p.states.TryGetValue(e.Bot, out var s)
-            || s.AbandonPending is not SearchAbandonmentFrame f
-            || f.Target != e.EnemyProfileId
+            || s.AbandonPending is not string target
+            || target != e.EnemyProfileId
         )
             return;
         s.AbandonPending = null;
         if (
             s.Abandonment.ObserveForgotten(
-                f,
-                p.config.SearchAbandonment,
+                target,
                 !e.EnemyKnown && e.KnownPlaces.LastKnownPlace == null
             )
         )
@@ -158,8 +155,7 @@ public sealed partial class Plugin
     private void EndAbandonment(BotState s, string reason, bool clear = false)
     {
         if (
-            s.Abandonment.Current is SearchAbandonmentTrace t
-            && (t.State == "reached" || t.State == "checking" || t.State == "requested")
+            s.Abandonment.CurrentState is "reached" or "checking" or "requested"
         )
         {
             s.Abandonment.Interrupt(reason);
@@ -175,11 +171,11 @@ public sealed partial class Plugin
 
     private void RecordAbandonment(BotState s, bool force = false)
     {
-        var t = s.Abandonment.Current;
+        var t = s.AbandonLogs.ReportFor(s.Abandonment, Time.time, force);
         if (t == null)
             return;
-        if (!s.AbandonLogs.Allow(t.Target, t.State, t.Reason, Time.time, force))
-            return;
+        var counts = PerformanceCapture.Work;
+        if (counts != null) counts.SearchReports++;
         // Read cached native state only when a throttled diagnostic is emitted.
         // These fields do not participate in the source abandonment decision.
         try

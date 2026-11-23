@@ -69,6 +69,47 @@ public static class Cases
         cover.CoverPoints.Add(new CoverPoint(99));
         Check(VisibleAdapter.SelectCover(bot) == null, "source distance bound");
 
+        var random = new Random(505);
+        var counts = PerformanceCapture.Work = new CoverCounts();
+        for (int trial = 0; trial < 10000; trial++)
+        {
+            cover.CoverPoints.Clear();
+            Physics.Exposed.Clear();
+            CoverPoint expected = null;
+            float bestDistance = 99;
+            int priorSeasonChecks = 0, priorLinecasts = 0;
+            int length = random.Next(20);
+            for (int i = 0; i < length; i++)
+            {
+                int x = random.Next(-4, 12) * 10;
+                if (random.Next(6) == 0) Physics.Exposed.Add(x);
+                cover.CoverPoints.Add(random.Next(8) == 0 ? null :
+                    new CoverPoint(x) { Usable = random.Next(3) != 0 });
+            }
+            foreach (var point in cover.CoverPoints)
+            {
+                if (point == null) continue;
+                priorSeasonChecks++;
+                if (!point.Usable) continue;
+                float dist = Vector3.Distance(bot.Position, point.Position);
+                if (dist >= bestDistance) continue;
+                priorLinecasts++;
+                if (Physics.Exposed.Contains(point.Position.x)) continue;
+                expected = point;
+                bestDistance = dist;
+            }
+            int beforeRays = Physics.Linecasts;
+            long beforeCandidates = counts.CoverCandidates;
+            Check(ReferenceEquals(VisibleAdapter.SelectCover(bot), expected),
+                "same cover object as seasonal-first selection, trial " + trial);
+            Check(Physics.Linecasts - beforeRays == priorLinecasts &&
+                counts.CoverCandidates - beforeCandidates == priorSeasonChecks,
+                "same threat linecasts and candidate accounting");
+        }
+        Check(counts.CoverSeasonalChecks < counts.CoverCandidates, "season checks actually skipped");
+        Console.WriteLine($"10000 lists: {counts.CoverCandidates} old seasonal checks, {counts.CoverSeasonalChecks} new.");
+        Physics.Exposed.Clear();
+
         foreach (var plan in new[] { ("A01", "COMET:FallBack"), ("A02", "COMET:Cover") })
         {
             state.Feature = plan.Item1;
@@ -257,3 +298,6 @@ partial class Plugin
     public void Observe(SAINCoverClass cover, CoverPoint result) =>
         ObserveNativeCover(cover, result);
 }
+
+static class PerformanceCapture { internal static CoverCounts Work = new(); }
+class CoverCounts { internal long CoverCandidates, CoverSeasonalChecks; }

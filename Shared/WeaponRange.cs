@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 
 namespace Comet.Core;
 
@@ -103,6 +102,34 @@ public sealed class WeaponRangeTrace
     public string[] Alternatives = Array.Empty<string>();
 }
 
+internal interface IWeaponRangeContacts
+{
+    WeaponRangeContact? FindGoal(string id);
+    bool HasRecentDistant(WeaponRangeConfig config);
+}
+
+internal readonly struct RecordedRangeContacts : IWeaponRangeContacts
+{
+    private readonly WeaponRangeContact[] contacts;
+    internal RecordedRangeContacts(WeaponRangeContact[] contacts) => this.contacts = contacts;
+
+    public WeaponRangeContact? FindGoal(string id)
+    {
+        foreach (var contact in contacts)
+            if (contact.Id == id)
+                return contact;
+        return null;
+    }
+
+    public bool HasRecentDistant(WeaponRangeConfig config)
+    {
+        foreach (var contact in contacts)
+            if (contact.Age <= config.LostContactSeconds && contact.Distance >= config.CloseDistance)
+                return true;
+        return false;
+    }
+}
+
 // A conservative comparison, not a ballistic or accuracy simulation. Only own equipment is scored.
 public static class WeaponRangeModel
 {
@@ -126,7 +153,11 @@ public sealed class WeaponRangePolicy
 
     public bool Holds(string id) => longChoice == id && id.Length > 0;
 
-    public string Evaluate(WeaponRangeFrame f, WeaponRangeConfig c)
+    public string Evaluate(WeaponRangeFrame f, WeaponRangeConfig c) =>
+        Evaluate(f, c, new RecordedRangeContacts(f.Contacts));
+
+    internal string Evaluate<TContacts>(WeaponRangeFrame f, WeaponRangeConfig c, TContacts contacts)
+        where TContacts : struct, IWeaponRangeContacts
     {
         Trace = new()
         {
@@ -144,12 +175,16 @@ public sealed class WeaponRangePolicy
             return No("range-disabled");
         if (!f.Ready || f.Reloading)
             return No("range-native-not-ready");
-        var first = f.Weapons.FirstOrDefault(g => g.Slot == "FirstPrimaryWeapon");
-        var second = f.Weapons.FirstOrDefault(g => g.Slot == "SecondPrimaryWeapon");
-        var main = f.Weapons.FirstOrDefault(g => g.Id == f.Main);
+        WeaponRangeGun? first = null, second = null, main = null;
+        foreach (var gun in f.Weapons)
+        {
+            if (first == null && gun.Slot == "FirstPrimaryWeapon") first = gun;
+            if (second == null && gun.Slot == "SecondPrimaryWeapon") second = gun;
+            if (main == null && gun.Id == f.Main) main = gun;
+        }
         if (main == null)
             return No("range-no-main-weapon");
-        var goal = f.Contacts.FirstOrDefault(g => g.Id == f.Goal);
+        var goal = contacts.FindGoal(f.Goal);
         if (goal != null)
         {
             Trace.Target = goal.Id;
@@ -172,9 +207,7 @@ public sealed class WeaponRangePolicy
             if (
                 gone
                 && !close
-                && f.Contacts.Any(g =>
-                    g.Age <= c.LostContactSeconds && g.Distance >= c.CloseDistance
-                )
+                && contacts.HasRecentDistant(c)
             )
                 gone = false;
             if (close || gone || second.Loaded + second.Reserve <= 0)

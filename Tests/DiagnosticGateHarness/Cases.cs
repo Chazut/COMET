@@ -112,7 +112,7 @@ class BotState
         Name = "bot",
         Id = "instance";
     public SearchAbandonment Abandonment = new();
-    public SearchAbandonmentFrame? AbandonPending;
+    public string? AbandonPending;
     public float AbandonProbeAt;
 }
 
@@ -271,7 +271,7 @@ partial class Probe
             NeedsAbandonment(checker, false),
             "diagnostic outcome cannot disable source visited checks"
         );
-        s.AbandonPending = new SearchAbandonmentFrame { Target = "target" };
+        s.AbandonPending = "target";
         Check(NeedsAbandonment(checker, true), "native forget confirmation immediate");
         e.KnownPlaces.LastKnownPlace = null;
         Check(!NeedsAbandonment(checker, false), "no place needs no evaluation");
@@ -336,3 +336,5 @@ partial class Probe
 
     static string diagnosticsLine(Probe p) => p.diagnostics.Lines[^1];
 }
+
+static class PerformanceCapture { internal static CombatWorkCounts? Work => null; }
