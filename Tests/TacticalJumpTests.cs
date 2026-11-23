@@ -366,6 +366,7 @@ internal static class TacticalJumpTests
             foreach (var path in new[] { file, file + ".bak" })
                 if (File.Exists(path))
                     File.Delete(path);
+            File.Delete(file + ConfigStore.ReportDefaultsReceipt);
             Directory.Delete(dir);
         }
         // Decode official IL rather than matching source strings: only the three intended Rush calls are replaced.

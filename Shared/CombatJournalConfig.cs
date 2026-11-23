@@ -19,7 +19,7 @@ public sealed class ControlJournalConfig
 
 public sealed class CombatJournalConfig
 {
-    public bool Enabled { get; set; }
+    public bool Enabled { get; set; } = true;
     public double SampleInterval { get; set; } = .25;
 
     public void Validate() => CometConfig.Range(SampleInterval, .1, 2, nameof(SampleInterval));

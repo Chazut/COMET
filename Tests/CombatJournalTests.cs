@@ -19,7 +19,7 @@ static class CombatJournalTests
         c.Validate();
         new CombatJournalConfig().Validate();
         Check(
-            !c.Enabled && !new CombatJournalConfig().Enabled && c.Window == 20 && c.ChangeThreshold == 3 && c.ConfirmationTimeout == 5,
+            !c.Enabled && new CombatJournalConfig().Enabled && c.Window == 20 && c.ChangeThreshold == 3 && c.ConfirmationTimeout == 5,
             "accepted defaults"
         );
         foreach (

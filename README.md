@@ -62,7 +62,9 @@ Lose sight of a PMC in Dorms and you might hear a reload at the next doorway. It
 
 ## FAQ
 
-**Which diagnostics should I enable?** For normal play, leave the five optional collectors off. Raid Review still records regular COMET events such as squad assignments and magazine pickups. Enable **Combat journal** for extra contact and damage details, or **Decision counters** for tactic statistics. **Weapon changes and loops**, **Control transitions** and **Performance capture** help investigate specific issues. Changes apply next raid.
+**Which diagnostics should I enable?** **Combat journal** is on by default so Raid Review can show contacts, damage and time spent on each action. You can turn it off and still replay the raid, including squad tactics and magazine pickups. The other four options are off by default. Enable **Decision counters** for tactic statistics, or **Weapon changes and loops**, **Control transitions** or **Performance capture** to investigate a specific issue. Changes apply next raid.
+
+On upgrade, COMET applies these five settings once and backs up the previous config if it changes. You can then switch any of them on or off for future raids.
 
 **Will COMET cost me FPS?** Keeping the performance impact as low as possible is a top priority. COMET spreads work across frames to limit stutters. When several bots look at the same AI target, they reuse its lighting measurement. The extra combat decisions still take CPU time, so the impact depends on your setup and how many bots are fighting.
 

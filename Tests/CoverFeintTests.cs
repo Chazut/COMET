@@ -947,6 +947,7 @@ internal static class CoverFeintTests
             foreach (var name in new[] { file, file + ".bak" })
                 if (File.Exists(name))
                     File.Delete(name);
+            File.Delete(file + ConfigStore.ReportDefaultsReceipt);
             Directory.Delete(dir);
         }
         using (var pe = new PEReader(File.OpenRead("references/sain-4.5.1/SAIN.dll")))

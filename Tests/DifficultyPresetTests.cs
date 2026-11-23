@@ -186,6 +186,8 @@ internal static class DifficultyPresetTests
                 store.Read().DifficultyPreset == "Hard",
                 "fresh installation defaults to highest profile"
             );
+            // Test the historical difficulty migrations after the independent report migration.
+            store.Save(store.Read(), 1);
             var oldDefaults = JsonSerializer.SerializeToNode(new CometConfig())!.AsObject();
             foreach (var level in new[] { "Easy", "Normal", "Hard" })
             {
@@ -201,7 +203,7 @@ internal static class DifficultyPresetTests
                 File.WriteAllText(path, oldJson);
                 var updated = JsonSerializer.Deserialize<CometConfig>(store.ForGame())!;
                 Check(updated.GrenadeContactLifetime == 20 && updated.GrenadeTrajectory.Distance == 45
-                    && updated.DifficultyPreset == level && DifficultyPresets.Describe(updated).ChangedSettings == 4
+                    && updated.DifficultyPreset == level && DifficultyPresets.Describe(updated).ChangedSettings == 3
                     && updated.CombatJournal.Enabled && updated.WeaponJournal.Enabled && updated.ControlJournal.Enabled && updated.TacticCounters.Enabled,
                     $"the stock {level} config reaches the client with the new grenade defaults");
                 int backupsBeforeRead = Directory.GetFiles(dir, "*.before-zzap-*.bak").Length;

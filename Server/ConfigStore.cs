@@ -10,6 +10,16 @@ public sealed class ConfigStore
 {
     // Disk metadata, kept out of the editor, preset exports and the raid protocol.
     private const string QuietDefaultApplied = "QuietLoggingDefaultApplied";
+    // A per-install receipt survives saving a preset or briefly running the previous server.
+    internal const string ReportDefaultsReceipt = ".report-defaults-v1.applied";
+    private static readonly (string Section, bool Enabled)[] ReportDefaultsV1 =
+    [
+        (nameof(CometConfig.CombatJournal), true),
+        (nameof(CometConfig.WeaponJournal), false),
+        (nameof(CometConfig.ControlJournal), false),
+        (nameof(CometConfig.TacticCounters), false),
+        (nameof(CometConfig.Performance), false),
+    ];
     private readonly object gate = new();
     private readonly string path;
     private static readonly JsonSerializerOptions Json = new()
@@ -47,34 +57,47 @@ public sealed class ConfigStore
                 JsonNode.Parse(original) as JsonObject
                 ?? throw new InvalidDataException("Invalid COMET configuration.");
             bool baselineChanged = SourceBaselineMigration.Upgrade(document);
-            var config = document.Deserialize<CometConfig>(Json)
-                ?? throw new InvalidDataException("Empty COMET configuration.");
-            config.Validate();
+            var config = ReadValidated(document);
             string markerKey = SourceBaselineMigration.Key(document, QuietDefaultApplied);
             bool migrateQuiet = document[markerKey]?.GetValue<bool>() != true;
+            bool settingsChanged = false;
             if (migrateQuiet)
             {
                 string quietKey = SourceBaselineMigration.Key(document, nameof(CometConfig.QuietLogging));
                 // An absent setting also meant OFF in 1.0.0. Reject stale editor drafts.
-                if (document[quietKey]?.GetValue<bool>() != true)
-                {
-                    config.Revision = checked(config.Revision + 1);
-                    document[SourceBaselineMigration.Key(document, nameof(CometConfig.Revision))] = config.Revision;
-                }
-                config.QuietLogging = true;
+                settingsChanged = document[quietKey]?.GetValue<bool>() != true;
                 document[quietKey] = true;
                 document[markerKey] = true;
             }
-            if (baselineChanged || migrateQuiet)
+            bool migrateReports = !File.Exists(path + ReportDefaultsReceipt);
+            if (migrateReports)
+                settingsChanged |= ApplyReportDefaults(document);
+            if (settingsChanged)
             {
-                var reason = baselineChanged ? "zzap" : "quiet";
+                config = ReadValidated(document);
+                config.Revision = checked(config.Revision + 1);
+                document[SourceBaselineMigration.Key(document, nameof(CometConfig.Revision))] = config.Revision;
+            }
+            if (baselineChanged || migrateQuiet || settingsChanged)
+            {
+                var reason = baselineChanged ? "zzap" : migrateQuiet ? "quiet" : "reports";
                 Write(document, $"{path}.before-{reason}-{DateTime.UtcNow:yyyyMMdd-HHmmss-fffffff}.bak");
             }
+            if (migrateReports)
+                MarkReportDefaultsApplied();
             return config;
         }
     }
 
     public string ForGame() => JsonSerializer.Serialize(Read(), Json);
+
+    private static CometConfig ReadValidated(JsonObject document)
+    {
+        var config = document.Deserialize<CometConfig>(Json)
+            ?? throw new InvalidDataException("Empty COMET configuration.");
+        config.Validate();
+        return config;
+    }
 
     public CometConfig Save(CometConfig proposed, long expectedRevision)
     {
@@ -93,9 +116,37 @@ public sealed class ConfigStore
             detached.Revision = checked(current.Revision + 1);
             var document = JsonSerializer.SerializeToNode(detached, Json)!.AsObject();
             document[QuietDefaultApplied] = true;
+            // A first save is already an explicit choice made against the new defaults.
+            if (!File.Exists(path))
+                MarkReportDefaultsApplied();
             Write(document, path + ".bak");
             return detached;
         }
+    }
+
+    private static bool ApplyReportDefaults(JsonObject document)
+    {
+        bool changed = false;
+        foreach (var (name, enabled) in ReportDefaultsV1)
+        {
+            string key = SourceBaselineMigration.Key(document, name);
+            if (!document.ContainsKey(key))
+                document[key] = new JsonObject();
+            var section = document[key] as JsonObject
+                ?? throw new InvalidDataException($"Invalid COMET configuration section '{key}'.");
+            string flag = SourceBaselineMigration.Key(section, "Enabled");
+            if (section[flag]?.GetValue<bool>() == enabled)
+                continue;
+            section[flag] = enabled;
+            changed = true;
+        }
+        return changed;
+    }
+
+    private void MarkReportDefaultsApplied()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using var receipt = File.Open(path + ReportDefaultsReceipt, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read);
     }
 
     private void Write(JsonObject document, string backup)

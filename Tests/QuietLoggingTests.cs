@@ -30,11 +30,15 @@ static class QuietLoggingTests
             var first = freshStore.Read();
             Check(first.QuietLogging && !File.Exists(freshPath), "new installs start quiet");
             foreach (var profile in new[] { first, DifficultyPresets.Create("Easy"), DifficultyPresets.Create("Normal"), DifficultyPresets.Create("Hard") })
-                Check(!profile.TacticCounters.Enabled && !profile.CombatJournal.Enabled && !profile.WeaponJournal.Enabled
-                    && !profile.ControlJournal.Enabled && !profile.Performance.Enabled, "player defaults collect no optional reports");
+                Check(!profile.TacticCounters.Enabled && profile.CombatJournal.Enabled && !profile.WeaponJournal.Enabled
+                    && !profile.ControlJournal.Enabled && !profile.Performance.Enabled, "only the RR combat journal is enabled by default");
             first.QuietLogging = false;
+            first.CombatJournal.Enabled = false;
+            first.ControlJournal.Enabled = true;
             freshStore.Save(first, first.Revision);
-            Check(!new ConfigStore(freshPath).Read().QuietLogging, "first explicit opt-out survives restart");
+            var firstSaved = new ConfigStore(freshPath).Read();
+            Check(!firstSaved.QuietLogging && !firstSaved.CombatJournal.Enabled && firstSaved.ControlJournal.Enabled,
+                "first explicit report choices on a fresh install survive restart");
 
             var legacy = new CometConfig { Revision = 42 };
             legacy.TacticCounters.Enabled = legacy.ControlJournal.Enabled =
@@ -46,13 +50,19 @@ static class QuietLoggingTests
             saved.Remove("QuietLogging");
             saved["quietLogging"] = false;
             saved["ExtraSetting"] = 19;
+            saved["weaponJournal"] = saved["WeaponJournal"]!.DeepClone();
+            saved.Remove("WeaponJournal");
+            saved["weaponJournal"]!.AsObject().Remove("Enabled");
+            saved["weaponJournal"]!["enabled"] = true;
+            saved["weaponJournal"]!["Window"] = 37;
+            saved["CombatJournal"]!["Enabled"] = false;
             string path = Path.Combine(directory, "config.json");
             File.WriteAllText(path, saved.ToJsonString());
             var store = new ConfigStore(path);
             var existing = store.Read();
             Check(
-                existing.QuietLogging && existing.Revision == 43 && existing.Performance.Enabled,
-                "old config enables Quiet once, invalidates stale drafts and retains performance capture"
+                existing.QuietLogging && existing.Revision == 43 && !existing.Performance.Enabled,
+                "an old config applies both migrations with one revision bump"
             );
             string migrationBackup = Directory.GetFiles(directory, "config.json.before-quiet-*.bak").Single();
             string migratedText = File.ReadAllText(path);
@@ -60,13 +70,16 @@ static class QuietLoggingTests
             Check(
                 File.ReadAllText(migrationBackup) == saved.ToJsonString()
                     && migrated["quietLogging"]!.GetValue<bool>() && !migrated.ContainsKey("QuietLogging")
+                    && (bool?)migrated["weaponJournal"]?["enabled"] == false && existing.WeaponJournal.Window == 37
+                    && !migrated.ContainsKey("WeaponJournal")
                     && (int?)migrated["ExtraSetting"] == 19,
                 "migration backs up the original and preserves casing and unrelated settings"
             );
             var restarted = new ConfigStore(path);
             var game = JObject.Parse(restarted.ForGame());
-            Check(new[] { "TacticCounters", "CombatJournal", "WeaponJournal", "ControlJournal", "Performance" }
-                .All(name => (bool?)game[name]?["Enabled"] == true), "saved personal opt-ins reach the raid after migration");
+            Check((bool?)game["CombatJournal"]?["Enabled"] == true
+                && new[] { "TacticCounters", "WeaponJournal", "ControlJournal", "Performance" }
+                    .All(name => (bool?)game[name]?["Enabled"] == false), "upgraded raid preserves the RR combat journal and skips four diagnostics");
             Check((bool?)game["QuietLogging"] == true && game["QuietLoggingDefaultApplied"] == null
                 && File.ReadAllText(path) == migratedText, "game receives quiet without metadata or another write");
             bool staleRejected = false;
@@ -82,8 +95,8 @@ static class QuietLoggingTests
                 File.WriteAllText(otherPath, other.ToJsonString());
                 var otherStore = new ConfigStore(otherPath);
                 var upgraded = otherStore.Read();
-                Check(upgraded.QuietLogging && upgraded.Revision == (alreadyQuiet ? 7 : 8),
-                    "omitted and already enabled settings both migrate");
+                Check(upgraded.QuietLogging && upgraded.CombatJournal.Enabled && upgraded.Revision == 8,
+                    "omitted report sections migrate with or without Quiet enabled");
                 var manual = JsonNode.Parse(File.ReadAllText(otherPath))!;
                 manual["QuietLogging"] = false;
                 File.WriteAllText(otherPath, manual.ToJsonString());
@@ -109,6 +122,7 @@ static class QuietLoggingTests
                 store.Read().QuietLogging && existing.QuietLogging,
                 "editing draft does not mutate saved or running configuration"
             );
+            Check(editor.Set(editor.Catalog.Fields["Performance.Enabled"], "true"), "an opt-in can follow the migration");
             editor.AcceptSaved(store.Save(editor.Snapshot(), editor.Revision));
             Check(
                 !new ConfigStore(path).Read().QuietLogging
@@ -118,7 +132,7 @@ static class QuietLoggingTests
             );
             Check(
                 store.Read().Performance.Enabled,
-                "Quiet does not change independent performance setting"
+                "performance can be re-enabled permanently after migration"
             );
             Check(editor.Set(field, "true"), "UI can re-enable Quiet");
             store.Save(editor.Snapshot(), editor.Revision);
@@ -126,6 +140,33 @@ static class QuietLoggingTests
                 store.Read().QuietLogging && store.Read().Revision == 45,
                 "ON survives save/reload"
             );
+            string priorPatchPath = Path.Combine(directory, "prior-quiet-patch.json");
+            var priorPatch = saved.DeepClone().AsObject();
+            priorPatch["QuietLoggingDefaultApplied"] = true;
+            File.WriteAllText(priorPatchPath, priorPatch.ToJsonString());
+            var patchedStore = new ConfigStore(priorPatchPath);
+            var patched = patchedStore.Read();
+            Check(!patched.QuietLogging && patched.CombatJournal.Enabled && !patched.Performance.Enabled
+                && File.ReadAllText(Directory.GetFiles(directory, "prior-quiet-patch.json.before-reports-*.bak").Single()) == priorPatch.ToJsonString(),
+                "a previously migrated Quiet opt-out survives the independent reports upgrade and backup");
+            patched.CombatJournal.Enabled = false;
+            patched.TacticCounters.Enabled = patched.WeaponJournal.Enabled = patched.ControlJournal.Enabled = patched.Performance.Enabled = true;
+            patchedStore.Save(patched, patched.Revision);
+            var personal = new ConfigStore(priorPatchPath).Read();
+            Check(!personal.CombatJournal.Enabled && personal.TacticCounters.Enabled && personal.WeaponJournal.Enabled
+                && personal.ControlJournal.Enabled && personal.Performance.Enabled, "all five report choices survive a restart after the reset");
+            string retryPath = Path.Combine(directory, "retry.json");
+            var corrupt = priorPatch.DeepClone().AsObject();
+            corrupt["Performance"]!["Enabled"] = "invalid";
+            File.WriteAllText(retryPath, corrupt.ToJsonString());
+            bool invalidRejected = false;
+            try { new ConfigStore(retryPath).Read(); }
+            catch (System.Text.Json.JsonException) { invalidRejected = true; }
+            Check(invalidRejected && !File.Exists(retryPath + ConfigStore.ReportDefaultsReceipt)
+                && File.ReadAllText(retryPath) == corrupt.ToJsonString(), "an invalid config is never marked migrated");
+            File.WriteAllText(retryPath, priorPatch.ToJsonString());
+            Check(!new ConfigStore(retryPath).Read().Performance.Enabled && File.Exists(retryPath + ConfigStore.ReportDefaultsReceipt),
+                "the migration retries after a config repair");
             var old = JsonNode
                 .Parse(
                     System.Text.Json.JsonSerializer.Serialize(

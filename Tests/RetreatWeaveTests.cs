@@ -353,6 +353,7 @@ internal static class RetreatWeaveTests
             foreach (var path in new[] { file, file + ".bak" })
                 if (File.Exists(path))
                     File.Delete(path);
+            File.Delete(file + ConfigStore.ReportDefaultsReceipt);
             Directory.Delete(dir);
         }
         using (var pe = new PEReader(File.OpenRead("references/sain-4.5.1/SAIN.dll")))

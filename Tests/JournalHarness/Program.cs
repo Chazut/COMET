@@ -37,8 +37,9 @@ JObject[] Events() => Comet.Api.Decisions.Events.Select(JObject.Parse).ToArray()
 string? WeaponState(JObject x) => (string?)(x["weaponJournal"] as JObject)?["change"]?["state"];
 string? CombatKind(JObject x) => (string?)(x["combatJournal"] as JObject)?["kind"];
 var bot = Bot("pmc");
+p.config!.CombatJournal.Enabled = false;
 p.Track(bot);
-Check(p.states.Count == 0, "default settings do not enroll bots for diagnostics");
+Check(p.states.Count == 0, "disabled journals do not enroll bots for diagnostics");
 p.config!.ControlJournal.Enabled = true;
 p.Track(bot);
 p.Sample(bot);

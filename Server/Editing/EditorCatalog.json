@@ -9165,7 +9165,7 @@
     },
     "CombatJournal.Enabled": {
       "Label": "Record combat journal",
-      "Help": "Record observed actions, contacts, shots, hits and deaths for the detailed combat journal in Raid Review. Off by default.",
+      "Help": "Record observed actions, contacts, shots, hits and deaths for the detailed combat journal in Raid Review. On by default.",
       "Section": "CombatJournal",
       "Simple": false
     },
