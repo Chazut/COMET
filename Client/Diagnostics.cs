@@ -613,7 +613,7 @@ namespace Comet.Client
         private long dropped;
         private int closed;
         private int completed;
-        private int quiet;
+        private int quiet = Comet.Core.CometConfig.DefaultQuietLogging ? 1 : 0;
         internal Task Completion => writer;
 
         // Optional per-raid worker measurements. No profiler dependency in journal harnesses.

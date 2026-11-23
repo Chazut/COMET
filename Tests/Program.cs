@@ -644,17 +644,19 @@ Check(Comet.Api.Decisions.GetCurrentDecision("pmc") == "COMET:Push", "accepted t
 Comet.Api.Decisions.Clear();
 Check(Comet.Api.Decisions.GetCurrentDecision("pmc") == "", "raid cleanup removes stale telemetry");
 var diagnostic = new Comet.Client.Diagnostics(root, "test", _ => errors++);
+diagnostic.ConfigureLogging(false, 1, "test");
 for (int i = 0; i < 100; i++)
     diagnostic.Write(JsonSerializer.Serialize(new { sequence = i, stage = "selected" }));
 diagnostic.Dispose();
 await diagnostic.Completion;
 var lines = File.ReadAllLines(Directory.GetFiles(root, "*.jsonl").Single());
 Check(
-    lines.Length == 101 && lines[^1].Contains("diagnostics-end"),
+    lines.Length == 102 && lines[0].Contains("logging-configuration") && lines[^1].Contains("diagnostics-end"),
     "async diagnostic file drains and closes with coverage footer"
 );
 Check(
     lines
+        .Skip(1)
         .Take(100)
         .Select(l => JsonDocument.Parse(l).RootElement.GetProperty("sequence").GetInt32())
         .SequenceEqual(Enumerable.Range(0, 100)),

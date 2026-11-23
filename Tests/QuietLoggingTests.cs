@@ -25,25 +25,63 @@ static class QuietLoggingTests
         Directory.CreateDirectory(directory);
         try
         {
-            Check(!new CometConfig().QuietLogging, "default remains detailed for current testing");
+            string freshPath = Path.Combine(directory, "fresh.json");
+            var freshStore = new ConfigStore(freshPath);
+            var first = freshStore.Read();
+            Check(first.QuietLogging && !File.Exists(freshPath), "new installs start quiet");
+            first.QuietLogging = false;
+            freshStore.Save(first, first.Revision);
+            Check(!new ConfigStore(freshPath).Read().QuietLogging, "first explicit opt-out survives restart");
+
             var legacy = new CometConfig { Revision = 42 };
             legacy.Performance.Enabled = true;
             var saved = JsonNode
                 .Parse(System.Text.Json.JsonSerializer.Serialize(legacy))!
                 .AsObject();
             saved.Remove("QuietLogging");
+            saved["quietLogging"] = false;
+            saved["ExtraSetting"] = 19;
             string path = Path.Combine(directory, "config.json");
             File.WriteAllText(path, saved.ToJsonString());
             var store = new ConfigStore(path);
             var existing = store.Read();
             Check(
-                !existing.QuietLogging && existing.Revision == 42 && existing.Performance.Enabled,
-                "old config defaults OFF without changing performance or revision"
+                existing.QuietLogging && existing.Revision == 43 && existing.Performance.Enabled,
+                "old config enables Quiet once, invalidates stale drafts and retains performance capture"
             );
+            string migrationBackup = Directory.GetFiles(directory, "config.json.before-quiet-*.bak").Single();
+            string migratedText = File.ReadAllText(path);
+            var migrated = JsonNode.Parse(migratedText)!.AsObject();
             Check(
-                File.ReadAllText(path) == saved.ToJsonString(),
-                "reading old current-baseline config does not rewrite it"
+                File.ReadAllText(migrationBackup) == saved.ToJsonString()
+                    && migrated["quietLogging"]!.GetValue<bool>() && !migrated.ContainsKey("QuietLogging")
+                    && (int?)migrated["ExtraSetting"] == 19,
+                "migration backs up the original and preserves casing and unrelated settings"
             );
+            var restarted = new ConfigStore(path);
+            var game = JObject.Parse(restarted.ForGame());
+            Check((bool?)game["QuietLogging"] == true && game["QuietLoggingDefaultApplied"] == null
+                && File.ReadAllText(path) == migratedText, "game receives quiet without metadata or another write");
+            bool staleRejected = false;
+            try { store.Save(legacy, 42); }
+            catch (InvalidOperationException) { staleRejected = true; }
+            Check(staleRejected, "an editor opened before the migration cannot undo it");
+            foreach (bool alreadyQuiet in new[] { false, true })
+            {
+                string otherPath = Path.Combine(directory, alreadyQuiet ? "enabled.json" : "missing.json");
+                var other = new JsonObject { ["BehaviorBaseline"] = CometConfig.SourceBaseline, ["Revision"] = 7 };
+                if (alreadyQuiet)
+                    other["QuietLogging"] = true;
+                File.WriteAllText(otherPath, other.ToJsonString());
+                var otherStore = new ConfigStore(otherPath);
+                var upgraded = otherStore.Read();
+                Check(upgraded.QuietLogging && upgraded.Revision == (alreadyQuiet ? 7 : 8),
+                    "omitted and already enabled settings both migrate");
+                var manual = JsonNode.Parse(File.ReadAllText(otherPath))!;
+                manual["QuietLogging"] = false;
+                File.WriteAllText(otherPath, manual.ToJsonString());
+                Check(!new ConfigStore(otherPath).Read().QuietLogging, "manual opt-out survives restart");
+            }
             var editor = new ConfigEditor(existing);
             var field = editor.Catalog.Fields[nameof(CometConfig.QuietLogging)];
             Check(
@@ -57,29 +95,29 @@ static class QuietLoggingTests
                 "search finds Quiet without advanced mode"
             );
             Check(
-                editor.Set(field, "true") && editor.CanSave && editor.Snapshot().QuietLogging,
-                "UI draft can enable Quiet"
+                editor.Set(field, "false") && editor.CanSave && !editor.Snapshot().QuietLogging,
+                "UI draft can request detailed logs"
             );
             Check(
-                !store.Read().QuietLogging && !existing.QuietLogging,
+                store.Read().QuietLogging && existing.QuietLogging,
                 "editing draft does not mutate saved or running configuration"
             );
-            var enabled = store.Save(editor.Snapshot(), 42);
-            editor.AcceptSaved(enabled);
+            editor.AcceptSaved(store.Save(editor.Snapshot(), editor.Revision));
             Check(
-                store.Read().QuietLogging
-                    && JsonConvert.DeserializeObject<CometConfig>(store.ForGame())!.QuietLogging,
-                "saved mode reaches game endpoint"
+                !new ConfigStore(path).Read().QuietLogging
+                    && !JsonConvert.DeserializeObject<CometConfig>(store.ForGame())!.QuietLogging
+                    && Directory.GetFiles(directory, "config.json.before-quiet-*.bak").Length == 1,
+                "opt-out reaches game endpoint and survives restart without another migration"
             );
             Check(
                 store.Read().Performance.Enabled,
                 "Quiet does not change independent performance setting"
             );
-            Check(editor.Set(field, "false"), "UI can disable Quiet");
-            store.Save(editor.Snapshot(), 43);
+            Check(editor.Set(field, "true"), "UI can re-enable Quiet");
+            store.Save(editor.Snapshot(), editor.Revision);
             Check(
-                !store.Read().QuietLogging && store.Read().Revision == 44,
-                "OFF survives save/reload"
+                store.Read().QuietLogging && store.Read().Revision == 45,
+                "ON survives save/reload"
             );
             var old = JsonNode
                 .Parse(
@@ -360,8 +398,8 @@ static class QuietLoggingTests
                 Directory
                     .GetFiles(Path.Combine(directory, "next"))
                     .SelectMany(File.ReadLines)
-                    .Any(l => l.Contains("next-raid-detail")),
-                "new writer defaults to detailed independently of previous instance"
+                    .All(l => !l.Contains("next-raid-detail")),
+                "new writer stays quiet before receiving the raid configuration"
             );
             // Failed disk IO must remain visible even when detailed file output is suppressed.
             string blocked = Path.Combine(directory, "blocked");

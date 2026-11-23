@@ -8,7 +8,7 @@ namespace Comet.Server;
 // behavioural limits. The caller archives the original file before persisting.
 internal static class SourceBaselineMigration
 {
-    private static string Key(JsonObject target, string name) =>
+    internal static string Key(JsonObject target, string name) =>
         target.FirstOrDefault(p => p.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Key ?? name;
 
     // Prior configs could omit the grenade lifetime while setting a contact memory below 20 s.
@@ -24,10 +24,13 @@ internal static class SourceBaselineMigration
         var room = original[Key(original, nameof(CometConfig.DoorRoomClear))] as JsonObject;
         var preference = room?[Key(room, nameof(DoorRoomClearConfig.GrenadePreference))]?.Deserialize<double>();
         bool formerWindows = priorWindows && (age == 8 || distance == 40) && age is (null or 8) && distance is (null or 40);
+        // Stock presets from these baselines used detailed logging (including when omitted).
         if (!personalPreset && original[Key(original, nameof(CometConfig.PresetSource))] == null
+            && original[Key(original, nameof(CometConfig.QuietLogging))]?.GetValue<bool>() != true
             && (formerWindows || preference == 50) && preference is (null or 50))
         {
             var comparison = original.Deserialize<CometConfig>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+            comparison.QuietLogging = CometConfig.DefaultQuietLogging;
             if (comparison.DoorRoomClear != null && comparison.GrenadeTrajectory != null && DifficultyPresets.IsKnown(comparison.DifficultyPreset))
             {
                 comparison.DoorRoomClear.GrenadePreference = DoorRoomClearConfig.DefaultGrenadePreference;

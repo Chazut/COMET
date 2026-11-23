@@ -57,7 +57,7 @@ internal static class EditorNavigationTests
                 advanced,
                 advanced.Max?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "1"
             );
-        editor.Set(quiet, "true");
+        editor.Set(quiet, "false");
         var differences = EditorNavigation.Select(editor, "Overview", "", true);
         Check(differences.Any(f => f.Path == quiet.Path), "differences include other categories");
         Check(
@@ -74,7 +74,7 @@ internal static class EditorNavigationTests
         var review = editor.PendingChanges();
         var change = review.Single(c => c.Path == quiet.Path);
         Check(
-            change.Before == "Off" && change.After == "On",
+            change.Before == "On" && change.After == "Off",
             "save review runs from saved value to draft, unlike discard"
         );
         editor.Compare("Easy");
@@ -82,9 +82,9 @@ internal static class EditorNavigationTests
             editor.PendingChanges().SequenceEqual(review),
             "comparison never contaminates save review"
         );
-        editor.Set(quiet, "false");
+        editor.Set(quiet, "true");
         Check(
-            review.Single(c => c.Path == quiet.Path).After == "On",
+            review.Single(c => c.Path == quiet.Path).After == "Off",
             "review is detached from subsequent edits"
         );
         Check(editor.PendingChanges().Count == 0, "restoring edits clears save review");
@@ -96,7 +96,7 @@ internal static class EditorNavigationTests
             "review includes base profile changes"
         );
         Check(
-            !config.QuietLogging && config.DifficultyPreset == "Hard",
+            config.QuietLogging && config.DifficultyPreset == "Hard",
             "the supplied configuration is never mutated"
         );
         Console.WriteLine($"UI navigation and review checks passed: {checks}");

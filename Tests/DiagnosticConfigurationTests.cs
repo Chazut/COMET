@@ -135,6 +135,7 @@ static class DiagnosticConfigurationTests
         // Crossing the former size limit must preserve every event and one footer.
         string splitDir = Path.Combine(dir, "segments");
         var split = new Diagnostics(splitDir, "segmented", warnings.Add, 512);
+        split.ConfigureLogging(false, config.Revision, "segmented");
         for (int i = 0; i < 150; i++)
             split.Write(
                 JsonConvert.SerializeObject(

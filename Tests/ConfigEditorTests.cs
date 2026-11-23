@@ -317,7 +317,8 @@ internal static class ConfigEditorTests
                     && old.Snapshot().AmbushRadius == 45,
                 "legacy custom file opens without resetting values"
             );
-            Check(File.ReadAllText(path) == legacyText, "opening old config does not rewrite it");
+            Check(File.ReadAllText(Directory.GetFiles(directory, "*.before-quiet-*.bak").Single()) == legacyText,
+                "opening an old config preserves the original before applying the quiet default");
         }
         finally
         {

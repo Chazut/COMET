@@ -32,8 +32,9 @@ public sealed class CometConfig
 {
     public const string SourceBaseline = "zzap-d8655293-3";
     public const double DefaultAmbushRadius = 45;
+    public const bool DefaultQuietLogging = true;
     public string BehaviorBaseline { get; set; } = SourceBaseline;
-    public bool QuietLogging { get; set; } = false;
+    public bool QuietLogging { get; set; } = DefaultQuietLogging;
     public PerformanceConfig Performance { get; set; } = new();
     public CombatJournalConfig CombatJournal { get; set; } = new();
     public ControlJournalConfig ControlJournal { get; set; } = new();

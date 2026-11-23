@@ -190,6 +190,7 @@ internal static class DifficultyPresetTests
             foreach (var level in new[] { "Easy", "Normal", "Hard" })
             {
                 var previous = DifficultyPresets.Create(level);
+                previous.QuietLogging = false;
                 previous.BehaviorBaseline = "zzap-d8655293-1";
                 previous.GrenadeContactLifetime = 8;
                 previous.GrenadeTrajectory.Distance = 40;
@@ -212,6 +213,7 @@ internal static class DifficultyPresetTests
                     && custom.DoorRoomClear.GrenadePreference == 50,
                     "a customized profile can intentionally retain the previous grenade values");
                 var last = DifficultyPresets.Create(level);
+                last.QuietLogging = false;
                 last.BehaviorBaseline = "zzap-d8655293-2";
                 foreach (int savedPreference in new[] { 0, 1, 50 })
                 {
