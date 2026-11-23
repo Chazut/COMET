@@ -126,11 +126,16 @@ public sealed partial class Plugin
         }
     }
 
-    private static void FinishNativeDoorChoice(EnemyDecisionClass __instance, ref ECombatDecision result)
+    private static void FinishNativeDoorChoice(EnemyDecisionClass __instance, Enemy enemy, bool __runOriginal,
+        bool __result, ref ECombatDecision result)
     {
         var p = Instance;
         if (p == null || !p.states.TryGetValue(__instance.Bot, out var s))
             return;
+        // Only the stock decision's final fallback is eligible for stale-contact release.
+        // A door decision, an explicit angle or a utility-requested SeekCover resets the watch.
+        bool nativeDefault = __runOriginal && __result && result == ECombatDecision.SeekCover;
+        s.StalledCover.NativeChoice(nativeDefault ? enemy : null, Time.time);
         s.Door.NativeFallback = false;
         if (!s.Door.NativeSelected)
             return;

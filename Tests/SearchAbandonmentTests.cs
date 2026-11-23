@@ -45,6 +45,38 @@ static class SearchAbandonmentTests
         );
         f.Stamp = 1;
         Check(!p.Evaluate(f, c).ForgetRequested, "new evidence resets source age");
+        var watch = new StalledCoverContact();
+        var sniper = new object();
+        var other = new object();
+        var pos = new DoorPoint(50.57, -46.94, 145.22);
+        bool Tick(float now, float stamp = 0, bool idle = true, object? enemy = null, DoorPoint? at = null)
+        {
+            enemy ??= sniper;
+            watch.NativeChoice(enemy, now);
+            return watch.ShouldRelease(enemy, now, stamp, at ?? pos, idle);
+        }
+        for (int i = 0; i < 45; i++) Check(!Tick(i), "keep an ordinary stationary wait");
+        Check(Tick(45), "Samiy: release the stale partial-path contact once");
+        Check(!watch.ShouldRelease(sniper, 45, 0, pos, true), "no persistent blacklist");
+        for (int i = 46; i < 90; i++) Check(!Tick(i, 46), "reacquisition starts a fresh watch");
+        Check(!Tick(90, 90), "new sight, sound or squad report resets the watch");
+        for (int i = 91; i < 130; i++) Tick(i, 90);
+        Check(!Tick(130, 90, false), "an actual movement, shot or angle interrupts the fallback");
+        for (int i = 131; i < 161; i++) Check(!Tick(i, 90), "fresh idle period after interruption");
+        var moved = new DoorPoint(pos.X + 1, pos.Y, pos.Z);
+        Check(!Tick(161, 90, at: moved), "real displacement resets the watch");
+        for (int i = 162; i < 202; i++) Tick(i, 90, at: moved);
+        watch.NativeChoice(null, 202); // Explicit Freeze, COMET Hold, or another action.
+        Check(!watch.ShouldRelease(sniper, 202, 90, moved, true), "intentional angle is never forgotten");
+        Check(!Tick(203, 90, at: moved), "no carryover when native SeekCover resumes");
+        for (int i = 204; i < 247; i++) Tick(i, 90, at: moved);
+        Check(!Tick(247, 90, enemy: other, at: moved), "a different goal cannot inherit the timer");
+        Check(!watch.ShouldRelease(sniper, 247, 90, moved, true), "secondary enemy checks cannot consume the watch");
+        for (int i = 248; i < 290; i++) Tick(i, 90, enemy: other, at: moved);
+        Check(!Tick(310, 90, enemy: other, at: moved), "sleep or a decision gap cannot complete an idle interval");
+        for (int i = 311; i < 355; i++) Tick(i, 90, enemy: other, at: moved);
+        for (int i = 355; i < 365; i++) watch.NativeChoice(other, i);
+        Check(!Tick(365, 90, enemy: other, at: moved), "inactive knowledge checker cannot accumulate idle time");
         return n;
     }
 }

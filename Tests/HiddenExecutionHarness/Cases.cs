@@ -53,6 +53,10 @@ namespace UnityEngine.AI
 
 namespace SAIN.Preset.Shared.Enums
 {
+    public enum ESelfActionType { None, Heal }
+    public enum ESquadDecision { None, Overwatch }
+    public enum AimStatus { NoTarget, AimComplete }
+    public enum EShootReason { None, Suppress }
     public enum ECombatDecision
     {
         None,
@@ -85,6 +89,7 @@ namespace SAIN.SAINComponent.Classes.EnemyClasses
         public UnityEngine.Vector3? LastKnownPosition = new UnityEngine.Vector3();
         public Place LastKnownPlace = new();
         public float BotDistanceFromLastKnown = 30;
+        public float TimeLastKnownUpdated;
         public int Searched;
 
         public void SetPlaceAsSearched(Place p)
@@ -111,6 +116,7 @@ namespace SAIN.SAINComponent.Classes.EnemyClasses
 
     public class Enemy
     {
+        public BotComponent Bot;
         public string EnemyProfileId = "enemy";
         public bool IsVisible,
             Seen,
@@ -278,9 +284,17 @@ namespace SAIN.Components
         public Enemies EnemyController = new();
         public Info Info = new();
         public SearchClass Search = new();
+        public bool SAINLayersActive = true;
+        public string Player = "pmc";
+        public BotComponent ManualShoot => this;
+        public BotComponent Aim => this;
+        public AimStatus AimStatus;
+        public EShootReason Reason;
 
         public BotComponent()
         {
+            GoalEnemy.Bot = this;
+            Decision.EnemyDecisions.Bot = this;
             Search.Bot = this;
             Search.Decider.Bot = this;
             Search.PathFinder.Bot = this;
@@ -289,24 +303,29 @@ namespace SAIN.Components
 
     public class Suppression
     {
+        public bool IsSuppressed;
         public ESuppressionState CurrentState;
     }
 
     public class Decision
     {
+        public ESelfActionType CurrentSelfDecision;
+        public ESquadDecision CurrentSquadDecision;
         public ECombatDecision CurrentCombatDecision;
         public EnemyDecisionClass EnemyDecisions = new();
     }
 
     public class Cover
     {
-        public object CoverInUse;
+        public Comet.Client.CoverPoint CoverInUse;
         public List<object> CoverPoints = new() { new() };
     }
 
     public class Owner
     {
         public Memory Memory = new();
+        public Owner ShootData => this;
+        public bool Shooting;
         public float Ammo = .35f;
     }
 
@@ -384,7 +403,7 @@ namespace Comet.Client
         }
     }
 
-    class CoverPoint
+    public class CoverPoint
     {
         public string StraightDistanceStatus = "Far";
         public bool BotInThisCover;
@@ -413,11 +432,13 @@ namespace Comet.Client
         public void LogDebug(string message) { }
         public void LogWarning(string message) => throw new Exception(message);
     }
-    class TestAmbush { public TestAmbush Policy => this; public bool Active; }
+    class TestAmbush { public TestAmbush Policy => this; public bool Active; public TestAmbush Trace => this; public string Kind; }
+    static class BotEligibility { public static string Kind(string player) => player; }
     class BotState
     {
         public BotComponent Owner;
-        public TestAmbush Ambush = new();
+        public TestAmbush Ambush = new(), HoldAngle = new(), AngleWatch = new();
+        public StalledCoverContact StalledCover = new();
         public TestDoor Door = new();
         public TestHandoff Handoff = new();
         public ECombatDecision Expected;
@@ -489,7 +510,7 @@ namespace Comet.Client
             d.Bot = b;
             AfterNativeDoorRush(d, b.GoalEnemy, ref rush);
             var result = rush ? ECombatDecision.RushEnemy : ECombatDecision.SeekCover;
-            FinishNativeDoorChoice(d, ref result);
+            FinishNativeDoorChoice(d, b.GoalEnemy, true, true, ref result);
             return result;
         }
         bool EnsureDoorSession(BotComponent b, Enemy enemy, BotState state, bool search) => SelectedDoor;
@@ -522,6 +543,14 @@ namespace Comet.Client
             KeepHiddenChoice(b, b.GoalEnemy, s, c, HiddenBeingShot(b));
 
         internal void Watch(BotComponent b, BotState s) => WatchHiddenMovement(b, b.GoalEnemy, s);
+
+        internal bool CheckStall(BotComponent bot, BotState state, int time, bool native = true)
+        {
+            Time.time = time;
+            var result = bot.Decision.CurrentCombatDecision;
+            FinishNativeDoorChoice(bot.Decision.EnemyDecisions, bot.GoalEnemy, native, true, ref result);
+            return state.StalledCover.IsCurrent(bot.GoalEnemy, time) && StalledOnUnreachableContact(state, bot.GoalEnemy, time, 45);
+        }
 
         internal ECombatDecision DefaultCover(BotComponent b, ECombatDecision result = ECombatDecision.SeekCover,
             bool nativeRan = true, bool accepted = true)
@@ -708,6 +737,40 @@ namespace Comet.Client
         public static void Run()
         {
             CheckNoCoverHold();
+            // Raid 503: the PMC had reached cover, but had no action or destination
+            // facing a long-lost sniper, and the route to that contact never completed.
+            foreach (string condition in new[] { "Samiy", "Freeze", "explicit fallback", "close angle", "active corner",
+                "aiming", "squad overwatch", "new sight", "fresh report", "suppressed", "healing",
+                "moving", "complete path", "under fire", "search destination", "shooting", "scav" })
+            {
+                var (p, b, s) = Setup();
+                b.Decision.CurrentCombatDecision = ECombatDecision.SeekCover;
+                b.Cover.CoverInUse = new() { BotInThisCover = true };
+                b.GoalEnemy.Path.PathToEnemyStatus = NavMeshPathStatus.PathPartial;
+                b.GoalEnemy.KnownPlaces.BotDistanceFromLastKnown = 275;
+                b.Mover.ActivePath = null;
+                bool released = false;
+                for (int t = 0; t <= 45; t++)
+                {
+                    if (condition == "Freeze") b.Decision.CurrentCombatDecision = ECombatDecision.Freeze;
+                    if (condition == "close angle") b.GoalEnemy.KnownPlaces.BotDistanceFromLastKnown = 25;
+                    if (condition == "active corner") { s.AngleWatch.Active = true; s.AngleWatch.Kind = "corner"; }
+                    if (condition == "aiming") b.AimStatus = AimStatus.AimComplete;
+                    if (condition == "squad overwatch") b.Decision.CurrentSquadDecision = ESquadDecision.Overwatch;
+                    if (condition == "new sight") b.GoalEnemy.IsVisible = t == 30;
+                    if (condition == "fresh report" && t == 44) b.GoalEnemy.KnownPlaces.TimeLastKnownUpdated = t;
+                    if (condition == "suppressed") b.Suppression.IsSuppressed = true;
+                    if (condition == "healing") b.Decision.CurrentSelfDecision = ESelfActionType.Heal;
+                    if (condition == "moving") b.Mover.Moving = true;
+                    if (condition == "complete path") b.GoalEnemy.Path.PathToEnemyStatus = NavMeshPathStatus.PathComplete;
+                    if (condition == "under fire") b.BotOwner.Memory.IsUnderFire = true;
+                    if (condition == "search destination") b.Search.PathFinder.TargetPlace = new();
+                    if (condition == "shooting") b.BotOwner.ShootData.Shooting = true;
+                    if (condition == "scav") b.Player = "scav";
+                    released |= p.CheckStall(b, s, t, condition != "explicit fallback");
+                }
+                Check(released == (condition == "Samiy"), "native fallback or protected action: " + condition);
+            }
             foreach (var why in new[] { "door-mover-refused", "door-approach-timeout", "ambush-approach-timeout",
                 "peek-native-open-refused", "clear-open-timeout", "recon-door-did-not-open",
                 "move-stalled", "run-by-move-timeout", "step-move-stalled", "peek-return-no-path",

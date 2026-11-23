@@ -14,6 +14,18 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### Inaccessible contact in native SeekCover (approved COMET difference)
+
+In Shoreline raid 503 a stationary PMC kept the same unreachable sniper as his
+goal for over nine minutes. The fork's stall watch handles a utility FallBack
+without cover, and its no-cover hold handles an invalid path with no cover.
+Neither handles this native fallback with an occupied cover and a partial path.
+With search abandonment enabled, 45 seconds of idle native SeekCover without
+new contact evidence can release the PMC's personal contact through SAIN's
+known-enemy check. Movement, renewed contact, an active shot or angle, and
+explicit native or COMET holds interrupt the watch. Reacquisition remains native.
+
+
 ### A07 target selection order
 
 Like remix 7.6, the native close-combat check gets the full known-enemy list

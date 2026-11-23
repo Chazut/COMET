@@ -2050,6 +2050,7 @@ internal sealed class BotState
         Id = Guid.NewGuid().ToString("N");
     internal readonly HiddenEnemyDecision Engine;
     internal readonly HiddenExecutionRuntime HiddenExecution = new();
+    internal readonly StalledCoverContact StalledCover = new();
     internal readonly VisibleEnemyDecision VisibleEngine;
     internal readonly CoverIntent Intent = new CoverIntent();
     internal readonly SightContinuity Sight;
