@@ -1049,3 +1049,14 @@ visibility or changes a preset. Local-exposure diagnostics record outcomes and
 remote human observations. Each summary includes AI checks, shadow outcomes,
 samples, cache hits, deferred checks, queue depth and total and peak AI measurement
 time in milliseconds. Detailed samples identify AI targets when quiet logging is off.
+
+### Native SeekCover to ShiftCover handoff
+
+In Customs raid 502 a scav alternated between these actions 16 times. SAIN
+4.5.1 and remix 7.6 clear the origin when SeekCover stops, but the incoming
+ShiftCover needs that point to compare candidates. On the AI authority, COMET
+passes the origin to the first native search across a direct handoff for the
+same contact. A fresh shift from SeekCover with no taller candidate farther
+than the native squared-distance threshold of five is declined. The next
+native check reads the current candidates again. SAIN still chooses the
+destination, checks paths and drives the movement, including for ordinary scavs.

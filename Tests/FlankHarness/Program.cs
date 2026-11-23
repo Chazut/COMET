@@ -21,6 +21,12 @@ string source =
         .OfType<MethodDeclarationSyntax>()
         .Single(m => m.Identifier.Text == "ObserveFlankPoint")
     + "}";
+var shiftSource = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "Client/ShiftCoverOrigin.cs")));
+var shiftClass = shiftSource.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>()
+    .Single(c => c.Identifier.Text == "Plugin");
+source = "using System.Runtime.CompilerServices;" + source
+    + "partial class Plugin {" + string.Join("\n", shiftClass.Members.Where(m =>
+        m is not MethodDeclarationSyntax method || method.Identifier.Text is not ("PatchShiftCoverOrigin" or "InsertShiftOrigin"))) + "}";
 var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
     .Split(Path.PathSeparator)
     .Select(p => MetadataReference.CreateFromFile(p));

@@ -18,6 +18,7 @@ namespace Comet.Client;
 internal sealed class ReloadTimingRuntime
 {
     internal readonly ReloadTimingPolicy Policy = new();
+    internal readonly ReturnInventoryRead ReturnInventory = new();
     internal readonly List<Magazine> Magazines = new();
     internal readonly List<Ammo> Ammo = new();
     internal readonly List<Magazine> BeltMagazines = new();
@@ -29,8 +30,8 @@ internal sealed class ReloadTimingRuntime
     internal float Next,
         SampleAt,
         LogAt = -1000;
-    internal string Key = "",
-        LogKey = "";
+    internal string Key = "";
+    internal (string State, string Choice, string Reason, int Loaded, int Reserve, bool Started) LogKey;
     internal bool Fault;
 
     internal void Drop()
@@ -179,8 +180,6 @@ public sealed partial class Plugin
             if (enemy.Events.OnSearch.Value)
                 return true;
             var weapon = firearm.Item;
-            var id = weapon.Id.ToString();
-            int loaded = ReloadLoaded(weapon);
             var f = p.ReloadFrame(bot, enemy, s, weapon);
             r.LastFrame = f;
             string choice = r.Policy.Evaluate(f, p.config!.ReloadTiming);
@@ -205,28 +204,8 @@ public sealed partial class Plugin
                         + (f.Looking ? .15 : 0)
                         - (ratio > .1 ? .6 : 0)
                     : 0;
-            var ranked = new List<Candidate>
-            {
-                new()
-                {
-                    Decision = "Reload",
-                    Score = r.Policy.Trace.ReloadScore * 100,
-                    Eligible = true,
-                },
-                new()
-                {
-                    Decision = "Hold",
-                    Score = r.Policy.Trace.HoldScore * 100,
-                    Eligible = true,
-                },
-                new()
-                {
-                    Decision = "Pistol",
-                    Score = pistolScore * 100,
-                    Eligible = true,
-                },
-            };
-            ranked = ranked.OrderByDescending(x => x.Score).ToList();
+            var ranked = RankReloadOptions(
+                r.Policy.Trace.ReloadScore * 100, r.Policy.Trace.HoldScore * 100, pistolScore * 100);
             r.Mistakes ??= new TacticalMistakes(p.config.TacticalMistakes, s.Id + "|reload");
             r.Mistakes.ApplyToRanking(
                 ranked,
@@ -263,7 +242,7 @@ public sealed partial class Plugin
                     return false;
                 }
             }
-            if (loaded <= 0)
+            if (f.Loaded <= 0)
             {
                 if (p.TryPistolSwap(bot, s, f, ref invoked))
                     return false;
@@ -277,6 +256,24 @@ public sealed partial class Plugin
             if (s != null)
                 p.ReloadTimingError(s, ex);
             return !invoked;
+        }
+    }
+
+    // Three fixed choices. Preserve the source's stable Reload, Hold, Pistol tie order.
+    private static List<Candidate> RankReloadOptions(double reload, double hold, double pistol)
+    {
+        var choices = new List<Candidate>(3);
+        Add("Reload", reload);
+        Add("Hold", hold);
+        Add("Pistol", pistol);
+        return choices;
+
+        void Add(string name, double score)
+        {
+            int at = choices.Count;
+            while (at > 0 && score.CompareTo(choices[at - 1].Score) > 0)
+                at--;
+            choices.Insert(at, new Candidate { Decision = name, Score = score, Eligible = true });
         }
     }
 
@@ -543,27 +540,18 @@ public sealed partial class Plugin
         var t = r.Policy.Trace;
         if (t == null)
             return;
+        if (diagnostics?.WantsOrdinaryEvents != true && !Api.Decisions.HasSubscribers)
+            return;
+        var key = (t.State, t.Choice, t.Reason, t.Loaded, t.Reserve, t.Started);
+        if (!force && key == r.LogKey && Time.time - r.LogAt < .25f)
+            return;
+        r.LogKey = key;
+        r.LogAt = Time.time;
         if (b != null)
             t.Action =
                 b.Decision.CurrentSelfDecision == ESelfActionType.Reload
                     ? "Reload"
                     : b.Decision.CurrentCombatDecision.ToString();
-        string key =
-            t.State
-            + ":"
-            + t.Choice
-            + ":"
-            + t.Reason
-            + ":"
-            + t.Loaded
-            + ":"
-            + t.Reserve
-            + ":"
-            + t.Started;
-        if (!force && key == r.LogKey && Time.time - r.LogAt < .25f)
-            return;
-        r.LogKey = key;
-        r.LogAt = Time.time;
         var json = Diagnostics.Serialize(
             new
             {

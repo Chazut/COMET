@@ -97,6 +97,7 @@ public static class Cases
                 "progress diagnostics cannot veto or resubmit native work"
             );
         }
+        Check(Plugin.TestNativeShift(), "direct native shift handoffs");
         Console.WriteLine($"Native flank observer: {checks} checks passed.");
     }
 }
@@ -122,6 +123,7 @@ struct Vector3
 static class Time
 {
     public static float time;
+    public static int frameCount;
 }
 
 enum Tactic
@@ -213,8 +215,14 @@ class Mover
     }
 }
 
+class EnemyDecisionClass { public BotComponent Bot; }
+class BotAction { public BotComponent Bot; }
+class TestLog { public void LogDebug(string message) {} public void LogWarning(string message) {} }
 class BotComponent
 {
+    public bool BotActive = true, IsDead, GameEnding;
+    public string ProfileId = "ordinary-scav";
+    public BotAction CurrentAction;
     public Vector3 Position;
     public Enemy GoalEnemy = new();
     public Cover Cover = new();
@@ -259,7 +267,7 @@ static partial class VisibleAdapter
 
 class Config
 {
-    public bool Enabled = true;
+    public bool Enabled = true, QuietLogging = true;
 }
 
 partial class Plugin
@@ -278,6 +286,76 @@ partial class Plugin
     static bool NativeChoiceHasPriority(BotComponent b, BotState s) => Instance.Priority;
 
     void RecordHiddenExecution(BotComponent b, BotState s, string reason) => Events.Add(reason);
+
+    public TestLog Logger = new();
+    public bool Authority = true, Sleeping;
+    private bool Ghost(string id) => Sleeping;
+
+    public static bool TestNativeShift()
+    {
+        foreach (var mode in new[] { "direct", "delayed-update", "new-native", "no-origin", "late-start",
+            "other-action", "new-contact", "contact-after-start", "stopped", "no-shift", "replica",
+            "sleeping", "dead", "ended", "disabled" })
+        {
+            var plugin = Instance = new Plugin();
+            var bot = new BotComponent();
+            var seek = new BotAction { Bot = bot };
+            var shift = new BotAction { Bot = bot };
+            var previous = new CoverPoint();
+            var native = mode == "new-native" ? new CoverPoint() : null;
+            bot.CurrentAction = seek;
+            bot.Cover.CoverInUse = mode == "no-origin" ? null : previous;
+            Time.frameCount = 11;
+            if (mode == "no-shift") bot.Decision.CurrentCombatDecision = ECombatDecision.None;
+            if (mode == "replica") plugin.Authority = false;
+            if (mode == "sleeping") plugin.Sleeping = true;
+            if (mode == "disabled") plugin.config.Enabled = false;
+            CaptureShiftOrigin(seek);
+            bot.Cover.CoverInUse = null; // native SeekCover.Stop
+            if (mode == "other-action") bot.CurrentAction = new BotAction { Bot = bot };
+            if (mode == "new-contact") bot.GoalEnemy = new Enemy();
+            if (mode == "late-start") Time.frameCount += 3;
+            BindShiftOrigin(shift);
+            bot.CurrentAction = shift;
+            if (mode == "delayed-update") Time.frameCount += 20;
+            if (mode == "stopped") ForgetShiftOrigin(shift);
+            if (mode == "contact-after-start") bot.GoalEnemy = new Enemy();
+            if (mode == "dead") bot.IsDead = true;
+            if (mode == "ended") bot.GameEnding = true;
+            var origin = UseShiftOrigin(native, shift);
+            var expected = mode is "direct" or "delayed-update" ? previous : native;
+            if (!ReferenceEquals(origin, expected) || UseShiftOrigin(null, shift) != null
+                || bot.Cover.CoverInUse != null || bot.Mover.Calls != 0)
+                throw new Exception("Native cover handoff failed: " + mode);
+        }
+        var tester = Instance = new Plugin();
+        var testBot = new BotComponent();
+        var decision = new EnemyDecisionClass { Bot = testBot };
+        testBot.CurrentAction = new BotAction { Bot = testBot };
+        nativeSeekAction = typeof(BotAction);
+        testBot.Decision.CurrentCombatDecision = ECombatDecision.None;
+        var originPoint = testBot.Cover.CoverInUse = new CoverPoint { CoverHeight = 1 };
+        var candidate = new CoverPoint { CoverHeight = 2, Position = new Vector3(1, 2, 0) };
+        testBot.Cover.CoverPoints.Add(originPoint);
+        testBot.Cover.CoverPoints.Add(candidate);
+        bool Accept()
+        {
+            bool accepted = true;
+            string reason = "enemyNotSeen";
+            CheckFreshShiftDestination(decision, ref accepted, ref reason);
+            return accepted;
+        }
+        if (Accept()) throw new Exception("native strict squared distance boundary");
+        candidate.Position = new Vector3(3, 0, 0);
+        candidate.CoverHeight = 1;
+        if (Accept()) throw new Exception("native equal height cannot start a shift");
+        candidate.CoverHeight = 2;
+        if (!Accept()) throw new Exception("new eligible point immediately allows native selection");
+        testBot.Cover.CoverPoints.Clear();
+        testBot.Decision.CurrentCombatDecision = ECombatDecision.ShiftCover;
+        if (!Accept()) throw new Exception("an ongoing native shift can finish");
+        return true;
+    }
 
     public void Observe(BotComponent b, CoverPoint p, bool result) =>
         ObserveFlankPoint(b, p, result);

@@ -18,6 +18,15 @@ public sealed partial class Plugin
             if (!ok)
                 throw new Exception("Belt reload: " + why);
         }
+        foreach (double reloadWeight in new[] { 0d, 1d, 2d })
+        foreach (double hold in new[] { 0d, 1d, 2d })
+        foreach (double pistol in new[] { 0d, 1d, 2d })
+        {
+            var expected = new[] { ("Reload", reloadWeight), ("Hold", hold), ("Pistol", pistol) }
+                .OrderByDescending(x => x.Item2).Select(x => x.Item1);
+            Check(RankReloadOptions(reloadWeight, hold, pistol).Select(c => c.Decision)
+                .SequenceEqual(expected), "stable source order including ties");
+        }
         var p = Instance = new Plugin();
         var b = new BotComponent();
         b.Player.ProfileId = "belt-bot";
@@ -271,12 +280,32 @@ public sealed partial class Plugin
             ChamberAmmoCount = 1,
         };
         p.Guns[(b, EquipmentSlot.SecondPrimaryWeapon)] = backup;
-        var main = p.ReadReturnGun(b, s, EquipmentSlot.FirstPrimaryWeapon);
-        var other = p.ReadReturnGun(b, s, EquipmentSlot.SecondPrimaryWeapon);
+        var scratch = new ReturnInventoryRead();
+        var inventory = scratch.Begin();
+        var main = p.ReadReturnGun(b, inventory, EquipmentSlot.FirstPrimaryWeapon);
+        var other = p.ReadReturnGun(b, inventory, EquipmentSlot.SecondPrimaryWeapon);
         Check(
             main.Loaded == 0 && main.Reserve == 0 && other.Loaded == 51,
             "Woods fallback frame sees unusable M4 and loaded ISO"
         );
+        int scans = b.Player.InventoryController.Scans;
+        backup.ChamberAmmoCount = 0;
+        backup.Magazine.Count = 0;
+        p.ReadReturnGun(b, inventory, EquipmentSlot.SecondPrimaryWeapon);
+        Check(b.Player.InventoryController.Scans == scans, "two empty guns share the reachable slot scan");
+        using (var reentrant = scratch.Begin())
+        {
+            Check(!ReferenceEquals(inventory, reentrant), "reentrant selection has isolated storage");
+            p.ReadReturnGun(b, reentrant, EquipmentSlot.FirstPrimaryWeapon);
+        }
+        inventory.Dispose();
+        correct.Count = 19;
+        b.Player.InventoryController.Reachable.Add(correct);
+        using (var next = scratch.Begin())
+        {
+            var updated = p.ReadReturnGun(b, next, EquipmentSlot.FirstPrimaryWeapon);
+            Check(updated.Reserve == 19, "next evaluation immediately sees changed inventory");
+        }
         var returnPolicy = new WeaponReturnPolicy();
         Check(
             returnPolicy.Fallback(
@@ -299,6 +328,12 @@ public sealed partial class Plugin
             s.ReloadTiming.InventoryFault && s.ReloadTiming.BeltMagazines.Count == 0,
             "transaction failure safely disables compatibility for this bot"
         );
+        s.ReloadTiming.InventoryFault = false;
+        b.Player.Inventory.Equipment.Belt.Item = null;
+        Time.time += 3;
+        scans = b.Player.InventoryController.Scans;
+        RefillBeltMagazines(reload);
+        Check(b.Player.InventoryController.Scans == scans, "beltless refill avoids native inventory scan");
         Console.WriteLine(
             $"W01 belt resource production adapters: {n} checks passed (platform doubles)."
         );

@@ -24,6 +24,8 @@ namespace Comet.Api
         private static readonly object SubscriberLock = new();
         private static Action<string>? published;
         private static Delegate[] subscribers = Array.Empty<Delegate>();
+        internal static bool HasSubscribers => Volatile.Read(ref subscribers).Length != 0;
+
         public static event Action<string>? Published
         {
             add
@@ -928,6 +930,8 @@ namespace Comet.Client
                 }
             });
         }
+
+        internal bool WantsOrdinaryEvents => Volatile.Read(ref quiet) == 0 || Volatile.Read(ref skipOrdinaryReports) == 0;
 
         public void Write(string json)
         {

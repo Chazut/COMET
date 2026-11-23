@@ -17,7 +17,7 @@
     />
   </ItemGroup>
   <Target Name="JournalBoundary" BeforeTargets="CoreCompile">
-    <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/IntegrationAudit&quot; -c Release -- --methods &quot;$(MSBuildProjectDirectory)/../../Client/ReloadTimingAdapter.cs&quot; &quot;$(MSBuildProjectDirectory)/obj/ReloadResources.cs&quot; ReloadResources,ReloadLoaded,ReloadMagazineRounds" />
+    <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/IntegrationAudit&quot; -c Release -- --methods &quot;$(MSBuildProjectDirectory)/../../Client/ReloadTimingAdapter.cs&quot; &quot;$(MSBuildProjectDirectory)/obj/ReloadResources.cs&quot; ReloadResources,ReloadLoaded,ReloadMagazineRounds,RankReloadOptions" />
     <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../Tools/IntegrationAudit&quot; -c Release -- --methods &quot;$(MSBuildProjectDirectory)/../../Client/WeaponReturnAdapter.cs&quot; &quot;$(MSBuildProjectDirectory)/obj/ReadReturnGun.cs&quot; ReadReturnGun" />
     <ItemGroup>
       <Compile Include="obj/ReloadResources.cs" />

@@ -29,22 +29,16 @@ public sealed partial class Plugin
 
     private static void CompatibleBullets(BotWeaponManager __instance, ref bool __result)
     {
+        if (!__result || Instance is not { } p || p.config?.Enabled != true || !p.Authority
+            || __instance.CurrentWeapon is not Weapon weapon || weapon.GetCurrentMagazine() is not Magazine mag
+            || mag.IsAmmoCompatible(weapon.Chambers))
+            return;
         try
         {
-            var p = Instance;
-            if (!__result || p?.config?.Enabled != true || !p.Authority)
-                return;
-            var weapon = __instance.CurrentWeapon;
-            if (
-                weapon == null
-                || weapon.GetCurrentMagazine() is not Magazine mag
-                || mag.IsAmmoCompatible(weapon.Chambers)
-            )
-                return;
             if (!p.WeaponReturnState(__instance.Selector, out _, out _))
                 return;
             // Preserve the native threshold, chambered shot and no-ammo fallback.
-            __result = ReloadLoaded(weapon) > __instance.CriticalBulletCount;
+            __result = weapon.ChamberAmmoCount > __instance.CriticalBulletCount;
         }
         catch
         { /* Native result remains authoritative during teardown. */
@@ -107,6 +101,8 @@ public sealed partial class Plugin
                 )
             )
                 return;
+            if (r.BeltMagazines.Count == 0)
+                return;
             var slot = weapon.GetMagazineSlot();
             if (slot == null)
                 return;
@@ -157,6 +153,8 @@ public sealed partial class Plugin
                 return;
             var slot = weapon.GetMagazineSlot();
             if (slot == null)
+                return;
+            if (ReloadInventory.WornBelt(__instance._player.InventoryController) == null)
                 return;
             // Exclude items already handled by the native call (including other
             // mods' expanded access lists), so no refill transaction is duplicated.

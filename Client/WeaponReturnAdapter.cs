@@ -140,7 +140,7 @@ public sealed partial class Plugin
         && firearm != null
         && b.BotOwner?.WeaponManager?.Selector?.IsWeaponReady == true;
 
-    private WeaponReturnGun ReadReturnGun(BotComponent b, BotState s, EquipmentSlot slot)
+    private WeaponReturnGun ReadReturnGun(BotComponent b, ReturnInventoryRead resources, EquipmentSlot slot)
     {
         var w = SlotGun(b, slot);
         if (w == null)
@@ -158,46 +158,33 @@ public sealed partial class Plugin
         var inventory = b.Player.InventoryController;
         if (inventory == null)
             return g;
-        var r = s.ReloadTiming;
         var magSlot = w.GetMagazineSlot();
         var chamber = w.Chambers.Length > 0 ? w.Chambers[0] : null;
         bool emptyMag = false;
-        try
+        if (magSlot != null)
         {
-            if (magSlot != null)
-            {
-                r.Magazines.Clear();
-                inventory.GetReachableItemsOfTypeNonAlloc(r.Magazines);
-                foreach (var m in r.Magazines)
-                    if (magSlot.CanAccept(m) && m.IsAmmoCompatible(w.Chambers))
-                    {
-                        if (m.Count > 0)
-                        {
-                            g.Reserve = m.Count;
-                            g.Resource = "magazine";
-                            return g;
-                        }
-                        emptyMag = true;
-                    }
-            }
-            if (chamber == null || w.ReloadMode == Weapon.EReloadMode.ExternalMagazine && !emptyMag)
-                return g;
-            r.Ammo.Clear();
-            inventory.GetAcceptableItemsNonAlloc(BotReload._availableEquipmentSlots, r.Ammo);
-            foreach (var a in r.Ammo)
-                if (a.StackObjectsCount > 0 && chamber.CanAccept(a))
+            foreach (var m in resources.Magazines(inventory))
+                if (magSlot.CanAccept(m) && m.IsAmmoCompatible(w.Chambers))
                 {
-                    g.Reserve = a.StackObjectsCount;
-                    g.Resource = "loose-ammo";
-                    return g;
+                    if (m.Count > 0)
+                    {
+                        g.Reserve = m.Count;
+                        g.Resource = "magazine";
+                        return g;
+                    }
+                    emptyMag = true;
                 }
+        }
+        if (chamber == null || w.ReloadMode == Weapon.EReloadMode.ExternalMagazine && !emptyMag)
             return g;
-        }
-        finally
-        {
-            r.Magazines.Clear();
-            r.Ammo.Clear();
-        }
+        foreach (var a in resources.AmmoStacks(inventory))
+            if (a.StackObjectsCount > 0 && chamber.CanAccept(a))
+            {
+                g.Reserve = a.StackObjectsCount;
+                g.Resource = "loose-ammo";
+                return g;
+            }
+        return g;
     }
 
     private WeaponReturnFrame? WeaponReturnFrameFor(BotComponent b, BotState s)
@@ -207,9 +194,10 @@ public sealed partial class Plugin
             return null;
         var wm = b.BotOwner.WeaponManager;
         var selector = wm.Selector;
-        var first = ReadReturnGun(b, s, EquipmentSlot.FirstPrimaryWeapon);
-        var second = ReadReturnGun(b, s, EquipmentSlot.SecondPrimaryWeapon);
-        var pistol = ReadReturnGun(b, s, EquipmentSlot.Holster);
+        using var resources = s.ReloadTiming.ReturnInventory.Begin();
+        var first = ReadReturnGun(b, resources, EquipmentSlot.FirstPrimaryWeapon);
+        var second = ReadReturnGun(b, resources, EquipmentSlot.SecondPrimaryWeapon);
+        var pistol = ReadReturnGun(b, resources, EquipmentSlot.Holster);
         var e = b.GoalEnemy;
         var f = new WeaponReturnFrame
         {
@@ -452,7 +440,8 @@ public sealed partial class Plugin
             return true;
         if (__instance.EquipmentSlot == __instance._mainWeapon)
             return true;
-        var g = p.ReadReturnGun(b, s, __instance._mainWeapon);
+        using var resources = s.ReloadTiming.ReturnInventory.Begin();
+        var g = p.ReadReturnGun(b, resources, __instance._mainWeapon);
         return g.Id.Length == 0 || g.Loaded > 0 || g.Reloadable;
     }
 

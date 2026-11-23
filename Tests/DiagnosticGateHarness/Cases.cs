@@ -71,6 +71,12 @@ class Policy<T>
     public T Trace = new();
 }
 
+partial class ReloadTimingRuntime
+{
+    public Policy<ReloadTimingTrace> Policy = new();
+    public float LogAt;
+}
+
 partial class PistolSwapRuntime
 {
     public Policy<PistolSwapTrace> Policy = new();
@@ -91,6 +97,7 @@ partial class DoorTransitRuntime
 
 class BotState
 {
+    public ReloadTimingRuntime ReloadTiming = new();
     public BotComponent Owner = null!;
     public ContactDiagnosticGate AbandonLogs = new();
     public SilentSearchTrace SilentTrace = new();
@@ -108,6 +115,7 @@ class BotState
 
 class Sink
 {
+    public bool WantsOrdinaryEvents;
     public List<string> Lines = new();
 
     public void Write(string json) => Lines.Add(json);
@@ -123,6 +131,7 @@ static class Api
 {
     public static class Decisions
     {
+        public static bool HasSubscribers;
         public static List<string> Lines = new();
 
         public static void Publish(string json, Action<Exception> error) => Lines.Add(json);
@@ -292,6 +301,27 @@ partial class Probe
         Time.time += 10;
         p.RecordAbandonment(s);
         Check(p.sequence == initial + 8, "P09 ten-second heartbeat preserved");
+        long reloadSequence = p.sequence;
+        int oldReads = b.Reads;
+        p.RecordReloadTiming(b, s, true);
+        long reloadBefore = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100000; i++)
+            p.RecordReloadTiming(b, s, true);
+        long reloadAllocated = GC.GetAllocatedBytesForCurrentThread() - reloadBefore;
+        Check(reloadAllocated == 0 && p.sequence == reloadSequence && b.Reads == oldReads,
+            "W01 without consumers should do no native reads, serialization or allocation");
+        Console.WriteLine($"W01 without consumers: {reloadAllocated} bytes for 100000 calls.");
+        Api.Decisions.HasSubscribers = true;
+        p.RecordReloadTiming(b, s);
+        Check(p.sequence == reloadSequence + 1, "W01 subscriber alone receives snapshot");
+        oldReads = b.Reads;
+        p.RecordReloadTiming(b, s);
+        Check(b.Reads == oldReads && p.sequence == reloadSequence + 1, "W01 duplicate skips formatting and serialization");
+        Api.Decisions.HasSubscribers = false;
+        p.diagnostics.WantsOrdinaryEvents = true;
+        s.ReloadTiming.Policy.Trace.Loaded++;
+        p.RecordReloadTiming(b, s);
+        Check(p.sequence == reloadSequence + 2, "W01 journal alone sees changed rounds");
         Console.WriteLine(
             $"Diagnostic/P09 production gate: {checks} checks passed, {allocated} bytes for 300000 suppressed calls; forced/changed/heartbeat/RR events retained."
         );

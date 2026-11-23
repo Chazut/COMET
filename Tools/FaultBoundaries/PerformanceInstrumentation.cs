@@ -90,7 +90,7 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
             module = "DecisionCoordinator." + name;
         if (evidence)
             module = "DecisionEvidence." + File.Replace("Adapter", "") + "." + name;
-        if (File is "LiquidwarpFixesAdapter" or "NativeTimingAdapter")
+        if (File is "LiquidwarpFixesAdapter" or "NativeTimingAdapter" or "ReloadInventoryAdapter")
             module += "." + (smoothing ? "PoseStep" : name);
         int id = ModuleId(module);
         string scopeId = smoothing

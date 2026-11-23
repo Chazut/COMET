@@ -282,6 +282,7 @@ public sealed partial class Plugin : BaseUnityPlugin
 
             RunIntegration("PatchCrossfire", () => PatchCrossfire(harmony));
             RunIntegration("flank-execution", () => PatchFlank(harmony));
+            RunIntegration("native-shift-cover-origin", () => PatchShiftCoverOrigin(harmony));
             RunIntegration("fault-owner-contracts", PrepareFaultOwners);
             RunIntegration("PatchDoorEntry", () => PatchDoorEntry(harmony!));
             RunIntegration("installed-hook-manifest", VerifyInstalledIntegration);

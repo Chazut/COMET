@@ -178,6 +178,17 @@ static class TranspilerAudit
                     throw new Exception("Walking gaze must follow a failed suppression and rejoin native steering");
                 continue;
             }
+            if (transpiler.Name == "InsertShiftOrigin")
+            {
+                if (call.Name != "get_CoverInUse" || segment.Length != 3 || segment[0].opcode != original.opcode
+                    || !Equals(segment[0].operand, call) || segment[1].opcode != OpCodes.Ldarg_0
+                    || segment[2].opcode != OpCodes.Call || segment[2].operand is not MethodInfo hook
+                    || hook.Name != "UseShiftOrigin" || hook.ReturnType != call.ReturnType
+                    || !hook.GetParameters().Select(p => p.ParameterType).SequenceEqual(
+                        new[] { call.ReturnType, target.DeclaringType!.BaseType! }))
+                    throw new Exception("ShiftCover must only substitute its native origin read");
+                continue;
+            }
             // Check the actual receiver type too, not only a method name/call count.
             // This catches routing an interface call to a wrapper requiring a concrete implementation.
             var stack = new List<Type>();

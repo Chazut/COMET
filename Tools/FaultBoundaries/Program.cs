@@ -335,7 +335,9 @@ sealed class Boundaries(string file, Dictionary<string, string> callbacks, List<
         // inside the catch boundary, before binding a bot to the fault registry.
         string nativePreflight = "";
         if (file == "LiquidwarpFixesAdapter" && name is "FixEnemyActivity" or "FixEnemyIdentity"
-            or "RestoreDeferredPathCache" or "FixGrenadeSegment")
+            or "RestoreDeferredPathCache" or "FixGrenadeSegment"
+            || file == "ReloadInventoryAdapter" && name == "CompatibleBullets"
+            || file == "ShiftCoverOrigin" && name == "CheckFreshShiftDestination")
         {
             if (original.Statements.FirstOrDefault() is not IfStatementSyntax { Statement: ReturnStatementSyntax } guard)
                 throw new InvalidOperationException($"Missing native fast path in {name}");

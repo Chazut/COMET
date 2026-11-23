@@ -8,6 +8,7 @@ var fragments = new List<string>();
 foreach (
     var (file, method, runtime, key) in new[]
     {
+        ("ReloadTimingAdapter.cs", "RecordReloadTiming", "ReloadTimingRuntime", "LogKey"),
         ("PistolSwapAdapter.cs", "RecordPistolSwap", "PistolSwapRuntime", "LogKey"),
         ("WeaponRangeAdapter.cs", "RecordWeaponRange", "WeaponRangeRuntime", "LogKey"),
         ("DoorTransitAdapter.cs", "RecordDoorTransit", "DoorTransitRuntime", "Key"),
