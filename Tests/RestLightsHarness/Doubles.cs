@@ -182,7 +182,8 @@ namespace EFT
 
         public string ActiveLayerName() => Layer;
 
-        public string? LastDecision = "peaceful";
+        public int DecisionReads;
+        public string LastDecision { get { DecisionReads++; return "peaceful"; } }
     }
 
     public class BotOwner

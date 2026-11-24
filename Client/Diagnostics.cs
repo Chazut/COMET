@@ -186,7 +186,11 @@ namespace Comet.Api
                     continue;
                 try
                 {
-                    subscriber(item.Json);
+                    var metrics = Comet.Core.RaidSamplingMetrics.Current;
+                    if (metrics == null)
+                        subscriber(item.Json);
+                    else
+                        metrics.InvokeMeasured(subscriber, item.Json);
                 }
                 catch (Exception ex)
                 {

@@ -17,6 +17,7 @@ public sealed class PerformanceModule
 
 public sealed class PerformanceFrame
 {
+    public object? Subscribers { get; set; }
     public int Frame { get; set; }
     public double Realtime { get; set; }
     public double? FrameMs { get; set; }
@@ -41,6 +42,7 @@ public sealed class CombatWorkCounts
 
 public sealed class PerformanceReport
 {
+    public object? RaidSampling { get; set; }
     public CombatWorkCounts? CombatWorkTotals { get; set; }
     public object? Serialization { get; set; }
     public int? AiLightingMaxSamplesPerFrame { get; set; }
@@ -70,6 +72,7 @@ public sealed class PerformanceReport
 // Inclusive time contains native callees; self time subtracts measured children.
 public sealed class PerformanceRecorder
 {
+    internal Func<int, object?>? SubscribersInFrame { get; set; }
     private struct Scope
     {
         public int Module;
@@ -405,6 +408,7 @@ public sealed class PerformanceRecorder
                     Partial = first,
                     DurationMismatch = mismatch,
                     CometMs = cost,
+                    Subscribers = cost > PerformanceConfig.FrameBudgetMs ? SubscribersInFrame?.Invoke(id) : null,
                     CometBytes = allocations ? bytes : (long?)null,
                     Collections = new[]
                     {

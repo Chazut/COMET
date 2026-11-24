@@ -101,6 +101,7 @@ internal static class PerformanceCapture
             var s = new Session(config, path, session, revision, map, authority, lighting, warning);
             s.Tick();
             active = s;
+            s.Sampling.Start();
             return s.Writer.Background;
         }
         catch (Exception ex)
@@ -120,6 +121,7 @@ internal static class PerformanceCapture
         active = null;
         if (s == null)
             return Task.CompletedTask;
+        s.Sampling.Stop();
         s.Closing = true;
         s.DiagnosticsDone = diagnostics;
         if (s.Recorder.Depth == 0)
@@ -131,6 +133,7 @@ internal static class PerformanceCapture
     {
         internal readonly int Thread = Environment.CurrentManagedThreadId;
         internal readonly CombatWorkCounts Work = new();
+        internal readonly RaidSamplingMetrics Sampling = new(() => Time.frameCount);
         internal readonly PerformanceRecorder Recorder;
         internal readonly PerformanceWriter Writer;
         internal bool Closing;
@@ -164,6 +167,7 @@ internal static class PerformanceCapture
                 c.SlowFrameMs,
                 c.ReportIntervalSeconds
             );
+            Recorder.SubscribersInFrame = Sampling.SubscribersInFrame;
             Writer = new PerformanceWriter(
                 path,
                 new
@@ -262,6 +266,7 @@ internal static class PerformanceCapture
                     GC.CollectionCount(2)
                 );
                 AddSummaryMetrics(report);
+                report.RaidSampling = Sampling.Snapshot();
                 Writer.Finish(report, DiagnosticsDone);
                 finished = true;
             }
@@ -276,6 +281,7 @@ internal static class PerformanceCapture
             if (failed)
                 return;
             failed = true;
+            Sampling.Stop();
             if (ReferenceEquals(active, this))
                 active = null;
             // Close the writer even on a broken measurement; never interrupt gameplay.

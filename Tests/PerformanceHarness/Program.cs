@@ -140,6 +140,33 @@ try
         warnings.Add
     );
     Check(sink != null, "capture starts");
+    var sampling = RaidSamplingMetrics.Current!;
+    sampling.DoorRoutesCopied = 3;
+    var callbackOrder = new List<string>();
+    var error = new InvalidOperationException("subscriber test");
+    Action<string> failing = text => { callbackOrder.Add("bad " + text); throw error; };
+    Action<string> working = text => callbackOrder.Add("good " + text);
+    Comet.Api.Decisions.Published += failing;
+    Comet.Api.Decisions.Published += working;
+    var errors = new List<Exception>();
+    Comet.Api.Decisions.Publish("one", errors.Add);
+    Comet.Api.Decisions.Publish("two", errors.Add);
+    Comet.Api.Decisions.FlushPending();
+    Comet.Api.Decisions.Published -= working;
+    Comet.Api.Decisions.Published -= failing;
+    Check(callbackOrder.SequenceEqual(new[] { "bad one", "good one", "good two" })
+        && errors.Single() == error, "timing preserves delivery order, original failure and quarantine");
+    Clock.Frame++;
+    sampling.InvokeMeasured(working, "next");
+    var recorder = new PerformanceRecorder(new[] { "subscribers" }, 1000, false, 16.67, 1);
+    recorder.SubscribersInFrame = sampling.SubscribersInFrame;
+    recorder.Advance(100, 0, 20, 0, 0, 0);
+    recorder.Leave(recorder.Enter(0, 0, 0), 18, 0);
+    var recordedHitch = recorder.Advance(101, 2, 20, 0, 0, 0)!.Hitches.Single();
+    var hitters = JArray.FromObject(recordedHitch.Subscribers!);
+    Check(hitters.Count == 2 && (int?)hitters[0]["calls"] == 1 && (int?)hitters[1]["calls"] == 2,
+        "over-budget render frame retains both timings even after subsequent fixed-frame delivery");
+    Clock.Frame--;
     PerformanceCapture.Work!.CoverCandidates += 7;
     var priorWork = PerformanceCapture.Work.Snapshot();
     PerformanceCapture.Work.CoverCandidates++;
@@ -184,6 +211,12 @@ try
         "metadata identifies exact raid and config"
     );
     var report = lines.Single(x => (string?)x["stage"] == "performance-summary");
+    var sampleReport = report["raidSampling"]!;
+    Check((long?)sampleReport["doorRoutesCopied"] == 3
+        && (long?)sampleReport["subscribers"]?[0]?["calls"] == 1
+        && (long?)sampleReport["subscribers"]?[1]?["calls"] == 3
+        && (int?)sampleReport["subscriberMeasurementErrors"] == 0
+        && RaidSamplingMetrics.Current == null, "final raid-only counters and distinct handlers survive teardown");
     Check(
         (int?)report["aiLightingMaxSamplesPerFrame"] == 3
             && (int?)report["aiLightingFramesOverBudget"] == 2,
@@ -249,6 +282,9 @@ try
         "allocation switch honored at runtime"
     );
     var emptyLighting = second.Single(x => (string?)x["stage"] == "performance-summary");
+    Check((long?)emptyLighting["raidSampling"]?["doorRoutesCopied"] == 0
+        && (emptyLighting["raidSampling"]?["subscribers"] as JArray)?.Count == 0,
+        "next raid has independent sampling and subscriber counters");
     Check(
         (int?)emptyLighting["aiLightingMaxSamplesPerFrame"] == 0
             && (int?)emptyLighting["aiLightingFramesOverBudget"] == 0,

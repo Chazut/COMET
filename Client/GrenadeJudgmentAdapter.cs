@@ -143,7 +143,7 @@ public sealed partial class Plugin
             var e = __instance.GoalEnemy;
             if (e == null)
                 return;
-            var f = p.GrenadeFrame(__instance, e, s);
+            var f = p.GrenadeFrame(__instance, e, s, observationOnly: true);
             // Observe room classification only while the target is personally visible. Keep a short-lived location fact.
             if (f.Personal && e.IsVisible && e.EnemyPlayer != null)
             {
@@ -160,7 +160,7 @@ public sealed partial class Plugin
         }
     }
 
-    private GrenadeJudgmentFrame GrenadeFrame(BotComponent b, Enemy e, BotState s)
+    private GrenadeJudgmentFrame GrenadeFrame(BotComponent b, Enemy e, BotState s, bool observationOnly = false)
     {
         var places = e.KnownPlaces;
         var k = places.LastKnownPosition;
@@ -181,8 +181,17 @@ public sealed partial class Plugin
             X = k?.x ?? 0,
             Y = k?.y ?? 0,
             Z = k?.z ?? 0,
-            Item = b.BotOwner.WeaponManager.Grenades.grenade?.Id.ToString() ?? "",
         };
+        var metrics = RaidSamplingMetrics.Current;
+        if (observationOnly)
+        {
+            if (metrics != null)
+                metrics.GrenadeContactObservations++;
+            return f;
+        }
+        if (metrics != null)
+            metrics.GrenadeFullEvaluations++;
+        f.Item = b.BotOwner.WeaponManager.Grenades.grenade?.Id.ToString() ?? "";
         f.Room = e.EnemyPlayer?.Environment == EnvironmentType.Indoor;
         f.Vulnerable = e.Status.VulnerableAction != default;
         var health = b.Memory.Health.HealthStatus;

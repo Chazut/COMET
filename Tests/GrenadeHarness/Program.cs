@@ -19,6 +19,27 @@ void Check(bool ok, string why)
     p.Tick(b, 10);
     return (p, b);
 }
+{
+    var metrics = new Comet.Core.RaidSamplingMetrics(() => Time.frameCount);
+    metrics.Start();
+    var (p, b) = Setup();
+    var e = b.GoalEnemy!;
+    e.EnemyPlayer.Environment = EnvironmentType.Indoor;
+    p.Tick(b, 11);
+    var r = p.State(b).GrenadeJudgment;
+    Check(r.RoomAt == 11 && r.RoomPoint.x == e.KnownPlaces.LastKnownPosition!.Value.x
+        && metrics.GrenadeContactObservations == 2 && metrics.GrenadeFullEvaluations == 0
+        && p.FeintReads == 0 && p.Draws == 0, "personal room memory without throw reads or random draws");
+    e.IsVisible = false;
+    e.EnemyPlayer.Environment = EnvironmentType.Outdoor;
+    p.Tick(b, 12);
+    Check(r.RoomAt == 11, "hidden target cannot update room memory");
+    e.IsVisible = true;
+    p.Tick(b, 13);
+    Check(r.RoomAt == -1 && p.Find(b) && metrics.GrenadeFullEvaluations > 0 && p.FeintReads > 0,
+        "outdoor reacquisition clears room memory; real throw preparation reads current state");
+    metrics.Stop();
+}
 foreach (
     var exclude in new Action<Plugin, BotComponent>[]
     {

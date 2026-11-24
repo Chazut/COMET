@@ -44,6 +44,16 @@ bool Ready(Plugin p, BotComponent b)
     }
     return false;
 }
+{
+    var (p, b) = Setup();
+    var metrics = new RaidSamplingMetrics(() => Time.frameCount);
+    metrics.Start();
+    Check(!p.Choose(b, false), "no trajectory keeps native refusal");
+    b.BotOwner.WeaponManager.Grenades.ThrowindNow = true;
+    Check(!p.Choose(b, true) && metrics.GrenadeFullEvaluations == 0 && p.Draws == 0,
+        "no launch data prepared for absent arc or throw already in progress");
+    metrics.Stop();
+}
 foreach (bool g01 in new[] { false, true })
 foreach (bool g02 in new[] { false, true })
 {

@@ -57,6 +57,7 @@ public sealed partial class Plugin
 {
     // Weak keys: no scene subscription, retained door list or GameWorld reference across raids.
     private ConditionalWeakTable<WorldInteractiveObject, DoorRecoveryEpoch> recoveryEpochs = new();
+    private readonly ScratchList<DoorPoint> recoveryRoute = new();
     private static FieldInfo recoveryInteraction = null!,
         recoveryPrevious = null!,
         recoveryDeadline = null!;
@@ -311,10 +312,14 @@ public sealed partial class Plugin
                 return;
             if (!p.doorBudget.TryBegin(Time.frameCount, ___Bot))
                 return;
-            var timer = System.Diagnostics.Stopwatch.StartNew();
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
+            var route = default(ScratchList<DoorPoint>.Lease);
             try
             {
                 r.Next = Time.time + (float)p.config.DoorRecovery.SampleInterval;
+                var metrics = RaidSamplingMetrics.Current;
+                if (metrics != null)
+                    metrics.DoorScans++;
                 var links = ___Bot.BotOwner.VoxelesPersonalData.CurVoxel?.DoorLinks;
                 var corners = __instance.PathCorners;
                 if (
@@ -326,9 +331,6 @@ public sealed partial class Plugin
                     || __instance.CurrentIndex >= corners.Count
                 )
                     return;
-                var route = new List<DoorPoint> { DP(___Bot.Position) };
-                for (int i = __instance.CurrentIndex; i < corners.Count; i++)
-                    route.Add(DP(corners[i].Position));
                 DoorWork? best = null;
                 double distance = double.PositiveInfinity;
                 foreach (var link in links)
@@ -357,7 +359,19 @@ public sealed partial class Plugin
                     var data = new DoorDataStruct(link!);
                     if (!TryDoorGeometry(data, out var g))
                         continue;
-                    double d = DoorTransit.RouteDistance(g, route, 3);
+                    if (route.Items == null)
+                    {
+                        route = p.recoveryRoute.Rent();
+                        route.Items.Add(DP(___Bot.Position));
+                        for (int i = __instance.CurrentIndex; i < corners.Count; i++)
+                            route.Items.Add(DP(corners[i].Position));
+                        if (metrics != null)
+                        {
+                            metrics.DoorRoutesCopied++;
+                            metrics.DoorPathCornersCopied += route.Items.Count - 1;
+                        }
+                    }
+                    double d = DoorTransit.RouteDistance(g, route.Items, 3);
                     if (d < distance)
                     {
                         distance = d;
@@ -401,8 +415,9 @@ public sealed partial class Plugin
             }
             finally
             {
-                timer.Stop();
-                p.doorBudget.Charge(timer.Elapsed.TotalMilliseconds);
+                route.Dispose();
+                long elapsed = System.Diagnostics.Stopwatch.GetTimestamp() - started;
+                p.doorBudget.Charge(elapsed * 1000d / System.Diagnostics.Stopwatch.Frequency);
             }
         }
         catch (Exception ex)

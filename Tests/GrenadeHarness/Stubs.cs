@@ -461,7 +461,12 @@ namespace Comet.Client
 
         private bool Ghost(string id) => IsGhost;
 
-        private static bool FakeGuarded(BotComponent b) => Instance!.FeintGuard;
+        internal int FeintReads;
+        private static bool FakeGuarded(BotComponent b)
+        {
+            Instance!.FeintReads++;
+            return Instance.FeintGuard;
+        }
 
         private class Rng : Random
         {

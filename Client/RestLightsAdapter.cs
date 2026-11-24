@@ -141,7 +141,6 @@ public sealed partial class Plugin
             return;
         }
         var layer = b.BotOwner.Brain?.ActiveLayerName() ?? "";
-        var native = b.BotOwner.Brain?.LastDecision?.ToString() ?? "";
         if (states.TryGetValue(b, out var known) && known.RestLights.Fault)
             return;
         if (

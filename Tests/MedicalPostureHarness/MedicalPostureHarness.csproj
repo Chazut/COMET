@@ -7,6 +7,7 @@
     <NoWarn>CS0649;CS9113</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../Shared/RaidSamplingMetrics.cs" Link="RaidSamplingMetrics.cs" />
     <Compile Include="../../Client/MedicalPostureAdapter.cs" Link="MedicalPostureAdapter.cs" />
     <Compile Include="../../Client/MedicalPostureTactics.cs" Link="MedicalPostureTactics.cs" />
     <Compile Include="../../Shared/MedicalPosture.cs" Link="MedicalPosture.cs" />

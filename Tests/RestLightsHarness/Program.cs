@@ -59,6 +59,7 @@ foreach (int count in new[] { 0, 1, 2, 5, 16 })
     Tick(l, .26f);
     C(h.Commands.Count == (count == 0 ? 0 : 1), "one batch");
     C(h.Item.Mods.All(x => !x.Light!.IsActive), "devices off");
+    C(b.BotOwner.Brain.DecisionReads == 0, "rest lighting never requests unrelated decision text");
     C(
         h.Item.Mods.Select(x => x.Light!.SelectedMode).SequenceEqual(Enumerable.Range(2, count)),
         "modes unchanged"

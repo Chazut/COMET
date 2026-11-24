@@ -50,6 +50,8 @@ public sealed partial class Plugin
 {
     private readonly DoorSupportBoard supportBoard = new();
     private readonly Dictionary<BotComponent, DoorSupportOperation> supportOperations = new();
+    private readonly ScratchList<KeyValuePair<BotComponent, DoorSupportOperation>> supportOperationSnapshot = new();
+    private readonly ScratchList<KeyValuePair<BotComponent, BotState>> supportBotSnapshot = new();
 
     private static DoorWork? SupportingDoor(BotState s) =>
         s.Entry.Policy.Active ? s.Entry.Door
@@ -120,7 +122,9 @@ public sealed partial class Plugin
 
     private void UpdateDoorSupports()
     {
-        foreach (var pair in supportOperations.ToArray())
+        using var operations = supportOperationSnapshot.Rent();
+        operations.Items.AddRange(supportOperations);
+        foreach (var pair in operations.Items)
         {
             var o = pair.Value;
             if (!SupportLeaderAlive(o))
@@ -138,7 +142,10 @@ public sealed partial class Plugin
                 continue;
             }
         }
-        foreach (var pair in states.ToArray())
+        // Planning can register a squadmate. Snapshot after sweeping operations, as before.
+        using var bots = supportBotSnapshot.Rent();
+        bots.Items.AddRange(states);
+        foreach (var pair in bots.Items)
         {
             if (pair.Value.Support != null)
                 RefreshDoorSupport(pair.Key, pair.Value);

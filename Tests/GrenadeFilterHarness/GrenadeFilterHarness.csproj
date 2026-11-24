@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../Shared/RaidSamplingMetrics.cs" Link="RaidSamplingMetrics.cs" />
     <Reference
       Include="Newtonsoft.Json"
       HintPath="C:/Games/SPT-4.1/EscapeFromTarkov_Data/Managed/Newtonsoft.Json.dll"

@@ -22,6 +22,8 @@ internal sealed class MedicalPostureRuntime
 
 public sealed partial class Plugin
 {
+    private enum MedicalPostureOrigin { Update, TrackedGuard, NewGuard }
+
     private static void PatchMedicalPosture(Harmony h)
     {
         h.Patch(
@@ -55,28 +57,37 @@ public sealed partial class Plugin
         && !Ghost(b.ProfileId);
 
     private static bool MedicalLeanSelection(LeanClass __instance) =>
-        !MedicalPostureGuard(__instance.Bot);
+        !MedicalPostureGuard(__instance.Bot, fromLean: true);
 
     private static void MedicalLeanRequest(LeanClass __instance, ref LeanSetting value)
     {
-        if (value != LeanSetting.None && MedicalPostureGuard(__instance.Bot))
+        if (value != LeanSetting.None && MedicalPostureGuard(__instance.Bot, fromLean: true))
             value = LeanSetting.None;
     }
 
     // Also used at COMET tactic boundaries; medicine entering hands bypasses the sample interval.
-    private static bool MedicalPostureGuard(BotComponent b)
+    private static bool MedicalPostureGuard(BotComponent b, bool fromLean = false)
     {
         var p = Instance;
         if (p == null)
             return false;
         try
         {
+            var metrics = RaidSamplingMetrics.Current;
+            if (metrics != null)
+            {
+                if (fromLean)
+                    metrics.MedicalLeanGuards++;
+                else
+                    metrics.MedicalTacticGuards++;
+            }
             if (!p.MedicalPostureScope(b))
             {
                 if (b != null && p.states.TryGetValue(b, out var old))
                     p.EndMedicalPosture(old, "medical-posture-out-of-scope");
                 return false;
             }
+            var origin = MedicalPostureOrigin.TrackedGuard;
             if (!p.states.TryGetValue(b, out var s))
             {
                 if (
@@ -87,8 +98,9 @@ public sealed partial class Plugin
                     return false;
                 s = new BotState(b, p.config!, p.session);
                 p.states.Add(b, s);
+                origin = MedicalPostureOrigin.NewGuard;
             }
-            p.SampleMedicalPosture(b, s);
+            p.SampleMedicalPosture(b, s, origin);
             return s.MedicalPosture.Policy.Blocking;
         }
         catch (Exception ex)
@@ -99,12 +111,20 @@ public sealed partial class Plugin
         }
     }
 
-    private void SampleMedicalPosture(BotComponent b, BotState s)
+    private void SampleMedicalPosture(BotComponent b, BotState s, MedicalPostureOrigin origin = MedicalPostureOrigin.Update)
     {
+        var metrics = RaidSamplingMetrics.Current;
+        if (metrics != null && origin == MedicalPostureOrigin.Update)
+            metrics.MedicalUpdateSamples++;
         var r = s.MedicalPosture;
         if (r.Fault || r.Sampling)
             return;
-        if (!MedicalPostureScope(b))
+        if (origin == MedicalPostureOrigin.TrackedGuard)
+        {
+            if (metrics != null)
+                metrics.MedicalScopeRechecksAvoided++;
+        }
+        else if (!MedicalPostureScope(b))
         {
             EndMedicalPosture(s, "medical-posture-out-of-scope");
             return;

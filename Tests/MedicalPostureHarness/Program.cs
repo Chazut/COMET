@@ -25,6 +25,29 @@ void Step(Plugin p, BotComponent b, float dt = .11f)
     p.Guard(b);
 }
 void Capture(Plugin p) => events.AddRange(p.diagnostics!.Lines);
+{
+    var (p, b) = Setup();
+    var metrics = new Comet.Core.RaidSamplingMetrics(() => 1);
+    metrics.Start();
+    b.Player.HandsController = new MedicineHands();
+    p.Guard(b);
+    int before = p.SleepChecks;
+    Plugin.LeanSelection(b.Mover.Lean);
+    C(p.SleepChecks == before + 1 && metrics.MedicalLeanGuards > 0
+        && metrics.MedicalScopeRechecksAvoided > 0, "tracked lean checks live sleep state once");
+    p.IsGhost = true;
+    p.UpdatePosture(b);
+    C(!p.states[b].MedicalPosture.Policy.Blocking && metrics.MedicalUpdateSamples == 1,
+        "per-frame sample independently releases a sleeping bot in the same frame");
+    p.IsGhost = false;
+    Time.time += .6f;
+    p.UpdatePosture(b);
+    C(p.states[b].MedicalPosture.Policy.Blocking, "awake bot with meds resumes at the next scheduled sample");
+    p.Authority = false;
+    p.UpdatePosture(b);
+    C(!p.states[b].MedicalPosture.Policy.Blocking, "authority loss releases posture before the next sample");
+    metrics.Stop();
+}
 foreach (string kind in new[] { "aid", "surgery", "stims", "hands-only" })
 {
     var (p, b) = Setup();

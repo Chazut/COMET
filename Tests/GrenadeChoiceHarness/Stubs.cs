@@ -760,6 +760,7 @@ namespace Comet.Client
         internal List<Player> Players => world!.RegisteredPlayers;
 
         internal BotState State(BotComponent b) => states[b];
+        internal bool Choose(BotComponent b, bool arc) => ChooseGrenade(b, b.GoalEnemy!, states[b], arc);
 
         internal void Tick(BotComponent b, double t)
         {

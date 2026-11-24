@@ -261,7 +261,8 @@ namespace Comet.Client
             Instance = this;
         }
 
-        private bool Ghost(string id) => IsGhost;
+        internal int SleepChecks;
+        private bool Ghost(string id) { SleepChecks++; return IsGhost; }
 
         private static bool WeaponHandsReady(BotComponent b, Player.FirearmController? f) =>
             f?.Ready == true;
@@ -272,6 +273,7 @@ namespace Comet.Client
             MedicalLeanRequest(lean, ref side);
 
         public bool Guard(BotComponent b) => MedicalPostureGuard(b);
+        public void UpdatePosture(BotComponent b) => SampleMedicalPosture(b, states[b]);
 
         public void End(BotComponent b) =>
             EndMedicalPosture(states[b], "medical-posture-raid-ended");

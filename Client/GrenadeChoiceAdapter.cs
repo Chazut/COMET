@@ -46,7 +46,6 @@ public sealed partial class Plugin
             return arc;
         var r = s.GrenadeChoice;
         var g = b.BotOwner.WeaponManager.Grenades;
-        var f = GrenadeFrame(b, e, s);
         if (!arc)
         {
             StopGrenadeChoice(s, "choice-no-trajectory", "blocked");
@@ -57,6 +56,7 @@ public sealed partial class Plugin
             StopGrenadeChoice(s, "choice-native-throw-in-progress", "blocked");
             return false;
         }
+        var f = GrenadeFrame(b, e, s);
         string evidence = ChoiceEvidence(b, e, f);
         if (evidence.Length > 0)
         {

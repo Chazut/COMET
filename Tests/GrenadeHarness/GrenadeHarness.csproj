@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../Shared/RaidSamplingMetrics.cs" Link="RaidSamplingMetrics.cs" />
     <Compile Include="../../Client/GrenadeJudgmentAdapter.cs" Link="GrenadeJudgmentAdapter.cs" />
     <Compile Include="../../Shared/GrenadeJudgment.cs" Link="GrenadeJudgment.cs" />
   </ItemGroup>

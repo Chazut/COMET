@@ -56,6 +56,85 @@ void Run(Plugin p, BotComponent b, float until)
     Plugin.Deactivate(bot);
     Check(!bot.DoorOpener.Interacting && bot.DoorOpener.ClearCount == 2, "standby also clears collision without a path update");
 }
+{
+    var (p, bot, state, data) = Setup();
+    var metrics = new RaidSamplingMetrics(() => Time.frameCount);
+    metrics.Start();
+    var links = bot.BotOwner.VoxelesPersonalData.CurVoxel!.DoorLinks;
+    links.Clear();
+    p.Encounter(bot, 0);
+    var first = new Link { Door = data.Door };
+    links.Add(first);
+    p.Encounter(bot, 1);
+    Check(metrics.DoorScans == 2 && metrics.DoorRoutesCopied == 0,
+        "empty sector and consistent shut door never copy corners");
+    var second = new Link();
+    links.Add(second);
+    foreach (var link in links)
+    {
+        link.Door.DoorState = EDoorState.Open;
+        link.Door.Native.ResultState = EDoorState.Shut;
+        link.Door.Native.ProgressTime = 1;
+    }
+    p.Encounter(bot, 2);
+    Check(ReferenceEquals(state.Recovery.Door, first.Door) && metrics.DoorRoutesCopied == 1
+        && metrics.DoorPathCornersCopied == 1, "two tied doors share one route and the first wins");
+    metrics.Stop();
+}
+{
+    var buffers = new ScratchList<int>();
+    var original = buffers.Rent();
+    original.Items.Add(42);
+    using (var nested = buffers.Rent())
+    {
+        nested.Items.Add(17);
+        Check(original.Items.SequenceEqual(new[] { 42 }), "nested scan cannot overwrite an outer snapshot");
+    }
+    original.Dispose();
+    using var next = buffers.Rent();
+    Check(next.Items.Count == 0, "return clears the snapshot before reuse");
+}
+// Compare the production scan against the previous eager route on different suffixes,
+// door states and geometries. Strict comparison keeps the first equal-distance door.
+for (int scenario = 0; scenario < 96; scenario++)
+{
+    var (p, bot, state, _) = Setup();
+    var path = (BotPathDataManual)bot.Mover.ActivePath!;
+    path.PathCorners.Insert(0, new Corner { Position = new(4, 0, -1) });
+    path.CurrentIndex = scenario % 2;
+    var route = new List<DoorPoint> { new(bot.Position.x, bot.Position.y, bot.Position.z) };
+    for (int i = path.CurrentIndex; i < path.PathCorners.Count; i++)
+    {
+        var point = path.PathCorners[i].Position;
+        route.Add(new(point.x, point.y, point.z));
+    }
+    var links = bot.BotOwner.VoxelesPersonalData.CurVoxel!.DoorLinks;
+    links.Clear();
+    Door? expected = null;
+    double nearest = double.PositiveInfinity;
+    for (int i = 0; i < scenario % 7; i++)
+    {
+        var link = new Link();
+        links.Add(link);
+        link.Door.DoorState = EDoorState.Open;
+        link.Door.Native.ResultState = EDoorState.Shut;
+        link.Door.Native.ProgressTime = 1;
+        link.Geometry.Center = new(i % 3, 0, (i + scenario) % 5 - 1);
+        if ((scenario + i) % 4 == 0)
+        {
+            link.Door.FallbackState = EDoorState.Locked;
+            continue;
+        }
+        double distance = DoorTransit.RouteDistance(link.Geometry, route, 3);
+        if (distance < nearest)
+        {
+            nearest = distance;
+            expected = link.Door;
+        }
+    }
+    p.Encounter(bot, 0);
+    Check(ReferenceEquals(expected, state.Recovery.Door), "eager/lazy recovery door, case " + scenario);
+}
 var x = Setup();
 x.p.Start(x.b, x.d);
 Finish(x.d.Door);
