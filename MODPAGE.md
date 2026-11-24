@@ -6,7 +6,7 @@
 
 A PMC's kit, personality and what they've actually seen or heard shape their next move. Some will take a chance when they hear you reload. Others would rather change cover, watch a squadmate's flank or let you walk into an ambush. They can panic, miss an opening or get a little too confident, too.
 
-These tactics apply to **PMCs and AI player scavs**, including fights between bots. Ordinary scavs and bosses keep their usual behavior. In the web editor, **General** lets you enable the two bot types separately. Turn off **Light-based detection** there if another vision mod handles light and shadow. All three switches are on by default and changes apply next raid.
+These tactics apply to **PMCs and AI player scavs**, including fights between bots. Ordinary scavs and bosses keep their usual behavior. Bring your favorite SAIN preset.
 
 **Requires official SAIN 4.5.1.**
 
@@ -44,7 +44,6 @@ These tactics apply to **PMCs and AI player scavs**, including fights between bo
 
 **Weapons, reloads & grenades**
 
-- A PMC who catches an enemy looking away can take a second or two to line up a single headshot. It works against any AI, from a scav to a boss. If the target turns toward the PMC or the PMC comes under fire, the wait ends.
 - Weapon choice accounts for distance, sights, ammo and newly looted guns. PMCs can draw a loaded pistol under pressure, switch back to their primary, fire short suppression bursts and check that their muzzle clears cover. Faster aim recovery for DMRs and sniper rifles is optional.
 - Bots time their reloads, drop a mag for an emergency reload, and can return after combat for that same magazine with its remaining rounds.
 - Grenade choice considers the target's last position, fuse, range, roof and doorway. PMCs distinguish frags from flashes, avoid their own throws and scatter to separate safe spots according to personality. Flash effects persist, and supported CS gas accounts for exposure and protection.
@@ -57,7 +56,7 @@ These tactics apply to **PMCs and AI player scavs**, including fights between bo
 **Settings, replays & reliability**
 
 - Separate COMET difficulty presets, per-tactic settings and a web editor to save, import or share personal presets. COMET respects your SAIN preset and hands control back when its tactics finish.
-- Fika support, ORBIT Ghost Mode and Questing Bots sleep handoffs, squad and action events for Raid Review and Satellite, and live action labels with HORIZON.
+- Fika support, ORBIT Ghost Mode and Questing Bots sleep handoffs, Raid Review squad and action events, and live action labels with HORIZON.
 - Recovery for stuck hands, stale reloads, cover searches and failed plans. SAIN fixes cover sight checks, grenade paths, surgery, recoil and animation timing. Per-bot recovery handles interrupted actions, downing, revives and raid cleanup.
 
 ### How PMCs fight
@@ -100,30 +99,41 @@ These tactics apply to **PMCs and AI player scavs**, including fights between bo
 
 ### Compatibility
 
-**Recommended mods**
+#### Recommended mods
 
+- **[SAIN Personality Mixer](https://sp-mod.com/index.php/addon/177/sain-personality-mixer)** lets you choose how often each PMC personality appears, so you can still run into Rats and Timmies at higher levels.
 - **[Bot Healing Fixes](https://sp-mod.com/mod/3140/bot-healing-fixes)** helps wounded bots finish healing and recover when treatment gets interrupted.
 - **[Separate Hostility](https://sp-mod.com/mod/2248/separate-hostility)** fixes cases where bots that should be enemies ignore each other.
 - **[Twitch Players](https://sp-mod.com/mod/1895/sain-twitch-players)** is a SAIN preset for tougher fights. A GigaChad PMC can line up a shot faster than a Normal PMC.
-- **[SAIN Personality Mixer](https://sp-mod.com/index.php/addon/177/sain-personality-mixer)** lets you choose how often each PMC personality appears, so you can still run into Rats and Timmies at higher levels.
+- **[Satellite](https://sp-mod.com/mod/3373/satellite)** fo live raid map and replay (soon).
 
-**Other supported mods**
+#### Other supported mods
 
 - **[Fika](https://sp-mod.com/mod/2326/project-fika).** Install the matching COMET client on each player's PC and on the host or headless. Fika support is built in.
 - **[ORBIT](https://sp-mod.com/mod/2706/orbit-30), [Questing Bots](https://sp-mod.com/mod/1109/questing-bots) and [Looting Bots](https://sp-mod.com/mod/812/looting-bots).** These are optional. Your usual mods still handle travel, quests and loot. COMET yields when ORBIT puts a bot in Ghost Mode or Questing Bots puts it to sleep.
 - **[Winter Outbreak](https://sp-mod.com/mod/3392/winter-outbreak).** COMET keeps the seasonal footstep sounds.
 - **[Manimal's CS Gas](https://sp-mod.com/mod/2864/manimals-cs-gas) 2.0.0 or 2.0.1.** Time spent in a gas cloud and the protection a bot is wearing affect its vision.
-- **[Raid Review](https://sp-mod.com/mod/1479/raid-review), [Satellite](https://sp-mod.com/mod/3373/satellite) and [HORIZON](https://sp-mod.com/mod/3362/horizon).** Raid Review shows squad roles, cover changes and magazine pickups in the replay. Satellite shows COMET actions and squad tactics live on its map. Raid replay is planned for a future Satellite update. HORIZON's Bot Info shows each bot's current action live after you die.
+- **[Raid Review](https://sp-mod.com/mod/1479/raid-review) and [HORIZON](https://sp-mod.com/mod/3362/horizon).** Raid Review shows squad roles, cover changes and magazine pickups in the replay. HORIZON's Bot Info shows each bot's current action live after you die.
+
+#### Incompatible
+
+- **Modified SAIN builds**: incompatible. COMET requires the official SAIN 4.5.1 DLLs and disables itself if they have been modified. Custom SAIN presets are fine.
+- **[LiveRaid](https://sp-mod.com/mod/3253/liveraid):** incompatible. Both mods change the same SAIN combat decisions. For example, COMET can send a PMC to cover and LiveRaid can turn that into a push. I recommend picking one.
+
+#### Known overlap
+
+COMET already uses local lighting to decide how quickly bots spot you. If you use either mod alongside COMET, I recommend disabling its lighting effect so darkness doesn't slow detection twice.
+
+- **Ombarella (Kobe's version)**: Kobe recommends turning **Light Level** off. If you're on **v3.0.0**, open **F12 > Ombarella > b - Main Settings** and set **3-Light meter strength** to **0**.
+- **[That's Lit](https://sp-mod.com/mod/3450/thats-lit-logical-ai-vision-spt-41-port)**:  Open **F12 > That's Lit > 2. Darkness / Brightness** and turn **Enable** off. You can leave the mod itself enabled under **1. Main**.
+
+I haven't personally tested either mod with COMET. These settings address the lighting overlap; full compatibility is still unconfirmed.
 
 ### FAQ
 
 **Will COMET cost me FPS?**
 
-Keeping the impact on FPS as low as possible is a top priority. COMET spreads work across frames to limit stutters. The extra AI still takes some CPU time, so the impact depends on your setup and how many bots are fighting.
-
-**Do I need Raid Review or Satellite?**
-
-COMET works on its own. **Extra Raid Review / Satellite info** is on by default and automatically pauses when neither mod is loaded on the AI host. Raid Review offers post-raid replay. Satellite shows bot actions and squad tactics live, with replay planned for a future update.
+YES. Keeping the impact on FPS as low as possible is a top priority. COMET spreads work across frames to limit stutters. The extra AI still takes some CPU time, so the impact depends on your setup and how many bots are fighting.
 
 **Can I keep my SAIN preset?**
 

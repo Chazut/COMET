@@ -13,7 +13,7 @@
 
 A PMC's kit, personality and what they've actually seen or heard shape their next move. Some will take a chance when they hear you reload. Others would rather change cover, watch a squadmate's flank or let you walk into an ambush. They can panic, miss an opening or get a little too confident, too.
 
-These tactics apply to **PMCs and AI player scavs**, including fights between bots. Ordinary scavs and bosses keep their usual behavior. In the web editor, **General** lets you enable the two bot types separately. Turn off **Light-based detection** there if another vision mod handles light and shadow. All three switches are on by default and changes apply next raid.
+These tactics apply to **PMCs and AI player scavs**, including fights between bots. Ordinary scavs and bosses keep their usual behavior. Bring your favorite SAIN preset.
 
 **COMET 1.0.0 requires SPT 4.1.6 and official SAIN 4.5.1.**
 
@@ -105,23 +105,39 @@ These tactics apply to **PMCs and AI player scavs**, including fights between bo
 
 **Hard** is the default. **Normal** and **Easy** dial back how often some of the more demanding tactics happen. The web editor lets you change individual behaviors, from doorway jumps to squad callouts, and save or share your own presets. Saved settings take effect next raid.
 
+Under **General**, you can enable COMET separately for PMCs and AI player scavs. You can also turn off **Light-based detection** there if you prefer another mod to handle lighting. All three switches are on by default.
+
 ## Compatibility
 
-**Recommended mods**
+### Recommended mods
 
 - **[SAIN Personality Mixer](https://sp-mod.com/index.php/addon/177/sain-personality-mixer)** lets you choose how often each PMC personality appears, so you can still run into Rats and Timmies at higher levels.
 - **[Bot Healing Fixes](https://sp-mod.com/mod/3140/bot-healing-fixes)** helps wounded bots finish healing and recover when treatment gets interrupted.
 - **[Separate Hostility](https://sp-mod.com/mod/2248/separate-hostility)** fixes cases where bots that should be enemies ignore each other.
 - **[Twitch Players](https://sp-mod.com/mod/1895/sain-twitch-players)** is a SAIN preset for tougher fights. A GigaChad PMC can line up a shot faster than a Normal PMC.
-- **[Satellite](https://sp-mod.com/mod/3373/satellite)** shows the raid live on a map. Raid replay is planned.
+- **[Satellite](https://sp-mod.com/mod/3373/satellite)** shows bot actions and squad tactics on the live map. Raid replay is available in the [1.1.0 alpha 2 test release](https://github.com/MrFums/Satellite/releases/tag/v1.1.0-alpha.2).
 
-**Other supported mods**
+### Other supported mods
 
 - **[Fika](https://sp-mod.com/mod/2326/project-fika).** Install the matching COMET client on each player's PC and on the host or headless. Fika support is built in. Install the server folder on the SPT server. If you're upgrading from the split plugin, remove the old `COMET.Fika.dll`.
 - **[ORBIT](https://sp-mod.com/mod/2706/orbit-30), [Questing Bots](https://sp-mod.com/mod/1109/questing-bots) and [Looting Bots](https://sp-mod.com/mod/812/looting-bots).** These are optional. Your usual mods still handle travel, quests and loot. COMET yields when ORBIT puts a bot in Ghost Mode or Questing Bots puts it to sleep.
 - **[Winter Outbreak](https://sp-mod.com/mod/3392/winter-outbreak).** COMET keeps the seasonal footstep sounds.
 - **[Manimal's CS Gas](https://sp-mod.com/mod/2864/manimals-cs-gas) 2.0.0 or 2.0.1.** Time spent in a gas cloud and the protection a bot is wearing affect its vision.
-- **[Raid Review](https://sp-mod.com/mod/1479/raid-review), [Satellite](https://sp-mod.com/mod/3373/satellite) and [HORIZON](https://sp-mod.com/mod/3362/horizon).** Raid Review shows squad roles, cover changes and magazine pickups in the replay. Satellite shows COMET actions and squad tactics live on its map. Raid replay is planned for a future Satellite update. HORIZON's Bot Info shows each bot's current action live after you die.
+- **[Raid Review](https://sp-mod.com/mod/1479/raid-review) and [HORIZON](https://sp-mod.com/mod/3362/horizon).** Raid Review shows squad roles, cover changes and magazine pickups in the replay. HORIZON's Bot Info shows each bot's current action live after you die.
+
+### Incompatible
+
+- **Modified SAIN builds.** COMET checks the official SAIN 4.5.1 DLLs at startup and disables itself if they have been modified. Custom SAIN presets are fine.
+- **[LiveRaid](https://sp-mod.com/mod/3253/liveraid).** Both mods change the same SAIN combat decisions. For example, COMET can send a PMC to cover and LiveRaid can turn that into a push. I recommend picking one.
+
+### Known overlap
+
+COMET already uses local lighting to decide how quickly bots spot you. If you use either mod alongside COMET, I recommend disabling its lighting effect so darkness doesn't slow detection twice.
+
+- **Ombarella (Kobe's version).** Kobe recommends turning **Light Level** off. If you're on **v3.0.0**, open **F12 > Ombarella > b - Main Settings** and set **3-Light meter strength** to **0**.
+- **[That's Lit](https://sp-mod.com/mod/3450/thats-lit-logical-ai-vision-spt-41-port).** Open **F12 > That's Lit > 2. Darkness / Brightness** and turn **Enable** off. You can leave the mod itself enabled under **1. Main**.
+
+I haven't personally tested either mod with COMET. These settings only address the lighting overlap.
 
 ## FAQ
 
@@ -139,7 +155,7 @@ In SAIN's F6 menu, I recommend turning all three AI vs AI limits **OFF** (Global
 
 **Which diagnostics should I enable?**
 
-**Extra Raid Review / Satellite info** and all four reports are on by default. COMET collects combat, weapon, control and tactical decision data when either plugin is loaded on the AI host. Turn off individual reports or pause all four with the global switch. Your selections are saved. Raid Review displays the reports in its replay. Satellite shows bot actions and squad tactics live, with replay planned for a future update. **Quiet logging** is on by default and **Performance capture** is off. Changes apply next raid.
+**Extra Raid Review / Satellite info** and all four reports are on by default. COMET collects combat, weapon, control and tactical decision data when either plugin is loaded on the AI host. Turn off individual reports or pause all four with the global switch. Your selections are saved. Raid Review displays the reports in its replay. Satellite shows bot actions and squad tactics on its map. Its alpha replay includes supported squad tactics and magazine recovery. RR also records the scores and alternatives behind individual COMET decisions. **Quiet logging** is on by default and **Performance capture** is off. Changes apply next raid.
 
 On upgrade, COMET applies these five settings once and backs up the previous config if it changes. You can then switch any of them on or off for future raids.
 
