@@ -355,7 +355,7 @@ public sealed partial class Plugin : BaseUnityPlugin
         diagnosticStorage?.Tick(Singleton<GameWorld>.Instantiated, Time.realtimeSinceStartup);
         PerformanceCapture.Tick();
         Api.Decisions.Pump(Time.frameCount);
-        if (world != null && Time.realtimeSinceStartup >= nextDeliveryReport)
+        if (ReplayCapture.Detailed && world != null && Time.realtimeSinceStartup >= nextDeliveryReport)
         {
             nextDeliveryReport = Time.realtimeSinceStartup + 5;
             diagnostics?.Write(
@@ -391,6 +391,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 sequence = 0;
                 Api.Decisions.RaidSession = session;
                 Api.Decisions.RaidClosed = false;
+                ReplayCapture.Configure(false, false, false, false);
                 raidReportReceiverAvailable = CometConfig.HasRaidReportReceiver(Chainloader.PluginInfos.ContainsKey);
                 var log = Logger; // Writer holds the logger, never the Plugin/world.
                 try
@@ -399,7 +400,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                         Path.Combine(BepInEx.Paths.PluginPath, "..", "COMET", "diagnostics"),
                         session,
                         text => log.LogWarning(text),
-                        reportReceiverAvailable: raidReportReceiverAvailable
+                        reportReceiverAvailable: raidReportReceiverAvailable, awaitReportSettings: true
                     );
                 }
                 catch (Exception ex)
@@ -445,21 +446,21 @@ public sealed partial class Plugin : BaseUnityPlugin
         if (loading.Take(raidLifetime.Generation, out var loaded, out var loadError))
         {
             if (loaded != null)
-                diagnostics?.ConfigureLogging(loaded.QuietLogging, loaded.Revision, session);
-            if (loaded != null)
-                StartPerformance(loaded);
-            if (loaded != null)
-                diagnostics?.ConfigureSnapshot(loaded, session);
-            if (loaded != null)
             {
                 loaded.RaidReportReceiverAvailable = raidReportReceiverAvailable;
                 config = loaded;
+                bool host = config.Enabled && Authority;
+                ReplayCapture.Configure(host && config.RecordEssentialReplay(), host && config.RecordExtendedReplay(),
+                    !config.QuietLogging, Chainloader.PluginInfos.ContainsKey("ekky.raidreview"));
                 diagnostics?.ConfigureRaidReports(config, Authority, session);
+                diagnostics?.ConfigureLogging(config.QuietLogging, config.Revision, session);
+                StartPerformance(config);
+                diagnostics?.ConfigureSnapshot(config, session);
                 Logger.LogInfo(
                     "COMET raid config revision " + config.Revision + ", enabled=" + config.Enabled
                     + ", PMCs=" + config.EnablePmcs + ", AI player scavs=" + config.EnableAiPlayerScavs
                     + ", light-based detection=" + config.LightBasedDetection
-                    + ", extra Raid Review / Satellite info=" + (config.ExtraRaidReviewInfo && raidReportReceiverAvailable)
+                    + ", essential replay=" + ReplayCapture.Essential + ", extended replay=" + ReplayCapture.Extended
                     + ", reporting plugin detected=" + raidReportReceiverAvailable
                 );
                 ReportDifficultyPreset();
@@ -491,7 +492,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                 SampleDecisionExecution(pair.Key, pair.Value);
                 if (config.RecordCombatJournal() || config.RecordWeaponJournal())
                     SampleCombatJournal(pair.Key, pair.Value);
-                if (config.RecordTacticCounters())
+                if (ReplayCapture.RaidReview || config.RecordTacticCounters())
                     SampleCounterExecution(pair.Key, pair.Value);
                 SampleOutcome(pair.Key, pair.Value);
                 SampleEncounter(pair.Key, pair.Value);
@@ -1447,6 +1448,49 @@ public sealed partial class Plugin : BaseUnityPlugin
 
     private void Emit(BotState state, string stage, string reason, string? featureOverride = null)
     {
+        if (stage == "selected")
+            state.LastSelection = Time.time;
+        string feature = featureOverride ?? state.Feature;
+        if (!ReplayCapture.Detailed && !(ReplayCapture.Essential && ReplayCapture.MainDecision(feature, stage)))
+            return;
+        var squadGrenade = state.Feature == "S10" && state.SquadGrenade is { } pair
+            ? new
+            {
+                pair.Thrower,
+                pair.Holder,
+                pair.Contact,
+                pair.StartFrame,
+            }
+            : null;
+        var siege = state.Feature == "S11" && state.Siege is { } watch
+            ? new
+            {
+                target = watch.Contact,
+                exit = state.SiegeExit?.Id,
+                exits = watch.Watches.Count,
+                until = watch.Until,
+            }
+            : null;
+        if (!ReplayCapture.Detailed)
+        {
+            var compact = Diagnostics.Serialize(new
+            {
+                schema = 1, session, sequence = ++sequence, feature, stage, reason,
+                realtime = Time.realtimeSinceStartup, profileId = state.ProfileId, name = state.Name, decision = state.Decision,
+                botInstance = state.Id, configRevision = config?.Revision ?? 0, tacticObservationVersion = 1,
+                contact = new
+                {
+                    target = state.Situation?.Target, source = state.Situation?.ContactSource,
+                    age = state.Feature == "A03" && state.SightEvent != null
+                        ? Math.Max(0, Time.time - state.SightEvent.SeenAt) : state.Situation?.ContactAge,
+                    distance = state.Situation?.KnownDistance,
+                    x = state.Situation?.KnownX, y = state.Situation?.KnownY, z = state.Situation?.KnownZ,
+                },
+                squadGrenade, siege,
+            });
+            Api.Decisions.Publish(new DiagnosticJson(compact), Api.Decisions.CaptureSubscribers(), WarnFaultSink);
+            return;
+        }
         var role = (featureOverride ?? state.Feature) switch
         {
             "A01" => state.Engine.RankedEnemy,
@@ -1502,24 +1546,8 @@ public sealed partial class Plugin : BaseUnityPlugin
                     ? state.Engine.RankedMedicalRetreatBonus : null,
                 mixing = state.Mixing,
                 tacticObservationVersion = 1,
-                squadGrenade = state.Feature == "S10" && state.SquadGrenade is { } pair
-                    ? new
-                    {
-                        pair.Thrower,
-                        pair.Holder,
-                        pair.Contact,
-                        pair.StartFrame,
-                    }
-                    : null,
-                siege = state.Feature == "S11" && state.Siege is { } watch
-                    ? new
-                    {
-                        target = watch.Contact,
-                        exit = state.SiegeExit?.Id,
-                        exits = watch.Watches.Count,
-                        until = watch.Until,
-                    }
-                    : null,
+                squadGrenade,
+                siege,
                 flank = state.Decision == "Flank"
                     ? new
                     {
@@ -1633,8 +1661,6 @@ public sealed partial class Plugin : BaseUnityPlugin
                 personality = state.Situation?.Personality,
             }
         );
-        if (stage == "selected")
-            state.LastSelection = Time.time;
         diagnostics?.Write(json);
         Api.Decisions.Publish(json, ex =>
         {

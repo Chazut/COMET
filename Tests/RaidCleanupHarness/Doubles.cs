@@ -263,6 +263,7 @@ namespace Comet.Client
 
         internal void Begin(EFT.GameWorld w)
         {
+            Comet.Core.ReplayCapture.Configure(true, true, true, true);
             if (!raidLifetime.Begin(w))
                 throw new Exception("retired world");
             world = w;

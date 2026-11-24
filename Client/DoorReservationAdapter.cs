@@ -232,6 +232,8 @@ public sealed partial class Plugin
         };
         if (state == "released" || state == "expired")
             t.Remaining = 0;
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

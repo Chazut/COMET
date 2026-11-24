@@ -35,17 +35,21 @@ public sealed class CometConfig
     public const bool DefaultQuietLogging = true;
     public string BehaviorBaseline { get; set; } = SourceBaseline;
     public bool QuietLogging { get; set; } = DefaultQuietLogging;
+    public bool EssentialReplayData { get; set; } = true;
+    public bool ExtendedReplayData { get; set; }
+    // Legacy preset fields remain readable. Replay levels own collection now.
     public bool ExtraRaidReviewInfo { get; set; } = true;
     // Per-raid client state. The editor and exported presets keep the user's preference.
     internal bool RaidReportReceiverAvailable = true;
     internal static bool HasRaidReportReceiver(Func<string, bool> isLoaded) =>
         isLoaded("ekky.raidreview") || isLoaded("com.fums.satellite");
 
-    private bool RecordExtraReports => ExtraRaidReviewInfo && RaidReportReceiverAvailable;
-    public bool RecordCombatJournal() => RecordExtraReports && CombatJournal.Enabled;
-    public bool RecordWeaponJournal() => RecordExtraReports && WeaponJournal.Enabled;
-    public bool RecordControlJournal() => RecordExtraReports && ControlJournal.Enabled;
-    public bool RecordTacticCounters() => RecordExtraReports && TacticCounters.Enabled;
+    public bool RecordExtendedReplay() => RaidReportReceiverAvailable && ExtendedReplayData;
+    public bool RecordEssentialReplay() => RaidReportReceiverAvailable && (EssentialReplayData || ExtendedReplayData);
+    public bool RecordCombatJournal() => RecordExtendedReplay();
+    public bool RecordWeaponJournal() => RecordExtendedReplay();
+    public bool RecordControlJournal() => RecordExtendedReplay();
+    public bool RecordTacticCounters() => RecordExtendedReplay();
 
     public PerformanceConfig Performance { get; set; } = new();
     public CombatJournalConfig CombatJournal { get; set; } = new();

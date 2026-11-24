@@ -200,6 +200,8 @@ public sealed partial class Plugin
 
     private void RecordWeaponRange(BotComponent? b, BotState s, bool force = false)
     {
+        if (!ReplayCapture.Detailed)
+            return;
         var r = s.WeaponRange;
         var t = r.Policy.Trace;
         if (t == null)

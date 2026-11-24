@@ -30,17 +30,16 @@ static class QuietLoggingTests
             var first = freshStore.Read();
             Check(first.QuietLogging && !File.Exists(freshPath), "new installs start quiet");
             foreach (var profile in new[] { first, DifficultyPresets.Create("Easy"), DifficultyPresets.Create("Normal"), DifficultyPresets.Create("Hard") })
-                Check(profile.ExtraRaidReviewInfo && profile.RecordTacticCounters() && profile.RecordCombatJournal()
-                    && profile.RecordWeaponJournal() && profile.RecordControlJournal() && !profile.Performance.Enabled,
-                    "fresh and stock presets enable all extra RR reports and leave performance capture off");
+                Check(profile.RecordEssentialReplay() && !profile.RecordExtendedReplay() && !profile.Performance.Enabled,
+                    "stock presets enable essential replay only");
             first.QuietLogging = false;
-            first.ExtraRaidReviewInfo = false;
+            first.EssentialReplayData = false;
             first.CombatJournal.Enabled = false;
             first.ControlJournal.Enabled = true;
             freshStore.Save(first, first.Revision);
             var firstSaved = new ConfigStore(freshPath).Read();
             Check(!firstSaved.QuietLogging && !firstSaved.CombatJournal.Enabled && firstSaved.ControlJournal.Enabled
-                && !firstSaved.ExtraRaidReviewInfo && !firstSaved.RecordControlJournal(),
+                && !firstSaved.EssentialReplayData && !firstSaved.RecordControlJournal(),
                 "first explicit report choices on a fresh install survive restart");
 
             var legacy = new CometConfig { Revision = 42 };
@@ -50,6 +49,8 @@ static class QuietLoggingTests
             var saved = JsonNode
                 .Parse(System.Text.Json.JsonSerializer.Serialize(legacy))!
                 .AsObject();
+            saved.Remove("EssentialReplayData");
+            saved.Remove("ExtendedReplayData");
             saved.Remove("QuietLogging");
             saved["quietLogging"] = false;
             saved["ExtraSetting"] = 19;
@@ -109,7 +110,7 @@ static class QuietLoggingTests
                 Check(!new ConfigStore(otherPath).Read().QuietLogging, "manual opt-out survives restart");
             }
             var editor = new ConfigEditor(existing);
-            var master = editor.Catalog.Fields[nameof(CometConfig.ExtraRaidReviewInfo)];
+            var master = editor.Catalog.Fields[nameof(CometConfig.EssentialReplayData)];
             Check(master.Boolean && master.Simple && editor.Visible(false, "raid review", false).Contains(master)
                 && editor.Catalog.Sections[master.Section].Category == "Diagnostics", "global switch is searchable in the simple Diagnostics UI");
             var field = editor.Catalog.Fields[nameof(CometConfig.QuietLogging)];
@@ -171,22 +172,25 @@ static class QuietLoggingTests
             File.WriteAllText(v1Path + ConfigStore.ReportDefaultsReceipt, "");
             var v1Store = new ConfigStore(v1Path);
             var v2 = v1Store.Read();
-            Check(v2.RecordCombatJournal() && v2.RecordControlJournal() && v2.RecordTacticCounters() && v2.RecordWeaponJournal()
-                && v2.Performance.Enabled && !v2.QuietLogging && v2.Revision == 43, "v1 upgrades all RR reports without resetting earlier performance or quiet choices");
+            Check(!v2.RecordEssentialReplay() && !v2.RecordExtendedReplay() && v2.Performance.Enabled && !v2.QuietLogging,
+                "an old global opt-out survives migration even when diagnostics are enabled");
             var v2Editor = new ConfigEditor(v2);
-            Check(v2Editor.Set(master, "false") && v2Editor.Set(v2Editor.Catalog.Fields["WeaponJournal.Enabled"], "false"),
-                "individual reports stay editable under the global switch");
+            Check(v2Editor.Set(v2Editor.Catalog.Fields["ExtendedReplayData"], "true")
+                && v2Editor.Snapshot().RecordEssentialReplay() && v2Editor.Snapshot().RecordCombatJournal(),
+                "enabling Extended includes Essential");
+            Check(v2Editor.Set(master, "false") && !v2Editor.Snapshot().ExtendedReplayData,
+                "turning off Essential also disables Extended");
             v1Store.Save(v2Editor.Snapshot(), v2.Revision);
-            var paused = JsonConvert.DeserializeObject<CometConfig>(new ConfigStore(v1Path).ForGame())!;
-            Check(!paused.RecordCombatJournal() && !paused.RecordWeaponJournal() && !paused.RecordControlJournal() && !paused.RecordTacticCounters()
-                && paused.Performance.Enabled && !paused.QuietLogging && paused.CombatJournal.Enabled && !paused.WeaponJournal.Enabled,
-                "global OFF and individual choices survive a restart");
-            paused.ExtraRaidReviewInfo = true;
-            v1Store.Save(paused, paused.Revision);
-            var resumed = JsonConvert.DeserializeObject<CometConfig>(new ConfigStore(v1Path).ForGame())!;
-            Check(resumed.RecordCombatJournal() && !resumed.RecordWeaponJournal() && resumed.RecordControlJournal() && resumed.RecordTacticCounters()
-                && Directory.GetFiles(directory, "reports-v1.json.before-reports-*.bak").Length == 1,
-                "resuming preserves the selected reports without repeating the upgrade");
+            Check(!new ConfigStore(v1Path).Read().RecordEssentialReplay(), "explicit replay choices survive restart");
+            foreach (var (detail, profiler, enabled, expected) in new[] {
+                (false, false, true, false), (true, false, true, true), (false, true, true, true), (true, true, false, false) })
+            {
+                var doc = new JsonObject { ["quietLogging"] = !detail, ["extraRaidReviewInfo"] = enabled,
+                    ["performance"] = new JsonObject { ["enabled"] = profiler } };
+                Check(ConfigStore.UpgradeReplay(doc) && !ConfigStore.UpgradeReplay(doc)
+                    && (bool?)doc["EssentialReplayData"] == enabled && (bool?)doc["ExtendedReplayData"] == expected,
+                    "old presets migrate once, preserving opted-in diagnostic setups");
+            }
             string retryPath = Path.Combine(directory, "retry.json");
             var corrupt = priorPatch.DeepClone().AsObject();
             corrupt["Performance"]!["Enabled"] = "invalid";
@@ -334,7 +338,7 @@ static class QuietLoggingTests
             );
             var warnings = new List<string>();
             async Task<(string[] Decisions, string[] Reports, JObject[] Files)> Capture(
-                bool quiet, bool reportsOn = true, bool authority = true, bool countersOnly = false, bool extraInfo = true, bool receiver = true)
+                bool quiet, bool reportsOn = true, bool authority = true, bool essential = true, bool receiver = true, bool rr = true)
             {
                 string folder = Path.Combine(directory, Guid.NewGuid().ToString("N"));
                 var decisions = new List<string>();
@@ -347,13 +351,13 @@ static class QuietLoggingTests
                 Comet.Api.Decisions.SummaryPublished += summary;
                 try
                 {
-                    var journal = new Diagnostics(folder, "raid", warnings.Add, 2048, reportReceiverAvailable: receiver);
-                    journal.ConfigureLogging(quiet, 44, "raid");
-                    var settings = new CometConfig { QuietLogging = quiet, Revision = 44, ExtraRaidReviewInfo = extraInfo, RaidReportReceiverAvailable = receiver };
-                    settings.CombatJournal.Enabled = settings.WeaponJournal.Enabled = settings.ControlJournal.Enabled = reportsOn;
-                    settings.TacticCounters.Enabled = reportsOn || countersOnly;
-                    journal.ConfigureSnapshot(settings, "raid");
+                    var journal = new Diagnostics(folder, "raid", warnings.Add, 2048, reportReceiverAvailable: receiver, awaitReportSettings: true);
+                    var settings = new CometConfig { QuietLogging = quiet, Revision = 44, ExtendedReplayData = reportsOn,
+                        EssentialReplayData = essential, RaidReportReceiverAvailable = receiver };
+                    ReplayCapture.Configure(authority && settings.RecordEssentialReplay(), authority && settings.RecordExtendedReplay(), !quiet, rr);
                     journal.ConfigureRaidReports(settings, authority, "raid");
+                    journal.ConfigureLogging(quiet, 44, "raid");
+                    journal.ConfigureSnapshot(settings, "raid");
                     foreach (string e in events)
                     {
                         journal.Write(e);
@@ -375,6 +379,7 @@ static class QuietLoggingTests
                 }
                 finally
                 {
+                    ReplayCapture.Configure(true, true, true, true);
                     Comet.Api.Decisions.Published -= receive;
                     Comet.Api.Decisions.SummaryPublished -= summary;
                     Comet.Api.Decisions.Clear();
@@ -382,45 +387,31 @@ static class QuietLoggingTests
             }
             var full = await Capture(false);
             var quiet = await Capture(true);
-            foreach (var (silence, authority) in new[] { (true, true), (false, true), (true, false) })
+            foreach (bool silence in new[] { true, false })
             {
-                var off = await Capture(silence, reportsOn: !authority, authority: authority);
-                var footer = off.Files.Single(e => (string?)e["stage"] == "diagnostics-end");
-                Check((int?)footer["summaryReader"]?["parsedEvents"] == 7
-                    && (int?)footer["quietSuppressed"] == (silence ? events.Count : 0),
-                    "only configuration, fault and cleanup parsed with all reports off or on a replica");
-                Check(off.Files.Count(e => (long?)e["sequence"] > 0) == (silence ? 0 : events.Count)
-                    && off.Decisions.SequenceEqual(full.Decisions), "detailed file and ordinary RR delivery remain independent");
-                var summaries = off.Reports.Select(JObject.Parse).Select(e => e["tacticCounters"] ?? e["journalReport"]).ToArray();
-                Check(summaries.Length == 4 && summaries.All(r => (bool?)r?["enabled"] == false && (bool?)r?["sawCleanup"] == true),
-                    "disabled reports still receive cleanup and tell RR that collection was off");
+                var basic = await Capture(silence, reportsOn: false);
+                var rows = basic.Decisions.Select(JObject.Parse).ToArray();
+                Check(rows.Length == 5 && rows.Take(4).Select(e => (string?)e["stage"])
+                    .SequenceEqual(new[] { "selected", "accepted", "started", "released" })
+                    && rows.All(e => e["candidates"] == null && e["mixing"] == null),
+                    "essential RR retains ordered actions without decision scores");
+                Check(basic.Reports.Length == 0 && (int?)basic.Files.Last(e => (string?)e["stage"] == "diagnostics-end")["summaryReader"]?["parsedEvents"] == 0,
+                    "essential mode performs no summary reads or reports");
+                var sat = await Capture(silence, reportsOn: false, rr: false);
+                Check(sat.Decisions.Length == 0, "Satellite alone skips RR-only action events");
+                foreach (var off in new[] { await Capture(silence, reportsOn: false, essential: false),
+                    await Capture(silence, receiver: false), await Capture(silence, authority: false) })
+                    Check(off.Decisions.Length == 0 && off.Reports.Length == 0
+                        && off.Files.Any(e => (string?)e["reason"] == "fault-test"),
+                        "no replay on a replica, without a receiver, or when replay is off; local errors survive");
             }
             foreach (var plugins in new[] { Array.Empty<string>(), new[] { "ekky.raidreview" }, new[] { "com.fums.satellite" }, new[] { "ekky.raidreview", "com.fums.satellite" }, new[] { "com.fika.core" } })
             {
-                bool present = CometConfig.HasRaidReportReceiver(plugins.Contains);
-                var settings = new CometConfig { RaidReportReceiverAvailable = present };
                 bool expected = plugins.Contains("ekky.raidreview") || plugins.Contains("com.fums.satellite");
-                Check(settings.RecordCombatJournal() == expected && settings.RecordWeaponJournal() == expected
-                    && settings.RecordControlJournal() == expected && settings.RecordTacticCounters() == expected
-                    && settings.ExtraRaidReviewInfo, "loaded consumer enables all four observers without changing preferences");
+                var cfg = new CometConfig { RaidReportReceiverAvailable = CometConfig.HasRaidReportReceiver(plugins.Contains), ExtendedReplayData = true };
+                Check(cfg.RecordCombatJournal() == expected && cfg.RecordWeaponJournal() == expected && cfg.RecordControlJournal() == expected
+                    && cfg.RecordTacticCounters() == expected, "receiver detection gates all extended observers");
             }
-            foreach (bool silence in new[] { true, false })
-            {
-                var absent = await Capture(silence, receiver: false);
-                var footer = absent.Files.Single(e => (string?)e["stage"] == "diagnostics-end");
-                Check(absent.Reports.Length == 0 && absent.Decisions.SequenceEqual(full.Decisions)
-                    && (int?)footer["summaryReader"]?["parsedEvents"] == 0
-                    && !absent.Files.Any(e => (string?)e["stage"] == "summary")
-                    && absent.Files.Any(e => (string?)e["reason"] == "fault-test"),
-                    "without either plugin no reporting events are parsed and no empty reports are written; essential logs remain");
-            }
-            var masterOff = await Capture(true, extraInfo: false);
-            var switchedOff = masterOff.Reports.Select(JObject.Parse).Select(e => e["tacticCounters"] ?? e["journalReport"]).ToArray();
-            Check(switchedOff.Length == 4 && switchedOff.All(r => (bool?)r?["enabled"] == false && (bool?)r?["sawCleanup"] == true)
-                && masterOff.Decisions.SequenceEqual(quiet.Decisions), "master OFF disables every detailed report while retaining the complete ordinary replay stream");
-            var countersOnly = await Capture(true, reportsOn: false, countersOnly: true);
-            Check(countersOnly.Reports.Select(JObject.Parse).Any(e => e["tacticCounters"]?["rows"]?.Any() == true),
-                "one active report keeps receiving ordinary events in quiet mode");
             Check(
                 full.Decisions.SequenceEqual(events.Concat(new[] { fault, cleanup })),
                 "full RR stream contains every original action, score, contact, squad event and fault"

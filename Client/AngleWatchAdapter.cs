@@ -528,6 +528,8 @@ public sealed partial class Plugin
 
     private void RecordAngle(BotState s)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.AngleWatch;
         var t = r.Policy.Trace;
         if (t == null)

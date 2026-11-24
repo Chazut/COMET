@@ -308,6 +308,8 @@ public sealed partial class Plugin
             var corners = e?.Path.PathCorners;
             int count = e?.Path.PathCornerCount ?? 0;
             var end = corners != null && count > 0 ? corners[count - 1] : (Vector3?)null;
+            if (!Comet.Core.ReplayCapture.Detailed)
+                return;
             string json = Diagnostics.Serialize(
                 new
                 {

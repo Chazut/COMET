@@ -105,7 +105,7 @@ These tactics apply to **PMCs and AI player scavs**, including fights between bo
 - **[Bot Healing Fixes](https://sp-mod.com/mod/3140/bot-healing-fixes)** helps wounded bots finish healing and recover when treatment gets interrupted.
 - **[Separate Hostility](https://sp-mod.com/mod/2248/separate-hostility)** fixes cases where bots that should be enemies ignore each other.
 - **[Twitch Players](https://sp-mod.com/mod/1895/sain-twitch-players)** is a SAIN preset for tougher fights. A GigaChad PMC can line up a shot faster than a Normal PMC.
-- **[Satellite](https://sp-mod.com/mod/3373/satellite)** fo live raid map and replay (soon).
+- **[Satellite](https://sp-mod.com/mod/3373/satellite)** for the live raid map and replay.
 
 #### Other supported mods
 
@@ -158,6 +158,8 @@ And if you're here looking for SLOP... well, I did leave some in there for you t
 [**R_F**](https://sp-mod.com/user/15954/r-f) designed most of the combat tactics and gave me permission to bring them to official SAIN. [**Chazut**](https://sp-mod.com/user/53567/chazut) built the standalone mod, added original features and integrations, and made the web editor. Thanks to **[Solarint](https://sp-mod.com/user/27463/solarint) and the SAIN contributors/forkers**, [**liquidwarp**](https://sp-mod.com/user/120411/liquidwarp) for the SAIN fixes, and to everyone who sent clips of PMCs doing brilliant or deeply questionable things.
 
 ### Support
+
+**Which replay setting do I need?** Leave **Essential replay data** on for Raid Review or Satellite. It includes actions supported by your viewer, squad tactics and magazine pickups. Turn on **Extended replay data** for decision scores and diagnostic reports. Both settings apply next raid and require a replay plugin on the AI host.
 
 **Found a bug?** Open a report in the **Issues** tab on Forge. For detailed logs, turn off **Diagnostics > Quiet logging** before the raid and attach the files from `BepInEx/COMET/diagnostics`. With Fika, use the AI host's logs.
 

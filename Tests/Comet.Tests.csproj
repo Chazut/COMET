@@ -78,6 +78,7 @@
     <Compile Include="../Client/PerformanceWriter.cs" Link="PerformanceWriter.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../Client/EssentialReplay.cs" />
     <Compile Include="../Client/DiagnosticEventReader.cs" Link="DiagnosticEventReader.cs" />
   </ItemGroup>
   <ItemGroup>

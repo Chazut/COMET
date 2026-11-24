@@ -310,6 +310,8 @@ public sealed partial class Plugin
 
     private void RecordHoldAngle(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.HoldAngle;
         var t = r.Policy.Trace;
         if (t == null)

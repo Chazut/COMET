@@ -459,6 +459,8 @@ public sealed partial class Plugin
 
     private void EmitThreat(BotState state, string stage, ThreatTrace trace)
     {
+        if (!Comet.Core.ReplayCapture.Detailed && !Comet.Core.ReplayCapture.RaidReview)
+            return;
         var r = state.Threat;
         // Log changes and meaningful rejected challenges; do not repeat periodic scores per frame.
         string signature =
@@ -498,13 +500,13 @@ public sealed partial class Plugin
                 realtime = Time.realtimeSinceStartup,
                 utc = DateTime.UtcNow.ToString("O"),
                 configRevision = config?.Revision ?? 0,
-                config = config == null ? null : Diagnostics.ThreatConfig(config),
+                config = ReplayCapture.Detailed && config != null ? Diagnostics.ThreatConfig(config) : null,
                 cometVersion = CometVersion.Release,
                 profileId = state.ProfileId,
                 name = state.Name,
                 botInstance = state.Id,
-                threat = trace,
-                fear = state.Fear.Current,
+                threat = ReplayCapture.Detailed ? trace : null,
+                fear = ReplayCapture.Detailed ? state.Fear.Current : null,
                 contact = contact == null
                     ? null
                     : new

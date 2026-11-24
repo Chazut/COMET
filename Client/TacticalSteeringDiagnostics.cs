@@ -27,6 +27,8 @@ public sealed partial class Plugin
         bool suppressed
     )
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         // Observation cannot interrupt native firing or change its return value.
         try
         {

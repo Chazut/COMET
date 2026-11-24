@@ -216,6 +216,8 @@ public sealed partial class Plugin
         r.LastState = t.State;
         r.LastReason = t.Reason;
         string id = states.TryGetValue(b, out var s) ? s.Id : r.Id;
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

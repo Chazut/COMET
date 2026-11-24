@@ -49,10 +49,10 @@ internal static class ShotChecks
         ];
         target.EnemyPlayerComponent.Flashlight.WhiteLight = true;
         b.Shoot.LastShotEnemy = target;
-        p.config!.CombatJournal.Enabled = false;
+        p.config!.ExtendedReplayData = false;
         p.Shot(b);
         Check(Events().Length == 0, "disabled combat journal has no shot observations");
-        p.config.CombatJournal.Enabled = true;
+        p.config.ExtendedReplayData = true;
         foreach (
             var scope in new[]
             {

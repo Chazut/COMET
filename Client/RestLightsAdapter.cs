@@ -395,6 +395,8 @@ public sealed partial class Plugin
 
     private void RecordRestLights(BotState s)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.RestLights;
         var t = r.Trace;
         if (t == null)

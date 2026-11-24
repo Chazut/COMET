@@ -363,6 +363,8 @@ public sealed partial class Plugin
             "Continuous gas: extend blindness without refreshing memory or blind-fire delay",
             "Gas modifiers stay separate",
         };
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

@@ -203,6 +203,8 @@ public sealed partial class Plugin
 
     private void RecordManeuverDeclined(BotComponent b, BotState s, SquadManeuverPlan plan)
     {
+        if (!Comet.Core.ReplayCapture.Detailed && !Comet.Core.ReplayCapture.Essential)
+            return;
         var e = b.GoalEnemy!;
         var known = e.KnownPlaces.LastKnownPosition!.Value;
         var t = new CrossfireTrace

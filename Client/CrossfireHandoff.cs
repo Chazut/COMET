@@ -208,6 +208,8 @@ public sealed partial class Plugin
         string feature = "S03"
     )
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.Crossfire;
         if (!force && r.EligibilityLogAt.TryGetValue(feature, out var next) && Time.time < next)
         {

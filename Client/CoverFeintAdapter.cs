@@ -744,6 +744,8 @@ public sealed partial class Plugin
 
     private void RecordFeint(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.CoverFeint;
         var t = r.Policy.Trace;
         if (t == null)

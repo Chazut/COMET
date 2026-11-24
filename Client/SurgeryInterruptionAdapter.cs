@@ -108,6 +108,8 @@ public sealed partial class Plugin
             return;
         r.InterruptionKey = key;
         r.InterruptionLogAt = Time.time + (t.Applied ? .5f : 4);
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

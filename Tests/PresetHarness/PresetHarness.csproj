@@ -9,6 +9,7 @@
     <Compile Include="../../Client/SainPresetAdapter.cs" />
     <Compile Include="../../Client/DifficultyPresetAdapter.cs" />
     <Compile Include="../../Client/DiagnosticEventReader.cs" />
+    <Compile Include="../../Client/EssentialReplay.cs" />
     <Compile Include="../../Client/Diagnostics.cs" />
     <Compile Include="../../Client/TacticCounters.cs" Link="TacticCounters.cs" />
     <Compile Include="../../Client/CombatReport.cs" Link="CombatReport.cs" />

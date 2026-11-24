@@ -299,6 +299,8 @@ public sealed partial class Plugin
 
     private void RecordSilent(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var t = s.SilentTrace;
         if (t == null)
             return;

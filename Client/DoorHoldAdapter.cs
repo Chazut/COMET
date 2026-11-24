@@ -165,6 +165,8 @@ public sealed partial class Plugin
         var t = s.Ambush.Selection;
         if (t == null)
             return;
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

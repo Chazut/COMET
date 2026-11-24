@@ -282,6 +282,8 @@ public sealed partial class Plugin
 
     private void RecordRecovery(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.RecoilRecovery;
         var t = r.Trace;
         if (t == null)

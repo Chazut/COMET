@@ -307,6 +307,7 @@ public sealed partial class Plugin
             session = "";
             Api.Decisions.RaidSession = "";
             Api.Decisions.RaidClosed = true;
+            Comet.Core.ReplayCapture.Configure(false, false, false, false);
             faultCleaning = old;
             faultCleanupFailed = oldFailed;
             faultCleanupError = oldError;

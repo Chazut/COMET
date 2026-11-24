@@ -314,6 +314,8 @@ public sealed partial class Plugin
 
     private void RecordCombatLean(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.CombatLean;
         var t = r.Policy.Trace;
         if (t == null)

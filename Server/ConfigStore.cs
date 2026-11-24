@@ -58,11 +58,12 @@ public sealed class ConfigStore
             var document =
                 JsonNode.Parse(original) as JsonObject
                 ?? throw new InvalidDataException("Invalid COMET configuration.");
+            bool replayChanged = UpgradeReplay(document);
             bool baselineChanged = SourceBaselineMigration.Upgrade(document);
             var config = ReadValidated(document);
             string markerKey = SourceBaselineMigration.Key(document, QuietDefaultApplied);
             bool migrateQuiet = document[markerKey]?.GetValue<bool>() != true;
-            bool settingsChanged = false;
+            bool settingsChanged = replayChanged;
             if (migrateQuiet)
             {
                 string quietKey = SourceBaselineMigration.Key(document, nameof(CometConfig.QuietLogging));
@@ -127,6 +128,33 @@ public sealed class ConfigStore
             Write(document, path + ".bak");
             return detached;
         }
+    }
+
+    // An old global OFF stays off. Installations with explicit detailed logging or
+    // profiling keep their diagnostic workflow if they previously enabled reports.
+    internal static bool UpgradeReplay(JsonObject doc)
+    {
+        string essential = SourceBaselineMigration.Key(doc, nameof(CometConfig.EssentialReplayData));
+        string extended = SourceBaselineMigration.Key(doc, nameof(CometConfig.ExtendedReplayData));
+        if (doc.ContainsKey(essential) && doc.ContainsKey(extended))
+            return false;
+        string legacy = SourceBaselineMigration.Key(doc, nameof(CometConfig.ExtraRaidReviewInfo));
+        bool enabled = doc[legacy]?.GetValue<bool>() ?? true;
+        bool DetailRequested() =>
+            doc[SourceBaselineMigration.Key(doc, nameof(CometConfig.QuietLogging))]?.GetValue<bool>() == false
+            || Flag(nameof(CometConfig.Performance), false);
+        bool Flag(string section, bool fallback)
+        {
+            var child = doc[SourceBaselineMigration.Key(doc, section)] as JsonObject;
+            return child?[SourceBaselineMigration.Key(child, "Enabled")]?.GetValue<bool>() ?? fallback;
+        }
+        bool reports = Flag(nameof(CometConfig.CombatJournal), true) || Flag(nameof(CometConfig.WeaponJournal), true)
+            || Flag(nameof(CometConfig.ControlJournal), true) || Flag(nameof(CometConfig.TacticCounters), true);
+        if (!doc.ContainsKey(essential))
+            doc[essential] = enabled;
+        if (!doc.ContainsKey(extended))
+            doc[extended] = doc[essential]!.GetValue<bool>() && reports && DetailRequested();
+        return true;
     }
 
     private static bool ApplyReportDefaults(JsonObject document, bool firstReportMigration)

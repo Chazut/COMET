@@ -228,9 +228,7 @@
                     bool full = advanced || Filtering || detailed.Contains(group.Key);
                     var displayed = full ? group.ToList() : essentials;
                     int pending = group.Count(editor.Pending);
-                    var enabled = group.FirstOrDefault(f => f.Boolean && (f.Path.EndsWith(".Enabled") || f.Path is "Enabled" or "ExtraRaidReviewInfo"));
-                    bool paused = group.Key is ("CombatJournal" or "WeaponJournal" or "ControlJournal" or "TacticCounters")
-                        && !editor.IsOn(editor.Catalog.Fields["ExtraRaidReviewInfo"]);
+                    var enabled = group.FirstOrDefault(f => f.Boolean && (f.Path.EndsWith(".Enabled") || f.Path is "Enabled" or "EssentialReplayData"));
                         <section class="feature" @key="group.Key">
                             <button
                                 class="feature-heading"
@@ -242,7 +240,7 @@
                                     }
                                     @if (enabled != null) {
                                         <span
-                                            class="state-pill @(editor.IsOn(enabled) && !paused ? "on" : "")">@(editor.IsOn(enabled) ? (paused ? "Paused" : "On") : "Off")</span>
+                                            class="state-pill @(editor.IsOn(enabled) ? "on" : "")">@(editor.IsOn(enabled) ? "On" : "Off")</span>
                                     }<span class="expand-sign" aria-hidden="true">@(expanded ? "−" : "+")</span></span></button>
                             @if (expanded) {
                                 <div id="@("section-" + group.Key)" class="feature-body">

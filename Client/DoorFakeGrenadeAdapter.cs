@@ -619,6 +619,8 @@ public sealed partial class Plugin
 
     private void RecordDoorFake(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.Fake;
         var t = r.Policy.Trace;
         if (t == null)

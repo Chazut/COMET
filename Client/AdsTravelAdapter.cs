@@ -342,6 +342,8 @@ public sealed partial class Plugin
 
     private void RecordAdsTravel(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.AdsTravel;
         var t = r.Policy.Trace;
         if (t == null || t.Action.Length == 0)

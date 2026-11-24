@@ -155,7 +155,7 @@ In SAIN's F6 menu, I recommend turning all three AI vs AI limits **OFF** (Global
 
 **Which diagnostics should I enable?**
 
-**Extra Raid Review / Satellite info** and all four reports are on by default. COMET collects combat, weapon, control and tactical decision data when either plugin is loaded on the AI host. Turn off individual reports or pause all four with the global switch. Your selections are saved. Raid Review displays the reports in its replay. Satellite shows bot actions and squad tactics on its map. Its alpha replay includes supported squad tactics and magazine recovery. RR also records the scores and alternatives behind individual COMET decisions. **Quiet logging** is on by default and **Performance capture** is off. Changes apply next raid.
+**Essential replay data** is on by default. Raid Review receives the action timeline, squad tactics and magazine pickups. Satellite receives the squad and magazine events its replay uses. Enable **Extended replay data** for decision scores, alternatives and the four end-of-raid reports used for debugging. Either mode requires a replay plugin on the AI host. **Quiet logging** controls local files and **Performance capture** controls profiling independently. Changes apply next raid.
 
 On upgrade, COMET applies these five settings once and backs up the previous config if it changes. You can then switch any of them on or off for future raids.
 

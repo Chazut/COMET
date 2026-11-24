@@ -821,6 +821,8 @@ public sealed partial class Plugin
 
     private void RecordFirePause(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.CombatStep;
         var t = r.Pause.Trace;
         if (t == null)
@@ -870,6 +872,8 @@ public sealed partial class Plugin
 
     private void RecordCombatStep(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.CombatStep;
         var t = r.Policy.Trace;
         if (t == null)

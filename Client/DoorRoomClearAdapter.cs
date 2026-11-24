@@ -851,6 +851,8 @@ public sealed partial class Plugin
 
     private void RecordDoorClear(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.RoomClear;
         var t = r.Policy.Trace;
         if (t == null)

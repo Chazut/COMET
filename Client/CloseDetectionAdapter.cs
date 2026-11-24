@@ -191,6 +191,8 @@ public sealed partial class Plugin
             s.CloseNextAcquired = Time.time + .5f;
         else
             s.CloseNextLog = Time.time + .5f;
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

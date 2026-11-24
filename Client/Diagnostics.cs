@@ -170,7 +170,25 @@ namespace Comet.Api
 
         internal static void Publish(string json, Action<Exception> onError)
         {
-            Publish(new Client.DiagnosticJson(json), CaptureSubscribers(), onError);
+            var handlers = CaptureSubscribers();
+            if (handlers.Length == 0 || !Core.ReplayCapture.Essential)
+                return;
+            if (!Core.ReplayCapture.Extended)
+            {
+                try
+                {
+                    var compact = Client.EssentialReplay.Project(json, Core.ReplayCapture.RaidReview);
+                    if (compact == null)
+                        return;
+                    json = compact;
+                }
+                catch (JsonException error)
+                {
+                    onError(error);
+                    return;
+                }
+            }
+            Publish(new Client.DiagnosticJson(json), handlers, onError);
         }
 
         internal static Delegate[] CaptureSubscribers() =>
@@ -689,6 +707,7 @@ namespace Comet.Client
         private int quiet = Comet.Core.CometConfig.DefaultQuietLogging ? 1 : 0;
         private readonly bool reportReceiverAvailable;
         private int skipOrdinaryReports;
+        private int reportsEnabled;
         private long skippedBeforeQueue;
         internal Task Completion => writer;
 
@@ -764,10 +783,14 @@ namespace Comet.Client
             bool weapons = host && config.RecordWeaponJournal();
             bool control = host && config.RecordControlJournal();
             bool counters = host && config.RecordTacticCounters();
+            bool enabled = combat || weapons || control || counters;
+            Volatile.Write(ref skipOrdinaryReports, enabled ? 0 : 1);
+            Volatile.Write(ref reportsEnabled, enabled ? 1 : 0);
+            if (!enabled)
+                return;
             ConfigureJournal(combat, weapons, config.Revision, session);
             ConfigureControlJournal(control, config.Revision, session);
             ConfigureCounters(counters, config.TacticCounters.MaxOpportunities, config.Revision, session);
-            Volatile.Write(ref skipOrdinaryReports, combat || weapons || control || counters ? 0 : 1);
         }
 
         internal void ConfigureJournal(
@@ -836,12 +859,14 @@ namespace Comet.Client
             string session,
             Action<string> warning,
             long segmentBytes = 64L * 1024 * 1024,
-            bool reportReceiverAvailable = true
+            bool reportReceiverAvailable = true,
+            bool awaitReportSettings = false
         )
         {
             this.reportReceiverAvailable = reportReceiverAvailable;
             measureEncoding = MeasureEncoding;
-            skipOrdinaryReports = reportReceiverAvailable ? 0 : 1;
+            reportsEnabled = reportReceiverAvailable && !awaitReportSettings ? 1 : 0;
+            skipOrdinaryReports = reportsEnabled == 0 ? 1 : 0;
             warn = warning;
             Directory.CreateDirectory(directory);
             string path = Path.Combine(
@@ -850,8 +875,8 @@ namespace Comet.Client
             );
             writer = Task.Run(() =>
             {
-                var counters = reportReceiverAvailable ? new TacticCounters(session) : null;
-                var journal = reportReceiverAvailable ? new CombatReport(session) : null;
+                TacticCounters? counters = null;
+                CombatReport? journal = null;
                 var eventReader = new DiagnosticEventReader();
                 StreamWriter? output = null;
                 long bytes = 0,
@@ -939,8 +964,12 @@ namespace Comet.Client
                         long allocated =
                             sample != null ? (PerformanceAllocation?.Invoke() ?? 0) : 0;
                         // Enabled reports also consume events omitted from the local file.
-                        if (entry.Observe && counters != null && journal != null)
+                        if (entry.Observe)
+                        {
+                            counters ??= new TacticCounters(session);
+                            journal ??= new CombatReport(session);
                             eventReader.Observe(json, counters, journal);
+                        }
                         if (entry.Persist)
                             Line(json);
                         else
@@ -1060,7 +1089,9 @@ namespace Comet.Client
 
         internal static void PublishSnapshot(Diagnostics? sink, object snapshot, Action<Exception> error)
         {
-            var handlers = Api.Decisions.CaptureSubscribers();
+            var handlers = Comet.Core.ReplayCapture.Extended ? Api.Decisions.CaptureSubscribers() : Array.Empty<Delegate>();
+            if (handlers.Length == 0 && sink?.WantsOrdinaryEvents != true)
+                return;
             Func<object?, string> encode = sink != null && Volatile.Read(ref sink.PerformanceSample) != null
                 ? sink.measureEncoding : static value => Serialize(value!);
             var job = new Task<string>(encode, snapshot,
@@ -1074,7 +1105,7 @@ namespace Comet.Client
         }
 
         // Configuration, errors and raid cleanup always reach the writer and the reports.
-        public void WriteEssential(string json) => Enqueue(new DiagnosticJson(json), true, reportReceiverAvailable);
+        public void WriteEssential(string json) => Enqueue(new DiagnosticJson(json), true, Volatile.Read(ref reportsEnabled) != 0);
 
         private bool Enqueue(DiagnosticJson json, bool persist, bool observe)
         {

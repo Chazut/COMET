@@ -1032,6 +1032,8 @@ public sealed partial class Plugin
         if (!force && key == r.LogKey)
             return;
         r.LogKey = key;
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

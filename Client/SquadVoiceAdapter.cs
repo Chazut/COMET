@@ -648,6 +648,8 @@ public sealed partial class Plugin
 
     private void RecordSquadVoice(BotState s, SquadVoiceTrace t)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

@@ -406,6 +406,8 @@ public sealed partial class Plugin
 
     private void RecordCoverTravel(BotState s, bool force = false)
     {
+        if (!ReplayCapture.Detailed)
+            return;
         var r = s.CoverTravel;
         var t = r.Policy.Trace;
         if (t == null || t.Target.Length == 0 || t.Context.Length == 0)

@@ -534,6 +534,8 @@ public sealed partial class Plugin
             return;
         r.LogKey = key;
         r.LogAt = now;
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

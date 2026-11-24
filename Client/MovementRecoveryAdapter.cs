@@ -589,6 +589,8 @@ public sealed partial class Plugin
 
     private void RecordMovementRecovery(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.MovementRecovery;
         var t = r.Policy.Trace;
         // Idle walking needs no heartbeat. Active incidents refresh the map context with a short TTL.

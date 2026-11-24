@@ -211,6 +211,8 @@ public sealed partial class Plugin
 
     private void RecordBlast(BotState s, ExplosionTrace t, bool force)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         if (!force && Time.time < s.Blast.NextLog)
             return;
         s.Blast.NextLog = Time.time + .5f;

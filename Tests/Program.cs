@@ -4,6 +4,11 @@ using System.Text.Json;
 using Comet.Core;
 using Comet.Server;
 
+if (args.Length >= 3 && args[0] == "--replay-levels")
+{
+    EssentialReplayTests.Replay(args[1], args.Skip(2));
+    return;
+}
 if (args.Length >= 2 && args[0] == "--replay-deferred")
 {
     DeferredRaidReplay.Run(args.Skip(1).ToArray());
@@ -50,6 +55,7 @@ checks += HotPathAllocationTests.Run();
 checks += DiagnosticWarmupTests.Run();
 checks += DiagnosticEventReaderTests.Run();
 checks += DeferredDiagnosticTests.Run();
+checks += EssentialReplayTests.Run();
 checks += PlanContinuityTests.Run();
 checks += await PerformanceTests.Run();
 checks += await DiagnosticConfigurationTests.Run();

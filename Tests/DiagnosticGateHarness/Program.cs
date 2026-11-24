@@ -80,6 +80,8 @@ var build = CSharpCompilation.Create(
     new[]
     {
         CSharpSyntaxTree.ParseText(source),
+        CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "Shared/ReplayCapture.cs")) +
+            "\ninternal static class CaptureSetup { [System.Runtime.CompilerServices.ModuleInitializer] internal static void Init() => ReplayCapture.Configure(true, true, true, true); }"),
         CSharpSyntaxTree.ParseText(
             File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Cases.cs"))
         ),

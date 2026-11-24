@@ -1,0 +1,8 @@
+<Project>
+  <!-- Isolated adapter fixtures observe full telemetry unless a test selects another mode. -->
+  <ItemGroup Condition="'$(OutputType)' == 'Exe'">
+    <Compile Remove="$(MSBuildThisFileDirectory)../Shared/ReplayCapture.cs;$(MSBuildThisFileDirectory)ReplayTestDefaults.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)../Shared/ReplayCapture.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ReplayTestDefaults.cs" />
+  </ItemGroup>
+</Project>

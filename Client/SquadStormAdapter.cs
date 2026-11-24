@@ -128,7 +128,7 @@ public sealed partial class Plugin
         s.RequestedFrame = Time.frameCount;
         result = s.Expected;
         succeeded = true;
-        if (Time.time >= s.Crossfire.Storm.Next)
+        if ((Comet.Core.ReplayCapture.Detailed || Comet.Core.ReplayCapture.Essential) && Time.time >= s.Crossfire.Storm.Next)
         {
             s.Crossfire.Storm.Next = Time.time + 1;
             bool applied = b.Decision.CurrentCombatDecision == ECombatDecision.RushEnemy;

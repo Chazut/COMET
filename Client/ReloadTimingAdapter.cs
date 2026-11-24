@@ -536,6 +536,8 @@ public sealed partial class Plugin
 
     private void RecordReloadTiming(BotComponent? b, BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.ReloadTiming;
         var t = r.Policy.Trace;
         if (t == null)

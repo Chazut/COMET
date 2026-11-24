@@ -200,6 +200,8 @@ public sealed partial class Plugin
             return;
         r.Key = key;
         r.LogAt = Time.time + .5f;
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

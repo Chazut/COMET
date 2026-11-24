@@ -269,6 +269,10 @@ public sealed class ConfigEditor
             return false;
         }
         Put(draft, field.Path, value);
+        if (field.Path == nameof(CometConfig.ExtendedReplayData) && value!.GetValue<bool>())
+            Put(draft, nameof(CometConfig.EssentialReplayData), JsonValue.Create(true));
+        if (field.Path == nameof(CometConfig.EssentialReplayData) && !value!.GetValue<bool>())
+            Put(draft, nameof(CometConfig.ExtendedReplayData), JsonValue.Create(false));
         ClearError(field.Path);
         ValidateDraft();
         return true;

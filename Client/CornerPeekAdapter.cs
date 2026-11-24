@@ -703,6 +703,8 @@ public sealed partial class Plugin
 
     private void RecordCornerPeek(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.CornerPeek;
         var t = r.Policy.Trace;
         if (t == null)

@@ -529,6 +529,8 @@ public sealed partial class Plugin
 
     private void RecordQuiet(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var t = s.Quiet.Current;
         string key = t.Target + ":" + t.State + ":" + t.Reason + ":" + t.Applied + ":" + t.Draw;
         if (!force && !t.Applied && Time.time - s.QuietLogAt < 1)

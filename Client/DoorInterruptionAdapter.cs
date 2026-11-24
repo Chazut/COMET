@@ -625,6 +625,8 @@ public sealed partial class Plugin
 
     private void RecordDoorInterruption(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.Interruption;
         var t = r.Policy.Trace;
         if (t == null)

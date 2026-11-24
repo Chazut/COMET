@@ -327,6 +327,8 @@ public sealed partial class Plugin
         if (!s.GunfireLog.ShouldWrite(Time.time, t, force))
             return;
         int coalesced = s.GunfireLog.TakeCoalesced();
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

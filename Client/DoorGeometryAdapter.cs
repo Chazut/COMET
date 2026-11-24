@@ -285,6 +285,8 @@ public sealed partial class Plugin
         s.SpatialTrace = t;
         s.SpatialKey = key;
         s.SpatialAt = Time.time;
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

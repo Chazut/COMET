@@ -324,6 +324,8 @@ public sealed partial class Plugin
     {
         try
         {
+            if (!Comet.Core.ReplayCapture.Detailed)
+                return;
             string json = Diagnostics.Serialize(
                 new
                 {

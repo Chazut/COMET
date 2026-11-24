@@ -54,7 +54,7 @@ internal static class ConfigEditorTests
         );
         Check(
             editor.Visible(false, "", false).Count(f => f.Path is not
-                ("EnablePmcs" or "EnableAiPlayerScavs" or "LightBasedDetection" or "ExtraRaidReviewInfo")) <= 19,
+                ("EnablePmcs" or "EnableAiPlayerScavs" or "LightBasedDetection" or "EssentialReplayData" or "ExtendedReplayData")) <= 19,
             "simple mode is deliberately short, including Quiet logging"
         );
         Check(

@@ -711,6 +711,8 @@ public sealed partial class Plugin
         if (movementLog.Count >= MovementHearingGate.Capacity && !movementLog.ContainsKey(key))
             return;
         movementLog[key] = (Time.time, 0);
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         string json = Diagnostics.Serialize(
             new
             {

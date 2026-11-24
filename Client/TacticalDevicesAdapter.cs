@@ -525,6 +525,8 @@ public sealed partial class Plugin
 
     private void RecordTacticalDevices(BotState s)
     {
+        if (!ReplayCapture.Detailed)
+            return;
         var r = s.TacticalDevices;
         var t = r.Trace;
         if (t == null)

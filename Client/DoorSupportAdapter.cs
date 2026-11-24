@@ -642,6 +642,8 @@ public sealed partial class Plugin
         var leader = supportOperations.Values.FirstOrDefault(o => o.Id == t.Operation)?.Leader;
         if (leader != null && states.TryGetValue(leader, out var leaderState))
             t.LeaderName = leaderState.Name;
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         string json = Diagnostics.Serialize(
             new
             {

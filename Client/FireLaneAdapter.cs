@@ -345,6 +345,8 @@ public sealed partial class Plugin
 
     private void RecordLaneOpportunity(BotComponent b, BotState s, string reason)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.FireLane;
         if (
             r.Policy.Active
@@ -411,6 +413,8 @@ public sealed partial class Plugin
 
     private void RecordLane(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.FireLane;
         var t = r.Policy.Trace;
         if (t == null || t.Shooter.Length == 0)

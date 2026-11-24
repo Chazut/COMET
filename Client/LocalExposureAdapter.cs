@@ -110,6 +110,8 @@ public sealed partial class Plugin
         float finalModifier
     )
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         try
         {
             diagnostics?.Write(

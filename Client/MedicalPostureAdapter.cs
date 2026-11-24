@@ -200,6 +200,8 @@ public sealed partial class Plugin
 
     private void RecordMedicalPosture(BotState s, bool force)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.MedicalPosture;
         var t = r.Policy.Trace;
         if (t == null)

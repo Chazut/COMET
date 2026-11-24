@@ -9,6 +9,20 @@ public static class SourceBaselineSettings
 {
     private static readonly HashSet<string> Retired = new(StringComparer.Ordinal)
     {
+        "TacticCountersConfig.MaxOpportunities",
+        "CombatJournalConfig.SampleInterval",
+        "WeaponJournalConfig.Window",
+        "WeaponJournalConfig.ChangeThreshold",
+        "WeaponJournalConfig.ConfirmationTimeout",
+        "ControlJournalConfig.LongWait",
+        "ControlJournalConfig.RapidReturn",
+        "ControlJournalConfig.CycleThreshold",
+        "ControlJournalConfig.Window",
+        "CometConfig.ExtraRaidReviewInfo",
+        "CombatJournalConfig.Enabled",
+        "ControlJournalConfig.Enabled",
+        "WeaponJournalConfig.Enabled",
+        "TacticCountersConfig.Enabled",
         "GrenadeChoiceConfig.ArrivalMargin",
         "AngleWatchConfig.HearingAge",
         "AngleWatchConfig.MovingLimit",

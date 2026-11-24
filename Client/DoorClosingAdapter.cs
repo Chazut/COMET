@@ -509,6 +509,8 @@ public sealed partial class Plugin
             Y = pos.y,
             Z = pos.z,
         };
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

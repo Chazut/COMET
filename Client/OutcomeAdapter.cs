@@ -353,6 +353,8 @@ public sealed partial class Plugin
         r.LogAt = Time.time;
         if ((t.Remaining <= 0 || t.ValidFor <= 0) && !force)
             return;
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

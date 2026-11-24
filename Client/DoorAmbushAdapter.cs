@@ -758,6 +758,8 @@ public sealed partial class Plugin
 
     private void RecordDoorAmbush(BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.Ambush;
         var t = r.Policy.Trace;
         if (t == null)

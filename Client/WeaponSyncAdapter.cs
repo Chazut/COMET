@@ -583,6 +583,8 @@ public sealed partial class Plugin
 
     private void RecordWeaponSync(BotComponent? b, BotState s, bool force = false)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.WeaponSync;
         var t = r.Trace;
         if (t == null)

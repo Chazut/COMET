@@ -467,6 +467,8 @@ public sealed partial class Plugin
 
     private void RecordGeometry(BotState s)
     {
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var r = s.ShotGeometry;
         var t = r.Trace;
         if (t == null)

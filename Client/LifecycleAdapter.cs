@@ -371,6 +371,8 @@ public sealed partial class Plugin
     {
         try
         {
+            if (!Comet.Core.ReplayCapture.Detailed && !Comet.Core.ReplayCapture.RaidReview)
+                return;
             var json = Diagnostics.Serialize(
                 new
                 {

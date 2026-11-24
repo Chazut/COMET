@@ -601,10 +601,10 @@
       "Summary": "Reduce detailed files without changing the data available to Raid Review or Satellite."
     },
     "RaidReview": {
-      "Title": "Raid Review & Satellite",
-      "Description": "Choose the reports for Raid Review and Satellite. Collection automatically pauses when neither plugin is loaded on the AI host. Raid Review supports replay. Satellite shows live actions and squad tactics, with replay planned for a future update. Changes apply next raid.",
+      "Title": "Replay data",
+      "Description": "Choose what COMET sends to Raid Review and Satellite. Both modes require a replay plugin on the AI host. Settings take effect next raid.",
       "Category": "Diagnostics",
-      "Summary": "Collect the four detailed reports when Raid Review or Satellite is loaded on the AI host."
+      "Summary": "Record actions and squad tactics, with optional diagnostic detail."
     },
     "TacticCounters": {
       "Title": "Decision counters - T02",
@@ -9172,17 +9172,17 @@
       "Section": "Logging",
       "Simple": true
     },
-    "ExtraRaidReviewInfo": {
-      "Label": "Extra Raid Review / Satellite info",
-      "Help": "Enable the selected combat, weapon, control and decision reports. Turn this off to pause all four and keep your individual choices. Requires Raid Review or Satellite on the AI host. Quiet logging and performance capture are independent.",
+    "EssentialReplayData": {
+      "Label": "Essential replay data",
+      "Help": "Show bot decisions, squad roles and magazine recovery in Raid Review and Satellite. On by default.",
       "Section": "RaidReview",
       "Simple": true
     },
-    "TacticCounters.Enabled": {
-      "Label": "Collect raid decision counters",
-      "Help": "Count tactical choices and confirmed starts for the end-of-raid report for Raid Review and Satellite. On by default.",
-      "Section": "TacticCounters",
-      "Simple": false
+    "ExtendedReplayData": {
+      "Label": "Extended replay data",
+      "Help": "Include the essential replay plus decision scores, alternatives, diagnostic events and the four end-of-raid reports. Useful for Raid Review and testing. Off by default.",
+      "Section": "RaidReview",
+      "Simple": true
     },
     "TacticCounters.MaxOpportunities": {
       "Label": "Maximum tracked opportunities",
@@ -9193,12 +9193,6 @@
       "Unit": "opportunities",
       "Simple": false
     },
-    "CombatJournal.Enabled": {
-      "Label": "Record combat journal",
-      "Help": "Record observed actions, contacts, shots, hits and deaths for the detailed combat journal for Raid Review and Satellite. On by default.",
-      "Section": "CombatJournal",
-      "Simple": false
-    },
     "CombatJournal.SampleInterval": {
       "Label": "Context sample interval",
       "Help": "Observe native action changes at this interval; unchanged context is recorded every five seconds.",
@@ -9207,12 +9201,6 @@
       "Min": 0.1,
       "Max": 2,
       "Unit": "s"
-    },
-    "WeaponJournal.Enabled": {
-      "Label": "Record weapon diagnostics",
-      "Help": "Compare requested weapon switches with the weapon actually in hand and flag repeated swaps for Raid Review and Satellite. On by default.",
-      "Section": "WeaponJournal",
-      "Simple": false
     },
     "WeaponJournal.Window": {
       "Label": "Alternation window",
@@ -9240,12 +9228,6 @@
       "Min": 1,
       "Max": 30,
       "Unit": "s"
-    },
-    "ControlJournal.Enabled": {
-      "Label": "Record control transitions",
-      "Help": "Record which mod controls each PMC and report long waits or repeated handoffs to Raid Review and Satellite. On by default.",
-      "Section": "ControlJournal",
-      "Simple": false
     },
     "ControlJournal.LongWait": {
       "Label": "Long transition review",
@@ -9337,7 +9319,7 @@
     },
     {
       "Title": "Understand the choices",
-      "Description": "COMET records choices, scores, selection probabilities, known contacts and route risks in BepInEx/COMET/diagnostics. Raid Review shows the recorded decisions on its behavior page and replay map. Satellite shows current actions and squad tactics live. Satellite replay is planned for a future update. A choice accepted by SAIN does not prove that the action succeeded."
+      "Description": "COMET records choices, scores, selection probabilities, known contacts and route risks in BepInEx/COMET/diagnostics. Raid Review shows the recorded decisions on its behavior page and replay map. Satellite shows current actions and squad tactics live. Satellite replay displays supported actions and squad tactics. A choice accepted by SAIN does not prove that the action succeeded."
     }
   ]
 }

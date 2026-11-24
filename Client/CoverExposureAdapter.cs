@@ -167,6 +167,8 @@ public sealed partial class Plugin
             if (Time.time - r.LogAt < 5 && !(released && r.Released == 1))
                 return;
             r.LogAt = Time.time;
+            if (!Comet.Core.ReplayCapture.Detailed)
+                return;
             var json = Diagnostics.Serialize(
                 new
                 {

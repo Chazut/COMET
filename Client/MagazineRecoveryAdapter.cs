@@ -425,6 +425,8 @@ public sealed partial class Plugin
         LootItem? dropped = null
     )
     {
+        if (!Comet.Core.ReplayCapture.Detailed && !Comet.Core.ReplayCapture.Essential)
+            return;
         var item = dropped ?? s.MagazineRecovery.Pending.Item;
         var at = item == null ? (Vector3?)null : item.transform.position;
         var json = Diagnostics.Serialize(

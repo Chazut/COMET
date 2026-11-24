@@ -198,6 +198,8 @@ public sealed partial class Plugin
         {
             t.NativeSearchState = "unavailable";
         }
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {

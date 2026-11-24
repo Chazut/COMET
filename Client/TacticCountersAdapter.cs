@@ -44,7 +44,7 @@ public sealed partial class Plugin
     {
         if (
             config?.Enabled != true
-            || !config.RecordTacticCounters()
+            || !(Comet.Core.ReplayCapture.RaidReview || config.RecordTacticCounters())
             || !Authority
             || state.Feature is not ("A01" or "A02")
             || state.Mixing == null

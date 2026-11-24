@@ -10,6 +10,7 @@
     <Compile Include="../../Client/PerformanceCapture.cs" />
     <Compile Include="../../Client/PerformanceWriter.cs" />
     <Compile Include="../../Client/DiagnosticEventReader.cs" />
+    <Compile Include="../../Client/EssentialReplay.cs" />
     <Compile Include="../../Client/Diagnostics.cs" />
     <Compile Include="../../Client/TacticCounters.cs" />
     <Compile Include="../../Client/CombatReport.cs" />

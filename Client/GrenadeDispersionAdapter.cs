@@ -163,6 +163,8 @@ public sealed partial class Plugin
         if (!force && Time.time - r.DispersionLogAt < .4f)
             return;
         r.DispersionLogAt = Time.time;
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         var json = Diagnostics.Serialize(
             new
             {
