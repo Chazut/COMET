@@ -30,7 +30,7 @@ public sealed partial class Plugin
     private static void JournalShotObserved(PlayerComponent __instance, IWeapon __0)
     {
         var p = Instance;
-        if (p?.config?.CombatJournal.Enabled != true)
+        if (p?.config?.RecordCombatJournal() != true)
             return;
         try
         {

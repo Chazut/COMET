@@ -43,8 +43,7 @@ internal static class EditorNavigationTests
         );
         var quiet = editor.Catalog.Fields["QuietLogging"];
         Check(
-            EditorNavigation.Select(editor, "Doors", "quiet logging", false).Single().Path
-                == quiet.Path,
+            EditorNavigation.Select(editor, "Doors", "quiet logging", false).Contains(quiet),
             "search reaches another category without enabling advanced mode"
         );
         var advanced = editor.Catalog.Fields.Values.First(f => !f.Simple && !f.Boolean && !f.Text);

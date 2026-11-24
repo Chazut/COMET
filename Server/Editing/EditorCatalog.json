@@ -2,7 +2,7 @@
   "Sections": {
     "FaultIsolation": {
       "Title": "Error isolation - C08",
-      "Description": "Always active. If a COMET module fails, release its controls and let SAIN take over. Other bots continue normally. Repeated failures disable that module for the affected bot until the raid ends. Failed cleanup or state recovery disables COMET for that bot. Retries use fresh bot state and still require the usual eligibility checks. The window must be at least as long as the retry delay. Diagnostics and RR show the affected module, cause and recovery state.",
+      "Description": "Always active. If a COMET module fails, release its controls and let SAIN take over. Other bots continue normally. Repeated failures disable that module for the affected bot until the raid ends. Failed cleanup or state recovery disables COMET for that bot. Retries use fresh bot state and still require the usual eligibility checks. The window must be at least as long as the retry delay. The diagnostic log and the event stream for Raid Review and Satellite show the affected module, cause and recovery state.",
       "Category": "Recovery",
       "Summary": "Always active."
     },
@@ -212,19 +212,19 @@
     },
     "GrenadeJudgment": {
       "Title": "Choose when to throw a grenade - G01",
-      "Description": "Spend a real grenade only when a safe SAIN trajectory and recent personal contact make it worthwhile. One shared roll is used by SAIN and COMET's combat, room entry and relocation decisions. Bonuses cannot bypass safety. A stale position is not proof of camping. SAIN's grenade permissions and cooldown still apply. While G01 is enabled, it replaces the extra grenade preference roll in room entry. RR records the reason, chance, roll, native acceptance and actual projectile release separately.",
+      "Description": "Spend a real grenade only when a safe SAIN trajectory and recent personal contact make it worthwhile. One shared roll is used by SAIN and COMET's combat, room entry and relocation decisions. Bonuses cannot bypass safety. A stale position is not proof of camping. SAIN's grenade permissions and cooldown still apply. While G01 is enabled, it replaces the extra grenade preference roll in room entry. The event stream for Raid Review and Satellite records the reason, chance, roll, native acceptance and actual projectile release separately.",
       "Category": "Grenades",
       "Summary": "Adjust the starting chance to throw a real grenade when contact and trajectory checks allow it."
     },
     "HandsRecovery": {
       "Title": "Recover stuck hands - W10",
-      "Description": "Recover stale reload or weapon-switch flags, or a grenade left in hand after cancellation. Real reloads, medicine, weapon changes and intentional grenade actions are allowed to finish. A stale switch is cleared only when the held weapon and inventory agree. A missing reload completion notification can be retried after at least 16 seconds with the magazine inserted and the animation already idle. Recovery never creates ammunition or fast-forwards animations. RR distinguishes a request from an observed recovery.",
+      "Description": "Recover stale reload or weapon-switch flags, or a grenade left in hand after cancellation. Real reloads, medicine, weapon changes and intentional grenade actions are allowed to finish. A stale switch is cleared only when the held weapon and inventory agree. A missing reload completion notification can be retried after at least 16 seconds with the magazine inserted and the animation already idle. Recovery never creates ammunition or fast-forwards animations. The event stream for Raid Review and Satellite distinguishes a request from an observed recovery.",
       "Category": "Weapons & lights",
       "Summary": "Recover confirmed stuck hands without interrupting real weapon operations."
     },
     "RecoilRecovery": {
       "Title": "Recover from DMR and sniper recoil faster - W09",
-      "Description": "Optional difficulty adjustment: return the aim towards its pre-shot direction faster between shots. Initial recoil stays with SAIN. Higher values improve follow-up precision, without changing fire rate or initial recoil. Logs and RR show observed aim offsets before and after recovery, not guaranteed hits.",
+      "Description": "Optional difficulty adjustment: return the aim towards its pre-shot direction faster between shots. Initial recoil stays with SAIN. Higher values improve follow-up precision, without changing fire rate or initial recoil. The logs and event stream for Raid Review and Satellite show observed aim offsets before and after recovery, not guaranteed hits.",
       "Category": "Weapons & lights",
       "Summary": "Optional difficulty adjustment: return the aim towards its pre-shot direction faster between shots."
     },
@@ -248,13 +248,13 @@
     },
     "WeaponRange": {
       "Title": "Choose a weapon for the distance - W05",
-      "Description": "Compare both primary weapons using their actual sights, firing modes and ammunition. Keep the current weapon when the benefit is small or uncertain. A nearby known threat takes priority over a distant target. Between the two distances, keep the current choice. Hearing alone cannot trigger a long-range switch. Reloads, healing, grenades and firing take priority. The minimum hold and refusal delay from W03 also apply to W05, even if automatic returns are disabled. RR shows the comparison and confirms when the new weapon is actually ready.",
+      "Description": "Compare both primary weapons using their actual sights, firing modes and ammunition. Keep the current weapon when the benefit is small or uncertain. A nearby known threat takes priority over a distant target. Between the two distances, keep the current choice. Hearing alone cannot trigger a long-range switch. Reloads, healing, grenades and firing take priority. The minimum hold and refusal delay from W03 also apply to W05, even if automatic returns are disabled. The event stream for Raid Review and Satellite shows the comparison and confirms when the new weapon is actually ready.",
       "Category": "Weapons & lights",
       "Summary": "Compare both primary weapons using their actual sights, firing modes and ammunition."
     },
     "QuickReload": {
       "Title": "Emergency fast reload - W04",
-      "Description": "Under immediate pressure, PMCs with low ammo can drop their magazine for a native fast reload. The dropped magazine and its remaining rounds stay in the world. Only accessible, compatible, loaded spares count. The replacement counts towards the minimum, so a minimum of two leaves at least one spare. It must contain more rounds than the current magazine. Protective cover favors a normal reload unless the PMC is taking fire. W01 chooses when to reload and W02 can choose the pistol first. Native animation speed is unchanged. RR distinguishes the request, animation, actual magazine drop and completion.",
+      "Description": "Under immediate pressure, PMCs with low ammo can drop their magazine for a native fast reload. The dropped magazine and its remaining rounds stay in the world. Only accessible, compatible, loaded spares count. The replacement counts towards the minimum, so a minimum of two leaves at least one spare. It must contain more rounds than the current magazine. Protective cover favors a normal reload unless the PMC is taking fire. W01 chooses when to reload and W02 can choose the pistol first. Native animation speed is unchanged. The event stream for Raid Review and Satellite distinguishes the request, animation, actual magazine drop and completion.",
       "Category": "Weapons & lights",
       "Summary": "Under immediate pressure, PMCs with low ammo can drop their magazine for a native fast reload."
     },
@@ -266,7 +266,7 @@
     },
     "PistolSwap": {
       "Title": "Draw a pistol under pressure - W02",
-      "Description": "With a close known threat and an empty or nearly empty primary, PMCs can draw a loaded pistol instead of reloading. Safe cover can still make reloading the better choice. Both ammo limits must be met. The pistol must have more loaded rounds than the primary, including chambers. Existing reloads and native draw animations are respected. RR distinguishes an accepted request, the pistol in hand and readiness.",
+      "Description": "With a close known threat and an empty or nearly empty primary, PMCs can draw a loaded pistol instead of reloading. Safe cover can still make reloading the better choice. Both ammo limits must be met. The pistol must have more loaded rounds than the primary, including chambers. Existing reloads and native draw animations are respected. The event stream for Raid Review and Satellite distinguishes an accepted request, the pistol in hand and readiness.",
       "Category": "Weapons & lights",
       "Summary": "With a close known threat and an empty or nearly empty primary, PMCs can draw a loaded pistol instead of reloading."
     },
@@ -278,7 +278,7 @@
     },
     "CoverFeint": {
       "Title": "Feint from cover - M14",
-      "Description": "PMCs outdoors can briefly show themselves and return behind cover, or check their magazine to invite an approach. Enemies remain free to react normally. A magazine check is not a reload. Bait peeks require a healthy, aggressive PMC and a safe return route. Exposure starts only after actual arrival. The magazine hold starts only once the animation ends and the weapon is ready. A retry also needs fresh incoming fire, a new personal sound or a meaningful change in the known contact position. RR separates requests, observed movement, native sound playback and observed enemy reactions.",
+      "Description": "PMCs outdoors can briefly show themselves and return behind cover, or check their magazine to invite an approach. Enemies remain free to react normally. A magazine check is not a reload. Bait peeks require a healthy, aggressive PMC and a safe return route. Exposure starts only after actual arrival. The magazine hold starts only once the animation ends and the weapon is ready. A retry also needs fresh incoming fire, a new personal sound or a meaningful change in the known contact position. The event stream for Raid Review and Satellite separates requests, observed movement, native sound playback and observed enemy reactions.",
       "Category": "Movement",
       "Summary": "Briefly expose a PMC to invite a shot, then return to cover."
     },
@@ -296,19 +296,19 @@
     },
     "RetreatWeave": {
       "Title": "Evade while sprinting to cover - M11",
-      "Description": "PMCs fleeing a personally perceived threat behind them can zigzag, lower their head and mix in running jumps. This can continue until cover is reached. SAIN keeps the route, movement speed and physics. Intermediate jumps stop within 6 m of cover; the arrival jump gets one roll at 3-5 m. The bot runs straight while airborne. Obstacles, uncertain landings, firing and lost progress take priority. RR separates requests, accepted jumps, observed takeoff and landing.",
+      "Description": "PMCs fleeing a personally perceived threat behind them can zigzag, lower their head and mix in running jumps. This can continue until cover is reached. SAIN keeps the route, movement speed and physics. Intermediate jumps stop within 6 m of cover; the arrival jump gets one roll at 3-5 m. The bot runs straight while airborne. Obstacles, uncertain landings, firing and lost progress take priority. The event stream for Raid Review and Satellite separates requests, accepted jumps, observed takeoff and landing.",
       "Category": "Movement",
       "Summary": "PMCs fleeing a personally perceived threat behind them can zigzag, lower their head and mix in running jumps."
     },
     "AdsTravel": {
       "Title": "Release ADS while moving to safety - M10",
-      "Description": "PMCs can leave their sights to move freely toward cover or during a retreat, escape or push. SAIN keeps its route, movement speed and shooting. M09 can still keep the weapon facing the threat. Firing or preparing a shot immediately returns ADS to SAIN, including between bursts. Arriving, stopping or changing actions also releases the override. RR distinguishes SAIN's wish, the release request and observed ADS.",
+      "Description": "PMCs can leave their sights to move freely toward cover or during a retreat, escape or push. SAIN keeps its route, movement speed and shooting. M09 can still keep the weapon facing the threat. Firing or preparing a shot immediately returns ADS to SAIN, including between bursts. Arriving, stopping or changing actions also releases the override. The event stream for Raid Review and Satellite distinguishes SAIN's wish, the release request and observed ADS.",
       "Category": "Movement",
       "Summary": "PMCs can leave their sights to move freely toward cover or during a retreat, escape or push."
     },
     "CoverTravel": {
       "Title": "Face the threat on the way to cover - M09",
-      "Description": "Walk while facing a recently seen enemy, or dash along a short route to protected cover. The actual route, turns and estimated exposure guide the choice. All PMC personalities are eligible. Healing, reloading, immediate danger and other tactics keep priority. Long exposed crossings remain with SAIN. A short time limit and progress check prevent prolonged backward walking. Geometry uses a shared work budget. RR shows the chosen mode, known contact, cover destination, route exposure and actual movement separately. Only the Fika host/headless decides.",
+      "Description": "Walk while facing a recently seen enemy, or dash along a short route to protected cover. The actual route, turns and estimated exposure guide the choice. All PMC personalities are eligible. Healing, reloading, immediate danger and other tactics keep priority. Long exposed crossings remain with SAIN. A short time limit and progress check prevent prolonged backward walking. Geometry uses a shared work budget. The event stream for Raid Review and Satellite shows the chosen mode, known contact, cover destination, route exposure and actual movement separately. Only the Fika host/headless decides.",
       "Category": "Movement",
       "Summary": "Walk while facing a recently seen enemy, or dash along a short route to protected cover."
     },
@@ -320,19 +320,19 @@
     },
     "AngleWatch": {
       "Title": "Watch useful angles - M07",
-      "Description": "Awake PMCs prepare their gaze using recent personal sightings or sounds. No random roll, firing request or movement out of cover. A sound only justifies watching. Stairs and known elevated contacts keep their useful vertical angles. Visible threats, firing, urgent actions, sight continuity, corner chase/prefire and door tactics keep priority. A blocked angle is dropped immediately at the next geometry check. After a completed preparation, the same spot cannot restart it until the bot or known contact moves 2 m. RR shows the chosen opening, evidence, alternatives and observed orientation. Host/headless only with Fika.",
+      "Description": "Awake PMCs prepare their gaze using recent personal sightings or sounds. No random roll, firing request or movement out of cover. A sound only justifies watching. Stairs and known elevated contacts keep their useful vertical angles. Visible threats, firing, urgent actions, sight continuity, corner chase/prefire and door tactics keep priority. A blocked angle is dropped immediately at the next geometry check. After a completed preparation, the same spot cannot restart it until the bot or known contact moves 2 m. The event stream for Raid Review and Satellite shows the chosen opening, evidence, alternatives and observed orientation. Host/headless only with Fika.",
       "Category": "Movement",
       "Summary": "Awake PMCs prepare their gaze using recent personal sightings or sounds."
     },
     "CornerPrefire": {
       "Title": "Prefire around a corner - M06",
-      "Description": "Requires a walking M05 chase and a recent personal sighting near the corner. One roll per opportunity, never combined with the running jump. Sound alone cannot trigger it. The PMC aims beyond the corner and waits for its muzzle to clear the wall. It stops at the first limit, on an ally crossing the line of fire, or when SAIN needs to take over. Semi-auto is limited to one shot; native burst modes are left to SAIN. For ammunition, the stricter of rounds and percentage applies. Start limits must exceed reserves. The observation age limit applies throughout firing. M05 supplies the retry cooldown and requires a new sighting. RR records the request, native acceptance, actual shots and stop reason. Host/headless only with Fika.",
+      "Description": "Requires a walking M05 chase and a recent personal sighting near the corner. One roll per opportunity, never combined with the running jump. Sound alone cannot trigger it. The PMC aims beyond the corner and waits for its muzzle to clear the wall. It stops at the first limit, on an ally crossing the line of fire, or when SAIN needs to take over. Semi-auto is limited to one shot; native burst modes are left to SAIN. For ammunition, the stricter of rounds and percentage applies. Start limits must exceed reserves. The observation age limit applies throughout firing. M05 supplies the retry cooldown and requires a new sighting. The event stream for Raid Review and Satellite records the request, native acceptance, actual shots and stop reason. Host/headless only with Fika.",
       "Category": "Movement",
       "Summary": "Requires a walking M05 chase and a recent personal sighting near the corner."
     },
     "CornerChase": {
       "Title": "Chase around a corner - M05",
-      "Description": "When a PMC is already pursuing an enemy it just saw disappear around a solid corner, it can lean into the turn, take a wider angle or try one running jump. Uncertain contacts favor a gradual approach. Hold, retreat, doors and urgent actions keep priority. One chance per loss of sight. The bot uses its last personal observation, stops the maneuver on reacquisition, and cannot retry without seeing the enemy again. These are independent chances, not a personality distribution. Jumping requires room, real momentum and stamina; otherwise the bot walks the angle. RR distinguishes requested movement from observed movement, takeoff and landing. Host/headless only with Fika.",
+      "Description": "When a PMC is already pursuing an enemy it just saw disappear around a solid corner, it can lean into the turn, take a wider angle or try one running jump. Uncertain contacts favor a gradual approach. Hold, retreat, doors and urgent actions keep priority. One chance per loss of sight. The bot uses its last personal observation, stops the maneuver on reacquisition, and cannot retry without seeing the enemy again. These are independent chances, not a personality distribution. Jumping requires room, real momentum and stamina; otherwise the bot walks the angle. The event stream for Raid Review and Satellite distinguishes requested movement from observed movement, takeoff and landing. Host/headless only with Fika.",
       "Category": "Movement",
       "Summary": "When a PMC is already pursuing an enemy it just saw disappear around a solid corner, it can lean into the turn, take a wider angle or try one running jump."
     },
@@ -350,13 +350,13 @@
     },
     "FirePause": {
       "Title": "Pause to fire - M02",
-      "Description": "After moving, a PMC can briefly stop to steady a shot, then move again. Requires M01. One chance is rolled per sequence, with at most one pause. SAIN still chooses when to fire. Pause time starts once the bot has actually stopped. A hit, danger, lost sight or unavailable weapon interrupts it. Pauses fit inside M01's distance and time limits. RR shows whether the stop and shots really happened.",
+      "Description": "After moving, a PMC can briefly stop to steady a shot, then move again. Requires M01. One chance is rolled per sequence, with at most one pause. SAIN still chooses when to fire. Pause time starts once the bot has actually stopped. A hit, danger, lost sight or unavailable weapon interrupts it. Pauses fit inside M01's distance and time limits. The event stream for Raid Review and Satellite shows whether the stop and shots really happened.",
       "Category": "Movement",
       "Summary": "After moving, a PMC can briefly stop to steady a shot, then move again."
     },
     "CombatStep": {
       "Title": "Move while shooting - M01",
-      "Description": "PMCs can take short lateral or diagonal steps during a firefight. They stay near their starting position, preserve cover and yield to urgent actions. A chance is rolled once per opportunity, not every frame. Shooting and movement physics remain SAIN's and the game's. These are independent chances, not a personality distribution. The distance, step timing, sequence and retry limits below bound each attempt. An unsafe route or lost sight stops movement early. RR shows the requested steps, actual distance and rejected directions. Fika decisions run only on the host/headless.",
+      "Description": "PMCs can take short lateral or diagonal steps during a firefight. They stay near their starting position, preserve cover and yield to urgent actions. A chance is rolled once per opportunity, not every frame. Shooting and movement physics remain SAIN's and the game's. These are independent chances, not a personality distribution. The distance, step timing, sequence and retry limits below bound each attempt. An unsafe route or lost sight stops movement early. The event stream for Raid Review and Satellite shows the requested steps, actual distance and rejected directions. Fika decisions run only on the host/headless.",
       "Category": "Movement",
       "Summary": "PMCs can take short lateral or diagonal steps during a firefight."
     },
@@ -374,7 +374,7 @@
     },
     "DoorRoomClear": {
       "Title": "Prepare a room entry - D07",
-      "Description": "With a recent contact behind a door, a PMC can open it from cover, optionally feint once, then enter directly or throw a real grenade first. It waits for that grenade's confirmed explosion and for its weapon to be ready. An explosion does not mean the enemy is dead. Contact age, ammunition, stamina and entry depth must meet the limits below. Grenades still respect SAIN and COMET's grenade limits. One feint uses the shared settings below. Retrying needs the opponent cooldown to expire and newer information. The plan is checked again before entering. A blocked door, unsafe throw, missing explosion or failed arrival ends the plan. RR shows the reason, alternatives, grenade evidence and actual movement.",
+      "Description": "With a recent contact behind a door, a PMC can open it from cover, optionally feint once, then enter directly or throw a real grenade first. It waits for that grenade's confirmed explosion and for its weapon to be ready. An explosion does not mean the enemy is dead. Contact age, ammunition, stamina and entry depth must meet the limits below. Grenades still respect SAIN and COMET's grenade limits. One feint uses the shared settings below. Retrying needs the opponent cooldown to expire and newer information. The plan is checked again before entering. A blocked door, unsafe throw, missing explosion or failed arrival ends the plan. The event stream for Raid Review and Satellite shows the reason, alternatives, grenade evidence and actual movement.",
       "Category": "Doors",
       "Summary": "Prepare an entry from cover, with an optional feint or grenade before moving inside."
     },
@@ -386,7 +386,7 @@
     },
     "DoorEmergency": {
       "Title": "D13 - React when an enemy comes out",
-      "Description": "Cancel a doorway feint or preparation and recover the weapon. A nearby sound is a warning, not proof that the enemy has left the room. A close visible enemy can trigger a short move to verified cover. Urgent healing, grenades and committed actions take priority. Weapon recovery uses the real animation. The cancelled plan is not resumed. RR distinguishes the warning, accepted action, actual movement and return to normal combat.",
+      "Description": "Cancel a doorway feint or preparation and recover the weapon. A nearby sound is a warning, not proof that the enemy has left the room. A close visible enemy can trigger a short move to verified cover. Urgent healing, grenades and committed actions take priority. Weapon recovery uses the real animation. The cancelled plan is not resumed. The event stream for Raid Review and Satellite distinguishes the warning, accepted action, actual movement and return to normal combat.",
       "Category": "Doors",
       "Summary": "Cancel a doorway feint or preparation and recover the weapon."
     },
@@ -422,31 +422,31 @@
     },
     "DoorFakeMedical": {
       "Title": "Doorway feints - D05 / D06",
-      "Description": "Medical feints start a real item animation, then cancel it when the item is seen in the hands. Bleeding, serious injury and real medical decisions take priority. No item is refunded and no healing is reversed. One shared roll for grenade and medical feints. For example, with Chad set to 20% and medical preference 50%, with both types eligible: 10% medical, 10% grenade, 80% no feint. Otherwise the available type is used. Both share the chances, distances and cooldowns below. A protected PMC near a doorway may draw a grenade to bait a nearby known opponent, then put it away without throwing. The opponent is never forced to react. One feint replaces doorway reconnaissance, or is part of an entry already selected by D07. It never chains after a peek. The grenade must exist and be accessible. Cover, actual hands and weapon readiness are checked. Danger cancels the feint, with normal animation time to recover the weapon. RR records requested actions separately from observed hands and perceived reactions.",
+      "Description": "Medical feints start a real item animation, then cancel it when the item is seen in the hands. Bleeding, serious injury and real medical decisions take priority. No item is refunded and no healing is reversed. One shared roll for grenade and medical feints. For example, with Chad set to 20% and medical preference 50%, with both types eligible: 10% medical, 10% grenade, 80% no feint. Otherwise the available type is used. Both share the chances, distances and cooldowns below. A protected PMC near a doorway may draw a grenade to bait a nearby known opponent, then put it away without throwing. The opponent is never forced to react. One feint replaces doorway reconnaissance, or is part of an entry already selected by D07. It never chains after a peek. The grenade must exist and be accessible. Cover, actual hands and weapon readiness are checked. Danger cancels the feint, with normal animation time to recover the weapon. The event stream for Raid Review and Satellite records requested actions separately from observed hands and perceived reactions.",
       "Category": "Doors",
       "Summary": "Medical feints start a real item animation, then cancel it when the item is seen in the hands."
     },
     "DoorFakeGrenade": {
       "Title": "Doorway feints - D05 / D06",
-      "Description": "Medical feints start a real item animation, then cancel it when the item is seen in the hands. Bleeding, serious injury and real medical decisions take priority. No item is refunded and no healing is reversed. One shared roll for grenade and medical feints. For example, with Chad set to 20% and medical preference 50%, with both types eligible: 10% medical, 10% grenade, 80% no feint. Otherwise the available type is used. Both share the chances, distances and cooldowns below. A protected PMC near a doorway may draw a grenade to bait a nearby known opponent, then put it away without throwing. The opponent is never forced to react. One feint replaces doorway reconnaissance, or is part of an entry already selected by D07. It never chains after a peek. The grenade must exist and be accessible. Cover, actual hands and weapon readiness are checked. Danger cancels the feint, with normal animation time to recover the weapon. RR records requested actions separately from observed hands and perceived reactions.",
+      "Description": "Medical feints start a real item animation, then cancel it when the item is seen in the hands. Bleeding, serious injury and real medical decisions take priority. No item is refunded and no healing is reversed. One shared roll for grenade and medical feints. For example, with Chad set to 20% and medical preference 50%, with both types eligible: 10% medical, 10% grenade, 80% no feint. Otherwise the available type is used. Both share the chances, distances and cooldowns below. A protected PMC near a doorway may draw a grenade to bait a nearby known opponent, then put it away without throwing. The opponent is never forced to react. One feint replaces doorway reconnaissance, or is part of an entry already selected by D07. It never chains after a peek. The grenade must exist and be accessible. Cover, actual hands and weapon readiness are checked. Danger cancels the feint, with normal animation time to recover the weapon. The event stream for Raid Review and Satellite records requested actions separately from observed hands and perceived reactions.",
       "Category": "Doors",
       "Summary": "A PMC can draw a grenade to bait an opponent, then return to its weapon without throwing."
     },
     "DoorStepPeek": {
       "Title": "Take another look from the frame - D04",
-      "Description": "After returning safely from D02, a PMC can take one or two small steps toward the opening, look with its weapon ready and return to the frame. A second peek needs a different safe viewing angle. D03 keeps its own final angle. The original door cooldown still applies. RR records each step, view, return and cancellation; a movement request alone is never shown as a successful peek.",
+      "Description": "After returning safely from D02, a PMC can take one or two small steps toward the opening, look with its weapon ready and return to the frame. A second peek needs a different safe viewing angle. D03 keeps its own final angle. The original door cooldown still applies. The event stream for Raid Review and Satellite records each step, view, return and cancellation; a movement request alone is never shown as a successful peek.",
       "Category": "Doors",
       "Summary": "After returning safely from D02, a PMC can take one or two small steps toward the opening, look with its weapon ready and return to the frame."
     },
     "DoorRunBy": {
       "Title": "Run past a doorway - D03",
-      "Description": "Sprint past the opening on the corridor side, slow down beyond the frame, then walk back with the weapon ready to an offset angle. No jump or room entry. Both routes and body clearance are checked before leaving. The return is checked again from the actual arrival. A blocked path, nearby heard threat, visible enemy or combat emergency ends the plan. RR shows the shared roll, alternatives, actual sprint, return and outcome.",
+      "Description": "Sprint past the opening on the corridor side, slow down beyond the frame, then walk back with the weapon ready to an offset angle. No jump or room entry. Both routes and body clearance are checked before leaving. The return is checked again from the actual arrival. A blocked path, nearby heard threat, visible enemy or combat emergency ends the plan. The event stream for Raid Review and Satellite shows the shared roll, alternatives, actual sprint, return and outcome.",
       "Category": "Doors",
       "Summary": "Sprint past the opening on the corridor side, slow down beyond the frame, then walk back with the weapon ready to an offset angle."
     },
     "EnvironmentContext": {
       "Title": "Read the surroundings - P10",
-      "Description": "PMCs distinguish the game's indoor indicators from an overhead surface detected locally. A roof alone does not mean a room is enclosed or that a position is safe. This preview records context for future tactics. It does not yet change grenade arcs, forbid indoor movement or reduce hearing. RR shows the sources, sample age and ceiling result alongside the current behavior.",
+      "Description": "PMCs distinguish the game's indoor indicators from an overhead surface detected locally. A roof alone does not mean a room is enclosed or that a position is safe. This preview records context for future tactics. It does not yet change grenade arcs, forbid indoor movement or reduce hearing. The event stream for Raid Review and Satellite shows the sources, sample age and ceiling result alongside the current behavior.",
       "Category": "Perception",
       "Summary": "PMCs distinguish the game's indoor indicators from an overhead surface detected locally."
     },
@@ -470,7 +470,7 @@
     },
     "CloseDetection": {
       "Title": "Notice close enemies - P05",
-      "Description": "Remove the third-party and unknown-target attention factors within 6 m. Within 3 m, also cap the corrected sight modifier at 1. This runs before SAIN's repeat-contact bonuses; native visibility, darkness, equipment and other perception processing remain. RR distinguishes a modifier change from an actual visual acquisition.",
+      "Description": "Remove the third-party and unknown-target attention factors within 6 m. Within 3 m, also cap the corrected sight modifier at 1. This runs before SAIN's repeat-contact bonuses; native visibility, darkness, equipment and other perception processing remain. The event stream for Raid Review and Satellite distinguishes a modifier change from an actual visual acquisition.",
       "Category": "Perception",
       "Summary": "Remove the third-party and unknown-target attention factors within 6 m."
     },
@@ -488,43 +488,43 @@
     },
     "QuietApproach": {
       "Title": "Quiet approach - P02",
-      "Description": "During a search or approach, some PMCs stop sprinting and crouch for the last few metres. Visible threats and urgent actions take priority. This does not slow a committed push or ORBIT's ordinary travel. Chance per contact and encounter. The choice stays stable; 0% disables quiet approaches for that personality. Actual sound still depends on the game's movement and surface rules. RR shows the requested pace, applied limits, roll, progress and reasons for stopping.",
+      "Description": "During a search or approach, some PMCs stop sprinting and crouch for the last few metres. Visible threats and urgent actions take priority. This does not slow a committed push or ORBIT's ordinary travel. Chance per contact and encounter. The choice stays stable; 0% disables quiet approaches for that personality. Actual sound still depends on the game's movement and surface rules. The event stream for Raid Review and Satellite shows the requested pace, applied limits, roll, progress and reasons for stopping.",
       "Category": "Movement",
       "Summary": "Approach a known contact quietly over the last few metres."
     },
     "MovementHearing": {
       "Title": "Hear nearby bots - P01",
-      "Description": "PMCs can notice nearby bots before seeing them. SAIN still decides what they hear based on distance, equipment and surroundings. Ghosts stay silent and do not listen. Other bots and human movement sounds keep their normal behavior. RR distinguishes signals queued for SAIN from sounds a PMC actually heard.",
+      "Description": "PMCs can notice nearby bots before seeing them. SAIN still decides what they hear based on distance, equipment and surroundings. Ghosts stay silent and do not listen. Other bots and human movement sounds keep their normal behavior. The event stream for Raid Review and Satellite distinguishes signals queued for SAIN from sounds a PMC actually heard.",
       "Category": "Perception",
       "Summary": "PMCs can notice nearby bots before seeing them."
     },
     "Handoff": {
       "Title": "Hand control back to SAIN - A13",
-      "Description": "If no COMET tactic is usable, SAIN continues its normal decisions. Urgent actions keep priority. This safety fallback is always available. Runtime errors use the C08 recovery settings above. The handoff delay applies to ordinary unavailable tactics. Failed-attempt memory is preserved. RR records why COMET yielded and the next native decision observed, without treating it as a COMET action.",
+      "Description": "If no COMET tactic is usable, SAIN continues its normal decisions. Urgent actions keep priority. This safety fallback is always available. Runtime errors use the C08 recovery settings above. The handoff delay applies to ordinary unavailable tactics. Failed-attempt memory is preserved. The event stream for Raid Review and Satellite records why COMET yielded and the next native decision observed, without treating it as a COMET action.",
       "Category": "Recovery",
       "Summary": "If no COMET tactic is usable, SAIN continues its normal decisions."
     },
     "Progress": {
       "Title": "Plan progress - A12",
-      "Description": "PMCs can hold an angle or take a detour, but should not wait or retry the same blocked destination forever. Shooting, treatment, reloading, doors and deliberate search pauses do not consume these timers. Failed routes never become usable just because a timer expires. If no safe alternative is available, SAIN keeps control. RR shows pauses, progress, idle holds and retry cooldowns.",
+      "Description": "PMCs can hold an angle or take a detour, but should not wait or retry the same blocked destination forever. Shooting, treatment, reloading, doors and deliberate search pauses do not consume these timers. Failed routes never become usable just because a timer expires. If no safe alternative is available, SAIN keeps control. The event stream for Raid Review and Satellite shows pauses, progress, idle holds and retry cooldowns.",
       "Category": "Recovery",
       "Summary": "PMCs can hold an angle or take a detour, but should not wait or retry the same blocked destination forever."
     },
     "CoverResponse": {
       "Title": "Fight or take cover - A11",
-      "Description": "Favor a nearby protected spot, or keep firing when reaching cover would mean a long exposed crossing. Paths, known threats and the PMC's mobility matter. Low ammunition, serious injuries and urgent SAIN actions keep priority. Travel times are estimates. RR shows travel and exposure estimates, plus why firing or taking cover was preferred.",
+      "Description": "Favor a nearby protected spot, or keep firing when reaching cover would mean a long exposed crossing. Paths, known threats and the PMC's mobility matter. Low ammunition, serious injuries and urgent SAIN actions keep priority. Travel times are estimates. The event stream for Raid Review and Satellite shows travel and exposure estimates, plus why firing or taking cover was preferred.",
       "Category": "Decisions",
       "Summary": "Favor a nearby protected spot, or keep firing when reaching cover would mean a long exposed crossing."
     },
     "Opportunity": {
       "Title": "Heard opportunities - A10",
-      "Description": "A short opening can make a safe push more attractive. The PMC must hear it, react and reach the perceived position in time. Enemy actions are estimated, never read through walls. A heard shot, sprint or grenade preparation cancels the old opening. Low ammunition, injuries, panic, extra known threats and unsafe routes keep priority. RR shows the original cue, time left, travel estimate and refusal reason.",
+      "Description": "A short opening can make a safe push more attractive. The PMC must hear it, react and reach the perceived position in time. Enemy actions are estimated, never read through walls. A heard shot, sprint or grenade preparation cancels the old opening. Low ammunition, injuries, panic, extra known threats and unsafe routes keep priority. The event stream for Raid Review and Satellite shows the original cue, time left, travel estimate and refusal reason.",
       "Category": "Decisions",
       "Summary": "A short opening can make a safe push more attractive."
     },
     "Opponent": {
       "Title": "Opponent assessment - A09",
-      "Description": "PMCs remember weapons and protection they could see. A witnessed impact or a personally heard treatment is only a hint of injury. Unknown equipment stays neutral; hidden changes do not update the estimate. Confidence fades until the memory expires. A shotgun remains dangerous at close range. No other enemy spotted does not mean the target is alone. RR shows the evidence and its effect on each choice.",
+      "Description": "PMCs remember weapons and protection they could see. A witnessed impact or a personally heard treatment is only a hint of injury. Unknown equipment stays neutral; hidden changes do not update the estimate. Confidence fades until the memory expires. A shotgun remains dangerous at close range. No other enemy spotted does not mean the target is alone. The event stream for Raid Review and Satellite shows the evidence and its effect on each choice.",
       "Category": "Decisions",
       "Summary": "PMCs remember weapons and protection they could see."
     },
@@ -536,7 +536,7 @@
     },
     "ThreatSelection": {
       "Title": "Target priority - A07",
-      "Description": "PMCs can react to a nearby opponent or a located attacker without constantly switching targets. Only known, dated contacts count. Hearing footsteps alone does not reveal an enemy or authorize shooting. Old evidence gradually loses influence. SAIN keeps urgent actions and shooting rules. RR records target priority separately from the current combat action.",
+      "Description": "PMCs can react to a nearby opponent or a located attacker without constantly switching targets. Only known, dated contacts count. Hearing footsteps alone does not reveal an enemy or authorize shooting. Old evidence gradually loses influence. SAIN keeps urgent actions and shooting rules. The event stream for Raid Review and Satellite records target priority separately from the current combat action.",
       "Category": "Decisions",
       "Summary": "PMCs can react to a nearby opponent or a located attacker without constantly switching targets."
     },
@@ -596,9 +596,15 @@
     },
     "Logging": {
       "Title": "Logging",
-      "Description": "Choose how much COMET writes to its local diagnostic files. Raid Review still receives the same decisions, observations and raid summaries. Changes apply next raid.",
+      "Description": "Choose how much COMET writes to its local diagnostic files. Local logging leaves the event stream for Raid Review and Satellite unchanged. Changes apply next raid.",
       "Category": "Diagnostics",
-      "Summary": "Reduce detailed files without hiding anything from Raid Review."
+      "Summary": "Reduce detailed files without changing the data available to Raid Review or Satellite."
+    },
+    "RaidReview": {
+      "Title": "Raid Review & Satellite",
+      "Description": "Choose the reports for Raid Review and Satellite. Collection automatically pauses when neither plugin is loaded on the AI host. Raid Review supports replay. Satellite shows live actions and squad tactics, with replay planned for a future update. Changes apply next raid.",
+      "Category": "Diagnostics",
+      "Summary": "Collect the four detailed reports when Raid Review or Satellite is loaded on the AI host."
     },
     "TacticCounters": {
       "Title": "Decision counters - T02",
@@ -608,7 +614,7 @@
     },
     "CombatJournal": {
       "Title": "Combat journal - T01",
-      "Description": "Record actual PMC actions, known contacts, locally observed damage and confirmed deaths. Raid Review groups these observations by PMC and action. This is diagnostic correlation, not proof that a tactic caused a kill or death. Remote Fika player damage may be missing from the host; downed players are not confirmed deaths.",
+      "Description": "Record actual PMC actions, known contacts, locally observed damage and confirmed deaths. COMET groups these observations by PMC and action for Raid Review and Satellite. This is diagnostic correlation, not proof that a tactic caused a kill or death. Remote Fika player damage may be missing from the host; downed players are not confirmed deaths.",
       "Category": "Diagnostics",
       "Summary": "Record actual PMC actions, known contacts, locally observed damage and confirmed deaths."
     },
@@ -622,7 +628,7 @@
       "Title": "Control transitions - T04",
       "Description": "Observe actual layers and COMET execution separately. Explain medical/reload/recovery waits where observed; unknown reasons stay unknown. Group repeated rapid returns without delaying combat. Idle does not mean stuck. Existing ORBIT/QB delays stay unchanged. Settings apply next raid.",
       "Category": "Diagnostics",
-      "Summary": "Read-only handoff diagnostics and raid report in RR."
+      "Summary": "Read-only handoff diagnostics and raid report for Raid Review and Satellite."
     },
     "Performance": {
       "Title": "Performance capture",
@@ -9162,13 +9168,19 @@
     },
     "QuietLogging": {
       "Label": "Quiet logging",
-      "Help": "On: keep errors, configuration and raid summaries, but skip detailed events in local COMET logs. Raid Review data is unchanged. Performance capture is separate. Leave Off for investigations. Applies next raid.",
+      "Help": "On: keep errors, configuration and raid summaries, but skip detailed events in local COMET logs. Data for Raid Review and Satellite is unchanged. Performance capture is separate. Leave Off for investigations. Applies next raid.",
       "Section": "Logging",
+      "Simple": true
+    },
+    "ExtraRaidReviewInfo": {
+      "Label": "Extra Raid Review / Satellite info",
+      "Help": "Enable the selected combat, weapon, control and decision reports. Turn this off to pause all four and keep your individual choices. Requires Raid Review or Satellite on the AI host. Quiet logging and performance capture are independent.",
+      "Section": "RaidReview",
       "Simple": true
     },
     "TacticCounters.Enabled": {
       "Label": "Collect raid decision counters",
-      "Help": "Count tactical choices and confirmed starts for the end-of-raid report in Raid Review. Off by default.",
+      "Help": "Count tactical choices and confirmed starts for the end-of-raid report for Raid Review and Satellite. On by default.",
       "Section": "TacticCounters",
       "Simple": false
     },
@@ -9183,7 +9195,7 @@
     },
     "CombatJournal.Enabled": {
       "Label": "Record combat journal",
-      "Help": "Record observed actions, contacts, shots, hits and deaths for the detailed combat journal in Raid Review. On by default.",
+      "Help": "Record observed actions, contacts, shots, hits and deaths for the detailed combat journal for Raid Review and Satellite. On by default.",
       "Section": "CombatJournal",
       "Simple": false
     },
@@ -9198,7 +9210,7 @@
     },
     "WeaponJournal.Enabled": {
       "Label": "Record weapon diagnostics",
-      "Help": "Compare requested weapon switches with the weapon actually in hand and flag repeated swaps in Raid Review. Off by default.",
+      "Help": "Compare requested weapon switches with the weapon actually in hand and flag repeated swaps for Raid Review and Satellite. On by default.",
       "Section": "WeaponJournal",
       "Simple": false
     },
@@ -9231,7 +9243,7 @@
     },
     "ControlJournal.Enabled": {
       "Label": "Record control transitions",
-      "Help": "Record which mod controls each PMC and flag long waits or repeated handoffs in Raid Review. Off by default.",
+      "Help": "Record which mod controls each PMC and report long waits or repeated handoffs to Raid Review and Satellite. On by default.",
       "Section": "ControlJournal",
       "Simple": false
     },
@@ -9273,7 +9285,7 @@
     },
     "Performance.Enabled": {
       "Label": "Record COMET performance",
-      "Help": "Enable for a diagnostic raid, then turn off. Costs are grouped by feature and separated from event preparation and synchronous Raid Review subscribers.",
+      "Help": "Enable for a diagnostic raid, then turn off. Costs are grouped by feature and separated from event preparation and synchronous event subscribers such as Raid Review and Satellite.",
       "Section": "Performance",
       "Simple": false
     },
@@ -9305,27 +9317,27 @@
   "Notes": [
     {
       "Title": "Official SAIN integration - I01",
-      "Description": "Always active. COMET checks both official SAIN 4.5.1 files and its installed hooks at startup. A failed check leaves COMET inactive and records the failing stage. Your SAIN preset stays unchanged. The startup report above is not a live connection monitor or proof of successful combat. Decisions requested, accepted, refused and interrupted remain visible in logs and Raid Review."
+      "Description": "Always active. COMET checks both official SAIN 4.5.1 files and its installed hooks at startup. A failed check leaves COMET inactive and records the failing stage. Your SAIN preset stays unchanged. The startup report above is not a live connection monitor or proof of successful combat. Decisions requested, accepted, refused and interrupted remain visible in logs and the event stream for Raid Review and Satellite."
     },
     {
       "Title": "Correct SAIN preset - C14",
-      "Description": "Always active. COMET reads the SAIN preset you selected, even if SAIN loads another preset for its editor. Selecting a different SAIN preset takes effect immediately for these reads. Your COMET settings stay fixed for the current raid; server edits apply next raid. Missing SAIN settings cannot enable an action. Logs and Raid Review show the selected preset and COMET revision when this context changes. This protects COMET's reads without changing SAIN's global settings or other bots."
+      "Description": "Always active. COMET reads the SAIN preset you selected, even if SAIN loads another preset for its editor. Selecting a different SAIN preset takes effect immediately for these reads. Your COMET settings stay fixed for the current raid; server edits apply next raid. Missing SAIN settings cannot enable an action. Logs and the event stream for Raid Review and Satellite show the selected preset and COMET revision when this context changes. This protects COMET's reads without changing SAIN's global settings or other bots."
     },
     {
       "Title": "End-of-raid cleanup - C13",
-      "Description": "Always active, including when combat features are disabled. COMET releases its bot actions, cover searches, door operations, event subscriptions and raid caches. Each cleanup step runs independently, so one failure cannot skip the rest. Old server responses cannot configure a later raid. Each Fika machine clears its own transport queues. Logs and Raid Review include a cleanup report with released bot counts, duration and any failures. No forced garbage collection or changes to corpses."
+      "Description": "Always active, including when combat features are disabled. COMET releases its bot actions, cover searches, door operations, event subscriptions and raid caches. Each cleanup step runs independently, so one failure cannot skip the rest. Old server responses cannot configure a later raid. Each Fika machine clears its own transport queues. Logs and the event stream for Raid Review and Satellite include a cleanup report with released bot counts, duration and any failures. No forced garbage collection or changes to corpses."
     },
     {
       "Title": "Invalid movement and references - C10",
-      "Description": "Always active while COMET is enabled. Refuse movement commands for dead, downed or invalid PMCs. Ignore destroyed player references and outdated removal events. A shot or grenade from a dead shooter still causes damage; only an unsafe reaction to a destroyed source is skipped. Valid revives can move again. Only the AI authority applies these guards in Fika. Logs and Raid Review show blocked calls and grouped repeat counts."
+      "Description": "Always active while COMET is enabled. Refuse movement commands for dead, downed or invalid PMCs. Ignore destroyed player references and outdated removal events. A shot or grenade from a dead shooter still causes damage; only an unsafe reaction to a destroyed source is skipped. Valid revives can move again. Only the AI authority applies these guards in Fika. Logs and the event stream for Raid Review and Satellite show blocked calls and grouped repeat counts."
     },
     {
       "Title": "Death and revive safety - C09",
-      "Description": "Always active. COMET stops its actions when a PMC dies or is downed. Each module is cleaned independently. An eligible revived PMC starts with fresh decisions; old actions cannot resume. Failed cleanup keeps COMET disabled for that bot. Logs and Raid Review record these transitions. This does not create corpses or change Fika's revive rules."
+      "Description": "Always active. COMET stops its actions when a PMC dies or is downed. Each module is cleaned independently. An eligible revived PMC starts with fresh decisions; old actions cannot resume. Failed cleanup keeps COMET disabled for that bot. Logs and the event stream for Raid Review and Satellite record these transitions. This does not create corpses or change Fika's revive rules."
     },
     {
       "Title": "Understand the choices",
-      "Description": "COMET records choices, scores, selection probabilities, known contacts and route risks in BepInEx/COMET/diagnostics. The COMET branch of Raid Review shows them in the behavior page and on map hover, including why a plan was kept or interrupted. A choice accepted by SAIN does not prove that the action succeeded."
+      "Description": "COMET records choices, scores, selection probabilities, known contacts and route risks in BepInEx/COMET/diagnostics. Raid Review shows the recorded decisions on its behavior page and replay map. Satellite shows current actions and squad tactics live. Satellite replay is planned for a future update. A choice accepted by SAIN does not prove that the action succeeded."
     }
   ]
 }

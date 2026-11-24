@@ -17,7 +17,7 @@ public sealed partial class Plugin
     )
     {
         if (
-            config?.ControlJournal.Enabled != true
+            config?.RecordControlJournal() != true
             || watch.JournalFailed
             || !Authority
             || world == null
@@ -194,7 +194,7 @@ public sealed partial class Plugin
 
     partial void ControlJournalUnavailable(string source)
     {
-        if (config?.ControlJournal.Enabled != true || world == null || !Authority)
+        if (config?.RecordControlJournal() != true || world == null || !Authority)
             return;
         try
         {

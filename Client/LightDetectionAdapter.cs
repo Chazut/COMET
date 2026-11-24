@@ -260,7 +260,7 @@ public sealed partial class Plugin
                     p.lightBlocked++;
                 // The original reader already called TryToInvestigate for a clear
                 // ray. This is an observation, never a second contact injection.
-                if (p.config?.CombatJournal.Enabled != true)
+                if (p.config?.RecordCombatJournal() != true)
                     continue;
                 if (
                     p.lightDetailAt.TryGetValue(job.Owner.ProfileId, out float next)

@@ -622,6 +622,7 @@ namespace Comet.Client
         private int closed;
         private int completed;
         private int quiet = Comet.Core.CometConfig.DefaultQuietLogging ? 1 : 0;
+        private readonly bool reportReceiverAvailable;
         private int skipOrdinaryReports;
         private long skippedBeforeQueue;
         internal Task Completion => writer;
@@ -674,11 +675,13 @@ namespace Comet.Client
 
         internal void ConfigureRaidReports(Comet.Core.CometConfig config, bool authority, string session)
         {
+            if (!reportReceiverAvailable)
+                return;
             bool host = config.Enabled && authority;
-            bool combat = host && config.CombatJournal.Enabled;
-            bool weapons = host && config.WeaponJournal.Enabled;
-            bool control = host && config.ControlJournal.Enabled;
-            bool counters = host && config.TacticCounters.Enabled;
+            bool combat = host && config.RecordCombatJournal();
+            bool weapons = host && config.RecordWeaponJournal();
+            bool control = host && config.RecordControlJournal();
+            bool counters = host && config.RecordTacticCounters();
             ConfigureJournal(combat, weapons, config.Revision, session);
             ConfigureControlJournal(control, config.Revision, session);
             ConfigureCounters(counters, config.TacticCounters.MaxOpportunities, config.Revision, session);
@@ -750,9 +753,12 @@ namespace Comet.Client
             string directory,
             string session,
             Action<string> warning,
-            long segmentBytes = 64L * 1024 * 1024
+            long segmentBytes = 64L * 1024 * 1024,
+            bool reportReceiverAvailable = true
         )
         {
+            this.reportReceiverAvailable = reportReceiverAvailable;
+            skipOrdinaryReports = reportReceiverAvailable ? 0 : 1;
             warn = warning;
             Directory.CreateDirectory(directory);
             string path = Path.Combine(
@@ -761,8 +767,8 @@ namespace Comet.Client
             );
             writer = Task.Run(() =>
             {
-                var counters = new TacticCounters(session);
-                var journal = new CombatReport(session);
+                var counters = reportReceiverAvailable ? new TacticCounters(session) : null;
+                var journal = reportReceiverAvailable ? new CombatReport(session) : null;
                 var eventReader = new DiagnosticEventReader();
                 StreamWriter? output = null;
                 long bytes = 0,
@@ -842,7 +848,7 @@ namespace Comet.Client
                         long allocated =
                             sample != null ? (PerformanceAllocation?.Invoke() ?? 0) : 0;
                         // Enabled reports also consume events omitted from the local file.
-                        if (entry.Observe)
+                        if (entry.Observe && counters != null && journal != null)
                             eventReader.Observe(entry.Json, counters, journal);
                         if (entry.Persist)
                             Line(entry.Json);
@@ -874,10 +880,11 @@ namespace Comet.Client
                             catch { }
                     }
                     foreach (
-                        var page in System.Linq.Enumerable.Concat(
-                            counters.Finish(Interlocked.Read(ref dropped)),
-                            journal.Finish(Interlocked.Read(ref dropped))
-                        )
+                        var page in counters != null && journal != null
+                            ? System.Linq.Enumerable.Concat(
+                                counters.Finish(Interlocked.Read(ref dropped)),
+                                journal.Finish(Interlocked.Read(ref dropped)))
+                            : System.Linq.Enumerable.Empty<object>()
                     )
                     {
                         string json = JsonConvert.SerializeObject(page, Json);
@@ -948,7 +955,7 @@ namespace Comet.Client
         }
 
         // Configuration, errors and raid cleanup always reach the writer and the reports.
-        public void WriteEssential(string json) => Enqueue(json, true, true);
+        public void WriteEssential(string json) => Enqueue(json, true, reportReceiverAvailable);
 
         private void Enqueue(string json, bool persist, bool observe)
         {

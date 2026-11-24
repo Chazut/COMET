@@ -30,14 +30,17 @@ static class QuietLoggingTests
             var first = freshStore.Read();
             Check(first.QuietLogging && !File.Exists(freshPath), "new installs start quiet");
             foreach (var profile in new[] { first, DifficultyPresets.Create("Easy"), DifficultyPresets.Create("Normal"), DifficultyPresets.Create("Hard") })
-                Check(!profile.TacticCounters.Enabled && profile.CombatJournal.Enabled && !profile.WeaponJournal.Enabled
-                    && !profile.ControlJournal.Enabled && !profile.Performance.Enabled, "only the RR combat journal is enabled by default");
+                Check(profile.ExtraRaidReviewInfo && profile.RecordTacticCounters() && profile.RecordCombatJournal()
+                    && profile.RecordWeaponJournal() && profile.RecordControlJournal() && !profile.Performance.Enabled,
+                    "fresh and stock presets enable all extra RR reports and leave performance capture off");
             first.QuietLogging = false;
+            first.ExtraRaidReviewInfo = false;
             first.CombatJournal.Enabled = false;
             first.ControlJournal.Enabled = true;
             freshStore.Save(first, first.Revision);
             var firstSaved = new ConfigStore(freshPath).Read();
-            Check(!firstSaved.QuietLogging && !firstSaved.CombatJournal.Enabled && firstSaved.ControlJournal.Enabled,
+            Check(!firstSaved.QuietLogging && !firstSaved.CombatJournal.Enabled && firstSaved.ControlJournal.Enabled
+                && !firstSaved.ExtraRaidReviewInfo && !firstSaved.RecordControlJournal(),
                 "first explicit report choices on a fresh install survive restart");
 
             var legacy = new CometConfig { Revision = 42 };
@@ -53,7 +56,9 @@ static class QuietLoggingTests
             saved["weaponJournal"] = saved["WeaponJournal"]!.DeepClone();
             saved.Remove("WeaponJournal");
             saved["weaponJournal"]!.AsObject().Remove("Enabled");
-            saved["weaponJournal"]!["enabled"] = true;
+            saved["weaponJournal"]!["enabled"] = false;
+            saved.Remove("ExtraRaidReviewInfo");
+            saved["extraRaidReviewInfo"] = false;
             saved["weaponJournal"]!["Window"] = 37;
             saved["CombatJournal"]!["Enabled"] = false;
             string path = Path.Combine(directory, "config.json");
@@ -70,16 +75,17 @@ static class QuietLoggingTests
             Check(
                 File.ReadAllText(migrationBackup) == saved.ToJsonString()
                     && migrated["quietLogging"]!.GetValue<bool>() && !migrated.ContainsKey("QuietLogging")
-                    && (bool?)migrated["weaponJournal"]?["enabled"] == false && existing.WeaponJournal.Window == 37
+                    && (bool?)migrated["weaponJournal"]?["enabled"] == true
+                    && (bool?)migrated["extraRaidReviewInfo"] == true && !migrated.ContainsKey("ExtraRaidReviewInfo") && existing.WeaponJournal.Window == 37
                     && !migrated.ContainsKey("WeaponJournal")
                     && (int?)migrated["ExtraSetting"] == 19,
                 "migration backs up the original and preserves casing and unrelated settings"
             );
             var restarted = new ConfigStore(path);
             var game = JObject.Parse(restarted.ForGame());
-            Check((bool?)game["CombatJournal"]?["Enabled"] == true
-                && new[] { "TacticCounters", "WeaponJournal", "ControlJournal", "Performance" }
-                    .All(name => (bool?)game[name]?["Enabled"] == false), "upgraded raid preserves the RR combat journal and skips four diagnostics");
+            Check((bool?)game["ExtraRaidReviewInfo"] == true && (bool?)game["Performance"]?["Enabled"] == false
+                && new[] { "CombatJournal", "TacticCounters", "WeaponJournal", "ControlJournal" }
+                    .All(name => (bool?)game[name]?["Enabled"] == true), "all four upgraded reports reach the game");
             Check((bool?)game["QuietLogging"] == true && game["QuietLoggingDefaultApplied"] == null
                 && File.ReadAllText(path) == migratedText, "game receives quiet without metadata or another write");
             bool staleRejected = false;
@@ -103,6 +109,9 @@ static class QuietLoggingTests
                 Check(!new ConfigStore(otherPath).Read().QuietLogging, "manual opt-out survives restart");
             }
             var editor = new ConfigEditor(existing);
+            var master = editor.Catalog.Fields[nameof(CometConfig.ExtraRaidReviewInfo)];
+            Check(master.Boolean && master.Simple && editor.Visible(false, "raid review", false).Contains(master)
+                && editor.Catalog.Sections[master.Section].Category == "Diagnostics", "global switch is searchable in the simple Diagnostics UI");
             var field = editor.Catalog.Fields[nameof(CometConfig.QuietLogging)];
             Check(
                 field.Boolean
@@ -155,6 +164,29 @@ static class QuietLoggingTests
             var personal = new ConfigStore(priorPatchPath).Read();
             Check(!personal.CombatJournal.Enabled && personal.TacticCounters.Enabled && personal.WeaponJournal.Enabled
                 && personal.ControlJournal.Enabled && personal.Performance.Enabled, "all five report choices survive a restart after the reset");
+            string v1Path = Path.Combine(directory, "reports-v1.json");
+            priorPatch["ControlJournal"]!["Enabled"] = false;
+            priorPatch["TacticCounters"]!["Enabled"] = false;
+            File.WriteAllText(v1Path, priorPatch.ToJsonString());
+            File.WriteAllText(v1Path + ConfigStore.ReportDefaultsReceipt, "");
+            var v1Store = new ConfigStore(v1Path);
+            var v2 = v1Store.Read();
+            Check(v2.RecordCombatJournal() && v2.RecordControlJournal() && v2.RecordTacticCounters() && v2.RecordWeaponJournal()
+                && v2.Performance.Enabled && !v2.QuietLogging && v2.Revision == 43, "v1 upgrades all RR reports without resetting earlier performance or quiet choices");
+            var v2Editor = new ConfigEditor(v2);
+            Check(v2Editor.Set(master, "false") && v2Editor.Set(v2Editor.Catalog.Fields["WeaponJournal.Enabled"], "false"),
+                "individual reports stay editable under the global switch");
+            v1Store.Save(v2Editor.Snapshot(), v2.Revision);
+            var paused = JsonConvert.DeserializeObject<CometConfig>(new ConfigStore(v1Path).ForGame())!;
+            Check(!paused.RecordCombatJournal() && !paused.RecordWeaponJournal() && !paused.RecordControlJournal() && !paused.RecordTacticCounters()
+                && paused.Performance.Enabled && !paused.QuietLogging && paused.CombatJournal.Enabled && !paused.WeaponJournal.Enabled,
+                "global OFF and individual choices survive a restart");
+            paused.ExtraRaidReviewInfo = true;
+            v1Store.Save(paused, paused.Revision);
+            var resumed = JsonConvert.DeserializeObject<CometConfig>(new ConfigStore(v1Path).ForGame())!;
+            Check(resumed.RecordCombatJournal() && !resumed.RecordWeaponJournal() && resumed.RecordControlJournal() && resumed.RecordTacticCounters()
+                && Directory.GetFiles(directory, "reports-v1.json.before-reports-*.bak").Length == 1,
+                "resuming preserves the selected reports without repeating the upgrade");
             string retryPath = Path.Combine(directory, "retry.json");
             var corrupt = priorPatch.DeepClone().AsObject();
             corrupt["Performance"]!["Enabled"] = "invalid";
@@ -302,7 +334,7 @@ static class QuietLoggingTests
             );
             var warnings = new List<string>();
             async Task<(string[] Decisions, string[] Reports, JObject[] Files)> Capture(
-                bool quiet, bool reportsOn = true, bool authority = true, bool countersOnly = false)
+                bool quiet, bool reportsOn = true, bool authority = true, bool countersOnly = false, bool extraInfo = true, bool receiver = true)
             {
                 string folder = Path.Combine(directory, Guid.NewGuid().ToString("N"));
                 var decisions = new List<string>();
@@ -315,9 +347,9 @@ static class QuietLoggingTests
                 Comet.Api.Decisions.SummaryPublished += summary;
                 try
                 {
-                    var journal = new Diagnostics(folder, "raid", warnings.Add, 2048);
+                    var journal = new Diagnostics(folder, "raid", warnings.Add, 2048, reportReceiverAvailable: receiver);
                     journal.ConfigureLogging(quiet, 44, "raid");
-                    var settings = new CometConfig { QuietLogging = quiet, Revision = 44 };
+                    var settings = new CometConfig { QuietLogging = quiet, Revision = 44, ExtraRaidReviewInfo = extraInfo, RaidReportReceiverAvailable = receiver };
                     settings.CombatJournal.Enabled = settings.WeaponJournal.Enabled = settings.ControlJournal.Enabled = reportsOn;
                     settings.TacticCounters.Enabled = reportsOn || countersOnly;
                     journal.ConfigureSnapshot(settings, "raid");
@@ -363,6 +395,29 @@ static class QuietLoggingTests
                 Check(summaries.Length == 4 && summaries.All(r => (bool?)r?["enabled"] == false && (bool?)r?["sawCleanup"] == true),
                     "disabled reports still receive cleanup and tell RR that collection was off");
             }
+            foreach (var plugins in new[] { Array.Empty<string>(), new[] { "ekky.raidreview" }, new[] { "com.fums.satellite" }, new[] { "ekky.raidreview", "com.fums.satellite" }, new[] { "com.fika.core" } })
+            {
+                bool present = CometConfig.HasRaidReportReceiver(plugins.Contains);
+                var settings = new CometConfig { RaidReportReceiverAvailable = present };
+                bool expected = plugins.Contains("ekky.raidreview") || plugins.Contains("com.fums.satellite");
+                Check(settings.RecordCombatJournal() == expected && settings.RecordWeaponJournal() == expected
+                    && settings.RecordControlJournal() == expected && settings.RecordTacticCounters() == expected
+                    && settings.ExtraRaidReviewInfo, "loaded consumer enables all four observers without changing preferences");
+            }
+            foreach (bool silence in new[] { true, false })
+            {
+                var absent = await Capture(silence, receiver: false);
+                var footer = absent.Files.Single(e => (string?)e["stage"] == "diagnostics-end");
+                Check(absent.Reports.Length == 0 && absent.Decisions.SequenceEqual(full.Decisions)
+                    && (int?)footer["summaryReader"]?["parsedEvents"] == 0
+                    && !absent.Files.Any(e => (string?)e["stage"] == "summary")
+                    && absent.Files.Any(e => (string?)e["reason"] == "fault-test"),
+                    "without either plugin no reporting events are parsed and no empty reports are written; essential logs remain");
+            }
+            var masterOff = await Capture(true, extraInfo: false);
+            var switchedOff = masterOff.Reports.Select(JObject.Parse).Select(e => e["tacticCounters"] ?? e["journalReport"]).ToArray();
+            Check(switchedOff.Length == 4 && switchedOff.All(r => (bool?)r?["enabled"] == false && (bool?)r?["sawCleanup"] == true)
+                && masterOff.Decisions.SequenceEqual(quiet.Decisions), "master OFF disables every detailed report while retaining the complete ordinary replay stream");
             var countersOnly = await Capture(true, reportsOn: false, countersOnly: true);
             Check(countersOnly.Reports.Select(JObject.Parse).Any(e => e["tacticCounters"]?["rows"]?.Any() == true),
                 "one active report keeps receiving ordinary events in quiet mode");

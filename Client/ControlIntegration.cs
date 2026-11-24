@@ -275,7 +275,7 @@ public sealed partial class Plugin
                     : s.Decision,
                 reason
             );
-            if (config?.ControlJournal.Enabled == true)
+            if (config?.RecordControlJournal() == true)
                 (watch.Journal ??= new()).Release(reason);
             if (trace != null)
                 RecordControl(s, trace);

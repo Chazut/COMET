@@ -49,6 +49,7 @@ public sealed partial class Plugin : BaseUnityPlugin
 
     private bool RoleDisabled(BotComponent bot) => BotEligibility.RoleDisabled(bot.Player, config!);
     private Diagnostics? diagnostics;
+    private bool raidReportReceiverAvailable;
     private string session = "";
     private long sequence;
     private float nextSweep;
@@ -390,19 +391,21 @@ public sealed partial class Plugin : BaseUnityPlugin
                 sequence = 0;
                 Api.Decisions.RaidSession = session;
                 Api.Decisions.RaidClosed = false;
+                raidReportReceiverAvailable = CometConfig.HasRaidReportReceiver(Chainloader.PluginInfos.ContainsKey);
                 var log = Logger; // Writer holds the logger, never the Plugin/world.
                 try
                 {
                     diagnostics = new Diagnostics(
                         Path.Combine(BepInEx.Paths.PluginPath, "..", "COMET", "diagnostics"),
                         session,
-                        text => log.LogWarning(text)
+                        text => log.LogWarning(text),
+                        reportReceiverAvailable: raidReportReceiverAvailable
                     );
                 }
                 catch (Exception ex)
                 {
                     Logger.LogError(
-                        "COMET cannot open diagnostic file; RR events remain available. "
+                        "COMET cannot open its diagnostic file. The Raid Review / Satellite event stream is still available. "
                             + ex.Message
                     );
                 }
@@ -449,12 +452,15 @@ public sealed partial class Plugin : BaseUnityPlugin
                 diagnostics?.ConfigureSnapshot(loaded, session);
             if (loaded != null)
             {
+                loaded.RaidReportReceiverAvailable = raidReportReceiverAvailable;
                 config = loaded;
                 diagnostics?.ConfigureRaidReports(config, Authority, session);
                 Logger.LogInfo(
                     "COMET raid config revision " + config.Revision + ", enabled=" + config.Enabled
                     + ", PMCs=" + config.EnablePmcs + ", AI player scavs=" + config.EnableAiPlayerScavs
                     + ", light-based detection=" + config.LightBasedDetection
+                    + ", extra Raid Review / Satellite info=" + (config.ExtraRaidReviewInfo && raidReportReceiverAvailable)
+                    + ", reporting plugin detected=" + raidReportReceiverAvailable
                 );
                 ReportDifficultyPreset();
             }
@@ -483,9 +489,9 @@ public sealed partial class Plugin : BaseUnityPlugin
             foreach (var pair in states)
             {
                 SampleDecisionExecution(pair.Key, pair.Value);
-                if (config.CombatJournal.Enabled || config.WeaponJournal.Enabled)
+                if (config.RecordCombatJournal() || config.RecordWeaponJournal())
                     SampleCombatJournal(pair.Key, pair.Value);
-                if (config.TacticCounters.Enabled)
+                if (config.RecordTacticCounters())
                     SampleCounterExecution(pair.Key, pair.Value);
                 SampleOutcome(pair.Key, pair.Value);
                 SampleEncounter(pair.Key, pair.Value);

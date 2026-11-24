@@ -21,11 +21,11 @@ deleted. They can prevent reaching the storage limit.
 
 ORBIT now records exact raid membership for its diagnostic captures. Older captures
 are grouped only when their journal time window is unambiguous; otherwise they
-stay untouched. The last-raid debug export and Raid Review data remain available.
+stay untouched. The last-raid debug export and the event stream used by Raid Review and Satellite remain available.
 
 Cleanup runs in a background worker outside raids, after startup or a return to
 the menu. A new raid interrupts compression. Active writers are skipped and the
-next pass retries. Quiet logging, performance capture and the RR stream are unchanged.
+next pass retries. Quiet logging, performance capture and the Raid Review / Satellite event stream are unchanged.
 To inspect an archived raid, extract its ZIP to a separate working folder.
 
 `Tests/StorageHarness` exercises the production file operations and BepInEx settings.

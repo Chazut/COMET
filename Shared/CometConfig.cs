@@ -35,6 +35,18 @@ public sealed class CometConfig
     public const bool DefaultQuietLogging = true;
     public string BehaviorBaseline { get; set; } = SourceBaseline;
     public bool QuietLogging { get; set; } = DefaultQuietLogging;
+    public bool ExtraRaidReviewInfo { get; set; } = true;
+    // Per-raid client state. The editor and exported presets keep the user's preference.
+    internal bool RaidReportReceiverAvailable = true;
+    internal static bool HasRaidReportReceiver(Func<string, bool> isLoaded) =>
+        isLoaded("ekky.raidreview") || isLoaded("com.fums.satellite");
+
+    private bool RecordExtraReports => ExtraRaidReviewInfo && RaidReportReceiverAvailable;
+    public bool RecordCombatJournal() => RecordExtraReports && CombatJournal.Enabled;
+    public bool RecordWeaponJournal() => RecordExtraReports && WeaponJournal.Enabled;
+    public bool RecordControlJournal() => RecordExtraReports && ControlJournal.Enabled;
+    public bool RecordTacticCounters() => RecordExtraReports && TacticCounters.Enabled;
+
     public PerformanceConfig Performance { get; set; } = new();
     public CombatJournalConfig CombatJournal { get; set; } = new();
     public ControlJournalConfig ControlJournal { get; set; } = new();

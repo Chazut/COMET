@@ -2,7 +2,7 @@ namespace Comet.Core;
 
 public sealed class TacticCountersConfig
 {
-    public bool Enabled { get; set; }
+    public bool Enabled { get; set; } = true;
     public int MaxOpportunities { get; set; } = 16384;
 
     public void Validate() =>

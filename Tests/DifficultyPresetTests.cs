@@ -203,7 +203,7 @@ internal static class DifficultyPresetTests
                 File.WriteAllText(path, oldJson);
                 var updated = JsonSerializer.Deserialize<CometConfig>(store.ForGame())!;
                 Check(updated.GrenadeContactLifetime == 20 && updated.GrenadeTrajectory.Distance == 45
-                    && updated.DifficultyPreset == level && DifficultyPresets.Describe(updated).ChangedSettings == 3
+                    && updated.DifficultyPreset == level && !DifficultyPresets.Describe(updated).Customized
                     && updated.CombatJournal.Enabled && updated.WeaponJournal.Enabled && updated.ControlJournal.Enabled && updated.TacticCounters.Enabled,
                     $"the stock {level} config reaches the client with the new grenade defaults");
                 int backupsBeforeRead = Directory.GetFiles(dir, "*.before-zzap-*.bak").Length;

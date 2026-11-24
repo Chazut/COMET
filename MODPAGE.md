@@ -57,7 +57,7 @@ These tactics apply to **PMCs and AI player scavs**, including fights between bo
 **Settings, replays & reliability**
 
 - Separate COMET difficulty presets, per-tactic settings and a web editor to save, import or share personal presets. COMET respects your SAIN preset and hands control back when its tactics finish.
-- Fika support, ORBIT Ghost Mode and Questing Bots sleep handoffs, Raid Review squad and action events, and live action labels with HORIZON.
+- Fika support, ORBIT Ghost Mode and Questing Bots sleep handoffs, squad and action events for Raid Review and Satellite, and live action labels with HORIZON.
 - Recovery for stuck hands, stale reloads, cover searches and failed plans. SAIN fixes cover sight checks, grenade paths, surgery, recoil and animation timing. Per-bot recovery handles interrupted actions, downing, revives and raid cleanup.
 
 ### How PMCs fight
@@ -113,13 +113,17 @@ These tactics apply to **PMCs and AI player scavs**, including fights between bo
 - **[ORBIT](https://sp-mod.com/mod/2706/orbit-30), [Questing Bots](https://sp-mod.com/mod/1109/questing-bots) and [Looting Bots](https://sp-mod.com/mod/812/looting-bots).** These are optional. Your usual mods still handle travel, quests and loot. COMET yields when ORBIT puts a bot in Ghost Mode or Questing Bots puts it to sleep.
 - **[Winter Outbreak](https://sp-mod.com/mod/3392/winter-outbreak).** COMET keeps the seasonal footstep sounds.
 - **[Manimal's CS Gas](https://sp-mod.com/mod/2864/manimals-cs-gas) 2.0.0 or 2.0.1.** Time spent in a gas cloud and the protection a bot is wearing affect its vision.
-- **[Raid Review](https://sp-mod.com/mod/1479/raid-review) and [HORIZON](https://sp-mod.com/mod/3362/horizon).** Raid Review shows squad roles, cover changes and magazine pickups in the replay. HORIZON's Bot Info shows each bot's current action live after you die.
+- **[Raid Review](https://sp-mod.com/mod/1479/raid-review), [Satellite](https://sp-mod.com/mod/3373/satellite) and [HORIZON](https://sp-mod.com/mod/3362/horizon).** Raid Review shows squad roles, cover changes and magazine pickups in the replay. Satellite shows COMET actions and squad tactics live on its map. Raid replay is planned for a future Satellite update. HORIZON's Bot Info shows each bot's current action live after you die.
 
 ### FAQ
 
 **Will COMET cost me FPS?**
 
 Keeping the impact on FPS as low as possible is a top priority. COMET spreads work across frames to limit stutters. The extra AI still takes some CPU time, so the impact depends on your setup and how many bots are fighting.
+
+**Do I need Raid Review or Satellite?**
+
+COMET works on its own. **Extra Raid Review / Satellite info** is on by default and automatically pauses when neither mod is loaded on the AI host. Raid Review offers post-raid replay. Satellite shows bot actions and squad tactics live, with replay planned for a future update.
 
 **Can I keep my SAIN preset?**
 

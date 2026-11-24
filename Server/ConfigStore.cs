@@ -12,12 +12,14 @@ public sealed class ConfigStore
     private const string QuietDefaultApplied = "QuietLoggingDefaultApplied";
     // A per-install receipt survives saving a preset or briefly running the previous server.
     internal const string ReportDefaultsReceipt = ".report-defaults-v1.applied";
-    private static readonly (string Section, bool Enabled)[] ReportDefaultsV1 =
+    // The original receipt was empty. Keep its path so older builds also honor user choices.
+    private const int ReportDefaultsVersion = 2;
+    private static readonly (string Section, bool Enabled)[] ReportDefaults =
     [
         (nameof(CometConfig.CombatJournal), true),
-        (nameof(CometConfig.WeaponJournal), false),
-        (nameof(CometConfig.ControlJournal), false),
-        (nameof(CometConfig.TacticCounters), false),
+        (nameof(CometConfig.WeaponJournal), true),
+        (nameof(CometConfig.ControlJournal), true),
+        (nameof(CometConfig.TacticCounters), true),
         (nameof(CometConfig.Performance), false),
     ];
     private readonly object gate = new();
@@ -69,9 +71,12 @@ public sealed class ConfigStore
                 document[quietKey] = true;
                 document[markerKey] = true;
             }
-            bool migrateReports = !File.Exists(path + ReportDefaultsReceipt);
+            string receipt = path + ReportDefaultsReceipt;
+            bool firstReportMigration = !File.Exists(receipt);
+            bool migrateReports = firstReportMigration
+                || !int.TryParse(File.ReadAllText(receipt), out int version) || version < ReportDefaultsVersion;
             if (migrateReports)
-                settingsChanged |= ApplyReportDefaults(document);
+                settingsChanged |= ApplyReportDefaults(document, firstReportMigration);
             if (settingsChanged)
             {
                 config = ReadValidated(document);
@@ -124,13 +129,17 @@ public sealed class ConfigStore
         }
     }
 
-    private static bool ApplyReportDefaults(JsonObject document)
+    private static bool ApplyReportDefaults(JsonObject document, bool firstReportMigration)
     {
-        bool changed = false;
-        foreach (var (name, enabled) in ReportDefaultsV1)
+        string master = SourceBaselineMigration.Key(document, nameof(CometConfig.ExtraRaidReviewInfo));
+        bool changed = document[master]?.GetValue<bool>() != true;
+        document[master] = true;
+        foreach (var (name, enabled) in ReportDefaults)
         {
+            if (name == nameof(CometConfig.Performance) && !firstReportMigration)
+                continue;
             string key = SourceBaselineMigration.Key(document, name);
-            if (!document.ContainsKey(key))
+            if (document[key] == null)
                 document[key] = new JsonObject();
             var section = document[key] as JsonObject
                 ?? throw new InvalidDataException($"Invalid COMET configuration section '{key}'.");
@@ -146,7 +155,17 @@ public sealed class ConfigStore
     private void MarkReportDefaultsApplied()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        using var receipt = File.Open(path + ReportDefaultsReceipt, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read);
+        string receipt = path + ReportDefaultsReceipt;
+        string temp = receipt + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllText(temp, ReportDefaultsVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            File.Move(temp, receipt, true);
+        }
+        finally
+        {
+            File.Delete(temp);
+        }
     }
 
     private void Write(JsonObject document, string backup)

@@ -386,6 +386,7 @@ namespace Comet.Client
     {
         public bool Enabled = true;
         public JournalSettings CombatJournal = new();
+        public bool RecordCombatJournal() => CombatJournal.Enabled;
     }
 
     public sealed class JournalSettings

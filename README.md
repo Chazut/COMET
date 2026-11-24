@@ -64,7 +64,7 @@ These tactics apply to **PMCs and AI player scavs**, including fights between bo
 **Settings, replays & reliability**
 
 - Separate COMET difficulty presets, per-tactic settings and a web editor to save, import or share personal presets. COMET respects your SAIN preset and hands control back when its tactics finish.
-- Fika support, ORBIT Ghost Mode and Questing Bots sleep handoffs, Raid Review squad and action events, and live action labels with HORIZON.
+- Fika support, ORBIT Ghost Mode and Questing Bots sleep handoffs, squad and action events for Raid Review and Satellite, and live action labels with HORIZON.
 - Recovery for stuck hands, stale reloads, cover searches and failed plans. SAIN fixes cover sight checks, grenade paths, surgery, recoil and animation timing. Per-bot recovery handles interrupted actions, downing, revives and raid cleanup.
 
 ## How PMCs fight
@@ -121,7 +121,7 @@ These tactics apply to **PMCs and AI player scavs**, including fights between bo
 - **[ORBIT](https://sp-mod.com/mod/2706/orbit-30), [Questing Bots](https://sp-mod.com/mod/1109/questing-bots) and [Looting Bots](https://sp-mod.com/mod/812/looting-bots).** These are optional. Your usual mods still handle travel, quests and loot. COMET yields when ORBIT puts a bot in Ghost Mode or Questing Bots puts it to sleep.
 - **[Winter Outbreak](https://sp-mod.com/mod/3392/winter-outbreak).** COMET keeps the seasonal footstep sounds.
 - **[Manimal's CS Gas](https://sp-mod.com/mod/2864/manimals-cs-gas) 2.0.0 or 2.0.1.** Time spent in a gas cloud and the protection a bot is wearing affect its vision.
-- **[Raid Review](https://sp-mod.com/mod/1479/raid-review) and [HORIZON](https://sp-mod.com/mod/3362/horizon).** Raid Review shows squad roles, cover changes and magazine pickups in the replay. HORIZON's Bot Info shows each bot's current action live after you die.
+- **[Raid Review](https://sp-mod.com/mod/1479/raid-review), [Satellite](https://sp-mod.com/mod/3373/satellite) and [HORIZON](https://sp-mod.com/mod/3362/horizon).** Raid Review shows squad roles, cover changes and magazine pickups in the replay. Satellite shows COMET actions and squad tactics live on its map. Raid replay is planned for a future Satellite update. HORIZON's Bot Info shows each bot's current action live after you die.
 
 ## FAQ
 
@@ -139,7 +139,7 @@ In SAIN's F6 menu, I recommend turning all three AI vs AI limits **OFF** (Global
 
 **Which diagnostics should I enable?**
 
-**Combat journal** is on by default so Raid Review can show contacts, damage and time spent on each action. You can turn it off and still replay the raid, including squad tactics and magazine pickups. The other four options are off by default. Enable **Decision counters** for tactic statistics, or **Weapon changes and loops**, **Control transitions** or **Performance capture** to investigate a specific issue. Changes apply next raid.
+**Extra Raid Review / Satellite info** and all four reports are on by default. COMET collects combat, weapon, control and tactical decision data when either plugin is loaded on the AI host. Turn off individual reports or pause all four with the global switch. Your selections are saved. Raid Review displays the reports in its replay. Satellite shows bot actions and squad tactics live, with replay planned for a future update. **Quiet logging** is on by default and **Performance capture** is off. Changes apply next raid.
 
 On upgrade, COMET applies these five settings once and backs up the previous config if it changes. You can then switch any of them on or off for future raids.
 
@@ -159,7 +159,7 @@ And if you're here looking for SLOP... well, I did leave some in there for you t
 
 ## Support
 
-**Found a bug?** Open a report in the **Issues** tab on Forge or on [GitHub](https://github.com/Chazut/COMET/issues). Include the map, bot name and approximate raid time. For detailed logs, turn off **Diagnostics > Quiet logging** before the raid and attach the files from `BepInEx/COMET/diagnostics`. With Fika, use the AI host's logs. Quiet mode still allows Raid Review events.
+**Found a bug?** Open a report in the **Issues** tab on Forge or on [GitHub](https://github.com/Chazut/COMET/issues). Include the map, bot name and approximate raid time. For detailed logs, turn off **Diagnostics > Quiet logging** before the raid and attach the files from `BepInEx/COMET/diagnostics`. With Fika, use the AI host's logs. Quiet mode still allows events for Raid Review and Satellite.
 
 Local storage keeps the latest 20 raids by default and archives older logs within a 5 GB budget. You can adjust this under **F12 > COMET > Diagnostics storage**. [Storage details](DIAGNOSTIC_STORAGE.md)
 

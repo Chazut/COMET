@@ -256,6 +256,7 @@ namespace Comet.Client
     {
         internal bool Enabled = true;
         internal int Revision = 42;
+        internal bool RecordControlJournal() => ControlJournal.Enabled;
         internal ControlJournalConfig ControlJournal = new() { Enabled = false };
     }
 

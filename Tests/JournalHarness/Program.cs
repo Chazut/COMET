@@ -37,7 +37,15 @@ JObject[] Events() => Comet.Api.Decisions.Events.Select(JObject.Parse).ToArray()
 string? WeaponState(JObject x) => (string?)(x["weaponJournal"] as JObject)?["change"]?["state"];
 string? CombatKind(JObject x) => (string?)(x["combatJournal"] as JObject)?["kind"];
 var bot = Bot("pmc");
-p.config!.CombatJournal.Enabled = false;
+p.config!.RaidReportReceiverAvailable = false;
+p.Track(bot);
+Check(p.states.Count == 0, "no RR or Satellite means no journal-only bot enrollment");
+p.config.RaidReportReceiverAvailable = true;
+p.config.ExtraRaidReviewInfo = false;
+p.Track(bot);
+Check(p.states.Count == 0, "the global switch skips journal-only bot enrollment");
+p.config.ExtraRaidReviewInfo = true;
+p.config.CombatJournal.Enabled = p.config.WeaponJournal.Enabled = p.config.ControlJournal.Enabled = false;
 p.Track(bot);
 Check(p.states.Count == 0, "disabled journals do not enroll bots for diagnostics");
 p.config!.ControlJournal.Enabled = true;

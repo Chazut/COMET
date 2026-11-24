@@ -128,6 +128,7 @@ internal static class SourceBaselineMigration
             nameof(CometConfig.EnableAiPlayerScavs),
             nameof(CometConfig.LightBasedDetection),
             "QuietLogging",
+            nameof(CometConfig.ExtraRaidReviewInfo),
             "Performance",
             "CombatJournal",
             "ControlJournal",
