@@ -659,6 +659,13 @@ class ArchiveTests(unittest.TestCase):
         ).fetchone()
         self.assertTrue(json.loads(r[0])["partial"])
 
+    def test_rr_storage_tables_are_private_and_decision_view_is_discoverable(self):
+        from collector import table_names
+        with sqlite3.connect(":memory:") as rr:
+            rr.executescript("CREATE TABLE comet_decision_row(id); CREATE TABLE comet_config_block(id);"
+                             "CREATE VIEW comet_decision AS SELECT id FROM comet_decision_row;")
+            self.assertEqual(table_names(rr), ["comet_decision"])
+
     def test_rr_wal_snapshot_and_exact_mapping(self):
         folder = self.game / "SPT_Runtime/user/mods/RaidReview/data"
         folder.mkdir(parents=True)

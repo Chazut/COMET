@@ -107,7 +107,9 @@ def table_names(c):
     return [
         r[0]
         for r in c.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            "SELECT name FROM sqlite_master WHERE "
+            "(type='table' OR (type='view' AND name='comet_decision')) "
+            "AND name NOT LIKE 'sqlite_%' AND name NOT IN ('comet_decision_row','comet_config_block')"
         )
         if re.fullmatch(r"\w+", r[0])
     ]

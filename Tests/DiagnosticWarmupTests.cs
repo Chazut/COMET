@@ -418,6 +418,25 @@ internal static class DiagnosticWarmupTests
         Console.WriteLine(
             $"Diagnostic metadata: {report.Contracts} contracts, {report.Failed} unavailable, {report.Milliseconds:F1} ms at startup"
         );
+        var section = new Comet.Core.WeaponRangeConfig();
+        string Block(long rev) => Diagnostics.Serialize(new { configRevision = rev, weaponRangeConfig = section });
+        void CheckBlock(long rev)
+        {
+            var expected = Diagnostics.Serialize(section);
+            Check(Block(rev) == "{\"configRevision\":" + rev + ",\"weaponRangeConfig\":" + expected + "}",
+                "cached config keeps exact JSON");
+        }
+        var probe = new Comet.Core.SnapshotProbeConfig();
+        string Probe(long rev) => Diagnostics.Serialize(new { configRevision = rev, probeConfig = probe });
+        Check(Probe(1) == Probe(1) && probe.Reads == 1, "a repeated config block is serialized only once");
+        Probe(2);
+        Check(probe.Reads == 2, "a revision change snapshots the section again");
+        CheckBlock(1);
+        CheckBlock(1);
+        section.Enabled = !section.Enabled;
+        CheckBlock(2);
+        section = new Comet.Core.WeaponRangeConfig();
+        CheckBlock(2);
         return n;
     }
 
@@ -444,6 +463,15 @@ internal static class DiagnosticWarmupTests
     private sealed class ReentrantPayload
     {
         public string Value => Diagnostics.Serialize(new { nested = true });
+    }
+}
+
+namespace Comet.Core
+{
+    internal sealed class SnapshotProbeConfig
+    {
+        internal int Reads;
+        public int Value { get { Reads++; return 42; } }
     }
 }
 

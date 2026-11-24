@@ -308,6 +308,42 @@ namespace Comet.Client
     {
         internal int WritersPrepared { get; private set; }
 
+        // Raid settings are published as a validated snapshot. Live settings changes
+        // replace the section object or advance the revision. Never cache bot state.
+        private sealed class CachedSection
+        {
+            internal long Revision;
+            internal string? Json;
+        }
+
+        private static readonly ConditionalWeakTable<object, CachedSection> Sections = new();
+
+        public static void WriteConfigSection(JsonWriter writer, object? section, long revision, JsonSerializer serializer)
+        {
+            if (section == null || writer.Formatting != Formatting.None || revision <= 0)
+            {
+                serializer.Serialize(writer, section);
+                return;
+            }
+
+            var entry = Sections.GetValue(section, _ => new CachedSection());
+            string json;
+            lock (entry)
+            {
+                if (entry.Json == null || entry.Revision != revision)
+                {
+                    using var text = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
+                    using var nested = new JsonTextWriter(text);
+                    serializer.Serialize(nested, section);
+                    nested.Flush();
+                    entry.Json = text.ToString();
+                    entry.Revision = revision;
+                }
+                json = entry.Json;
+            }
+            writer.WriteRawValue(json);
+        }
+
         protected override JsonObjectContract CreateObjectContract(Type type)
         {
             var contract = base.CreateObjectContract(type);
@@ -403,6 +439,14 @@ namespace Comet.Client
                                     writer,
                                     Expression.Convert(memberValue, typeof(object))
                                 );
+                        var revision = type.GetProperty("configRevision");
+                        if (revision?.PropertyType == typeof(long)
+                            && type.IsDefined(typeof(CompilerGeneratedAttribute), false)
+                            && property.PropertyName!.EndsWith("Config", StringComparison.Ordinal)
+                            && member.Type.Namespace == "Comet.Core" && member.Type.Name.EndsWith("Config", StringComparison.Ordinal))
+                            writeLocal = Expression.Call(typeof(SnapshotDiagnosticResolver), nameof(WriteConfigSection),
+                                Type.EmptyTypes, writer, Expression.Convert(memberValue, typeof(object)),
+                                Expression.Property(target, revision), serializer);
                         propertyWrite = Expression.Block(
                             new[] { memberValue },
                             Expression.Assign(memberValue, member),
