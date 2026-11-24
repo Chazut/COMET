@@ -97,13 +97,21 @@ public sealed partial class Plugin
     private bool SelectGrenadeEscape(GrenadeReactionClass native)
     {
         var b = native.Bot;
+        states.TryGetValue(b, out var existing);
+        // With no native or own danger and no pending reaction, the original
+        // result already matches G05. Keep the normal transition/cleanup path
+        // for every bot that has actually handled a grenade.
+        if (native.EnemyGrenadesList.Count == 0 && native.DangerGrenade == null &&
+            native.Reaction == EGrenadeReaction.None && ownProjectiles.Count == 0 &&
+            (existing == null || existing.GrenadeEscape.Next == 0 && !existing.GrenadeEscape.NativeReported))
+            return false;
         if (!EscapeScope(b))
         {
-            if (states.TryGetValue(b, out var old))
-                DropGrenadeEscape(b, old, "grenade-out-of-scope");
+            if (existing != null)
+                DropGrenadeEscape(b, existing, "grenade-out-of-scope");
             return false;
         }
-        var s = GrenadeState(b);
+        var s = existing ?? GrenadeState(b);
         var r = s.GrenadeEscape;
         if (r.Fault)
             return false;
@@ -265,15 +273,12 @@ public sealed partial class Plugin
             }
             r.Handled = r.Selected != null && r.Hazard != null;
             RecordNativeGrenadeTransition(b, s, native);
-            ownDangerSetter.Invoke(native, new object?[] { r.Selected });
+            if (!ReferenceEquals(native.DangerGrenade, r.Selected))
+                ownDangerSetter.Invoke(native, new object?[] { r.Selected });
             // Tactical movement is supplied in AvoidGrenadeAction. Native safety selection stays non-aggressive.
-            ownReactionSetter.Invoke(
-                native,
-                new object[]
-                {
-                    r.Selected == null ? EGrenadeReaction.None : EGrenadeReaction.Scatter,
-                }
-            );
+            var reaction = r.Selected == null ? EGrenadeReaction.None : EGrenadeReaction.Scatter;
+            if (native.Reaction != reaction)
+                ownReactionSetter.Invoke(native, new object[] { reaction });
             return true;
         }
         catch (Exception ex)

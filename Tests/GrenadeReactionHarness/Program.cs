@@ -15,6 +15,10 @@ void C(bool value, string why)
     if (!value)
         throw new Exception("G05 adapter: " + why);
 }
+var idlePlugin = new Plugin();
+var idleBot = new BotComponent();
+for (int i = 0; i < 200; i++) idlePlugin.Tick(idleBot);
+C(!idlePlugin.states.ContainsKey(idleBot), "G04/G05 leave an idle bot unallocated");
 var streams = new List<string>();
 (Plugin, BotComponent, GrenadeTrackerClass) Setup(
     string personality = "Normal",

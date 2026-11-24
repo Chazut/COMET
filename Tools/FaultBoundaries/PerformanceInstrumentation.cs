@@ -72,10 +72,15 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
             || File == "Diagnostics" && name == "Serialize";
         bool hearingPhase = File == "MovementHearingAdapter" && name is
             "PruneMovementHearing" or "SnapshotMovementRecipients" or "DeliverMovementSound" or "FlushMovementSummary";
+        bool combatPhase = File == "OwnGrenadeSafetyAdapter" && name is "SampleOwnProjectiles" or "RefreshOwnSafety"
+            || File == "CombatStepAdapter" && name is "CombatStepFrame" or "RefreshCombatStep" or "CombatStepSafety"
+            || File == "ReloadTimingAdapter" && name is "ReloadFrame" or "ReloadResources" or "SourceReloadNow"
+            || File == "GasExposureAdapter" && name == "FilterNativeGas"
+            || File == "GrenadeReactionAdapter" && name == "SelectGrenadeEscape";
         bool smoothing = File == "NativeTimingAdapter" && name == "SmoothingElapsed";
         bool nativeSummary = File == "LiquidwarpFixesAdapter" && name == "FlushNativeFixes";
         if (
-            !hearingPhase && !smoothing && !nativeSummary
+            !hearingPhase && !combatPhase && !smoothing && !nativeSummary
             && !body.Contains("Plugin.EnterFault(")
             && !telemetry
             && !diagnostic
@@ -95,7 +100,7 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
             module = "DecisionCoordinator." + name;
         if (evidence)
             module = "DecisionEvidence." + File.Replace("Adapter", "") + "." + name;
-        if (File is "MovementHearingAdapter" or "LiquidwarpFixesAdapter" or "NativeTimingAdapter" or "ReloadInventoryAdapter")
+        if (combatPhase || File is "MovementHearingAdapter" or "LiquidwarpFixesAdapter" or "NativeTimingAdapter" or "ReloadInventoryAdapter" or "ReloadTimingAdapter" or "OwnGrenadeSafetyAdapter" or "CombatStepAdapter")
             module += "." + (smoothing ? "PoseStep" : name);
         int id = ModuleId(module);
         string scopeId = smoothing

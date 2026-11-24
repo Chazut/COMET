@@ -141,6 +141,8 @@ public sealed partial class Plugin
 
     private void FilterNativeGas(GrenadeReactionClass native)
     {
+        if (native.EnemyGrenadesList.Count == 0 && native.DangerGrenade == null && native.Reaction == EGrenadeReaction.None)
+            return;
         if (!GasScope(native.Bot))
             return;
         try

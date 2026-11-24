@@ -132,6 +132,7 @@ public sealed partial class Plugin
                 p.RefreshCornerPeek(b, s, true);
                 return !s.CornerPeek.Policy.Active;
             }
+            CombatStepFrame? initialFrame = null;
             if (!r.Policy.Active)
             {
                 if (
@@ -143,7 +144,7 @@ public sealed partial class Plugin
                     || p.Ghost(b.ProfileId)
                 )
                     return true;
-                var f = p.CombatStepFrame(b, s);
+                var f = initialFrame = p.CombatStepFrame(b, s);
                 if (
                     !r.Policy.Begin(
                         f,
@@ -181,7 +182,7 @@ public sealed partial class Plugin
                 );
                 p.RecordFirePause(s);
             }
-            p.RefreshCombatStep(b, s, true);
+            p.RefreshCombatStep(b, s, true, initialFrame);
             return !r.Policy.Active;
         }
         catch (Exception ex)
@@ -341,7 +342,7 @@ public sealed partial class Plugin
         return f;
     }
 
-    private void RefreshCombatStep(BotComponent b, BotState s, bool mayPlan)
+    private void RefreshCombatStep(BotComponent b, BotState s, bool mayPlan, CombatStepFrame? initialFrame = null)
     {
         var r = s.CombatStep;
         if (!r.Policy.Active)
@@ -351,7 +352,7 @@ public sealed partial class Plugin
             EndCombatStep(s, "movement-bot-ended");
             return;
         }
-        var f = CombatStepFrame(b, s);
+        var f = initialFrame ?? CombatStepFrame(b, s);
         if (b.GoalEnemy == null || b.GoalEnemy.EnemyProfileId != r.Policy.Trace!.Target)
         {
             EndCombatStep(s, "movement-contact-instance-changed");
