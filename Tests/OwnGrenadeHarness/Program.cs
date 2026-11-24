@@ -30,6 +30,37 @@ Grenade G(int id, float x)
     g.transform.position = new(x, 0, 0);
     return g;
 }
+var cold = new BotComponent { ProfileId = "cold" };
+p.Register(cold);
+for (int i = 0; i < 200; i++) p.Tick(ally);
+C(!p.states.ContainsKey(cold) && p.Dispatcher.Listeners == 0, "idle updates do not bind events");
+var firstThrow = G(-8, 2);
+firstThrow.ProfileId = cold.ProfileId;
+p.Authority = false;
+p.Throw(firstThrow);
+C(p.Count == 0 && p.Dispatcher.Listeners == 0, "Fika guest does not track throws");
+p.Authority = true;
+p.Throw(firstThrow);
+C(p.Count == 1 && p.states.ContainsKey(cold) && p.Threat(cold, new(1,0,0)), "first throw before first owner tick registers immediate danger");
+Time.Set(.8f);
+p.Tick(cold);
+C(cold.Grenade.GrenadeReactionClass.Reaction == EGrenadeReaction.Scatter, "first throw causes scatter after departure grace");
+var retired = p.Dispatcher;
+p.Dispatcher = new();
+p.Throw(G(-9, 1));
+p.Throw(G(-10, 1));
+C(p.Count == 3 && retired.Listeners == 0 && p.Dispatcher.Listeners == 1, "dispatcher replacement observes first event without duplicate subscriptions");
+p.Dispatcher.Explode(owner.ProfileId, -9);
+Time.Set(1f); // Expired projectiles are pruned on the next sampling tick.
+p.Tick(owner);
+C(p.Count == 2, "replacement forwards matching explosion");
+p.End();
+C(p.Dispatcher.Listeners == 0, "teardown detaches dispatcher");
+Time.Set(0);
+p = new Plugin();
+p.Add(owner);
+p.Add(ally);
+p.states[owner].OwnGrenade.Phased = true;
 var a = G(-1, 2);
 p.Throw(a);
 C(p.Count == 1, "own tracked");

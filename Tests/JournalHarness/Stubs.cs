@@ -8,6 +8,7 @@ namespace UnityEngine
 {
     public static class Time
     {
+        public static int frameCount;
         public static float time,
             realtimeSinceStartup;
     }
@@ -67,15 +68,18 @@ namespace EFT.InventoryLogic
 
     public class Slot
     {
+        public object Filters = new();
+        public string? RequiredCaliber;
         public Item? Item;
         public Item? ContainedItem => Item;
         public bool Accept = true;
 
-        public bool CanAccept(Item a) => Accept;
+        public bool CanAccept(Item a) => Accept && (RequiredCaliber == null || a is Ammo ammo && ammo.Caliber == RequiredCaliber);
     }
 
     public class Item
     {
+        public int StackObjectsCount = 30;
         public string Id = Guid.NewGuid().ToString("N"),
             ShortName = "Item",
             TemplateId = "template";
@@ -93,7 +97,13 @@ namespace EFT.InventoryLogic
         public Cartridges Cartridges = new();
         public bool AmmoCompatible = true;
 
-        public bool IsAmmoCompatible(Slot[] chambers) => Count == 0 || AmmoCompatible;
+        public int CompatibilityChecks;
+        public bool IsAmmoCompatible(Slot[] chambers)
+        {
+            CompatibilityChecks++;
+            return Count == 0 || Cartridges.Last == null || chambers.Length == 0 ||
+                AmmoCompatible && chambers.Any(c => c.CanAccept(Cartridges.Last));
+        }
 
         public int Count = 20,
             MaxCount = 20;
@@ -104,7 +114,6 @@ namespace EFT.InventoryLogic
     public class Ammo : Item
     {
         public string Caliber = "Caliber556x45NATO";
-        public int StackObjectsCount = 30;
 
         public Result CheckAction(object? o) => new();
     }
@@ -297,6 +306,8 @@ namespace EFT
 
     public class Owner
     {
+        public class TriggerData { public float LastTriggerPressd; }
+        public TriggerData ShootData = new();
         public Player GetPlayer = new();
         public Manager WeaponManager = new();
         public Memory Memory = new();
@@ -491,6 +502,8 @@ namespace Comet.Client
 
     public sealed partial class Plugin
     {
+        private sealed record OpeningAim(Weapon Weapon, OpeningShot Shot);
+        private readonly System.Runtime.CompilerServices.ConditionalWeakTable<SAIN.SAINComponent.Classes.EnemyClasses.Enemy, OpeningAim> openingShots = new();
         internal static Plugin? Instance;
         internal CometConfig? config = new();
         internal object? world = new();

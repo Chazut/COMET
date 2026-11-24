@@ -15,7 +15,7 @@ namespace Comet.Client;
 // One instance belongs to one authoritative raid. No bot is needed to discover scene-open doors.
 internal sealed class OpenLeafCarver
 {
-    private const float CheckInterval = 1f, DiscoveryTimeout = 60f, CutLifetime = 60f;
+    private const float CheckInterval = 1f, LateDiscovery = 60f, RetryInterval = 5f, CutLifetime = 60f;
     private const float ClearanceSquared = 2f * 2f, PathRangeSquared = 2.5f * 2.5f;
     private const int CutsPerCheck = 16;
     private readonly Dictionary<Door, List<NavMeshDoorLink>> linksByDoor = new();
@@ -29,7 +29,13 @@ internal sealed class OpenLeafCarver
     private readonly Action<string> log;
     private readonly float started;
     private float nextCheck;
-    private bool discovered;
+    private BotDoorsController? controller;
+    private List<NavMeshDoorLink>? source;
+    private readonly HashSet<NavMeshDoorLink> registered = new();
+    private readonly List<int> unresolved = new();
+    private int sourceCount;
+    private float nextDiscovery;
+    private bool waitingReported;
     private int activated, closed, repaths, deferredNearby, deferredReversed;
     internal bool HasCuts => cuts.Count != 0;
 
@@ -44,21 +50,10 @@ internal sealed class OpenLeafCarver
         if (now < nextCheck)
             return;
         nextCheck = now + CheckInterval;
-        if (!discovered)
-        {
-            if (now - started > DiscoveryTimeout)
-            {
-                discovered = true;
-                log("COMET open door leaves: no initialized door links within 60 seconds.");
-                return;
-            }
-            if (Singleton<IBotGame>.Instance == null)
-                return;
-            var links = BotDoorsController.CreateOrFind(false)?._navMeshDoorLinks;
-            if (links != null)
-                Register(links);
+        bool firstDiscovery = registered.Count == 0;
+        Discover(now);
+        if (firstDiscovery)
             return;
-        }
 
         foreach (var link in carved.Keys)
             if (link == null || link.Door == null || !Live(link.Door))
@@ -110,14 +105,47 @@ internal sealed class OpenLeafCarver
         }
     }
 
-    private void Register(List<NavMeshDoorLink> links)
+    private void Discover(float now)
     {
-        discovered = true;
-        int indexed = 0;
-        foreach (var link in links)
+        if (now < nextDiscovery)
+            return;
+        nextDiscovery = now + (now - started >= LateDiscovery || registered.Count != 0 ? RetryInterval : CheckInterval);
+        if (Singleton<IBotGame>.Instance != null)
         {
-            if (link == null || link.Door == null || link.Carver_Opened == null)
-                continue;
+            if (controller == null)
+                controller = UnityEngine.Object.FindObjectOfType<BotDoorsController>();
+            if (controller != null && controller._navMeshDoorLinks is { } links)
+            {
+                if (!ReferenceEquals(source, links) || links.Count < sourceCount)
+                {
+                    source = links;
+                    sourceCount = 0;
+                    unresolved.Clear();
+                }
+                int before = registered.Count;
+                for (int i = unresolved.Count - 1; i >= 0; i--)
+                    if (Register(links[unresolved[i]]))
+                        unresolved.RemoveAt(i);
+                for (; sourceCount < links.Count; sourceCount++)
+                    if (!Register(links[sourceCount]))
+                        unresolved.Add(sourceCount);
+                if (registered.Count != before)
+                    log($"COMET open door leaves: {registered.Count} links indexed, {linksByDoor.Count} doors, {waiting.Count} open links queued ({now - started:F0}s).");
+            }
+        }
+        if (registered.Count == 0 && !waitingReported && now - started >= LateDiscovery)
+        {
+            waitingReported = true;
+            log("COMET open door leaves: still waiting for initialized door links; retrying.");
+        }
+    }
+
+    private bool Register(NavMeshDoorLink link)
+    {
+        if (link == null || link.Door == null || link.Carver_Opened == null)
+            return false;
+        if (registered.Add(link))
+        {
             var door = link.Door;
             if (!linksByDoor.TryGetValue(door, out var group))
             {
@@ -129,9 +157,8 @@ internal sealed class OpenLeafCarver
             group.Add(link);
             if (door.DoorState == EDoorState.Open)
                 waiting.Add(link);
-            indexed++;
         }
-        log($"COMET open door leaves: {indexed}/{links.Count} links, {linksByDoor.Count} doors, {waiting.Count} open links at start.");
+        return true;
     }
 
     private bool Live(Door door) => door.gameObject.activeInHierarchy && (door.enabled || !enabledAtStart.Contains(door));

@@ -40,6 +40,8 @@ internal sealed class OwnGrenadeRuntime
     internal string Key = "";
     internal bool Fault,
         Phased;
+    internal bool NeedsCleanup => Tracker != null || Selected != null || Escaping.Count != 0 ||
+        Trace?.State is "fleeing" or "waiting";
 }
 
 public sealed partial class Plugin
@@ -82,21 +84,19 @@ public sealed partial class Plugin
 
     private static void OwnGrenadeUpdate(BotComponent __instance)
     {
-        var p = Instance;
-        if (p == null || p.world == null || p.config == null)
+        if (Instance is not { } p || p.world == null || p.config == null ||
+            !p.states.TryGetValue(__instance, out var s) ||
+            (p.ownProjectiles.Count == 0 && !s.OwnGrenade.NeedsCleanup))
             return;
         try
         {
             if (!p.OwnScope(__instance))
             {
-                if (p.states.TryGetValue(__instance, out var old))
-                    p.DropOwnSafety(__instance, old, "own-grenade-out-of-scope");
+                p.DropOwnSafety(__instance, s, "own-grenade-out-of-scope");
                 return;
             }
-            var s = p.GrenadeState(__instance);
             if (s.OwnGrenade.Fault)
                 return;
-            p.EnsureClearEvents();
             p.SampleOwnProjectiles();
             if (Time.time < s.OwnGrenade.Next)
                 return;
@@ -131,11 +131,11 @@ public sealed partial class Plugin
             || item.ThrowType.ToString() is "smoke_grenade" or "gas_grenade"
         )
             return;
-        var b = states.Keys.FirstOrDefault(x =>
-            x != null && x.ProfileId == grenade.ProfileId && OwnScope(x)
-        );
-        if (b == null)
+        var player = world?.GetAlivePlayerByProfileID(grenade.ProfileId);
+        if (player == null || !GameWorldComponent.TryGetPlayerComponent(player, out var component)
+            || component.BotComponent is not { } b || !OwnScope(b))
             return;
+        var owner = GrenadeState(b);
         if (
             ownProjectiles.Any(x =>
                 x.Grenade.TryGetTarget(out var g) && ReferenceEquals(g, grenade)
@@ -170,18 +170,7 @@ public sealed partial class Plugin
         p.Informed.Add(b.ProfileId);
         // Teammates use SAIN's native grenade perception, as in zzap.
         ownProjectiles.Add(p);
-        foreach (var pair in states)
-            if (p.Informed.Contains(pair.Key.ProfileId))
-                RecordOwnSafety(
-                    pair.Key,
-                    pair.Value,
-                    p,
-                    "tracking",
-                    "own-grenade-live",
-                    false,
-                    false,
-                    true
-                );
+        RecordOwnSafety(b, owner, p, "tracking", "own-grenade-live", false, false, true);
     }
 
     private void OwnExplosion(string owner, int id)
@@ -339,7 +328,7 @@ public sealed partial class Plugin
         p?.FilterNativeGas(__instance);
         if (p != null && p.SelectGrenadeEscape(__instance))
             return;
-        if (p == null || !p.OwnScope(b) || !p.states.TryGetValue(b, out var s))
+        if (p == null || !p.states.TryGetValue(b, out var s) || s.OwnGrenade.Tracker == null || !p.OwnScope(b))
             return;
         var r = s.OwnGrenade;
         if (r.Fault || r.Tracker == null || r.Selected == null || r.Selected.Evidence.Exploded)
@@ -368,7 +357,7 @@ public sealed partial class Plugin
     private bool OwnThreatens(BotComponent b, Vector3 point, out Vector3 newest)
     {
         newest = Vector3.zero;
-        if (!OwnScope(b))
+        if (ownProjectiles.Count == 0 || !OwnScope(b))
             return false;
         SampleOwnProjectiles();
         bool danger = false;

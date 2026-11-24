@@ -108,11 +108,14 @@ internal sealed class ClearOwnGrenade : IDisposable
 
 public sealed partial class Plugin
 {
-    private GlobalEventDispatcher? clearEvents;
     private readonly System.Collections.Generic.List<ClearOwnGrenade> clearOwnGrenades = new();
 
     private static void PatchDoorRoomClear(Harmony h)
     {
+        h.Patch(
+            AccessTools.Method(typeof(GlobalEventDispatcher), nameof(GlobalEventDispatcher.ThrowGrenade)),
+            prefix: new HarmonyMethod(typeof(Plugin), nameof(BeforeGrenadeBroadcast))
+        );
         // Guard the actual SAIN-selected arc immediately before its native throw, without replacing SAIN's cooldown.
         h.Patch(
             AccessTools.Method(typeof(GrenadeThrowDecider), "TryThrowGrenade", Type.EmptyTypes)
@@ -122,33 +125,6 @@ public sealed partial class Plugin
                 priority = Priority.First,
             }
         );
-    }
-
-    private void EnsureClearEvents()
-    {
-        var current = Singleton<GlobalEventDispatcher>.Instance;
-        if (ReferenceEquals(clearEvents, current))
-            return;
-        ClearRoomEvents();
-        clearEvents = current;
-        if (clearEvents != null)
-        {
-            clearEvents.OnGrenadeThrow += ClearProjectileThrown;
-            clearEvents.OnGrenadeExplosive += ClearProjectileExplosion;
-        }
-    }
-
-    private void ClearRoomEvents()
-    {
-        if (clearEvents != null)
-        {
-            clearEvents.OnGrenadeThrow -= ClearProjectileThrown;
-            clearEvents.OnGrenadeExplosive -= ClearProjectileExplosion;
-        }
-        clearEvents = null;
-        foreach (var link in clearOwnGrenades)
-            link.Dispose();
-        clearOwnGrenades.Clear();
     }
 
     private void SweepClearGrenades()

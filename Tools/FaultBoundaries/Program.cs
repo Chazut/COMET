@@ -337,6 +337,7 @@ sealed class Boundaries(string file, Dictionary<string, string> callbacks, List<
         if (file == "LiquidwarpFixesAdapter" && name is "FixEnemyActivity" or "FixEnemyIdentity"
             or "RestoreDeferredPathCache" or "FixGrenadeSegment"
             || file == "ReloadInventoryAdapter" && name == "CompatibleBullets"
+            || file == "OwnGrenadeSafetyAdapter" && name == "OwnGrenadeUpdate"
             || file == "ShiftCoverOrigin" && name == "CheckFreshShiftDestination")
         {
             if (original.Statements.FirstOrDefault() is not IfStatementSyntax { Statement: ReturnStatementSyntax } guard)

@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Client/OwnGrenadeSafetyAdapter.cs" Link="OwnGrenadeSafetyAdapter.cs" />
+    <Compile Include="../../Client/GrenadeEventAdapter.cs" Link="GrenadeEventAdapter.cs" />
     <Compile Include="../../Shared/OwnGrenadeSafety.cs" Link="OwnGrenadeSafety.cs" />
   </ItemGroup>
   <ItemGroup>

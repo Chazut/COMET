@@ -262,6 +262,9 @@ public sealed partial class Plugin
         bullets = true;
         CompatibleBullets(wm, ref bullets);
         Check(bullets, "native threshold preserves last chambered shot");
+        int before = wrong.CompatibilityChecks;
+        for (int i = 0; i < 200; i++) CompatibleBullets(wm, ref bullets);
+        Check(bullets && wrong.CompatibilityChecks == before, "chambered shot avoids repeated magazine scans");
         wm.CriticalBulletCount = 1;
         bullets = true;
         CompatibleBullets(wm, ref bullets);
@@ -273,6 +276,52 @@ public sealed partial class Plugin
         CompatibleBullets(wm, ref bullets);
         Check(bullets, "Fika replica never changes native ammo result");
         p.Authority = true;
+        bool Have(bool native = true)
+        {
+            CompatibleBullets(wm, ref native);
+            return native;
+        }
+        var chamber = w.Chambers[0];
+        chamber.RequiredCaliber = w.AmmoCaliber;
+        var goodRound = new Ammo { Caliber = w.AmmoCaliber };
+        var badRound = wrong.Cartridges.Last!;
+        var mixed = new Magazine { Count = 10 };
+        w.Magazine = mixed;
+        mixed.Cartridges.Last = goodRound;
+        Check(Enumerable.Range(0, 200).All(_ => Have()) && mixed.CompatibilityChecks == 1,
+            "unchanged feed checked once across 200 same-frame queries");
+        mixed.Cartridges.Last = badRound;
+        Check(!Have(), "mixed magazine exposes wrong next round in same frame");
+        p.Sleep = true;
+        Check(Have(), "cached rejection still respects live bot scope");
+        p.Sleep = false;
+        mixed.Cartridges.Last = goodRound;
+        Check(Have() && !Have(false), "newly exposed compatible round and native false preserved");
+        w.Chambers[0] = new Slot { RequiredCaliber = "Caliber762x35" };
+        Check(!Have(), "chamber replaced in same array");
+        w.Chambers[0].Filters = new();
+        w.Chambers[0].RequiredCaliber = w.AmmoCaliber;
+        Check(Have(), "replacement filters applied immediately");
+        w.Chambers[0] = new Slot { Accept = false };
+        w.Chambers = new[] { w.Chambers[0], chamber };
+        Check(Have(), "second chamber can accept the round");
+        w.Chambers = Array.Empty<Slot>();
+        Check(Have(), "chamberless weapon preserves native decision");
+        w.Chambers = new[] { chamber };
+        wm.CurrentWeapon = new Weapon { Magazine = mixed, Chambers = new[] { new Slot { Accept = false } }, ChamberAmmoCount = 0 };
+        Check(!Have(), "same magazine on another weapon requires its own check");
+        wm.CurrentWeapon = w;
+        mixed.Cartridges.Last = null;
+        mixed.Count = 0;
+        Check(Have(), "empty magazine keeps the native result");
+        mixed.Cartridges.Last = badRound;
+        mixed.Count = 1;
+        Check(!Have(), "refill after empty in the same frame");
+        int previousChecks = mixed.CompatibilityChecks;
+        Time.frameCount++;
+        Check(!Have() && mixed.CompatibilityChecks == previousChecks + 1, "compatibility refreshed next frame");
+        w.Magazine = wrong;
+        chamber.RequiredCaliber = null;
         p.Guns[(b, EquipmentSlot.FirstPrimaryWeapon)] = w;
         var backup = new Weapon
         {

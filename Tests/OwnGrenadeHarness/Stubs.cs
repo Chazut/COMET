@@ -92,8 +92,15 @@ namespace EFT
         public static int HighPolyWithTerrainMask = 1;
     }
 
+    public class GameWorld
+    {
+        internal readonly Dictionary<string, Player> Players = new();
+        public Player? GetAlivePlayerByProfileID(string id) => Players.GetValueOrDefault(id);
+    }
+
     public class Player
     {
+        public SAIN.Components.PlayerComponentSpace.PlayerComponent Component = new();
         public Vector3 Last;
 
         public void Move(Vector2 v)
@@ -159,6 +166,11 @@ namespace SAIN.Models.Enums
 
 namespace SAIN.Components
 {
+    public static class GameWorldComponent
+    {
+        public static bool TryGetPlayerComponent(EFT.Player player, out PlayerComponentSpace.PlayerComponent component)
+        { component = player.Component; return true; }
+    }
     public class BotComponent
     {
         public string ProfileId = "owner";
@@ -411,7 +423,7 @@ namespace Comet.Client
         internal static Plugin? Instance;
         internal Dictionary<BotComponent, BotState> states = new();
         internal CometConfig? config = new();
-        internal object? world = new();
+        internal EFT.GameWorld? world = new();
         internal bool Authority = true;
         internal string session = "g04-harness";
         internal long sequence;
@@ -438,7 +450,10 @@ namespace Comet.Client
 
         private bool Ghost(string id) => ghosts.Contains(id);
 
-        private void EnsureClearEvents() { }
+        internal GlobalEventDispatcher Dispatcher = new();
+        private readonly List<IDisposable> clearOwnGrenades = new();
+        private void ClearProjectileThrown(EFT.Grenade g, Vector3 pos, Vector3 force, float mass) => OwnProjectileThrown(g);
+        private void ClearProjectileExplosion(Vector3 pos, string owner, bool smoke, float radius, float life, int id) => OwnExplosion(owner, id);
 
         private static DoorPoint DP(Vector3 p) => new(p.x, p.y, p.z);
 
@@ -455,9 +470,19 @@ namespace Comet.Client
 
         private void Release(BotState s, string reason) => Releases.Add(reason);
 
-        internal void Add(BotComponent b) => GrenadeState(b);
+        internal void Register(BotComponent b)
+        {
+            world!.Players[b.ProfileId] = b.Player;
+            b.Player.Component.BotComponent = b;
+        }
 
-        internal void Throw(EFT.Grenade g) => OwnProjectileThrown(g);
+        internal void Add(BotComponent b) { Register(b); GrenadeState(b); }
+
+        internal void Throw(EFT.Grenade g)
+        {
+            BeforeGrenadeBroadcast(Dispatcher);
+            Dispatcher.ThrowGrenade(g, g.transform.position, default, 1);
+        }
 
         internal void Tick(BotComponent b)
         {
@@ -468,7 +493,7 @@ namespace Comet.Client
 
         internal void Explode(string owner, int id) => OwnExplosion(owner, id);
 
-        internal void End() => ClearOwnSafety();
+        internal void End() { ClearRoomEvents(); ClearOwnSafety(); }
 
         internal bool Threat(BotComponent b, Vector3 point) => OwnThreatens(b, point, out _);
 

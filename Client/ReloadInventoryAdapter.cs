@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using EFT;
 using EFT.InventoryLogic;
 using HarmonyLib;
@@ -8,6 +9,45 @@ namespace Comet.Client;
 
 public sealed partial class Plugin
 {
+    private sealed class FeedCheck
+    {
+        internal int Frame;
+        internal Magazine? Magazine;
+        internal Slot? Chamber;
+        internal object? Filters;
+        internal Item? Round;
+        internal bool Compatible;
+    }
+
+    private readonly ConditionalWeakTable<Weapon, FeedCheck> feedChecks = new();
+
+    private bool CompatibleNextRound(Weapon weapon, Magazine magazine)
+    {
+        var chambers = weapon.Chambers;
+        // Special magazine types can override Count. Let EFT handle those and multi-barrel weapons.
+        if (magazine.GetType() != typeof(Magazine) || chambers.Length != 1 ||
+            magazine.Cartridges.Last is not { StackObjectsCount: > 0 } round)
+            return magazine.IsAmmoCompatible(chambers);
+
+        var chamber = chambers[0];
+        var filters = chamber.Filters;
+        var check = feedChecks.GetOrCreateValue(weapon);
+        int frame = Time.frameCount;
+        if (check.Frame == frame && ReferenceEquals(check.Magazine, magazine) &&
+            ReferenceEquals(check.Round, round) && ReferenceEquals(check.Chamber, chamber) &&
+            ReferenceEquals(check.Filters, filters))
+            return check.Compatible;
+
+        bool compatible = magazine.IsAmmoCompatible(chambers);
+        check.Frame = frame;
+        check.Magazine = magazine;
+        check.Chamber = chamber;
+        check.Filters = filters;
+        check.Round = round;
+        check.Compatible = compatible;
+        return compatible;
+    }
+
     private static void PatchReloadInventory(Harmony h)
     {
         h.Patch(
@@ -30,15 +70,17 @@ public sealed partial class Plugin
     private static void CompatibleBullets(BotWeaponManager __instance, ref bool __result)
     {
         if (!__result || Instance is not { } p || p.config?.Enabled != true || !p.Authority
-            || __instance.CurrentWeapon is not Weapon weapon || weapon.GetCurrentMagazine() is not Magazine mag
-            || mag.IsAmmoCompatible(weapon.Chambers))
+            || __instance.CurrentWeapon is not Weapon weapon
+            || weapon.ChamberAmmoCount > __instance.CriticalBulletCount)
             return;
         try
         {
-            if (!p.WeaponReturnState(__instance.Selector, out _, out _))
+            // The native true result is already correct when the chamber alone meets the threshold.
+            if (weapon.GetCurrentMagazine() is not Magazine mag || p.CompatibleNextRound(weapon, mag)
+                || !p.WeaponReturnState(__instance.Selector, out _, out _))
                 return;
             // Preserve the native threshold, chambered shot and no-ammo fallback.
-            __result = weapon.ChamberAmmoCount > __instance.CriticalBulletCount;
+            __result = false;
         }
         catch
         { /* Native result remains authoritative during teardown. */

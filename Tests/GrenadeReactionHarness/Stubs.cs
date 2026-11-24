@@ -101,8 +101,14 @@ namespace EFT
         public static int HighPolyWithTerrainMask = 1;
     }
 
+    public class GameWorld
+    {
+        internal readonly Dictionary<string, Player> Players = new();
+        public Player? GetAlivePlayerByProfileID(string id) => Players.GetValueOrDefault(id);
+    }
     public class Player
     {
+        public SAIN.Components.PlayerComponentSpace.PlayerComponent Component = new();
         public Vector3 Last;
 
         public void Move(Vector2 v)
@@ -174,6 +180,11 @@ namespace SAIN.Models.Enums
 
 namespace SAIN.Components
 {
+    public static class GameWorldComponent
+    {
+        public static bool TryGetPlayerComponent(EFT.Player player, out PlayerComponentSpace.PlayerComponent component)
+        { component = player.Component; return true; }
+    }
     public class BotComponent
     {
         public string ProfileId = "owner";
@@ -555,7 +566,7 @@ namespace Comet.Client
         internal static Plugin? Instance;
         internal Dictionary<BotComponent, BotState> states = new();
         internal CometConfig? config = new();
-        internal object? world = new();
+        internal EFT.GameWorld? world = new();
         internal bool Authority = true;
         internal string session = "g05-harness";
         internal long sequence;
@@ -598,7 +609,12 @@ namespace Comet.Client
 
         private void Release(BotState s, string reason) => Releases.Add(reason);
 
-        internal void Add(BotComponent b) => GrenadeState(b);
+        internal void Add(BotComponent b)
+        {
+            world!.Players[b.ProfileId] = b.Player;
+            b.Player.Component.BotComponent = b;
+            GrenadeState(b);
+        }
 
         internal void Throw(EFT.Grenade g) => OwnProjectileThrown(g);
 

@@ -142,9 +142,34 @@ internal static class OpenLeafCases
         Tick(132);
         controller._navMeshDoorLinks = new();
         var late = Leaf();
-        Tick(134);
-        Check(!late.Carver_Opened.enabled && p.Logger.Info.Count(x => x.Contains("within 60 seconds")) == 1, "discovery deadline");
+        controller._navMeshDoorLinks.Clear();
+        Tick(137); // EFT has published an empty list.
+        controller._navMeshDoorLinks.Add(late);
+        var lateDoor = late.Door;
+        late.Door = null!;
+        Tick(142); // Link exists before its door is assigned.
+        late.Door = lateDoor;
+        lateDoor.DoorState = EDoorState.Shut;
+        var loadedOpen = Leaf();
+        Tick(147);
+        Tick(148);
+        Check(lateDoor.Listeners == 1 && lateDoor.DoorState == EDoorState.Shut && !late.Carver_Opened.enabled,
+            "late closed door is observed without opening or carving it");
+        Check(loadedOpen.Carver_Opened.enabled, "late scene-open leaf is carved");
+        lateDoor.DoorState = EDoorState.Open;
+        Tick(149);
+        Check(late.Carver_Opened.enabled, "first real opening of late door is carved");
+        var partial = Leaf();
+        var partialDoor = partial.Door;
+        partial.Door = null!;
+        Tick(152);
+        partial.Door = partialDoor;
+        Tick(157);
+        Check(partial.Carver_Opened.enabled && lateDoor.Listeners == 1 && partialDoor.Listeners == 1,
+            "partially initialized roster picked up without duplicate subscriptions");
+        Check(p.Logger.Info.Count(x => x.Contains("still waiting")) == 1, "long load reported only once");
         p.EndLeaves();
+        Check(lateDoor.Listeners == 0 && partialDoor.Listeners == 0, "late subscriptions released");
         Console.WriteLine($"Open door leaves: {checks} production adapter checks passed.");
     }
 }
@@ -160,9 +185,9 @@ public sealed class BotDoorsController
 {
     public static BotDoorsController Scene = new();
     public List<NavMeshDoorLink>? _navMeshDoorLinks = new();
-    public static BotDoorsController CreateOrFind(bool _) => Scene;
 }
 
+namespace UnityEngine { public class Object { public static T? FindObjectOfType<T>() where T : class => BotDoorsController.Scene as T; } }
 namespace EFT { public sealed class IBotGame { } }
 namespace UnityEngine { public static class Mathf { public static float Clamp01(float value) => Math.Clamp(value,0,1); } }
 namespace UnityEngine.AI { public sealed class NavMeshObstacle { public bool enabled, carving; } }

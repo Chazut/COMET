@@ -223,6 +223,18 @@ static class Audit
             )
         )
             throw new Exception("Wrong-caliber native ammo-count hook was not registered.");
+        if (!probe.Hooks.Any(h => h.Kind == "prefix" && h.Callback == "BeforeGrenadeBroadcast" &&
+                h.Target.Contains("GlobalEventDispatcher.ThrowGrenade(")))
+            throw new Exception("First native grenade broadcast is not intercepted before delivery.");
+        foreach (var (callback, getter) in new[] { ("OwnGrenadeUpdate", "get_NeedsCleanup"),
+                     ("CompatibleBullets", "get_ChamberAmmoCount") })
+        {
+            var methods = Calls(plugin.GetMethod(callback, BindingFlags.NonPublic | BindingFlags.Static)!)
+                .Select(m => m.Name).ToList();
+            if (methods.IndexOf(getter) < 0 || methods.IndexOf(getter) >= methods.IndexOf("EnterFault") ||
+                methods.Contains("EnsureClearEvents"))
+                throw new Exception("Idle callback did not take its cheap path: " + callback);
+        }
         var magazineCheck = typeof(EFT.InventoryLogic.Magazine).GetMethod("IsAmmoCompatible")!;
         if (
             !Calls(magazineCheck).Any(m => m.Name == "CanAccept")
