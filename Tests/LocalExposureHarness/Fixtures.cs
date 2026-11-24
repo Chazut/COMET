@@ -12,7 +12,12 @@ namespace UnityEngine
     {
         public static Light[] Scene = [];
 
-        public static T[] FindObjectsByType<T>(FindObjectsSortMode _) => (T[])(object)Scene;
+        public static int Searches;
+        public static T[] FindObjectsByType<T>(FindObjectsSortMode _)
+        {
+            Searches++;
+            return (T[])(object)Scene;
+        }
     }
 
     public enum FindObjectsSortMode
@@ -268,8 +273,8 @@ namespace Comet.Client
 
     public class Settings
     {
-        public bool Enabled = true,
-            QuietLogging;
+        public bool Enabled = true, EnablePmcs = true, EnableAiPlayerScavs = true,
+            LightBasedDetection = true, QuietLogging;
     }
 
     public class Sink

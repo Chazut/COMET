@@ -57,7 +57,7 @@ public sealed partial class Plugin
         var p = Instance;
         if (p?.config?.Enabled != true || !p.Authority || b == null || b.CurrentAction?.GetType() != nativeSeekAction
             || b.Decision.CurrentCombatDecision == ECombatDecision.ShiftCover || !b.BotActive || b.IsDead
-            || b.GameEnding || p.Ghost(b.ProfileId) || b.Cover.CoverInUse is not CoverPoint origin)
+            || b.GameEnding || p.Ghost(b.ProfileId) || p.RoleDisabled(b) || b.Cover.CoverInUse is not CoverPoint origin)
             return;
         foreach (var point in b.Cover.CoverPoints)
             if (point != null && point.CoverHeight > origin.CoverHeight
@@ -72,7 +72,7 @@ public sealed partial class Plugin
     private bool IsNativeShift(BotComponent b) =>
         config?.Enabled == true && Authority && b.BotActive && !b.IsDead && !b.GameEnding
         && b.Decision?.CurrentCombatDecision == ECombatDecision.ShiftCover
-        && !Ghost(b.ProfileId);
+        && !Ghost(b.ProfileId) && !RoleDisabled(b);
 
     private static void CaptureShiftOrigin(BotAction __instance)
     {

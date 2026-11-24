@@ -70,7 +70,7 @@ internal static class NativeAdapter
 
     internal static bool IsSupportedAi(BotComponent bot)
     {
-        return bot != null && !bot.IsDead && BotEligibility.Supports(bot.Player);
+        return bot != null && !bot.IsDead && BotEligibility.Supports(bot.Player, Plugin.RaidConfig);
     }
 
     internal static Situation Capture(BotComponent bot, Enemy enemy, bool authority, bool ghost)

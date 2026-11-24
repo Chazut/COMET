@@ -4601,6 +4601,24 @@
       "Section": "General",
       "Simple": true
     },
+    "EnablePmcs": {
+      "Label": "Enable COMET for PMCs",
+      "Help": "Use COMET tactics for AI USEC and BEAR PMCs. Applies next raid.",
+      "Section": "General",
+      "Simple": true
+    },
+    "EnableAiPlayerScavs": {
+      "Label": "Enable COMET for AI player scavs",
+      "Help": "Use COMET tactics for simulated player scavs. Human players and ordinary scavs are outside this setting. Applies next raid.",
+      "Section": "General",
+      "Simple": true
+    },
+    "LightBasedDetection": {
+      "Label": "Light-based detection",
+      "Help": "Let local light and shadow affect how quickly bots spot humans and other bots. Turn this off to use another vision mod's lighting system. Flashlight and laser behavior is configured separately. Applies next raid.",
+      "Section": "General",
+      "Simple": true
+    },
     "MovementHearing.Enabled": {
       "Label": "Let PMCs hear AI movement",
       "Help": "",

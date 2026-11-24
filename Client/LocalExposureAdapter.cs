@@ -31,7 +31,7 @@ public sealed partial class Plugin
     {
         var p = Instance;
         if (
-            p == null
+            p?.config?.LightBasedDetection != true
             || !p.NativeFixScope(enemy.Bot)
             || enemy.EnemyPlayer == null
             || !(__result > 0f)
@@ -142,7 +142,8 @@ public sealed partial class Plugin
 
     private void UpdateExposureDiagnostics()
     {
-        if (config?.Enabled != true || !Authority)
+        if (config?.Enabled != true || !config.LightBasedDetection
+            || (!config.EnablePmcs && !config.EnableAiPlayerScavs) || !Authority)
             return;
         float now = Time.time;
         if (now >= retryExposureAt)

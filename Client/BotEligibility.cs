@@ -1,3 +1,4 @@
+using Comet.Core;
 using EFT;
 
 namespace Comet.Client;
@@ -30,5 +31,20 @@ internal static class BotEligibility
         return "";
     }
 
-    internal static bool Supports(Player? player) => Kind(player).Length != 0;
+    internal static bool Supports(Player? player, CometConfig? config) =>
+        config?.Enabled == true && Kind(player) switch
+        {
+            "pmc" => config.EnablePmcs,
+            "player-scav" => config.EnableAiPlayerScavs,
+            _ => false,
+        };
+
+    // Native fixes that also cover ordinary scavs or custom roles keep their wider scope.
+    internal static bool RoleDisabled(Player? player, CometConfig config) =>
+        (!config.EnablePmcs || !config.EnableAiPlayerScavs) && Kind(player) switch
+        {
+            "pmc" => !config.EnablePmcs,
+            "player-scav" => !config.EnableAiPlayerScavs,
+            _ => false,
+        };
 }

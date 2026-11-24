@@ -104,7 +104,7 @@ namespace Comet.Client
     internal static class NativeAdapter
     {
         internal static bool IsSupportedAi(BotComponent b) =>
-            !b.IsDead && BotEligibility.Supports(b.Player);
+            !b.IsDead && BotEligibility.Supports(b.Player, Plugin.Instance?.config);
     }
 
     internal class Resettable

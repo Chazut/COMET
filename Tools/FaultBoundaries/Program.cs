@@ -350,7 +350,7 @@ sealed class Boundaries(string file, Dictionary<string, string> callbacks, List<
         // always passes the same lifecycle, authority and quarantine checks below.
         string preflight =
             file == "LocalExposureAdapter" && name == "ApplyLocalExposure"
-                ? "if (enemy?.EnemyPlayer == null || Instance?.Authority != true) return;"
+                ? "if (Instance?.config?.LightBasedDetection != true || enemy?.EnemyPlayer == null || !Instance.Authority) return;"
             : file == "CloseDetectionAdapter" && name == "CloseVisibleAfter"
                 ? "if (__state || !__instance.IsVisible) return;"
             : file == "SearchAbandonmentAdapter" && name == "CheckSearchedPlace"
@@ -360,7 +360,7 @@ sealed class Boundaries(string file, Dictionary<string, string> callbacks, List<
             : file == "WeaponSyncAdapter" && name == "EnsureWeaponSyncTracked"
                 ? "if (Instance?.config?.Enabled != true || !Instance.config.WeaponSync.Enabled || Instance.states.ContainsKey(__instance) || !NativeAdapter.IsSupportedAi(__instance)) return;"
             : file == "WeaponSyncAdapter" && name is "WeaponListChanged" or "WeaponHandsChanged"
-                ? "if (Instance?.config?.Enabled != true || !Instance.config.WeaponSync.Enabled || !BotEligibility.Supports(__instance?._owner?.GetPlayer)) return;"
+                ? "if (Instance?.config?.Enabled != true || !Instance.config.WeaponSync.Enabled || !BotEligibility.Supports(__instance?._owner?.GetPlayer, Instance.config)) return;"
             : file == "CrossfireAdapter" && name == "ObserveCrossfire"
                 ? "if (Instance?.config?.Enabled != true || !NativeAdapter.IsSupportedAi(__instance.Bot)) return;"
             : "";

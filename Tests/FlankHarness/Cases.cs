@@ -274,6 +274,7 @@ partial class Plugin
 {
     public static Plugin Instance;
     public Config config = new();
+    private bool RoleDisabled(BotComponent bot) => false;
     public bool Scope = true,
         Priority;
     public Dictionary<BotComponent, BotState> states = new();

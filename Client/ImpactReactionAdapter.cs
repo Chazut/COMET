@@ -63,6 +63,7 @@ public sealed partial class Plugin
             || p.world == null
             || p.config?.Enabled != true
             || !p.config.ImpactReaction.Enabled
+            || p.RoleDisabled(b)
             || !p.Authority
             || !b.BotActive
             || b.IsDead

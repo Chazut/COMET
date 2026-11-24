@@ -95,7 +95,7 @@ public sealed partial class Plugin
 
     private bool IsOpeningOpportunity(BotComponent bot, Enemy enemy, Weapon weapon)
     {
-        if (config?.Enabled != true || !bot.Info.Profile.IsPMC || !bot.Player.IsAI
+        if (config?.Enabled != true || !config.EnablePmcs || !bot.Info.Profile.IsPMC || !bot.Player.IsAI
             || !Authority || bot.GameEnding || bot.IsDead || !bot.BotActive
             || !bot.SAINLayersActive || !ReferenceEquals(bot.GoalEnemy, enemy)
             || bot.ManualShoot.Reason != EShootReason.None || !ContactSafety.Allows(bot, enemy)

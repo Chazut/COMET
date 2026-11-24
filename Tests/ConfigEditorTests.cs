@@ -53,7 +53,8 @@ internal static class ConfigEditorTests
             "metadata cannot be edited as raw fields"
         );
         Check(
-            editor.Visible(false, "", false).Count() <= 19,
+            editor.Visible(false, "", false).Count(f => f.Path is not
+                ("EnablePmcs" or "EnableAiPlayerScavs" or "LightBasedDetection")) <= 19,
             "simple mode is deliberately short, including Quiet logging"
         );
         Check(
@@ -302,7 +303,17 @@ internal static class ConfigEditorTests
                 File.Exists(path + ".bak") && store.Read().SquadVoice.Mode == "Normal",
                 "normal atomic backup and persistence preserved"
             );
+            var switches = new[] { "EnablePmcs", "EnableAiPlayerScavs", "LightBasedDetection" };
+            Check(switches.All(k => Field(k).Boolean && Field(k).Simple && Field(k).Section == "General"),
+                "all three independent switches are in General");
+            foreach (var k in switches)
+                Check(a.Set(Field(k), "false"), "turn off " + k);
+            a.AcceptSaved(store.Save(a.Snapshot(), a.Revision));
+            var live = JsonSerializer.Deserialize<CometConfig>(store.ForGame())!;
+            Check(live.Enabled && !live.EnablePmcs && !live.EnableAiPlayerScavs && !live.LightBasedDetection,
+                "explicit false values survive editor save and reach the raid independently of the master");
             var legacy = System.Text.Json.Nodes.JsonNode.Parse(before)!.AsObject();
+            foreach (var k in switches) legacy.Remove(k);
             legacy.Remove("DifficultyPreset");
             legacy.Remove("AmbushRadius");
             legacy["Enabled"] = false;
@@ -313,7 +324,8 @@ internal static class ConfigEditorTests
                 old.Profile == "Hard"
                     && old.Customized
                     && !old.HasPending
-                    && !old.Snapshot().Enabled
+                    && old.Snapshot().EnablePmcs && old.Snapshot().EnableAiPlayerScavs
+                    && old.Snapshot().LightBasedDetection && !old.Snapshot().Enabled
                     && old.Snapshot().AmbushRadius == 45,
                 "legacy custom file opens without resetting values"
             );

@@ -360,6 +360,7 @@ namespace Comet.Client
         internal static Plugin? Instance;
         internal object? world = new();
         internal Comet.Core.CometConfig? config = new();
+        private bool RoleDisabled(BotComponent b) => false;
         internal bool Authority = true;
         internal string session = "source-contact-harness";
         internal long sequence;

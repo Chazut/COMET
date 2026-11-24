@@ -29,6 +29,19 @@ UnityEngine.Object.Scene = [fixture];
 guest.EnemyTransform.EyePosition = new Vector3(20, 1, 0);
 TOD_Sky.Instance = new() { SunDirection = Vector3.up };
 Physics.Roof = true;
+p.config.LightBasedDetection = false;
+p.fikaPresent = true;
+p.Update();
+foreach (var target in new[] { local, guest, new Enemy { IsAI = true } })
+    Near(Plugin.Sight(target, 2.3f), 2.3f, "lighting off leaves the incoming sight modifier untouched");
+Check(p.Samples == 0 && UnityEngine.Object.Searches == 0 && p.diagnostics.Lines.Count == 0,
+    "lighting off skips fixtures, samples and exposure events");
+p.config.LightBasedDetection = true;
+p.config.EnablePmcs = p.config.EnableAiPlayerScavs = false;
+p.Update();
+Check(UnityEngine.Object.Searches == 0, "no fixture discovery without an eligible observer group");
+p.config.EnablePmcs = p.config.EnableAiPlayerScavs = true;
+p.fikaPresent = false;
 p.Update();
 
 foreach (float preset in new[] { 0.3f, 1f, 4f })

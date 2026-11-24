@@ -45,6 +45,9 @@ public sealed partial class Plugin : BaseUnityPlugin
     private GameWorld? world;
     private readonly RaidConfigLoad<CometConfig> loading = new();
     private CometConfig? config;
+    internal static CometConfig? RaidConfig => Instance?.config;
+
+    private bool RoleDisabled(BotComponent bot) => BotEligibility.RoleDisabled(bot.Player, config!);
     private Diagnostics? diagnostics;
     private string session = "";
     private long sequence;
@@ -411,7 +414,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                             session,
                             stage = "raid-start",
                             map = current.LocationId,
-                            botScope = "pmc-and-ai-player-scav",
+                            botScope = "awaiting-config",
                             utc = DateTime.UtcNow.ToString("O"),
                             realtime = Time.realtimeSinceStartup,
                             cometVersion = CometVersion.Release,
@@ -450,6 +453,8 @@ public sealed partial class Plugin : BaseUnityPlugin
                 diagnostics?.ConfigureRaidReports(config, Authority, session);
                 Logger.LogInfo(
                     "COMET raid config revision " + config.Revision + ", enabled=" + config.Enabled
+                    + ", PMCs=" + config.EnablePmcs + ", AI player scavs=" + config.EnableAiPlayerScavs
+                    + ", light-based detection=" + config.LightBasedDetection
                 );
                 ReportDifficultyPreset();
             }

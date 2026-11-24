@@ -23,6 +23,7 @@ Player Bot(WildSpawnType role, bool ai, string? main, string? nickname) =>
             },
         },
     };
+var config = new CometConfig();
 foreach (var role in Enum.GetValues<WildSpawnType>())
 foreach (bool ai in new[] { false, true })
 foreach (string? main in new[] { null, "", "Player" })
@@ -37,8 +38,18 @@ foreach (string? nickname in new[] { null, "Scav", "Scav (Player)" })
         : pscav ? "player-scav"
         : "";
     Check(BotEligibility.Kind(player) == expected, $"identity {role}/{ai}/{main}/{nickname}");
-    bool eligible = BotEligibility.Supports(player);
+    bool eligible = BotEligibility.Supports(player, config);
     Check(eligible == (expected.Length != 0), "support and identity agree");
+    foreach (bool master in new[] { false, true })
+    foreach (bool pmcs in new[] { false, true })
+    foreach (bool scavPlayers in new[] { false, true })
+    {
+        var settings = new CometConfig { Enabled = master, EnablePmcs = pmcs, EnableAiPlayerScavs = scavPlayers };
+        bool excluded = expected == "pmc" && !pmcs || expected == "player-scav" && !scavPlayers;
+        Check(BotEligibility.Supports(player, settings) == (master && eligible && !excluded),
+            $"independent switches: {expected}/{master}/{pmcs}/{scavPlayers}");
+        Check(BotEligibility.RoleDisabled(player, settings) == excluded, "broader native fixes only bypass opted-out actors");
+    }
     // Actual shared tactical policies must use the eligible cohort, not the native assault role.
     var frame = new ThreatFrame
     {
@@ -60,22 +71,22 @@ foreach (string? nickname in new[] { null, "Scav", "Scav (Player)" })
         "target selection remains available during native urgency"
     );
 }
-Check(!BotEligibility.Supports(null), "missing player");
+Check(!BotEligibility.Supports(null, config), "missing player");
 var missing = new Player { Profile = null };
-Check(!BotEligibility.Supports(missing), "missing profile");
+Check(!BotEligibility.Supports(missing, config), "missing profile");
 missing.Profile = new() { Info = null };
-Check(!BotEligibility.Supports(missing), "missing info");
+Check(!BotEligibility.Supports(missing, config), "missing info");
 missing.Profile.Info = new() { Settings = null };
-Check(!BotEligibility.Supports(missing), "missing settings");
+Check(!BotEligibility.Supports(missing, config), "missing settings");
 var changing = Bot(WildSpawnType.assault, true, null, "Scav");
-Check(!BotEligibility.Supports(changing), "ordinary scav initially excluded");
+Check(!BotEligibility.Supports(changing, config), "ordinary scav initially excluded");
 changing.Profile!.Info!.MainProfileNickname = "Player";
-Check(BotEligibility.Supports(changing), "late profile initialization not permanently cached out");
+Check(BotEligibility.Supports(changing, config), "late profile initialization not permanently cached out");
 changing.IsAI = false;
-Check(!BotEligibility.Supports(changing), "human control never inherits eligibility");
+Check(!BotEligibility.Supports(changing, config), "human control never inherits eligibility");
 changing.IsAI = true;
 changing.Profile.Info.Settings!.Role = WildSpawnType.bossKilla;
-Check(!BotEligibility.Supports(changing), "changed role never inherits eligibility");
+Check(!BotEligibility.Supports(changing, config), "changed role never inherits eligibility");
 Console.WriteLine(
     $"Bot scope: {checks} checks. Production classifier and threat policy; game objects doubled, no Unity raid."
 );

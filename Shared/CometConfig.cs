@@ -99,6 +99,9 @@ public sealed class CometConfig
     public int Schema { get; set; } = 1;
     public long Revision { get; set; } = 1;
     public bool Enabled { get; set; } = true;
+    public bool EnablePmcs { get; set; } = true;
+    public bool EnableAiPlayerScavs { get; set; } = true;
+    public bool LightBasedDetection { get; set; } = true;
     public MovementHearingConfig MovementHearing { get; set; } = new MovementHearingConfig();
     public QuietApproachConfig QuietApproach { get; set; } = new QuietApproachConfig();
     public GunfireConfig Gunfire { get; set; } = new GunfireConfig();

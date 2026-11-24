@@ -13,7 +13,7 @@
 
 A PMC's kit, personality and what they've actually seen or heard shape their next move. Some will take a chance when they hear you reload. Others would rather change cover, watch a squadmate's flank or let you walk into an ambush. They can panic, miss an opening or get a little too confident, too.
 
-These tactics apply to **PMCs and AI player scavs**, including fights between bots. Ordinary scavs and bosses keep their usual behavior. Bring your favorite SAIN preset.
+These tactics apply to **PMCs and AI player scavs**, including fights between bots. Ordinary scavs and bosses keep their usual behavior. In the web editor, **General** lets you enable the two bot types separately. Turn off **Light-based detection** there if another vision mod handles light and shadow. All three switches are on by default and changes apply next raid.
 
 **COMET 1.0.0 requires SPT 4.1.6 and official SAIN 4.5.1.**
 

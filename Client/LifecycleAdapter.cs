@@ -98,7 +98,7 @@ public sealed partial class Plugin
 
     private static bool LifeSupportedBot(BotComponent b)
     {
-        return b != null && BotEligibility.Supports(b.Player);
+        return b != null && BotEligibility.Supports(b.Player, Instance?.config);
     }
 
     partial void GuardLifecycle(FaultScope scope, ref bool allowed)

@@ -98,7 +98,7 @@ public sealed partial class Plugin
             return false;
         if (validityOwners.TryGetValue(key, out owner))
             return true;
-        if (player == null || !BotEligibility.Supports(player))
+        if (player == null || !BotEligibility.Supports(player, config))
             return false;
         owner = new()
         {
