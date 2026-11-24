@@ -234,6 +234,20 @@ internal sealed class CombatReport
                 last.Remove(bot);
                 return;
             }
+            // Replay details do not sample action time. These two payloads have
+            // their own schema and deliberately carry no combat context.
+            if (kind == "shot-summary")
+            {
+                if (data["totalShots"]?.Type != JTokenType.Integer)
+                    invalid++;
+                return;
+            }
+            if (kind == "light-detection")
+            {
+                if (data["clearRay"]?.Type != JTokenType.Boolean)
+                    invalid++;
+                return;
+            }
             if (data["context"] is not JObject context)
             {
                 invalid++;
@@ -265,6 +279,12 @@ internal sealed class CombatReport
             double damage = Math.Max(0, Math.Min(100000, N(data["damage"])));
             switch (kind)
             {
+                case "shot":
+                    // Preserve the action row without counting a shot as a
+                    // context sample, hit, contact, or interval boundary.
+                    if (data["totalShots"]?.Type != JTokenType.Integer)
+                        invalid++;
+                    break;
                 case "context":
                     double now = N(e["realtime"]);
                     string target = S(context["target"], 128);

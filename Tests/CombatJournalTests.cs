@@ -208,6 +208,12 @@ static class CombatJournalTests
                 .Where(p => (string?)p["feature"] == feature)
                 .SelectMany(p => p["journalReport"]!["rows"]!)
                 .ToArray();
+        void Detail(double at, object payload) =>
+            report.Observe(Json(new
+            {
+                schema = 1, session = "raid", sequence = ++seq, feature = "T01",
+                stage = "evaluated", realtime = at, botInstance = "bot", combatJournal = payload,
+            }));
         Configure();
         Context(0);
         Context(5);
@@ -233,6 +239,9 @@ static class CombatJournalTests
         seq = 0;
         Configure();
         Context(0);
+        Detail(2, new { kind = "shot", totalShots = 1, context = new { action = "Hold", feature = "A01" } });
+        Detail(3, new { kind = "shot-summary", totalShots = 1 });
+        Detail(4, new { kind = "light-detection", clearRay = false });
         Context(100);
         pages = Finish();
         Check(
@@ -249,6 +258,20 @@ static class CombatJournalTests
             (bool)pages.First(p => (string?)p["feature"] == "T03")["journalReport"]!["complete"]!,
             "combat sampling gap does not invalidate weapon facts"
         );
+        Check((double)pages[0]["journalReport"]!["maxObservationGap"]! == 100
+            && Rows(pages, "T01").Sum(row => (int)row["samples"]!) == 2,
+            "replay details never shorten a gap or add action samples");
+        report = new("raid");
+        seq = 0;
+        Configure();
+        Detail(1, new { kind = "shot", totalShots = 1 });
+        Detail(2, new { kind = "shot", context = new { action = "Hold" } });
+        Detail(3, new { kind = "shot-summary", totalShots = "unknown" });
+        Detail(4, new { kind = "light-detection", clearRay = "false" });
+        Detail(5, new { kind = "unknown", context = new { action = "Hold" } });
+        pages = Finish();
+        Check((int)pages[0]["journalReport"]!["invalidEvents"]! == 5,
+            "damaged replay details and unknown event kinds remain invalid");
         report = new("raid");
         seq = 0;
         Configure();
