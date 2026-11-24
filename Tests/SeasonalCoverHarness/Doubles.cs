@@ -1,4 +1,9 @@
 using SAIN.Components;
+using SAIN.SAINComponent.Classes.EnemyClasses;
+using SAIN.SAINComponent.Classes.Mover;
+using System.Reflection;
+using System.Reflection.Emit;
+using UnityEngine.AI;
 using SAIN.SAINComponent.Classes;
 using UnityEngine;
 
@@ -38,7 +43,13 @@ namespace UnityEngine
 
         public static Vector3 operator /(Vector3 a, float n) => new(a.x / n, a.y / n, a.z / n);
 
-        public float magnitude => MathF.Sqrt(x * x + y * y + z * z);
+        public float sqrMagnitude => x*x + y*y + z*z;
+        public float magnitude => MathF.Sqrt(sqrMagnitude);
+        public override string ToString() => $"({x}, {y}, {z})";
+        public Vector3 normalized => this / magnitude;
+        public static Vector3 forward => new(0, 0, 1);
+        public static Vector3 operator -(Vector3 a) => new(-a.x,-a.y,-a.z);
+        public static Vector3 operator *(Vector3 a, float n) => new(a.x*n,a.y*n,a.z*n);
     }
 
     public class GameObject
@@ -72,6 +83,9 @@ namespace UnityEngine
 
     public static class Physics
     {
+        public static Func<Vector3, Vector3, bool> Occludes = (_, _) => false;
+        public static bool Linecast(Vector3 a, Vector3 b, int mask, QueryTriggerInteraction triggers) =>
+            mask == LayersMaskController.HighPolyWithTerrainMask && triggers == QueryTriggerInteraction.Ignore && Occludes(a,b);
         public static int Calls;
         public static Func<Vector3, bool> Inside = _ => false;
         public static Collider[]? LastBuffer;
@@ -138,6 +152,8 @@ namespace UnityEngine
 
 namespace UnityEngine.AI
 {
+    public enum NavMeshPathStatus { PathComplete, PathPartial, PathInvalid }
+    public class NavMeshPath { public NavMeshPathStatus status; public Vector3[] corners = []; }
     public struct NavMeshHit
     {
         public Vector3 position;
@@ -156,13 +172,25 @@ namespace SAIN.Components
         public Enemy? GoalEnemy = new();
         public string ProfileId = "test";
         public SAINCoverClass Cover;
+        public Vector3 Position;
+        public SAINMoverClass Mover = new();
+        public class Contacts { public Dictionary<string, Enemy> Enemies = new(); }
+        public Contacts EnemyController = new();
+        public class Facing { public Vector3 LookDirection = Vector3.forward; }
+        public Facing Transform = new();
+        public int GetInstanceID() => 2;
 
         public BotComponent()
         {
             Cover = new() { Bot = this };
+            Mover.Bot = this;
         }
     }
 
+}
+
+namespace SAIN.SAINComponent.Classes.EnemyClasses
+{
     public class Enemy
     {
         public Vector3? LastKnownPosition = new Vector3(10, 0, 0);
@@ -217,17 +245,61 @@ namespace SAIN.SAINComponent.Classes.Mover
 {
     public class SAINMoverClass
     {
-        public BotComponent Bot = new();
+        public BotComponent Bot = null!;
+        public class ActiveRoute { public bool Moving; public Vector3 Destination; }
+        public ActiveRoute? ActivePath;
+        public List<Vector3> Probes = [];
+        public List<NavMeshPath> Runs = [];
+        public Func<Vector3, NavMeshPath?> Route = v => new() { corners = [default, v] };
+        public bool Accept = true;
+        public bool CanGoToPoint(Vector3 v, out NavMeshPath path, bool complete, float radius)
+        {
+            Probes.Add(v);
+            path = Route(v)!;
+            return path != null;
+        }
+        public bool RunToPointByWay(NavMeshPath path, bool complete, float reach, SAIN.Models.Enums.ESprintUrgency urgency, bool sameWay)
+        {
+            Runs.Add(path);
+            if (Accept) ActivePath = new() { Moving = true, Destination = path.corners[^1] };
+            return Accept;
+        }
     }
+    public class DogFight
+    {
+        public BotComponent Bot = null!;
+        public int Calls;
+        public void DogFightMove(bool aggressive, Enemy enemy) => Calls++;
+    }
+}
+
+namespace EFT { }
+namespace EFT.Ballistics { }
+public enum EDamageType { Bullet, Fall }
+public class TestAttacker { public TestAttacker? iPlayer => this; public string ProfileId = "shooter"; }
+public struct DamageInfo
+{
+    public EDamageType DamageType;
+    public float DidBodyDamage;
+    public bool DelayedDamage;
+    public Vector3 Direction;
+    public TestAttacker? Player;
 }
 
 namespace HarmonyLib
 {
     public static class AccessTools
     {
-        public static object Method(Type t, string s, Type[]? args = null) => s;
+        public static MethodInfo Method(Type t, string s, Type[]? args = null) =>
+            t.GetMethod(s, BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!;
     }
 
+    public class CodeInstruction(OpCode op, object value)
+    {
+        public OpCode opcode = op;
+        public object operand = value;
+        public bool Calls(MethodInfo mi) => opcode == OpCodes.Callvirt && Equals(operand, mi);
+    }
     public class HarmonyMethod
     {
         public HarmonyMethod(Type t, string s) { }
@@ -235,7 +307,7 @@ namespace HarmonyLib
 
     public class Harmony
     {
-        public void Patch(object m, HarmonyMethod? prefix = null, HarmonyMethod? postfix = null) { }
+        public void Patch(object m, HarmonyMethod? prefix = null, HarmonyMethod? postfix = null, HarmonyMethod? transpiler = null) { }
     }
 }
 
@@ -244,6 +316,7 @@ namespace Comet.Client
     public class Config
     {
         public bool Enabled = true;
+        public bool QuietLogging;
         public int Revision = 3;
     }
 
@@ -300,6 +373,9 @@ namespace Comet.Client
     {
         private static Plugin? Instance;
         private Config? config = new();
+        private class Log { internal void LogInfo(string s) {} internal void LogWarning(string s) {} }
+        private readonly Log Logger = new();
+        private void WarnFaultSink(Exception ex) {}
         private bool Authority = true,
             IsGhost;
         private readonly Dictionary<BotComponent, BotState> states = new();

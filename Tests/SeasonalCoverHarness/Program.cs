@@ -43,6 +43,7 @@ namespace Comet.Client
         public static void Test()
         {
             TestExposure();
+            TestExposedCoverEscape();
             TestTrunkCover();
             foreach (var season in Enum.GetValues<ESeason>())
             {

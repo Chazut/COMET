@@ -1,4 +1,6 @@
 using System;
+using EFT;
+using EFT.Ballistics;
 using HarmonyLib;
 using SAIN.Components;
 using SAIN.Models.Enums;
@@ -25,6 +27,8 @@ public sealed partial class Plugin
             AccessTools.Method(typeof(SAINCoverClass), "GetHit"),
             postfix: new HarmonyMethod(typeof(Plugin), nameof(CoverExposureHit))
         );
+        h.Patch(AccessTools.Method(typeof(SAINCoverClass), "UpdateCover"),
+            transpiler: new HarmonyMethod(typeof(Plugin), nameof(InsertExposedCoverEscape)));
         foreach (var name in new[] { "ManualUpdate", "UpdateCover" })
             h.Patch(
                 AccessTools.Method(typeof(SAINCoverClass), name),
@@ -69,11 +73,15 @@ public sealed partial class Plugin
     internal static bool CoverExposed(BotComponent b, CoverPoint? point) =>
         point != null && CoverExposureScope(b) && point.Spotted;
 
-    private static void CoverExposureHit(SAINCoverClass __instance)
+    private static void CoverExposureHit(SAINCoverClass __instance, DamageInfo __0)
     {
         var b = __instance.Bot;
         var point = __instance.CoverInUse;
-        if (point == null || !CoverExposureScope(b))
+        if (!CoverExposureScope(b))
+            return;
+        if (__0.DamageType == EDamageType.Bullet && __0.DidBodyDamage > 0f && !__0.DelayedDamage)
+            Instance!.ObserveEscapeHit(b, point, __0);
+        if (point == null)
             return;
         // Read AFTER SAIN has counted damage and raised OnSpottedInCover.
         // Its thresholds and two-second expiry remain the sole authority.
@@ -97,15 +105,16 @@ public sealed partial class Plugin
             return;
         var held = __instance.CoverInUse;
         var moving = __instance.CoverPoint_MovingTo;
-        if (held != null && held.Spotted)
+        var escape = Instance!.CurrentEscape(b);
+        if (held != null && (held.Spotted || escape?.Rejects(held) == true))
         {
             SourceCoverAccess.Forget(__instance, held);
-            RecordCoverExposure(b, held, "spotted-held-cover-released", false, true, false);
+            RecordCoverExposure(b, held, held.Spotted ? "spotted-held-cover-released" : "escape-origin-released", false, true, false);
         }
-        if (moving != null && moving.Spotted && !ReferenceEquals(moving, held))
+        if (moving != null && (moving.Spotted || escape?.Rejects(moving) == true) && !ReferenceEquals(moving, held))
         {
             SourceCoverAccess.Forget(__instance, moving);
-            RecordCoverExposure(b, moving, "spotted-moving-cover-released", false, true, false);
+            RecordCoverExposure(b, moving, moving.Spotted ? "spotted-moving-cover-released" : "escape-origin-route-released", false, true, false);
         }
     }
 
@@ -115,7 +124,9 @@ public sealed partial class Plugin
         ref bool __result
     )
     {
-        if (!CoverExposed(__instance.Bot, point))
+        var bot = __instance.Bot;
+        if (point == null || !CoverExposureScope(bot)
+            || (!point.Spotted && Instance!.CurrentEscape(bot)?.Rejects(point) != true))
             return true;
         // FindCoverPoint already tries the next candidate when GoToCoverPoint
         // fails. Keep its ordering and cached points, including native expiry.
@@ -124,7 +135,7 @@ public sealed partial class Plugin
         RecordCoverExposure(
             __instance.Bot,
             point,
-            "spotted-cover-move-refused",
+            point.Spotted ? "spotted-cover-move-refused" : "escape-origin-move-refused",
             false,
             false,
             true

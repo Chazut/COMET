@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="../../Client/SeasonalCoverAdapter.cs" Link="SeasonalCoverAdapter.cs" />
     <Compile Include="../../Client/CoverExposureAdapter.cs" Link="CoverExposureAdapter.cs" />
+    <Compile Include="../../Client/ExposedCoverEscape.cs" Link="ExposedCoverEscape.cs" />
   </ItemGroup>
   <Target Name="ExtractAccess" BeforeTargets="CoreCompile">
     <Exec Command="python &quot;$(MSBuildProjectDirectory)/prepare.py&quot;" />

@@ -26,14 +26,14 @@ public sealed partial class Plugin
             wall.CoverData.IsBad = true;
             Check(!NativeCoverProtects(b), "Native bad cover is not protection");
             wall.CoverData.IsBad = false;
-            CoverExposureHit(b.Cover);
+            CoverExposureHit(b.Cover, default);
             Check(b.Cover.CoverInUse == wall, "Below native damage threshold: cover retained");
             Check(p.states[b].CoverExposure.Hits == 1, "Below-threshold hit still counted");
             wall.Spotted = true;
             b.Cover.CoverPoint_MovingTo = bush;
             b.Cover.CoverPoints.Add(wall);
             b.Cover.CoverPoints.Add(bush);
-            CoverExposureHit(b.Cover);
+            CoverExposureHit(b.Cover, default);
             Check(
                 b.Cover.CoverInUse == null && b.Cover.CoverPoint_MovingTo == bush,
                 "Release exposed cover without dropping unrelated route"
@@ -130,7 +130,7 @@ public sealed partial class Plugin
             var point = Point(true);
             point.Spotted = true;
             b.Cover.CoverInUse = b.Cover.CoverPoint_MovingTo = point;
-            CoverExposureHit(b.Cover);
+            CoverExposureHit(b.Cover, default);
             CoverExposureRetained(b.Cover);
             bool accepted = true;
             Check(
@@ -148,7 +148,7 @@ public sealed partial class Plugin
             point.Spotted = true;
             Diagnostics.Fail = true;
             b.Cover.CoverInUse = point;
-            CoverExposureHit(b.Cover);
+            CoverExposureHit(b.Cover, default);
             Check(b.Cover.CoverInUse == null, "Failed telemetry cannot veto release");
             Diagnostics.Fail = false;
             Time.time += 5;

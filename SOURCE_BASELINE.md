@@ -14,6 +14,10 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### Exposed cover with no reachable replacement (approved COMET difference)
+
+A player reported repeatedly hitting a PMC behind the Ground Zero bank billboard until he died. In both the pinned fork and official SAIN 4.5.1, `UpdateCover` calls `DogFightMove` if `FindCoverPoint` accepts no route. COMET leaves that search first. When another bullet damages the same stationary bot after its cover was marked spotted, it may sprint to a reachable navigation point. It prefers an endpoint screened from the shooter's last known position. One route is issued per attempt, and native cover can take over on the next search. This addresses a possible cause of the report. The original raid was not instrumented.
+
 ### Inaccessible contact in native SeekCover (approved COMET difference)
 
 In Shoreline raid 503 a stationary PMC kept the same unreachable sniper as his
