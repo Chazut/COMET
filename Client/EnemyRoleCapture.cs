@@ -38,6 +38,8 @@ internal static class EnemyRoleCapture
     private static Type? managerType;
     private static bool bridgeChecked;
 
+    internal static void ClearRaid() => identifications.Clear();
+
     // MoreBotsAPI attaches the manager to its plugin. Read its already-loaded raid index,
     // never its server endpoint or another bot's live group. No hard dependency for solo installs.
     private static IReadOnlyList<string>? FactionsFor(WildSpawnType role)

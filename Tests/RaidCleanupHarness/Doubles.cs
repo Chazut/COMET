@@ -56,6 +56,12 @@ namespace Comet.Api
 
 namespace Comet.Client
 {
+    internal static class EnemyRoleCapture
+    {
+        internal static int Clears;
+        internal static void ClearRaid() => Clears++;
+    }
+
     internal class Owned
     {
         internal readonly List<object> Refs = new();

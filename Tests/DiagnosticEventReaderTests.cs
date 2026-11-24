@@ -287,6 +287,19 @@ internal static class DiagnosticEventReaderTests
         reader.Observe("{", counters, journal);
         Check(reader.LegacyFallbacks == 1, "invalid input is separately observable");
 
+        var nested = DiagnosticEventReader.Read(
+            "{\"unknown\":123,\"candidates\":[{\"reason\":\"before\"}]}", out int skipped
+        );
+        var reason = nested["candidates"]![0]!["reason"]!;
+        Parallel.For(0, 64, i =>
+        {
+            var next = DiagnosticEventReader.Read($"{{\"unknown{i}\":0,\"count\":{i}}}", out int ignored);
+            if ((int?)next["count"] != i || ignored != 1)
+                throw new Exception("Concurrent summary readers mixed their fields or buffers");
+        });
+        Check(skipped == 1 && (string?)reason == "before" && !((IJsonLineInfo)reason).HasLineInfo(),
+            "projected values outlive pooled buffers without retaining source line annotations");
+
         // The complete source string is never rewritten. Summary-only projection
         // avoids allocating the large snapshot trees for unconsumed feature data.
         var repeated = Enumerable.Repeat(events[3], 100).ToArray();

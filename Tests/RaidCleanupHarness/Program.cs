@@ -64,6 +64,7 @@ Check(
 );
 Check(p.world == null && p.config == null && !p.loading.Pending, "raid world/config detached");
 Check(p.LightClears == 1, "raid cleanup invokes light detection cache cleanup");
+Check(EnemyRoleCapture.Clears == 1, "enemy identification cleanup runs despite earlier failures");
 Check(!p.nativeStormPlans.TryGetValue(eftGroup, out _), "raid cleanup forgets the assault verdict even for a still-referenced EFT group");
 Check(p.RemixClears == 1, "raid cleanup releases door, navigation and preset caches");
 Check(ev.Count == 0 && p.clearEvents == null, "both event handlers detached despite one failure");
@@ -92,6 +93,7 @@ int cleared = Comet.Api.DoorMotionNetwork.Cleared;
 p.End();
 p.WorldDisposed(oldWorld);
 Check(events.Count == 1 && cleared == Comet.Api.DoorMotionNetwork.Cleared, "cleanup idempotent");
+Check(EnemyRoleCapture.Clears == 1, "duplicate disposal does not reset enemy identifications twice");
 releaseFetch.Set();
 p.Begin(new());
 p.loading.Start(p.Epoch, () => new CometConfig { Revision = 11 });

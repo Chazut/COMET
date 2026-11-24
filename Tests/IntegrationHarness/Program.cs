@@ -353,6 +353,17 @@ static class Audit
         );
         var roleAdapter = client.GetType("Comet.Client.EnemyRoleCapture", true)!;
         var flags = BindingFlags.Static | BindingFlags.NonPublic;
+        var roleCache = roleAdapter.GetField("identifications", flags)!.GetValue(null)!;
+        var cacheType = roleCache.GetType();
+        var key = RuntimeHelpers.GetUninitializedObject(typeof(EFT.Player));
+        var value = RuntimeHelpers.GetUninitializedObject(cacheType.GetGenericArguments()[1]);
+        cacheType.GetMethod("Add")!.Invoke(roleCache, new[] { key, value });
+        roleAdapter.GetMethod("ClearRaid", flags)!.Invoke(null, null);
+        if ((bool)cacheType.GetMethod("TryGetValue")!.Invoke(roleCache, new object?[] { key, null })!)
+            throw new Exception("Finished raid still has an identification for a retained player");
+        var travelUpdate = plugin.GetMethod("CoverTravelUpdate", flags)!;
+        if (Calls(travelUpdate).Count(m => m.Name == "TravelFrame") != 1)
+            throw new Exception("Cover travel must sample its decision inputs once per update");
         var capture = client.GetType("Comet.Client.ZzapUtilityCapture", true)!;
         var rankInputs = Calls(capture.GetMethod("Fill", flags)!).Select(m => m.Name).ToHashSet();
         if (!rankInputs.IsSupersetOf(new[] { "get_HaveGrenade", "get_PathLength", "get_BotDistanceFromLastKnown",

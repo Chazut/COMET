@@ -178,6 +178,7 @@ public sealed partial class Plugin
             });
             Step("perception-caches", () =>
             {
+                EnemyRoleCapture.ClearRaid();
                 movementQueue.Clear();
                 movementPending.Clear();
                 movementSources.Clear();

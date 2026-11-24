@@ -278,7 +278,6 @@ public sealed partial class Plugin
             r.CallbackAt = Time.time;
             r.Owner = b;
             var f = p.TravelFrame(b, s);
-            f = p.TravelFrame(b, s);
             string mode = r.Policy.Tick(f, p.config.CoverTravel);
             if (mode == "native" || !r.NativeCaptured)
                 p.ReleaseTravelRequest(s);

@@ -1,14 +1,50 @@
 using System;
+using System.Buffers;
+using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace Comet.Client;
 
-// The original JSON still goes to disk and RR. Only the background summaries use
+// The original JSON still goes to disk, Raid Review and Satellite. Only the background summaries use
 // this projection, so large feature/configuration snapshots need no JToken tree.
 internal sealed class DiagnosticEventReader
 {
+    private static readonly HashSet<string> SummaryFields = new(StringComparer.Ordinal)
+    {
+        "schema", "session", "feature", "stage", "realtime", "botInstance", "profileId",
+        "personality", "name", "enabled", "configRevision", "maxOpportunities", "decision",
+        "reason", "tacticObservationVersion", "mixing", "candidates", "doorFakeGrenade",
+        "doorFakeMedical", "sequence", "combatEnabled", "weaponEnabled", "count",
+        "combatJournal", "weaponJournal", "controlJournal",
+    };
+    private static readonly DefaultJsonNameTable PropertyNames = CreateNameTable();
+    private static readonly JsonLoadSettings SummarySettings = new()
+    {
+        LineInfoHandling = LineInfoHandling.Ignore,
+    };
+
+    // Populate once. Concurrent readers look up known field names without caching raid data.
+    private static DefaultJsonNameTable CreateNameTable()
+    {
+        var names = new DefaultJsonNameTable();
+        foreach (string field in SummaryFields)
+            names.Add(field);
+        return names;
+    }
+
+    private sealed class ReaderBufferPool : IArrayPool<char>
+    {
+        internal static readonly ReaderBufferPool Instance = new();
+        public char[] Rent(int minimumLength) => ArrayPool<char>.Shared.Rent(minimumLength);
+        public void Return(char[]? array)
+        {
+            if (array != null)
+                ArrayPool<char>.Shared.Return(array);
+        }
+    }
+
     internal long ParsedEvents,
         ProjectedEvents,
         SkippedProperties,
@@ -21,6 +57,8 @@ internal sealed class DiagnosticEventReader
             throw new JsonReaderException("Diagnostic event exceeds the summary limit.");
         using var reader = new JsonTextReader(new StringReader(json))
         {
+            ArrayPool = ReaderBufferPool.Instance,
+            PropertyNameTable = PropertyNames,
             MaxDepth = 48,
             DateParseHandling = DateParseHandling.None,
         };
@@ -45,8 +83,8 @@ internal sealed class DiagnosticEventReader
 
             // This union covers both summary consumers. It does not depend on
             // property order or on a feature ID appearing inside a nested object.
-            if (Needed(property))
-                result[property] = JToken.ReadFrom(reader);
+            if (SummaryFields.Contains(property))
+                result[property] = JToken.ReadFrom(reader, SummarySettings);
             else
             {
                 reader.Skip();
@@ -55,35 +93,6 @@ internal sealed class DiagnosticEventReader
         }
         throw new JsonReaderException("Unterminated diagnostic object.");
     }
-
-    private static bool Needed(string property) =>
-        property
-            is "schema"
-                or "session"
-                or "feature"
-                or "stage"
-                or "realtime"
-                or "botInstance"
-                or "profileId"
-                or "personality"
-                or "name"
-                or "enabled"
-                or "configRevision"
-                or "maxOpportunities"
-                or "decision"
-                or "reason"
-                or "tacticObservationVersion"
-                or "mixing"
-                or "candidates"
-                or "doorFakeGrenade"
-                or "doorFakeMedical"
-                or "sequence"
-                or "combatEnabled"
-                or "weaponEnabled"
-                or "count"
-                or "combatJournal"
-                or "weaponJournal"
-                or "controlJournal";
 
     internal void Observe(string json, TacticCounters counters, CombatReport journal)
     {
