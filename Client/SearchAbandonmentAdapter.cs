@@ -29,18 +29,20 @@ public sealed partial class Plugin
         );
     }
 
-    private static bool StalledOnUnreachableContact(BotState s, Enemy e, float now, double ambushRadius)
+    private static bool StalledOnHiddenContact(BotState s, Enemy e, float now, double ambushRadius)
     {
         var watch = s.StalledCover;
         var b = e.Bot;
         var place = e.KnownPlaces;
+        bool reachable = e.Path.PathToEnemyStatus == NavMeshPathStatus.PathComplete;
         bool idle = ReferenceEquals(b.GoalEnemy, e) && b.SAINLayersActive
             && BotEligibility.Kind(b.Player) == "pmc" && !e.IsVisible
             && b.Decision.CurrentCombatDecision == ECombatDecision.SeekCover
             && b.Decision.CurrentSelfDecision == ESelfActionType.None
             && b.Decision.CurrentSquadDecision == ESquadDecision.None
             && !b.Mover.Moving && b.Mover.ActivePath == null
-            && e.Path.PathToEnemyStatus != NavMeshPathStatus.PathComplete
+            && (!reachable || place.BotDistanceFromLastKnown > ambushRadius
+                && b.Cover.CoverInUse?.BotInThisCover != true)
             && b.Search.PathFinder.TargetPlace == null
             && !(b.Cover.CoverInUse?.BotInThisCover == true && place.BotDistanceFromLastKnown <= ambushRadius)
             && !s.HoldAngle.Policy.Active
@@ -48,7 +50,7 @@ public sealed partial class Plugin
             && b.Aim.AimStatus == AimStatus.NoTarget
             && !b.Suppression.IsSuppressed && b.ManualShoot.Reason == EShootReason.None
             && !b.BotOwner.ShootData.Shooting && !HiddenBeingShot(b, 5f);
-        return watch.ShouldRelease(e, now, place.TimeLastKnownUpdated, DP(b.Position), idle);
+        return watch.ShouldRelease(e, now, place.TimeLastKnownUpdated, DP(b.Position), idle, reachable);
     }
 
     private static bool NeedsAbandonment(EnemyKnownChecker checker, bool pending)
@@ -94,10 +96,11 @@ public sealed partial class Plugin
             if (!__result || place == null)
                 return;
             if (s.StalledCover.IsCurrent(e, currentTime)
-                && StalledOnUnreachableContact(s, e, currentTime, p.config.AmbushRadius))
+                && StalledOnHiddenContact(s, e, currentTime, p.config.AmbushRadius))
             {
                 __result = false; // SAIN clears this bot's local knowledge and handles future reacquisition.
-                p.ArbitrationEvent(s, "unreachable-stale-seek-cover", "ForgetContact");
+                p.ArbitrationEvent(s, e.Path.PathToEnemyStatus == NavMeshPathStatus.PathComplete
+                    ? "refused-stale-seek-cover" : "unreachable-stale-seek-cover", "ForgetContact");
                 return;
             }
             var point = place.Position;

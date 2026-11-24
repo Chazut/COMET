@@ -1148,6 +1148,8 @@ public sealed partial class Plugin : BaseUnityPlugin
                     plugin.HiddenCanRun(bot, enemy, state, tactic, beingShot)
                 );
                 choice = plugin.KeepHiddenChoice(bot, enemy, state, choice, beingShot);
+                state.StalledCover.ObserveChoice(enemy, enemy.KnownPlaces.TimeLastKnownUpdated,
+                    choice.Decision.HasValue, state.HiddenExecution.Refusals);
                 state.OpponentAtSelection = situation.Opponent?.Copy();
                 state.Choice = choice;
                 state.Mixing = choice.Mixing;

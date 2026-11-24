@@ -549,7 +549,7 @@ namespace Comet.Client
             Time.time = time;
             var result = bot.Decision.CurrentCombatDecision;
             FinishNativeDoorChoice(bot.Decision.EnemyDecisions, bot.GoalEnemy, native, true, ref result);
-            return state.StalledCover.IsCurrent(bot.GoalEnemy, time) && StalledOnUnreachableContact(state, bot.GoalEnemy, time, 45);
+            return state.StalledCover.IsCurrent(bot.GoalEnemy, time) && StalledOnHiddenContact(state, bot.GoalEnemy, time, 45);
         }
 
         internal ECombatDecision DefaultCover(BotComponent b, ECombatDecision result = ECombatDecision.SeekCover,
@@ -770,6 +770,31 @@ namespace Comet.Client
                     released |= p.CheckStall(b, s, t, condition != "explicit fallback");
                 }
                 Check(released == (condition == "Samiy"), "native fallback or protected action: " + condition);
+            }
+            // Raid 504: SAIN reports PathComplete, but refuses search and a cover shift.
+            foreach (string situation in new[]{ "iBDW", "no refusal", "new evidence", "accepted tactic", "in cover", "nearby", "held corner" })
+            {
+                var (p, b, s) = Setup();
+                b.Decision.CurrentCombatDecision = ECombatDecision.SeekCover;
+                b.Cover.CoverInUse = null;
+                b.Mover.ActivePath = null;
+                var enemy = b.GoalEnemy;
+                enemy.Path.PathToEnemyStatus = NavMeshPathStatus.PathComplete;
+                enemy.KnownPlaces.BotDistanceFromLastKnown = situation == "nearby" ? 12 : 136;
+                if (situation == "in cover") b.Cover.CoverInUse = new() { BotInThisCover = true };
+                if (situation == "held corner") { s.AngleWatch.Active = true; s.AngleWatch.Kind = "corner"; }
+                var refusals = new Dictionary<string,string>{
+                    [nameof(Tactic.Search)] = "search-native-refused:DontWantTo/ShallNotSearch/None",
+                    [nameof(Tactic.Flank)] = "native-shift:cantShift"
+                };
+                if (situation != "no refusal") s.StalledCover.ObserveChoice(enemy, 0, false, refusals);
+                refusals.Remove(nameof(Tactic.Search));
+                for (int t = 0; t <= 90; t++)
+                {
+                    if (situation == "new evidence" && t == 55) enemy.KnownPlaces.TimeLastKnownUpdated = t;
+                    if (t == 55) s.StalledCover.ObserveChoice(enemy, 0, situation == "accepted tactic", refusals);
+                    Check(p.CheckStall(b, s, t) == (situation == "iBDW" && t == 90), "complete path: " + situation + " @" + t);
+                }
             }
             foreach (var why in new[] { "door-mover-refused", "door-approach-timeout", "ambush-approach-timeout",
                 "peek-native-open-refused", "clear-open-timeout", "recon-door-did-not-open",

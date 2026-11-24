@@ -64,7 +64,7 @@ var nativeScope = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,
 source += "partial class Plugin {" + nativeScope + "}";
 var abandonment = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "Client/SearchAbandonmentAdapter.cs")));
 source += "partial class Plugin {" + string.Join("\n", abandonment.GetRoot().DescendantNodes()
-    .OfType<MethodDeclarationSyntax>().Where(m => m.Identifier.Text == "StalledOnUnreachableContact")) + "}";
+    .OfType<MethodDeclarationSyntax>().Where(m => m.Identifier.Text == "StalledOnHiddenContact")) + "}";
 var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
     .Split(Path.PathSeparator)
     .Append(typeof(HiddenEnemyDecision).Assembly.Location)
