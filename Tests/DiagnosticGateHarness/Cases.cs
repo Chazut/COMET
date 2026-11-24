@@ -126,6 +126,13 @@ class Sink
 
 static class Diagnostics
 {
+    public static void PublishSnapshot(Sink? sink, object snapshot, Action<Exception> error)
+    {
+        string json = Serialize(snapshot);
+        sink?.Write(json);
+        Api.Decisions.Publish(json, error);
+    }
+
     public static string Serialize(object x) =>
         JsonSerializer.Serialize(x, new JsonSerializerOptions { IncludeFields = true });
 }

@@ -4,6 +4,8 @@ namespace Comet.Core;
 
 public sealed class WeaponRangeConfig
 {
+    internal WeaponRangeConfig CopyForReplay() => (WeaponRangeConfig)MemberwiseClone();
+
     public bool Enabled { get; set; } = true;
     public double LongDistance { get; set; } = 80;
     public double CloseDistance { get; set; } = 45;
@@ -29,6 +31,8 @@ public sealed class WeaponRangeConfig
 
 public sealed class WeaponRangeGun
 {
+    internal WeaponRangeGun CopyForReplay() => (WeaponRangeGun)MemberwiseClone();
+
     public string Id = "",
         Slot = "",
         Name = "",
@@ -74,6 +78,16 @@ public sealed class WeaponRangeFrame
 
 public sealed class WeaponRangeTrace
 {
+    internal WeaponRangeTrace CopyForReplay()
+    {
+        var copy = (WeaponRangeTrace)MemberwiseClone();
+        if (Alternatives.Length != 0)
+            copy.Alternatives = (string[])Alternatives.Clone();
+        if (Weapons.Length != 0)
+            copy.Weapons = Array.ConvertAll(Weapons, static entry => entry.CopyForReplay());
+        return copy;
+    }
+
     public string State = "choice",
         Choice = "Keep",
         Reason = "",

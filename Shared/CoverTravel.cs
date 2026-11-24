@@ -4,6 +4,8 @@ namespace Comet.Core;
 
 public sealed class CoverTravelConfig
 {
+    internal CoverTravelConfig CopyForReplay() => (CoverTravelConfig)MemberwiseClone();
+
     public bool Enabled { get; set; } = true;
     public double CloseDistance { get; set; } = 30;
     public double VisionAge { get; set; } = 4;
@@ -51,6 +53,14 @@ public sealed class CoverTravelFrame
 
 public sealed class CoverTravelTrace
 {
+    internal CoverTravelTrace CopyForReplay()
+    {
+        var copy = (CoverTravelTrace)MemberwiseClone();
+        if (Alternatives.Length != 0)
+            copy.Alternatives = (string[])Alternatives.Clone();
+        return copy;
+    }
+
     public string State = "native",
         Reason = "",
         Target = "",

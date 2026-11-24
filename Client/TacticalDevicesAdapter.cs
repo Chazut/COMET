@@ -551,28 +551,9 @@ public sealed partial class Plugin
             return;
         r.Key = key;
         r.LogAt = Time.time + .5f;
-        var json = Diagnostics.Serialize(
-            new
-            {
-                schema = 1,
-                session,
-                sequence = ++sequence,
-                feature = "L02",
-                stage = "evaluated",
-                decision = "TacticalDevices",
-                reason = t.Reason,
-                realtime = Time.realtimeSinceStartup,
-                utc = DateTime.UtcNow.ToString("O"),
-                configRevision = config?.Revision ?? 0,
-                profileId = s.ProfileId,
-                name = s.Name,
-                botInstance = s.Id,
-                tacticalDevices = t,
-                tacticalDevicesConfig = config?.TacticalDevices,
-            }
-        );
-        diagnostics?.Write(json);
-        Api.Decisions.Publish(json, ex =>
+        var stamp = new ReplayStamp(session, ++sequence, Time.realtimeSinceStartup, DateTime.UtcNow.ToString("O"),
+            config?.Revision ?? 0, s.ProfileId, s.Name, s.Id);
+        Diagnostics.PublishSnapshot(diagnostics, stamp.Capture(t, config?.TacticalDevices), ex =>
         {
             if (!subscriberWarned)
             {

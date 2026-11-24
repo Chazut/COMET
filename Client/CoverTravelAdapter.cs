@@ -420,28 +420,9 @@ public sealed partial class Plugin
             return;
         r.LogKey = key;
         r.LogAt = Time.time;
-        var json = Diagnostics.Serialize(
-            new
-            {
-                schema = 1,
-                session,
-                sequence = ++sequence,
-                feature = "M09",
-                stage = "evaluated",
-                decision = "CoverTravel",
-                reason = t.Reason,
-                realtime = Time.realtimeSinceStartup,
-                utc = DateTime.UtcNow.ToString("O"),
-                configRevision = config?.Revision ?? 0,
-                profileId = s.ProfileId,
-                name = s.Name,
-                botInstance = s.Id,
-                coverTravel = t,
-                coverTravelConfig = config?.CoverTravel,
-            }
-        );
-        diagnostics?.Write(json);
-        Api.Decisions.Publish(json, ex =>
+        var stamp = new ReplayStamp(session, ++sequence, Time.realtimeSinceStartup, DateTime.UtcNow.ToString("O"),
+            config?.Revision ?? 0, s.ProfileId, s.Name, s.Id);
+        Diagnostics.PublishSnapshot(diagnostics, stamp.Capture(t, config?.CoverTravel), ex =>
         {
             if (!subscriberWarned)
             {

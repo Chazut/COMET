@@ -119,11 +119,11 @@ namespace Comet.Api
 
         private readonly struct Delivery
         {
-            internal readonly string Json;
+            internal readonly Client.DiagnosticJson Json;
             internal readonly Delegate[] Handlers;
             internal readonly Action<Exception> Error;
 
-            internal Delivery(string json, Delegate[] handlers, Action<Exception> error)
+            internal Delivery(Client.DiagnosticJson json, Delegate[] handlers, Action<Exception> error)
             {
                 Json = json;
                 Handlers = handlers;
@@ -131,7 +131,8 @@ namespace Comet.Api
             }
         }
 
-        private static readonly Comet.Core.FrameDispatchQueue<Delivery> Deliveries = new(Dispatch);
+        private static readonly Comet.Core.FrameDispatchQueue<Delivery> Deliveries =
+            new(Dispatch, ready: static item => item.Json.Ready);
         private static int deliveryFrame;
 
         // Called by RR before it closes its recording. This keeps the tail of a burst in that raid.
@@ -169,17 +170,28 @@ namespace Comet.Api
 
         internal static void Publish(string json, Action<Exception> onError)
         {
-            if (RaidClosed)
-                return;
-            // Serialize at the event time, then spread delivery across frames. Only
-            // immutable strings are queued; Unity-facing subscribers stay on the main thread.
-            var handlers = Volatile.Read(ref subscribers);
+            Publish(new Client.DiagnosticJson(json), CaptureSubscribers(), onError);
+        }
+
+        internal static Delegate[] CaptureSubscribers() =>
+            RaidClosed ? Array.Empty<Delegate>() : Volatile.Read(ref subscribers);
+
+        internal static void Publish(Client.DiagnosticJson json, Delegate[] handlers, Action<Exception> onError)
+        {
             if (handlers.Length != 0)
                 Deliveries.Enqueue(new Delivery(json, handlers, onError), deliveryFrame);
         }
 
         private static void Dispatch(Delivery item)
         {
+            string json;
+            try { json = item.Json.Read(); }
+            catch (Exception ex)
+            {
+                // An encoding error belongs to the event, never to a subscriber.
+                try { item.Error(ex); } catch { }
+                return;
+            }
             foreach (Action<string> subscriber in item.Handlers)
             {
                 if (FailedSubscribers.Contains(subscriber))
@@ -188,9 +200,9 @@ namespace Comet.Api
                 {
                     var metrics = Comet.Core.RaidSamplingMetrics.Current;
                     if (metrics == null)
-                        subscriber(item.Json);
+                        subscriber(json);
                     else
-                        metrics.InvokeMeasured(subscriber, item.Json);
+                        metrics.InvokeMeasured(subscriber, json);
                 }
                 catch (Exception ex)
                 {
@@ -208,6 +220,15 @@ namespace Comet.Api
 
 namespace Comet.Client
 {
+    internal readonly struct DiagnosticJson
+    {
+        private readonly string? text;
+        private readonly Task<string>? pending;
+        internal DiagnosticJson(string text) { this.text = text; pending = null; }
+        internal DiagnosticJson(Task<string> pending) { this.pending = pending; text = null; }
+        internal bool Ready => pending == null || pending.IsCompleted;
+        internal string Read() => text ?? pending!.GetAwaiter().GetResult();
+    }
     // Newtonsoft normally compiles its member readers on first GetValue, even after
     // ResolveContract. Build those readers during pre-raid contract preparation,
     // without constructing a payload or executing any property getter.
@@ -645,11 +666,11 @@ namespace Comet.Client
 
         private readonly struct LogEntry
         {
-            internal readonly string Json;
+            internal readonly DiagnosticJson Json;
             internal readonly bool Persist;
             internal readonly bool Observe;
 
-            internal LogEntry(string json, bool persist, bool observe)
+            internal LogEntry(DiagnosticJson json, bool persist, bool observe)
             {
                 Json = json;
                 Persist = persist;
@@ -674,6 +695,23 @@ namespace Comet.Client
         // Optional per-raid worker measurements. No profiler dependency in journal harnesses.
         internal Action<long, long>? PerformanceSample;
         internal Func<long>? PerformanceAllocation;
+        private readonly Func<object?, string> measureEncoding;
+        private long encodedEvents, encodingTicks, maxEncodingTicks;
+
+        private string MeasureEncoding(object? snapshot)
+        {
+            long start = System.Diagnostics.Stopwatch.GetTimestamp();
+            try { return Serialize(snapshot!); }
+            finally
+            {
+                long ticks = System.Diagnostics.Stopwatch.GetTimestamp() - start;
+                // The exclusive encoder is the only writer.
+                Interlocked.Increment(ref encodedEvents);
+                Interlocked.Add(ref encodingTicks, ticks);
+                if (ticks > Interlocked.Read(ref maxEncodingTicks))
+                    Interlocked.Exchange(ref maxEncodingTicks, ticks);
+            }
+        }
         private readonly DecisionConfiguration configuration = new();
 
         internal void ConfigureLogging(bool enabled, long revision, string session)
@@ -802,6 +840,7 @@ namespace Comet.Client
         )
         {
             this.reportReceiverAvailable = reportReceiverAvailable;
+            measureEncoding = MeasureEncoding;
             skipOrdinaryReports = reportReceiverAvailable ? 0 : 1;
             warn = warning;
             Directory.CreateDirectory(directory);
@@ -886,6 +925,14 @@ namespace Comet.Client
                     }
                     foreach (var entry in queue.GetConsumingEnumerable())
                     {
+                        string json;
+                        try { json = entry.Json.Read(); }
+                        catch (Exception ex)
+                        {
+                            skipped++;
+                            Warn("COMET diagnostic snapshot failed: " + ex.GetBaseException().Message);
+                            continue;
+                        }
                         var sample = Volatile.Read(ref PerformanceSample);
                         long start =
                             sample != null ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
@@ -893,9 +940,9 @@ namespace Comet.Client
                             sample != null ? (PerformanceAllocation?.Invoke() ?? 0) : 0;
                         // Enabled reports also consume events omitted from the local file.
                         if (entry.Observe && counters != null && journal != null)
-                            eventReader.Observe(entry.Json, counters, journal);
+                            eventReader.Observe(json, counters, journal);
                         if (entry.Persist)
-                            Line(entry.Json);
+                            Line(json);
                         else
                             quietSuppressed++;
                         if (queue.Count == 0 && output != null)
@@ -948,6 +995,12 @@ namespace Comet.Client
                                 session,
                                 stage = "diagnostics-end",
                                 segments = segment + 1,
+                                deferredEncoding = new
+                                {
+                                    measuredEvents = Interlocked.Read(ref encodedEvents),
+                                    workerMs = Interlocked.Read(ref encodingTicks) * 1000d / System.Diagnostics.Stopwatch.Frequency,
+                                    maxEventMs = Interlocked.Read(ref maxEncodingTicks) * 1000d / System.Diagnostics.Stopwatch.Frequency,
+                                },
                                 quietLogging = Volatile.Read(ref quiet) != 0,
                                 quietSuppressed = quietSuppressed + Interlocked.Read(ref skippedBeforeQueue),
                                 summaryReader = new
@@ -988,38 +1041,58 @@ namespace Comet.Client
 
         internal bool WantsOrdinaryEvents => Volatile.Read(ref quiet) == 0 || Volatile.Read(ref skipOrdinaryReports) == 0;
 
-        public void Write(string json)
+        public void Write(string json) => WriteOrdinary(new DiagnosticJson(json));
+
+        private bool WriteOrdinary(DiagnosticJson json)
         {
             bool persist = Volatile.Read(ref quiet) == 0;
             bool observe = Volatile.Read(ref skipOrdinaryReports) == 0;
             if (persist || observe)
-                Enqueue(json, persist, observe);
-            else
-                Interlocked.Increment(ref skippedBeforeQueue);
+                return Enqueue(json, persist, observe);
+            Interlocked.Increment(ref skippedBeforeQueue);
+            return false;
+        }
+
+        // A single encoder runs independently of disk I/O and the game thread.
+        // Both consumers reserve their original FIFO position and share one result.
+        private static readonly TaskScheduler SnapshotScheduler =
+            new ConcurrentExclusiveSchedulerPair(TaskScheduler.Default, 1).ExclusiveScheduler;
+
+        internal static void PublishSnapshot(Diagnostics? sink, object snapshot, Action<Exception> error)
+        {
+            var handlers = Api.Decisions.CaptureSubscribers();
+            Func<object?, string> encode = sink != null && Volatile.Read(ref sink.PerformanceSample) != null
+                ? sink.measureEncoding : static value => Serialize(value!);
+            var job = new Task<string>(encode, snapshot,
+                CancellationToken.None, TaskCreationOptions.DenyChildAttach);
+            var json = new DiagnosticJson(job);
+            bool queued = sink?.WriteOrdinary(json) == true;
+            if (!queued && handlers.Length == 0)
+                return;
+            job.Start(SnapshotScheduler);
+            Api.Decisions.Publish(json, handlers, error);
         }
 
         // Configuration, errors and raid cleanup always reach the writer and the reports.
-        public void WriteEssential(string json) => Enqueue(json, true, reportReceiverAvailable);
+        public void WriteEssential(string json) => Enqueue(new DiagnosticJson(json), true, reportReceiverAvailable);
 
-        private void Enqueue(string json, bool persist, bool observe)
+        private bool Enqueue(DiagnosticJson json, bool persist, bool observe)
         {
             if (Volatile.Read(ref closed) != 0)
-                return;
+                return false;
             // Capture the mode on enqueue, not later when the worker catches up.
             try
             {
-                if (!queue.TryAdd(new LogEntry(json, persist, observe)))
-                {
-                    long count = Interlocked.Increment(ref dropped);
-                    if (count == 1)
-                        Warn(
-                            "COMET diagnostics queue full. Missing events will be counted in the file footer."
-                        );
-                }
+                if (queue.TryAdd(new LogEntry(json, persist, observe)))
+                    return true;
+                long count = Interlocked.Increment(ref dropped);
+                if (count == 1)
+                    Warn("COMET diagnostics queue full. Missing events will be counted in the file footer.");
             }
             catch (InvalidOperationException)
             { /* Concurrent disposal; never break gameplay. */
             }
+            return false;
         }
 
         private void Warn(string message)

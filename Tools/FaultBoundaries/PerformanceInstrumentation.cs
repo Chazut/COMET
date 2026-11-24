@@ -39,6 +39,7 @@ sealed class PerformanceInstrumentation : CSharpSyntaxRewriter
             && (
                 body.Contains("JsonConvert.SerializeObject")
                 || body.Contains("Diagnostics.Serialize(")
+                || body.Contains("Diagnostics.PublishSnapshot(")
             );
         bool diagnostic =
             File == "Diagnostics" && (name is "Publish" or "Dispatch" or "Write" || telemetry);

@@ -4,6 +4,11 @@ using System.Text.Json;
 using Comet.Core;
 using Comet.Server;
 
+if (args.Length >= 2 && args[0] == "--replay-deferred")
+{
+    DeferredRaidReplay.Run(args.Skip(1).ToArray());
+    return;
+}
 // Run one policy suite independently while updating the source-parity baseline.
 // The normal invocation still runs every suite and integration check below.
 if (args.Length == 2 && args[0] == "--suite")
@@ -44,6 +49,7 @@ checks += MagazineRecoveryTests.Run();
 checks += HotPathAllocationTests.Run();
 checks += DiagnosticWarmupTests.Run();
 checks += DiagnosticEventReaderTests.Run();
+checks += DeferredDiagnosticTests.Run();
 checks += PlanContinuityTests.Run();
 checks += await PerformanceTests.Run();
 checks += await DiagnosticConfigurationTests.Run();

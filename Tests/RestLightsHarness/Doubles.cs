@@ -459,6 +459,13 @@ namespace Comet.Client
 
     internal static class Diagnostics
     {
+        public static void PublishSnapshot(Sink? sink, object snapshot, Action<Exception> error)
+        {
+            string json = Serialize(snapshot);
+            sink?.Write(json);
+            Api.Decisions.Publish(json, error);
+        }
+
         internal static string Serialize(object value) =>
             Newtonsoft.Json.JsonConvert.SerializeObject(value, Json);
 

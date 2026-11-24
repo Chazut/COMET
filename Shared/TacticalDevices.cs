@@ -4,6 +4,8 @@ namespace Comet.Core;
 
 public sealed class TacticalDevicesConfig
 {
+    internal TacticalDevicesConfig CopyForReplay() => (TacticalDevicesConfig)MemberwiseClone();
+
     public bool Enabled { get; set; } = true;
     public double CommandInterval { get; set; } = .25;
     public double ConfirmationTimeout { get; set; } = .8;
@@ -117,6 +119,8 @@ public sealed class TacticalDeviceAttempt
 
 public sealed class TacticalDeviceDetail
 {
+    internal TacticalDeviceDetail CopyForReplay() => (TacticalDeviceDetail)MemberwiseClone();
+
     public string Id = "",
         Name = "",
         State = "";
@@ -131,6 +135,16 @@ public sealed class TacticalDeviceDetail
 
 public sealed class TacticalDevicesTrace
 {
+    internal TacticalDevicesTrace CopyForReplay()
+    {
+        var copy = (TacticalDevicesTrace)MemberwiseClone();
+        if (Alternatives.Length != 0)
+            copy.Alternatives = (string[])Alternatives.Clone();
+        if (Accessories.Length != 0)
+            copy.Accessories = Array.ConvertAll(Accessories, static entry => entry.CopyForReplay());
+        return copy;
+    }
+
     public string State = "waiting",
         Reason = "",
         Action = "",

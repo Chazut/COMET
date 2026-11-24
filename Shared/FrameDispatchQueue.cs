@@ -11,6 +11,7 @@ public sealed class FrameDispatchQueue<T>
     private readonly Queue<T> pending = new();
     private readonly Action<T> deliver;
     private readonly Func<long> clock;
+    private readonly Func<T, bool>? ready;
     private readonly long budget;
     private readonly int capacity;
     private int frame = int.MinValue;
@@ -27,26 +28,28 @@ public sealed class FrameDispatchQueue<T>
         Action<T> deliver,
         Func<long>? clock = null,
         long budgetTicks = 0,
-        int capacity = 4096
+        int capacity = 4096,
+        Func<T, bool>? ready = null
     )
     {
         this.deliver = deliver;
         this.clock = clock ?? Stopwatch.GetTimestamp;
         budget = budgetTicks > 0 ? budgetTicks : Math.Max(1, Stopwatch.Frequency / 1000);
         this.capacity = Math.Max(1, capacity);
+        this.ready = ready;
     }
 
     public void Enqueue(T message, int currentFrame)
     {
         // Backpressure preserves events. This rare drain is counted, not silently dropped.
-        if (pending.Count >= capacity && !draining)
-        {
-            ForcedDrains++;
-            Drain(currentFrame, true);
-        }
+        bool full = pending.Count >= capacity && !draining;
         pending.Enqueue(message);
         PeakPending = Math.Max(PeakPending, pending.Count);
-        Drain(currentFrame);
+        if (full)
+        {
+            ForcedDrains++;
+        }
+        Drain(currentFrame, full);
     }
 
     public void Drain(int currentFrame, bool force = false)
@@ -63,6 +66,10 @@ public sealed class FrameDispatchQueue<T>
         {
             while (pending.Count > 0 && (force || spent < budget))
             {
+                // Keep subsequent events behind a snapshot still being encoded.
+                // An explicit flush (or backpressure) waits in the consumer.
+                if (!force && ready != null && !ready(pending.Peek()))
+                    break;
                 var message = pending.Dequeue();
                 long start = clock();
                 try
