@@ -138,6 +138,57 @@ void CheckMedicalHearing()
     plugin.Hear(a, SAINSoundType.Sprint, near);
     C(plugin.Frame(bot).FootstepContact == "A", "M14 alone still collects the last sound");
 }
+void CheckFractures()
+{
+    foreach (var mode in new[] { "splint", "kit", "insufficient", "ordinary", "resolved", "persists", "bleeding" })
+    {
+        var (p, b) = Setup();
+        p.config!.TacticalMistakes.Enabled = false;
+        var health = b.Player.HealthController;
+        foreach (var hp in health.Parts.Values) hp.Current = hp.Maximum;
+        var fracture = new Fracture(EBodyPart.RightLeg);
+        health.Effects.Add(fracture);
+        Meds item = mode is "kit" or "insufficient" or "ordinary" ? new MedKit() : new Meds();
+        item.Id = "treatment";
+        if (mode != "ordinary")
+            item.HealthEffectsComponent.DamageEffects[EDamageEffectType.Fracture] = new() { Cost = mode == "insufficient" ? 101 : 1 };
+        b.Player.InventoryController.Items.Add(item);
+        if (mode == "bleeding")
+        {
+            health.Effects.Add(new Heavy(EBodyPart.LeftArm));
+            var bandage = new Meds { Id = "hemostat" };
+            bandage.HealthEffectsComponent.DamageEffects[EDamageEffectType.HeavyBleeding] = new();
+            b.Player.InventoryController.Items.Add(bandage);
+            C(p.Choose(b).result && T(p,b).Need == "heavy-bleed" && T(p,b).Item == "hemostat",
+                "treat heavy bleeding before splinting the other limb");
+            continue;
+        }
+        if (mode is "ordinary" or "insufficient")
+        {
+            C(!p.Choose(b).result, "no usable fracture treatment: " + mode);
+            continue;
+        }
+        C(p.Choose(b).result && T(p,b).Need == "fracture" && T(p,b).Part == "RightLeg",
+            "choose actual fractured limb even at full HP: " + mode);
+        if (mode == "resolved") health.Effects.Remove(fracture);
+        p.Start(b);
+        var aid = b.BotOwner.Medecine.FirstAid;
+        if (mode == "resolved")
+        {
+            C(aid.Requests == 0 && T(p,b).Reason == "medical-need-resolved", "recheck the fracture before consuming the splint");
+            continue;
+        }
+        C(aid.Requests == 1 && aid.CurUsingMeds == item && aid._bodyPartToHeal == EBodyPart.RightLeg,
+            "native first aid receives the chosen item and exact limb");
+        if (mode != "persists") health.Effects.Remove(fracture);
+        aid.Finish(improve: mode != "persists");
+        if (mode == "persists") health.Parts[EBodyPart.RightLeg].Current += 1;
+        Time.time += 5;
+        p.Sample(b);
+        C(T(p,b).Outcome == (mode == "persists" ? "fracture-persists" : "fracture-cleared"), "fracture result independent of HP gain");
+    }
+}
+CheckFractures();
 bool originalBlock = Physics.Block;
 try
 {

@@ -52,6 +52,27 @@ void Save(Plugin p)
 {
     events.AddRange(p.diagnostics!.Lines.Where(x => x.Contains("\"feature\":\"H04\"")));
 }
+foreach (bool carried in new[] { false, true })
+{
+    var (p, b, layer, action) = Setup();
+    var health = b.Player.HealthController;
+    health.Effects.Add(new Fracture(EBodyPart.RightLeg));
+    var splint = new Meds { Id = "post-combat-splint" };
+    splint.HealthEffectsComponent.DamageEffects[EDamageEffectType.Fracture] = new();
+    if (carried) b.Player.InventoryController.Items.Add(splint);
+    C(!b.BotOwner.Medecine.FirstAid.ShallStartUse(), "native first aid reports no HP or bleeding need");
+    C(layer.IsActive(), "post-combat layer activates after breaking contact");
+    action.Start();
+    for (int i=0; i<7 && !b.BotOwner.Medecine.FirstAid.Using; i++)
+    {
+        Step(1);
+        action.Update(new());
+    }
+    var aid = b.BotOwner.Medecine.FirstAid;
+    C(aid.Requests == (carried ? 1 : 0), "fracture-only recovery requires a carried treatment");
+    if (carried)
+        C(aid.CurUsingMeds == splint && aid._bodyPartToHeal == EBodyPart.RightLeg, "splints the actual leg after combat");
+}
 foreach (var (delay, duration, steeringFirst) in new[] { (0f, 14f, false), (8f, 14f, false), (8f, 14f, true), (4f, 9f, false) })
 {
     var (p, b, layer, action) = Setup();

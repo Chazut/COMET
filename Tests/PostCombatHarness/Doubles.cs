@@ -231,6 +231,7 @@ namespace EFT.Ballistics
         HeavyBleeding,
         LightBleeding,
         DestroyedPart,
+        Fracture,
     }
 }
 
@@ -242,6 +243,13 @@ namespace EFT.HealthSystem
     }
 
     public interface IHeavyBleeding : IEffect { }
+
+    public interface IFracture : IEffect { }
+
+    public class Fracture(EBodyPart part) : IFracture
+    {
+        public EBodyPart BodyPart => part;
+    }
 
     public interface ILightBleeding : IEffect { }
 
@@ -272,6 +280,13 @@ namespace EFT.HealthSystem
         public int Restores;
 
         public ValueStruct GetBodyPartHealth(EBodyPart p, bool ignored = false) => Parts[p];
+
+        public IEnumerable<T> FindActiveEffects<T>() where T : class
+        {
+            return Effects.OfType<T>();
+        }
+
+        public T? FindActiveEffect<T>(EBodyPart p = EBodyPart.Common) where T : class => FindExistingEffect<T>(p);
 
         public T? FindExistingEffect<T>(EBodyPart p = EBodyPart.Common)
             where T : class =>

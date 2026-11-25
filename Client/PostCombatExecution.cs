@@ -4,6 +4,8 @@ using System.Linq;
 using Comet.Core;
 using EFT;
 using EFT.Ballistics;
+using EFT.HealthSystem;
+using SAIN.Preset.Shared.Enums;
 using EFT.InventoryLogic;
 using SAIN.Components;
 using SAIN.SAINComponent.Classes.Mover;
@@ -54,7 +56,29 @@ public sealed partial class Plugin
         var r = s.PostCombat;
         r.MedicalUseful =
             med?.FirstAid?.ShallStartUse() == true || med?.SurgicalKit?.ShallStartUse() == true;
+        // Native ShallStartUse considers HP and bleeding. At full HP it can miss a broken leg.
+        r.FractureRecovery = !r.MedicalUseful && config!.MedicalChoice.Enabled && !s.Medical.Fault
+            && med?.FirstAid != null && med.FirstAid.CanUseByTime() && !b.BotOwner.WeaponManager.Grenades.ThrowindNow
+            && MedicalPriority(b, s).Length == 0 && b.Player.HealthController.FindActiveEffect<IFracture>() != null
+            && HasFractureTreatment(b, s);
+        r.MedicalUseful |= r.FractureRecovery;
         r.MedicalUrgent = false;
+    }
+
+    private bool HasFractureTreatment(BotComponent b, BotState s)
+    {
+        var r = s.Medical;
+        try
+        {
+            MedicalSupplies(b, s, new MedicalFrame(), r.Chosen);
+            return r.Best.TryGetValue("FirstAid", out var option) && option.Need == "fracture";
+        }
+        finally
+        {
+            r.Items.Clear();
+            r.Chosen.Clear();
+            r.Best.Clear();
+        }
     }
 
     private void ExecutePostCombat(BotComponent b, BotState s)
@@ -88,7 +112,7 @@ public sealed partial class Plugin
             t.Reloading = reload.Reloading;
         }
         if (t.State == "medical" && !b.BotOwner.WeaponManager.Reload.Reloading
-            && !PostTreatmentInUse(b) && !TryStartPostTreatment(b, r))
+            && !PostTreatmentInUse(b) && !TryStartPostTreatment(b, s))
         {
             // Keep the existing route until the native action actually accepts the treatment.
             r.Policy.SelectRecoveryMovement(Time.time, r.Heard, PostRegroupTarget(b, out _).HasValue);
@@ -216,8 +240,9 @@ public sealed partial class Plugin
         t.Execution = "waiting for native hands";
     }
 
-    private static bool TryStartPostTreatment(BotComponent b, PostCombatRuntime r)
+    private bool TryStartPostTreatment(BotComponent b, BotState s)
     {
+        var r = s.PostCombat;
         if (Time.time < r.MedicalNext)
             return false;
         r.MedicalNext = Time.time + 1;
@@ -233,6 +258,15 @@ public sealed partial class Plugin
         {
             started = b.SelfActions.DoSurgery();
             t.LastTreatmentAttempt = started ? "surgery-started" : "surgery-declined";
+        }
+        else if (r.FractureRecovery && !b.BotOwner.WeaponManager.Grenades.ThrowindNow)
+        {
+            var decision = ESelfActionType.None;
+            bool selected = false;
+            if (SelectMedical(b, ref decision, ref selected) || !selected) return false;
+            StartMedical(b, s);
+            started = s.Medical.Policy.Trace?.State is "requested" or "started";
+            t.LastTreatmentAttempt = s.Medical.Policy.Trace?.Need + (started ? "-started" : "-declined");
         }
         else
             return false;

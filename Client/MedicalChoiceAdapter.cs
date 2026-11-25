@@ -191,10 +191,11 @@ public sealed partial class Plugin
         SelfActionDecisionClass __instance,
         ref ESelfActionType Decision,
         ref bool __result
-    )
+    ) => SelectMedical(__instance.Bot, ref Decision, ref __result);
+
+    private static bool SelectMedical(BotComponent b, ref ESelfActionType Decision, ref bool __result)
     {
         var p = Instance;
-        var b = __instance.Bot;
         if (p == null || !p.MedicalScope(b))
             return true;
         BotState? s = null;
@@ -417,6 +418,7 @@ public sealed partial class Plugin
         chosen.Clear();
         f.Meds = r.Items.Count;
         bool? surgeryAllowed = null;
+        int? fracturedParts = null;
         // All candidates in this synchronous evaluation use the same body state.
         // Read it once, without caching health between decisions or changing ranks.
         for (int i = 0; r.Items.Count > 0 && i < medicalParts.Length; i++)
@@ -435,6 +437,18 @@ public sealed partial class Plugin
             var slot = LoadoutAdapter.RootSlot(item, b.Player.Inventory.Equipment);
             if (slot == null)
                 continue;
+            bool splints = item is not Stimulator && Treats(item, EDamageEffectType.Fracture);
+            if (splints && !fracturedParts.HasValue)
+            {
+                int mask = 0;
+                foreach (var injury in b.Player.HealthController.FindActiveEffects<IFracture>())
+                {
+                    int index = Array.IndexOf(medicalParts, injury.BodyPart);
+                    if (index >= 0) mask |= 1 << index;
+                }
+                fracturedParts = mask;
+            }
+            bool healsHp = item is MedKit && item.MedKitComponent != null;
             for (int i = 0; i < medicalParts.Length; i++)
             {
                 var part = medicalParts[i];
@@ -474,7 +488,8 @@ public sealed partial class Plugin
                         && (surgeryAllowed ??= SourceSurgeryAllowed(b, s)))
                         Consider(item, part, "Surgery", "destroyed-limb", 1);
 
-                    if (destroyed && !heavy && !light)
+                    bool fracture = splints && (fracturedParts.GetValueOrDefault() & (1 << i)) != 0;
+                    if (destroyed && !heavy && !light && !fracture)
                         continue;
                     if (
                         !med.FirstAid.CanUseByTime()
@@ -485,36 +500,35 @@ public sealed partial class Plugin
                     if (heavy && Treats(item, EDamageEffectType.HeavyBleeding))
                     {
                         need = "heavy-bleed";
-                        rank = 5;
+                        rank = 6;
                     }
                     else if (
-                        !destroyed && (part == EBodyPart.Head || part == EBodyPart.Chest)
+                        healsHp && !destroyed && (part == EBodyPart.Head || part == EBodyPart.Chest)
                         && body.health <= .25
                     )
                     {
                         need = "vital";
-                        rank = 4;
+                        rank = 5;
                     }
                     else if (light && Treats(item, EDamageEffectType.LightBleeding))
                     {
                         need = "light-bleed";
+                        rank = 4;
+                    }
+                    else if (fracture)
+                    {
+                        need = "fracture";
                         rank = 3;
                     }
                     // EFT can stop bleeding on a blacked limb, but only surgery can restore it.
                     else if (
-                        !destroyed && body.health < b.BotOwner.Settings.FileSettings.Mind.PART_PERCENT_TO_HEAL
+                        healsHp && !destroyed && body.health < b.BotOwner.Settings.FileSettings.Mind.PART_PERCENT_TO_HEAL
                     )
                     {
                         need = "injury";
                         rank = 2;
                     }
                     else
-                        continue;
-                    // A splint or bandage may be applicable but cannot heal missing HP.
-                    if (
-                        (need == "vital" || need == "injury")
-                        && (!(item is MedKit) || item.MedKitComponent == null)
-                    )
                         continue;
                     action = "FirstAid";
                 }
@@ -723,6 +737,7 @@ public sealed partial class Plugin
             || !r.Item.TryGetTarget(out var item)
             || item.Id.ToString() != t.Item
             || !MedicalUsable(b, item, r.Part)
+            || t.Need == "fracture" && !Treats(item, EDamageEffectType.Fracture)
             || t.Need == "heavy-bleed" && !Treats(item, EDamageEffectType.HeavyBleeding)
             || t.Need == "light-bleed" && !Treats(item, EDamageEffectType.LightBleeding)
         )
@@ -740,6 +755,7 @@ public sealed partial class Plugin
         bool stillNeeded =
             t.Need == "heavy-bleed" ? health.FindExistingEffect<IHeavyBleeding>(r.Part) != null
             : t.Need == "light-bleed" ? health.FindExistingEffect<ILightBleeding>(r.Part) != null
+            : t.Need == "fracture" ? health.FindActiveEffect<IFracture>(r.Part) != null
             : t.Choice == "Surgery" ? health.IsBodyPartDestroyed(r.Part)
             : t.Choice == "Stims"
                 ? UsefulStim(
@@ -909,7 +925,8 @@ public sealed partial class Plugin
                 || health.GetBodyPartHealth(r.Part, false).Current > r.BeforeHealth
                 || r.BeforeDestroyed && !health.IsBodyPartDestroyed(r.Part);
             var outcome =
-                improved ? "health-improved"
+                t.Need == "fracture" ? (health.FindActiveEffect<IFracture>(r.Part) == null ? "fracture-cleared" : "fracture-persists")
+                : improved ? "health-improved"
                 : item.MedKitComponent?.HpResource < r.BeforeResource ? "resource-consumed"
                 : "unconfirmed";
             EndMedical(s, t.Started ? "medical-use-ended" : "medical-start-not-observed", outcome);

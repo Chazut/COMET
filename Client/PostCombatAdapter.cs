@@ -51,6 +51,7 @@ internal sealed class PostCombatRuntime
         Fault,
         MedicalOwner,
         MedicalUseful,
+        FractureRecovery,
         MedicalUrgent,
         MedicalDisabled;
 }
