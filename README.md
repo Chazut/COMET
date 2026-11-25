@@ -15,7 +15,7 @@ A PMC's kit, personality and what they've actually seen or heard shape their nex
 
 These tactics apply to **PMCs and AI player scavs**, including fights between bots. Ordinary scavs and bosses keep their usual behavior. Bring your favorite SAIN preset.
 
-**COMET 1.0.0 requires SPT 4.1.6 and official SAIN 4.5.1.**
+**COMET 1.1.0 requires SPT 4.1.6 and official SAIN 4.5.1.**
 
 ## Features
 
@@ -157,7 +157,7 @@ In SAIN's F6 menu, I recommend turning all three AI vs AI limits **OFF** (Global
 
 **Essential replay data** is on by default. Raid Review receives the action timeline, squad tactics and magazine pickups. Satellite receives the squad and magazine events its replay uses. Enable **Extended replay data** for decision scores, alternatives and the four end-of-raid reports used for debugging. Either mode requires a replay plugin on the AI host. **Quiet logging** controls local files and **Performance capture** controls profiling independently. Changes apply next raid.
 
-On upgrade, COMET applies these five settings once and backs up the previous config if it changes. You can then switch any of them on or off for future raids.
+When upgrading from 1.0.0, COMET uses your previous diagnostic settings to select a replay mode. You can change it in the web editor.
 
 ## AI
 

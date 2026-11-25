@@ -12,8 +12,8 @@ public static class CometIdentity
 public static class CometVersion
 {
     // BepInEx 5 uses System.Version; the release label is carried by the DLL and reports.
-    public const string Plugin = "1.0.0";
-    public const string Release = "1.0.0";
+    public const string Plugin = "1.1.0";
+    public const string Release = "1.1.0";
 }
 
 // Startup evidence, not a claim of successful live combat or a heartbeat.
