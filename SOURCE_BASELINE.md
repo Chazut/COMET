@@ -14,6 +14,18 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### Magazine exchanges without an ammo gain
+
+In the November 24 raid, Nezys dropped a magazine with 22 rounds for one with 10.
+The pinned fork and official SAIN both accept the magazine selected by EFT's
+`CanReload`. EFT compares reachable spares against one another, even when the
+inserted magazine has more rounds. COMET now compares the proposed magazine
+with the inserted one after EFT's refill. A tie or loss keeps the current mag.
+The comparison counts rounds that can feed before an incompatible cartridge.
+An empty or nonfeeding magazine, malfunction recovery and loose-round loading
+keep their native paths. A deliberate hold does not invoke SAIN's close-range
+weapon-switch fallback. A genuine refusal still can.
+
 ### Exposed cover with no reachable replacement (approved COMET difference)
 
 A player reported repeatedly hitting a PMC behind the Ground Zero bank billboard until he died. In both the pinned fork and official SAIN 4.5.1, `UpdateCover` calls `DogFightMove` if `FindCoverPoint` accepts no route. COMET leaves that search first. When another bullet damages the same stationary bot after its cover was marked spotted, it may sprint to a reachable navigation point. It prefers an endpoint screened from the shooter's last known position. One route is issued per attempt, and native cover can take over on the next search. This addresses a possible cause of the report. The original raid was not instrumented.

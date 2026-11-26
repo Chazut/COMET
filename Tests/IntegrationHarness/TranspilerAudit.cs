@@ -113,7 +113,9 @@ static class TranspilerAudit
         var before = input.Select(i => new CodeInstruction(i)).ToArray();
         var args = transpiler
             .GetParameters()
-            .Select(p => p.Name == "__originalMethod" ? (object)target : input)
+            .Select(p => p.ParameterType == typeof(ILGenerator)
+                ? (object)new DynamicMethod("reloadProbe", typeof(void), Type.EmptyTypes).GetILGenerator()
+                : p.Name == "__originalMethod" ? (object)target : input)
             .ToArray();
         CodeInstruction[] after;
         try
@@ -129,6 +131,22 @@ static class TranspilerAudit
         }
         if (transpiler.Name == "RouteCloseFightChecks")
             CheckCloseFightScan(target, before, after);
+        if (transpiler.Name == "KeepSainReloadDecision")
+        {
+            int call = Array.FindIndex(before, i => i.operand is MethodInfo { Name: "TryReload" });
+            if (call < 0 || after.Length != before.Length + 4 || after[call].operand is not MethodInfo wrapper ||
+                wrapper.Name != "ProbeSainReload" || wrapper.ReturnType != typeof(int) || !wrapper.IsStatic ||
+                !wrapper.GetParameters().Select(p => p.ParameterType).SequenceEqual(
+                    new[] { target.DeclaringType! }.Concat(((MethodInfo)before[call].operand).GetParameters().Select(p => p.ParameterType))) ||
+                after[call + 1].opcode != OpCodes.Dup || after[call + 2].opcode != OpCodes.Stloc ||
+                after[call + 3].opcode != before[call + 1].opcode || !Equals(after[call + 3].operand, before[call + 1].operand) ||
+                after[call + 4].opcode != OpCodes.Ldloc || !Equals(after[call + 4].operand, after[call + 2].operand) ||
+                !after[call + 5].LoadsConstant(0) || after[call + 6].opcode != OpCodes.Cgt || after[call + 7].opcode != OpCodes.Ret ||
+                before.Any(i => after.Count(a => a.labels.Contains(i.labels.Single())) != 1))
+                throw new Exception("Only a deliberate magazine hold should bypass SAIN's native reload-failure fallback.");
+            ReloadDecisionAudit.ExecuteBranch(after, call);
+            return;
+        }
         if (transpiler.Name == "MovementAudioTranspiler")
         {
             CheckMovementPlayback(target, before, after);

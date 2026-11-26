@@ -89,6 +89,7 @@ namespace EFT.InventoryLogic
 
     public class Cartridges
     {
+        public List<Item> _items = new();
         public Item? Last = new Ammo();
     }
 
@@ -145,8 +146,9 @@ namespace EFT.InventoryLogic
 
         public class Malf
         {
-            public string State = "None";
+            public EMalfunctionState State;
         }
+        public enum EMalfunctionState { None, Misfire }
     }
 
     public class Revolver : Weapon { }
@@ -203,6 +205,8 @@ namespace EFT.InventoryLogic
         {
             if (Fail)
                 throw new Exception("inventory unavailable");
+            foreach (var item in Reachable.OfType<T>())
+                if (predicate == null || predicate(item)) items.Add(item);
         }
     }
 
@@ -472,6 +476,8 @@ namespace Comet.Client
 
     internal class ReloadTimingRuntime
     {
+        internal bool KeptMagazine;
+        internal float NextKeepLog;
         internal bool InventoryFault;
         internal float BeltRefillAt;
         internal List<Magazine> BeltMagazines = new(),

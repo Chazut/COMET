@@ -250,4 +250,8 @@ Check(
 p.End();
 Console.WriteLine($"T01/T03 including service continuity and retirement: {n} checks passed.");
 Plugin.TestBeltReload();
+int beforeMagazineGain = n;
+ReloadGainCases.Run(Check);
+Plugin.TestMagazineDecision(Check);
+Console.WriteLine($"Magazine gain: {n - beforeMagazineGain} production checks passed.");
 ShotChecks.Run();

@@ -24,6 +24,8 @@ internal sealed class ReloadTimingRuntime
     internal readonly List<Magazine> BeltMagazines = new();
     internal float BeltRefillAt;
     internal bool InventoryFault;
+    internal bool KeptMagazine;
+    internal float NextKeepLog;
     internal TacticalMistakes? Mistakes;
     internal ReloadTimingFrame? LastFrame;
     internal Player.FirearmController? Firearm;
@@ -288,6 +290,9 @@ public sealed partial class Plugin
     {
         var r = s.ReloadTiming;
         var reload = bot.BotOwner.WeaponManager.Reload;
+        if (r.KeptMagazine && Time.time < reload._nextReloadTime)
+            return false;
+        r.KeptMagazine = false;
         if (r.Policy.Trace != null)
             r.Policy.Trace.Choice = "Reload";
         r.Policy.Request(f);
@@ -295,6 +300,12 @@ public sealed partial class Plugin
         bool available = reload.CanReload(true, out var mag, out var ammo);
         if (!available)
         {
+            if (r.KeptMagazine)
+            {
+                // The adapter already journals this hold with the two feed counts.
+                r.Policy.End("reload-kept-current-magazine");
+                return false;
+            }
             r.Policy.Result(false, f, config!.ReloadTiming);
             RecordReloadTiming(bot, s, true);
             return false;

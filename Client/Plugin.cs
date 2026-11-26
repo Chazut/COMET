@@ -247,6 +247,7 @@ public sealed partial class Plugin : BaseUnityPlugin
 
             RunIntegration("PatchReloadTiming", () => PatchReloadTiming(harmony));
             RunIntegration("PatchReloadInventory", () => PatchReloadInventory(harmony));
+            RunIntegration("PatchReloadMagazineGuard", () => PatchReloadMagazineGuard(harmony));
 
             RunIntegration("PatchCombatJournal", () => PatchCombatJournal(harmony));
             RunIntegration("PatchWeaponReturn", () => PatchWeaponReturn(harmony));
