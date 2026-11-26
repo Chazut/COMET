@@ -616,6 +616,46 @@ class ArchiveTests(unittest.TestCase):
                 store_file(self.archive, p)
         self.assertEqual(list((self.archive / "blobs").glob("*.pending")), [])
 
+    def test_late_location_without_rr_survives_reimport(self):
+        raid = "comet-" + SESSION
+        entries = [
+            dict(stage="raid-start", session=SESSION, map=None),
+            dict(stage="raid-location", session="another-session", map="wrong"),
+            dict(stage="raid-location", session=SESSION, map="Woods"),
+        ]
+        self.path.write_text("\n".join(map(dumps, entries)) + "\n")
+        settled = time.time() - 60
+        os.utime(self.path, (settled, settled))
+        with patch("collector.game_running", return_value=False):
+            collect(self.settings)
+            collect(self.settings)
+        manifest = load(self.archive / "raids" / raid / "manifest.json")
+        self.assertEqual(manifest["metadata"]["map"], "Woods")
+        self.assertEqual(json.loads(self.c.execute("SELECT metadata FROM raids WHERE id=?", (raid,)).fetchone()[0])["map"], "Woods")
+
+    def test_backfill_uses_matching_clocks_and_agreeing_maps(self):
+        from collector import add_value, recover_archived_maps
+
+        raid = "comet-" + SESSION
+        ensure(self.c, raid, {"map": "Unknown"})
+        start = dict(utc="2026-11-01T10:00:00Z", realtime=200)
+        report = dict(headers=[start], lastClock=300)
+        self.c.execute("UPDATE raids SET report=? WHERE id=?", (dumps(report), raid))
+        def capture(key, utc, clock, location):
+            add_value(self.c, self.archive, raid, "orbit", "capture-" + key + ".json",
+                      dict(CapturedUtc=utc, SavedAt=clock, Map=location), "time-window-candidate")
+
+        capture("adjacent", "2026-11-01T10:02:00Z", 320, "wrong")
+        capture("other-launch", "2026-11-01T10:00:30Z", 270, "also wrong")
+        self.assertEqual(recover_archived_maps(self.c, self.archive), set())
+        capture("match", "2026-11-01T10:00:30Z", 230, "Interchange@rework")
+        self.assertEqual(recover_archived_maps(self.c, self.archive), {raid})
+        self.assertEqual(recover_archived_maps(self.c, self.archive), set())
+        self.assertEqual(json.loads(self.c.execute("SELECT metadata FROM raids WHERE id=?", (raid,)).fetchone()[0])["map"], "Interchange@rework")
+        ensure(self.c, raid, {"map": "Unknown"})
+        capture("conflict", "2026-11-01T10:00:40Z", 240, "Woods")
+        self.assertEqual(recover_archived_maps(self.c, self.archive), set())
+
     def test_split_files_grouped_and_idempotent(self):
         self.path.write_text(json.dumps(self.choice(1, "selected")) + "\n")
         part = self.path.with_name(self.path.stem + ".part0001.jsonl")
@@ -749,38 +789,12 @@ class ArchiveTests(unittest.TestCase):
 
 class NullMapRegression(unittest.TestCase):
     def test_null_location_uses_header(self):
-        from pathlib import Path
-        import ast
-
-        tree = ast.parse(Path("collector.py").read_text(encoding="utf-8"))
-        expr = next(
-            n
-            for n in ast.walk(tree)
-            if isinstance(n, ast.Dict)
-            and any(
-                isinstance(k, ast.Constant) and k.value == "missingSegments"
-                for k in n.keys
-            )
-        )
-        value = expr.values[
-            next(
-                i
-                for i, k in enumerate(expr.keys)
-                if isinstance(k, ast.Constant) and k.value == "map"
-            )
-        ]
-        for rr, header, expected in [
-            ({"location": None}, {"map": "Sandbox"}, "Sandbox"),
-            ({"location": None}, {"map": None}, "Unknown"),
-            ({"location": "woods"}, {}, "woods"),
-        ]:
-            self.assertEqual(
-                eval(
-                    compile(ast.Expression(value), "map", "eval"),
-                    {"rrmeta": rr, "header": header},
-                ),
-                expected,
-            )
+        from collector import raid_map
+        self.assertEqual(raid_map({"location": None}, {"map": "Sandbox"}, None), "Sandbox")
+        self.assertEqual(raid_map({}, {"map": None}, None), "Unknown")
+        self.assertEqual(raid_map({"location": "woods"}, {}, None), "woods")
+        self.assertEqual(raid_map({}, {"map": "unknown"}, "Woods"), "Woods")
+        self.assertEqual(raid_map({"location": "A", "locationVariant": "B"}, {"map": "C"}, "D"), "A (B)")
 
 
 if __name__ == "__main__":

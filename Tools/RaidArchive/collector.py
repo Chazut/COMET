@@ -166,6 +166,19 @@ def add_value(c, root, raid, kind, name, value, attribution="exact"):
     artifact(c, raid, kind, name, sha, size, attribution)
 
 
+def known_map(value):
+    if isinstance(value, str) and value.strip() and value.strip().casefold() != "unknown":
+        return value.strip()
+    return None
+
+
+def raid_map(rr, header, previous):
+    location = known_map(rr.get("location")) or known_map(header.get("map"))
+    if location and rr.get("locationVariant"):
+        return f"{location} ({rr['locationVariant']})"
+    return location or known_map(previous) or "Unknown"
+
+
 def parse_diagnostic(c, root, raid, path):
     before = fingerprint(path)
     previous = c.execute(
@@ -176,6 +189,7 @@ def parse_diagnostic(c, root, raid, path):
     sha = add_file(c, root, raid, "comet", path)
     malformed = 0
     unsupported = 0
+    journal_map = None
     with read_blob(root, sha) as f:
         for line_no, line in enumerate(f, 1):
             if len(line) > 4 * 1024 * 1024:
@@ -187,6 +201,8 @@ def parse_diagnostic(c, root, raid, path):
                     raise ValueError("Not object")
                 if e.get("schema", 1) != 1:
                     unsupported += 1
+                elif e.get("stage") == "raid-location" and raid == "comet-" + str(e.get("session")):
+                    journal_map = known_map(e.get("map")) or journal_map
                 insert_event(c, raid, e, "blob:" + sha, line_no)
             except (ValueError, UnicodeError, RecursionError):
                 malformed += 1
@@ -202,6 +218,7 @@ def parse_diagnostic(c, root, raid, path):
         c,
         raid,
         {
+            **({"map": journal_map} if journal_map and not known_map(old.get("map")) else {}),
             "sourceErrors": errors,
             "malformed": sum(errors.values()),
             "unsupportedSources": unknown,
@@ -209,6 +226,50 @@ def parse_diagnostic(c, root, raid, path):
         },
     )
     return True
+
+
+def recover_archived_maps(c, root):
+    """Older COMET journals can have a null map even after a complete raid."""
+    repaired = set()
+    rows = c.execute("""
+        SELECT id, json_extract(report,'$.headers[0]'), json_extract(report,'$.lastClock')
+        FROM raids WHERE id LIKE 'comet-%'
+        AND lower(trim(coalesce(json_extract(metadata,'$.map'), ''))) IN ('','unknown')
+    """).fetchall()
+    for raid, raw_header, last_clock in rows:
+        if not raw_header:
+            continue
+        header = json.loads(raw_header)
+        start = timestamp(header.get("utc"))
+        first_clock = number(header.get("realtime"))
+        if start is None or first_clock is None or number(last_clock) is None:
+            continue
+        maps = set()
+        for (sha,) in c.execute(
+            "SELECT DISTINCT hash FROM artifacts WHERE raid=? AND kind='orbit' AND original LIKE '%capture-%.json'",
+            (raid,),
+        ):
+            try:
+                with read_blob(root, sha) as stream:
+                    capture = json.load(stream)
+            except (OSError, EOFError, ValueError, UnicodeError):
+                continue
+            if not isinstance(capture, dict):
+                continue
+            saved = number(capture.get("SavedAt"))
+            captured = timestamp(capture.get("CapturedUtc"))
+            location = known_map(capture.get("Map"))
+            # Context files can cover adjacent raids. Match both the raid interval and
+            # the Unity process clock against UTC (allow for frame timing).
+            if (location and saved is not None and captured is not None
+                    and first_clock <= saved <= last_clock
+                    and 0 <= captured - start <= last_clock - first_clock + 2
+                    and abs((captured - start) - (saved - first_clock)) <= 2):
+                maps.add(location)
+        if len(maps) == 1:
+            ensure(c, raid, {"map": maps.pop()})
+            repaired.add(raid)
+    return repaired
 
 
 def capture_rr(c, root, game, raid, rrid):
@@ -448,33 +509,28 @@ def collect(settings, force=False):
             expected = closing.get("segments", max(parts) + 1)
             if not isinstance(expected, int) or not 1 <= expected <= 100000:
                 expected = max(parts) + 1
+            old = c.execute("SELECT metadata FROM raids WHERE id=?", (rid,)).fetchone()
+            oldmeta = json.loads(old[0]) if old else {}
             metadata = {
                 "session": session,
                 "rrId": rrid,
                 "rrMapping": (
                     "exact" if rrid else "ambiguous" if mapped else "unavailable"
                 ),
-                "map": (rrmeta.get("location") or header.get("map") or "Unknown")
-                + (
-                    " (" + str(rrmeta["locationVariant"]) + ")"
-                    if rrmeta.get("locationVariant")
-                    else ""
-                ),
+                "map": raid_map(rrmeta, header, oldmeta.get("map")),
                 "time": rrmeta.get("time", header.get("utc", paths[0].name[:15])),
                 "rr": rrmeta,
                 "missingSegments": sorted(set(range(expected)) - set(parts)),
                 "segments": len(paths),
             }
-            old = c.execute("SELECT metadata FROM raids WHERE id=?", (rid,)).fetchone()
-            oldmeta = json.loads(old[0]) if old else {}
             if not old or any(oldmeta.get(k) != v for k, v in metadata.items()):
                 changed.add(rid)
+                ensure(c, rid, metadata)
             # Revisit recent raids to catch RR's late summary/position flush.
             end = max(p.stat().st_mtime for p in paths)
             recent_retry = (
                 now - end < 900 and now - oldmeta.get("lastRrCapture", 0) > 120
             )
-            ensure(c, rid, metadata)
             try:
                 for p in paths:
                     if parse_diagnostic(c, root, rid, p):
@@ -590,6 +646,7 @@ def collect(settings, force=False):
                 errors += 1
                 c.rollback()
                 logging.exception("Historical re-analysis failed: %s", rid)
+        changed.update(recover_archived_maps(c, root))
         for rid in changed:
             row = c.execute(
                 "SELECT metadata,report FROM raids WHERE id=?", (rid,)
@@ -604,6 +661,7 @@ def collect(settings, force=False):
                     {"id": rid, "metadata": json.loads(row[0]), "artifacts": artifacts},
                 )
                 atomic_json(root / "raids" / rid / "report.json", json.loads(row[1]))
+        c.commit()
     return {
         "state": "retrying" if errors else "ready",
         "imported": len(changed),

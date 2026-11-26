@@ -51,6 +51,8 @@ public sealed partial class Plugin : BaseUnityPlugin
     private Diagnostics? diagnostics;
     private bool raidReportReceiverAvailable;
     private string session = "";
+    private string? journalMap;
+
     private long sequence;
     private float nextSweep;
     private readonly List<KeyValuePair<BotComponent, BotState>> maintenanceSnapshot = new(64);
@@ -61,6 +63,12 @@ public sealed partial class Plugin : BaseUnityPlugin
     private Func<string, bool>? isGhost;
     private bool orbitUnavailable;
     private RaidDiagnostics.DiagnosticStorage? diagnosticStorage;
+
+    private static string? ReadRaidMap(GameWorld world)
+    {
+        var location = world.MainPlayer?.Location;
+        return string.IsNullOrWhiteSpace(location) ? world.LocationId : location;
+    }
 
     private void Awake()
     {
@@ -388,6 +396,7 @@ public sealed partial class Plugin : BaseUnityPlugin
             if (current != null && raidLifetime.Begin(current))
             {
                 world = current;
+                journalMap = ReadRaidMap(current);
                 session = Guid.NewGuid().ToString("N");
                 sequence = 0;
                 Api.Decisions.RaidSession = session;
@@ -418,7 +427,7 @@ public sealed partial class Plugin : BaseUnityPlugin
                             schema = 1,
                             session,
                             stage = "raid-start",
-                            map = current.LocationId,
+                            map = journalMap,
                             botScope = "awaiting-config",
                             utc = DateTime.UtcNow.ToString("O"),
                             realtime = Time.realtimeSinceStartup,
@@ -444,6 +453,16 @@ public sealed partial class Plugin : BaseUnityPlugin
         }
         if (!raidLifetime.Active)
             return;
+        // The journal can open during loading, before EFT assigns a location.
+        if (diagnostics != null && string.IsNullOrWhiteSpace(journalMap) && current != null)
+        {
+            journalMap = ReadRaidMap(current);
+            if (!string.IsNullOrWhiteSpace(journalMap))
+                diagnostics.WriteEssential(Diagnostics.Serialize(new
+                {
+                    schema = 1, session, stage = "raid-location", map = journalMap,
+                }));
+        }
         if (loading.Take(raidLifetime.Generation, out var loaded, out var loadError))
         {
             if (loaded != null)
