@@ -59,16 +59,17 @@ public sealed class ConfigStore
                 JsonNode.Parse(original) as JsonObject
                 ?? throw new InvalidDataException("Invalid COMET configuration.");
             bool replayChanged = UpgradeReplay(document);
+            bool gaitChanged = UpgradeGaitRanges(document);
             bool baselineChanged = SourceBaselineMigration.Upgrade(document);
             var config = ReadValidated(document);
             string markerKey = SourceBaselineMigration.Key(document, QuietDefaultApplied);
             bool migrateQuiet = document[markerKey]?.GetValue<bool>() != true;
-            bool settingsChanged = replayChanged;
+            bool settingsChanged = replayChanged || gaitChanged;
             if (migrateQuiet)
             {
                 string quietKey = SourceBaselineMigration.Key(document, nameof(CometConfig.QuietLogging));
                 // An absent setting also meant OFF in 1.0.0. Reject stale editor drafts.
-                settingsChanged = document[quietKey]?.GetValue<bool>() != true;
+                settingsChanged |= document[quietKey]?.GetValue<bool>() != true;
                 document[quietKey] = true;
                 document[markerKey] = true;
             }
@@ -86,7 +87,7 @@ public sealed class ConfigStore
             }
             if (baselineChanged || migrateQuiet || settingsChanged)
             {
-                var reason = baselineChanged ? "zzap" : migrateQuiet ? "quiet" : "reports";
+                var reason = baselineChanged ? "zzap" : migrateQuiet ? "quiet" : gaitChanged ? "gait-ranges" : "reports";
                 Write(document, $"{path}.before-{reason}-{DateTime.UtcNow:yyyyMMdd-HHmmss-fffffff}.bak");
             }
             if (migrateReports)
@@ -96,6 +97,33 @@ public sealed class ConfigStore
     }
 
     public string ForGame() => JsonSerializer.Serialize(Read(), Json);
+
+    // Unreleased multiplier-based presets can still be imported. Convert their
+    // relative adjustments once, using COMET's reference distances alone.
+    internal static bool UpgradeGaitRanges(JsonObject document)
+    {
+        if (document[SourceBaselineMigration.Key(document, nameof(CometConfig.MovementHearing))] is not JsonObject section)
+            return false;
+        string walk = SourceBaselineMigration.Key(section, "WalkRangeMultiplier");
+        string quiet = SourceBaselineMigration.Key(section, "QuietFractionOfWalk");
+        string sprint = SourceBaselineMigration.Key(section, "SprintRelativeToWalk");
+        if (!section.ContainsKey(walk) && !section.ContainsKey(quiet) && !section.ContainsKey(sprint))
+            return false;
+        var defaults = new MovementHearingConfig();
+        double walkScale = (section[walk]?.GetValue<double>() ?? 1.8) / 1.8;
+        void Fill(string name, double meters)
+        {
+            if (!section.ContainsKey(SourceBaselineMigration.Key(section, name)))
+                section[name] = Math.Round(meters, 2);
+        }
+        Fill(nameof(defaults.WalkRangeMeters), defaults.WalkRangeMeters * walkScale);
+        Fill(nameof(defaults.QuietRangeMeters), defaults.QuietRangeMeters * walkScale * (section[quiet]?.GetValue<double>() ?? .35) / .35);
+        Fill(nameof(defaults.SprintRangeMeters), defaults.SprintRangeMeters * walkScale * (section[sprint]?.GetValue<double>() ?? 1.6) / 1.6);
+        section.Remove(walk);
+        section.Remove(quiet);
+        section.Remove(sprint);
+        return true;
+    }
 
     private static CometConfig ReadValidated(JsonObject document)
     {

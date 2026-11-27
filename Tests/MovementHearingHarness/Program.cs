@@ -12,10 +12,14 @@ sealed class SoundEvent
 {
     public PlayerComponent PlayerComponent = new();
     public float TimeCreated = Time.time, BaseRangeWithVolume = 10;
+    public int EnvironmentId;
     public Vector3 Position = Vector3.Zero;
 }
 sealed class PlayerComponent
 {
+    public Vector3 Position;
+    public readonly AIData AIData = new();
+    public readonly Equipment Equipment = new();
     public BotComponent BotComponent = new();
     public sealed class Players { public HashSet<Other> DataHashSet = new(); }
     public Players OtherPlayersData = new();
@@ -30,6 +34,9 @@ sealed class Other
 }
 sealed class BotComponent
 {
+    public readonly Player Player = new();
+    public readonly Memory Memory = new();
+    public PlayerComponent PlayerComponent = null!;
     public bool Active = true;
     public Vector3 Position;
     public BotComponent Hearing => this;
@@ -56,6 +63,7 @@ partial class Plugin
     public static void Run()
     {
         var p = new Plugin();
+        p.CheckGaitOverride();
         var s = new SoundEvent();
         var cache = s.PlayerComponent.OtherPlayersData.DataHashSet;
         var actors = Enumerable.Range(0, 257).Select(_ => new Other()).ToArray();

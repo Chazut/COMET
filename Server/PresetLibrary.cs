@@ -129,6 +129,7 @@ public sealed class PresetLibrary
         if (!DifficultyPresets.IsKnown(level))
             throw new InvalidDataException("Unknown COMET base level.");
         ConfigStore.UpgradeReplay(supplied);
+        ConfigStore.UpgradeGaitRanges(supplied);
         var baseline = Settings(DifficultyPresets.Create(level));
         if (!supplied.ContainsKey(nameof(CometConfig.GrenadeContactLifetime)))
             baseline[nameof(CometConfig.GrenadeContactLifetime)] = SourceBaselineMigration.MissingGrenadeLifetime(

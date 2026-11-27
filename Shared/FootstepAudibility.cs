@@ -4,32 +4,35 @@ namespace Comet.Core;
 
 public static class FootstepAudibility
 {
-    // Only called for AI footfalls that actually played. EFT mixes sprint and walk
-    // samples differently, so the playback gain is a poor measure of AI hearing range.
-    public static string? Apply(MovementHearingConfig settings, bool sprint, bool crouched,
-        bool covert, float speed, float maxSpeed, float walkBaseRange, ref float range, ref float volume)
+    public static (string Gait, float Range) GetRange(MovementHearingConfig settings, bool sprint,
+        bool crouched, bool covert, float speed, float maxSpeed)
     {
-        if (!settings.GaitBasedRange || !(volume > 0) || float.IsInfinity(volume)
-            || !(range > 0) || float.IsInfinity(range) || !(walkBaseRange > 0) || float.IsInfinity(walkBaseRange))
-            return null;
-
-        float walkRange = walkBaseRange * (float)settings.WalkRangeMultiplier;
-        volume = 1f; // Weather and SAIN's global footstep volume are applied after this.
         if (sprint)
-        {
-            range = Math.Max(walkBaseRange, range) * (float)(settings.WalkRangeMultiplier * settings.SprintRelativeToWalk);
-            return "sprint";
-        }
-
-        // A zero speed can be reported during an animation transition. Only a positive
-        // slow pace or an explicit quiet pose marks an audible step as sneaking.
+            return ("sprint", (float)settings.SprintRangeMeters);
+        // A zero speed can be reported during a normal walking animation transition.
         if (crouched || covert || (speed > 0 && speed <= maxSpeed * .25f))
-        {
-            range = walkRange * (float)settings.QuietFractionOfWalk;
-            return "quiet";
-        }
+            return ("quiet", (float)settings.QuietRangeMeters);
+        return ("walk", (float)settings.WalkRangeMeters);
+    }
 
-        range = walkRange;
-        return "walk";
+    public static float ListenerFactor(bool hasHeadset, bool heavyHelmet, bool dyingWithoutPainkillers,
+        bool sprinting, bool heavyBreath) =>
+        (hasHeadset ? 1f : .6f) * (heavyHelmet ? .8f : 1f) * (dyingWithoutPainkillers ? .8f : 1f)
+        * (sprinting ? .85f : 1f) * (heavyBreath ? .65f : 1f);
+
+    public static float EnvironmentFactor(bool differentEnvironment, bool differentBunker, bool differentDepth) =>
+        (differentEnvironment ? .7f : 1f) * (differentBunker ? .2f : differentDepth ? .66f : 1f);
+
+    // One roll per eligible footfall. Match the familiar distance falloff without reading
+    // the preset's hard cap, which could otherwise reject the sound before its range check.
+    public static float HearingChance(float distance, float effectiveRange, bool hasHeadset)
+    {
+        if (!(distance >= 0 && distance <= effectiveRange && effectiveRange > 0))
+            return 0;
+        float near = hasHeadset ? 1f : .25f;
+        if (distance <= near)
+            return 1;
+        float far = Math.Max(effectiveRange, hasHeadset ? 70f : 40f);
+        return Math.Max(.01f, 1f - (distance - near) / (far - near));
     }
 }

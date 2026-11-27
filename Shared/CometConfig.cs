@@ -18,9 +18,9 @@ public sealed class MovementHearingConfig
     public bool Enabled { get; set; } = true;
     public bool Footsteps { get; set; } = true;
     public bool GaitBasedRange { get; set; } = true;
-    public double WalkRangeMultiplier { get; set; } = 1.8;
-    public double QuietFractionOfWalk { get; set; } = .35;
-    public double SprintRelativeToWalk { get; set; } = 1.6;
+    public double QuietRangeMeters { get; set; } = 6.2;
+    public double WalkRangeMeters { get; set; } = 17.7;
+    public double SprintRangeMeters { get; set; } = 28.4;
     public bool JumpsAndLandings { get; set; } = true;
     public double RangeMultiplier { get; set; } = 1;
     public double MinimumInterval { get; set; } = .2;
@@ -28,9 +28,11 @@ public sealed class MovementHearingConfig
     public void Validate()
     {
         CometConfig.Range(RangeMultiplier, .25, 2, nameof(RangeMultiplier));
-        CometConfig.Range(WalkRangeMultiplier, .25, 3, nameof(WalkRangeMultiplier));
-        CometConfig.Range(QuietFractionOfWalk, .05, .95, nameof(QuietFractionOfWalk));
-        CometConfig.Range(SprintRelativeToWalk, 1.05, 3, nameof(SprintRelativeToWalk));
+        CometConfig.Range(QuietRangeMeters, .1, 100, nameof(QuietRangeMeters));
+        CometConfig.Range(WalkRangeMeters, .1, 100, nameof(WalkRangeMeters));
+        CometConfig.Range(SprintRangeMeters, .1, 100, nameof(SprintRangeMeters));
+        if (QuietRangeMeters >= WalkRangeMeters || WalkRangeMeters >= SprintRangeMeters)
+            throw new ArgumentException("Quiet steps must carry less far than walking, and walking less far than sprinting.");
         CometConfig.Range(MinimumInterval, .05, 1, nameof(MinimumInterval));
     }
 }

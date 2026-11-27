@@ -6,6 +6,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Shared/MovementHearing.cs" />
+    <Compile Include="../../Shared/FootstepAudibility.cs" />
+    <ProjectReference Include="../../Server/Comet.Server.csproj" />
     <Compile Include="$(IntermediateOutputPath)Movement.Generated.cs" />
   </ItemGroup>
   <Target Name="PrepareHearing" BeforeTargets="CoreCompile">

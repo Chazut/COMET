@@ -138,6 +138,12 @@ internal static class SourceBaselineMigration
             "TacticCounters",
             "FaultIsolation",
         };
+        // Gait overrides were introduced after these behavior baselines. Imported
+        // configs can omit a baseline marker and still contain an explicit choice.
+        if (original[Key(original, nameof(CometConfig.MovementHearing))] is JsonObject hearing
+            && (hearing.ContainsKey(Key(hearing, nameof(MovementHearingConfig.GaitBasedRange)))
+                || hearing.ContainsKey(Key(hearing, nameof(MovementHearingConfig.WalkRangeMeters)))))
+            preserved.Add(nameof(CometConfig.MovementHearing));
         foreach (var (key, value) in defaults)
         {
             if (preserved.Contains(key))

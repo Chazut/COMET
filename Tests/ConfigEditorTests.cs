@@ -58,8 +58,8 @@ internal static class ConfigEditorTests
                     or "ExtendedReplayData" or "MovementHearing.GaitBasedRange")) <= 19,
             "simple mode is deliberately short, including Quiet logging"
         );
-        Check(Field("MovementHearing.GaitBasedRange").Simple && !Field("MovementHearing.WalkRangeMultiplier").Simple
-            && !Field("MovementHearing.SprintRelativeToWalk").Simple && !Field("MovementHearing.QuietFractionOfWalk").Simple,
+        Check(Field("MovementHearing.GaitBasedRange").Simple && !Field("MovementHearing.WalkRangeMeters").Simple
+            && !Field("MovementHearing.SprintRangeMeters").Simple && !Field("MovementHearing.QuietRangeMeters").Simple,
             "the gait switch is immediately visible and the three ranges are available in the detailed controls");
         Check(
             editor.Visible(true, "", false).Count() == editor.Catalog.Fields.Count,

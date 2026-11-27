@@ -64,6 +64,7 @@ public sealed partial class Plugin
         public BotComponent Bot = null!;
         public float Distance;
         public bool Heard;
+        public string? RangeOutcome;
         public Vector3? Perceived;
         public float? AnalysisDistance, NativeRange, FinalRange, Environment, Occlusion;
     }
@@ -135,6 +136,8 @@ public sealed partial class Plugin
 
     private static void PatchMovementHearing(Harmony h)
     {
+        h.Patch(AccessTools.Method(typeof(HearingAnalysis), nameof(HearingAnalysis.CheckIfSoundHeard)),
+            prefix: new HarmonyMethod(typeof(Plugin), nameof(GaitHearingPrefix)));
         // Observe the exact volume at the common audio-layer call AFTER the base sound bank played.
         // This also works with EFT's no-op seasonal layer and captures genuine landings, not airborne guesses.
         foreach (var name in new[] { nameof(Player.DefaultPlay), nameof(Player.PlayStepSound) })
@@ -268,34 +271,13 @@ public sealed partial class Plugin
             CountMovement("source-queue-full");
             return;
         }
-        var settings = SAINPlugin.LoadedPreset.GlobalSettings.Hearing;
-        float range = type switch
+        if (!(volume > 0) || float.IsInfinity(volume))
         {
-            SAINSoundType.FootStep => settings.BaseSoundRange_Footstep,
-            SAINSoundType.Sprint => settings.BaseSoundRange_Sprint,
-            SAINSoundType.Jump => settings.BaseSoundRange_Jump,
-            _ => settings.MaxSoundRange_FallLanding,
-        };
-        float playbackVolume = volume;
-        string? gait = null;
-        if (config.MovementHearing.GaitBasedRange && type is SAINSoundType.FootStep or SAINSoundType.Sprint)
-        {
-            var motion = player.MovementContext;
-            gait = FootstepAudibility.Apply(config.MovementHearing, type == SAINSoundType.Sprint,
-                movement == EAudioMovementState.Duck, motion.CovertEfficiency > .9f,
-                motion.ClampedSpeed, motion.MaxSpeed, settings.BaseSoundRange_Footstep, ref range, ref volume);
+            CountMovement("invalid-volume");
+            return;
         }
-        // Same emitter modifiers as PlayerComponent.AddCachedAISoundEvent. Do not use PlayAISound's
-        // global cache or BotHearingClass, which would distribute this added signal to non-PMCs too.
-        volume *= settings.FootstepAudioMultiplier;
-        var weather = SAINWeatherClass.Instance;
-        if (!source.AIData.PlayerLocation.InBunker && weather != null)
-            volume *=
-                player.AIData.EnvironmentId == 0
-                    ? weather.RainSoundModifierOutdoor
-                    : weather.RainSoundModifierIndoor;
-        range *= (float)config.MovementHearing.RangeMultiplier;
-        if (!(range > 0 && volume > 0) || float.IsInfinity(range) || float.IsInfinity(volume))
+        var (gait, range, soundVolume) = MovementLevels(config.MovementHearing, player, source, type, movement, volume);
+        if (!(range > 0 && soundVolume > 0) || float.IsInfinity(range) || float.IsInfinity(soundVolume))
         {
             CountMovement("invalid-volume");
             return;
@@ -306,10 +288,46 @@ public sealed partial class Plugin
             {
                 Id = ++movementSequence,
                 Gait = gait,
-                PlaybackVolume = playbackVolume,
-                Sound = new SoundEvent(type, source.Position, source, range, volume, 343),
+                PlaybackVolume = volume,
+                Sound = new SoundEvent(type, source.Position, source, range, soundVolume, 343),
             }
         );
+    }
+
+    private static (string? Gait, float Range, float Volume) MovementLevels(MovementHearingConfig settings,
+        Player player, PlayerComponent source, SAINSoundType type, EAudioMovementState movement, float volume)
+    {
+        float range;
+        string? gait = null;
+        if (settings.GaitBasedRange && type is SAINSoundType.FootStep or SAINSoundType.Sprint)
+        {
+            var motion = player.MovementContext;
+            (gait, range) = FootstepAudibility.GetRange(settings, type == SAINSoundType.Sprint,
+                movement == EAudioMovementState.Duck, motion.CovertEfficiency > .9f,
+                motion.ClampedSpeed, motion.MaxSpeed);
+            // Read actual rain, not SAIN's preset-dependent weather volume. Indoors
+            // and bunkers shield the footfall from rain masking.
+            volume = player.AIData.EnvironmentId == 0 && !source.AIData.PlayerLocation.InBunker
+                ? Mathf.Lerp(1f, .2f, EFT.Weather.WeatherController.Instance?.WeatherCurve?.Rain ?? 0f)
+                : 1f;
+        }
+        else
+        {
+            var native = SAINPlugin.LoadedPreset.GlobalSettings.Hearing;
+            range = type switch
+            {
+                SAINSoundType.FootStep => native.BaseSoundRange_Footstep,
+                SAINSoundType.Sprint => native.BaseSoundRange_Sprint,
+                SAINSoundType.Jump => native.BaseSoundRange_Jump,
+                _ => native.MaxSoundRange_FallLanding,
+            };
+            volume *= native.FootstepAudioMultiplier;
+            var weather = SAINWeatherClass.Instance;
+            if (!source.AIData.PlayerLocation.InBunker && weather != null)
+                volume *= player.AIData.EnvironmentId == 0 ? weather.RainSoundModifierOutdoor : weather.RainSoundModifierIndoor;
+            range *= (float)settings.RangeMultiplier;
+        }
+        return (gait, range, volume);
     }
 
     private void UpdateMovementHearing()
@@ -348,7 +366,7 @@ public sealed partial class Plugin
                 {
                     if (++snapshots > 8)
                         break;
-                    SnapshotMovementRecipients(sound);
+                    SnapshotMovementRecipients(sound, signal.Gait != null);
                     signal.Cursor = 0;
                     // A large snapshot may itself consume the remaining frame budget.
                     if (Stopwatch.GetTimestamp() - started >= Stopwatch.Frequency / 1000d)
@@ -412,7 +430,7 @@ public sealed partial class Plugin
         expiredMovementLogs.Clear();
     }
 
-    private void SnapshotMovementRecipients(SoundEvent sound)
+    private void SnapshotMovementRecipients(SoundEvent sound, bool explicitRange = false)
     {
         movementRecipients.Clear();
         var cache = sound.PlayerComponent.OtherPlayersData.DataHashSet;
@@ -422,7 +440,7 @@ public sealed partial class Plugin
         foreach (var data in cache)
         {
             if (examined++ == MovementRecipientsLimit) break;
-            if (data?.OtherPlayerComponent?.BotComponent is { } bot && data.IsInHearingRadius_Footsteps
+            if (data?.OtherPlayerComponent?.BotComponent is { } bot && (explicitRange || data.IsInHearingRadius_Footsteps)
                 && data.DistanceData.Distance <= sound.BaseRangeWithVolume && MovementListener(bot))
                 movementRecipients.Add(data.OtherPlayerComponent);
         }
@@ -549,12 +567,58 @@ public sealed partial class Plugin
             }
             __state = p.movementReaction;
             p.movementReaction = d;
-            return true; // Native detection roll, delay and dispersion are retained.
+            return true; // SAIN retains reaction, delay and dispersion.
         }
         catch (Exception ex)
         {
             p.MovementError(ex);
             return false;
+        }
+    }
+
+    // Only replace the range/chance check for the exact COMET footfall currently
+    // being processed. Other sounds still reach SAIN's original hearing analysis.
+    private static bool GaitHearingPrefix(HearingAnalysis __instance, AISoundData sound, ref bool __result)
+    {
+        var p = Instance;
+        if (p?.movementReaction is not { Signal.Gait: not null } delivery
+            || !ReferenceEquals(delivery.Bot, __instance.Bot)
+            || !p.movementPending.TryGetValue((__instance.Bot, sound.Sound), out var pending)
+            || !ReferenceEquals(pending, delivery))
+            return true;
+        try
+        {
+            __result = false;
+            var displacement = sound.Sound.Position - sound.Sound.PlayerComponent.Position;
+            if (Vector3.Dot(displacement, displacement) > 25f)
+            {
+                delivery.RangeOutcome = "source-moved";
+                return false;
+            }
+            var bot = delivery.Bot;
+            var gear = bot.PlayerComponent.Equipment.GearInfo;
+            var listener = bot.PlayerComponent.AIData.PlayerLocation;
+            var source = sound.Sound.PlayerComponent.AIData.PlayerLocation;
+            float environment = FootstepAudibility.EnvironmentFactor(bot.Player.AIData.EnvironmentId != sound.EnvironmentId,
+                listener.InBunker != source.InBunker, listener.InBunker && source.InBunker && listener.BunkerDepth != source.BunkerDepth);
+            float occlusion = sound.Enemy.InLineOfSight ? 1f : .8f;
+            float range = sound.Sound.BaseRangeWithVolume * environment * occlusion
+                * FootstepAudibility.ListenerFactor(gear.HasEarPiece, gear.HasHeavyHelmet,
+                    bot.Memory.Health.Dying && !bot.Memory.Health.OnPainKillers, bot.Player.IsSprintEnabled, bot.Player.HeavyBreath);
+            float finalRange = p.FilterFloorRange(range, bot, sound, environment, occlusion);
+            delivery.AnalysisDistance = sound.PlayerDistance;
+            delivery.FinalRange = finalRange;
+            delivery.Environment = environment;
+            delivery.Occlusion = occlusion;
+            float chance = FootstepAudibility.HearingChance(sound.PlayerDistance, finalRange, gear.HasEarPiece);
+            __result = chance >= 1f || (chance > 0f && UnityEngine.Random.value < chance);
+            delivery.RangeOutcome = __result ? "passed" : chance > 0 ? "chance" : "distance";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            p.MovementError(ex);
+            return true;
         }
     }
 
@@ -694,6 +758,7 @@ public sealed partial class Plugin
             source = sound.ProfileId,
             kind = sound.SoundType.ToString(),
             gait = d.Signal.Gait,
+            gaitRangeOutcome = d.RangeOutcome,
             playbackVolume = d.Signal.PlaybackVolume,
             outcome,
             emittedAt = sound.TimeCreated,

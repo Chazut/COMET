@@ -20,9 +20,13 @@ On Factory, the same PMC with a headset received a sprint with volume 0.475 and
 a footstep with volume 0.85, both emitted at a base range of 70 m. With equal
 listener modifiers the sprint carried 5.85 m and the louder footstep 10.47 m.
 Both official SAIN and the pinned fork multiply emission range by volume before
-the final distance check. P01 now calibrates only its added AI footfalls before
-that check. The original playback mix is available by switching gait scaling off.
-SAIN still rolls each listener's hearing and owns the reaction.
+the final distance check. For its own AI footsteps, P01 now owns both emission
+range and the listener's hearing check. This avoids an early rejection by the
+SAIN preset's cap or a second distance multiplier from the listener's difficulty.
+The default clear ranges with a headset are 6.2 m for quiet steps, 17.7 m for
+walking and 28.4 m for sprinting. Equipment, weather, occlusion and floors can
+shorten them. SAIN still handles hostility, deafening, delay, dispersion and the
+reaction. Disabling the override restores the original emission and hearing path.
 
 ### Magazine exchanges without an ammo gain
 
