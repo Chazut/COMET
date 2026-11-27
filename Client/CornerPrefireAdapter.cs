@@ -317,11 +317,13 @@ public sealed partial class Plugin
 
     private void RecordPrefire(BotState s, bool force = false)
     {
-        if (!Comet.Core.ReplayCapture.Detailed)
-            return;
         var r = s.CornerPrefire;
         var t = r.Policy.Trace;
         if (t == null)
+            return;
+        if (RecordingGestures && s.Gestures.Observe(t))
+            PublishGesture(s, "M06", "Prefire");
+        if (!Comet.Core.ReplayCapture.Detailed)
             return;
         string key =
             t.Episode + ":" + t.State + ":" + t.Reason + ":" + t.Accepted + ":" + t.ActualShots;

@@ -15,6 +15,7 @@ namespace Comet.Api
     // Optional consumers use reflection and Action<string>. No COMET assembly reference is required.
     public static class Decisions
     {
+        public const int GestureEventVersion = 1;
         public const int SchemaVersion = 1;
         internal static string RaidSession = "";
         internal static bool RaidClosed;

@@ -351,6 +351,10 @@ public sealed partial class Plugin
         var t = r.Policy.Trace;
         if (t == null || t.Target.Length == 0)
             return;
+        if (RecordingGestures && s.Gestures.Observe(t))
+            PublishGesture(s, "M12", "TacticalJump");
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         string key =
             t.State
             + ":"
@@ -371,8 +375,6 @@ public sealed partial class Plugin
             return;
         r.LogKey = key;
         r.LogAt = Time.time;
-        if (!Comet.Core.ReplayCapture.Detailed)
-            return;
         var json = Diagnostics.Serialize(
             new
             {

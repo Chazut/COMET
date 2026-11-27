@@ -15,10 +15,15 @@ internal static class EssentialReplay
         "contact", "crossfire", "squadGrenade", "siege", "magazineRecovery", "postCombat", "lifecycle",
     };
 
+    internal static string Gesture(string session, long sequence, string feature, string decision, float realtime, string profileId, string name, string botInstance) =>
+        Diagnostics.Serialize(new { schema = 1, session, sequence, feature, stage = "performed", decision, realtime, profileId, name, botInstance });
+
     // Only COMET's own schema-1 producers feed this stream. Their feature and stage
     // precede nested evidence, even when a detailed config snapshot follows.
     internal static bool Keep(string feature, string stage, string decision, bool raidReview)
     {
+        if (stage == "performed")
+            return feature is "M03" or "M06" or "M11" or "M12" or "M14" or "D02" or "D04" or "D05" or "D06" or "D07" or "D08";
         if (feature is "S10" or "S11")
             return true;
         if (feature == "W04")

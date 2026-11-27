@@ -551,13 +551,15 @@ public sealed partial class Plugin
         var t = r.Policy.Trace;
         if (t == null)
             return;
+        if (RecordingGestures && s.Gestures.Observe(t))
+            PublishGesture(s, "D02", "DoorwayJump");
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return;
         string key = t.State + ":" + t.Reason;
         if (!force && key == r.LogKey && Time.time - r.LogAt < .5)
             return;
         r.LogAt = Time.time;
         r.LogKey = key;
-        if (!Comet.Core.ReplayCapture.Detailed)
-            return;
         var json = Diagnostics.Serialize(
             new
             {

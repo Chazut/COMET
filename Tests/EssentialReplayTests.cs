@@ -88,7 +88,8 @@ internal static class EssentialReplayTests
                     bool squad = item["crossfire"] is JObject || feature is "S10" or "S11";
                     bool magazine = feature == "W04" && (string?)item["decision"] == "RecoverMagazine";
                     bool action = stage is "accepted" or "released" or "rejected" or "selected" or "started";
-                    bool expect = extended || squad || magazine || rr && feature != "A13" && (action || feature is "C09" or "C13" or "H04");
+                    bool gesture = stage == "performed" && EssentialReplay.Keep(feature ?? "", stage, (string?)item["decision"] ?? "", rr);
+                    bool expect = extended || gesture || squad || magazine || rr && feature != "A13" && (action || feature is "C09" or "C13" or "H04");
                     int previous = rows;
                     Decisions.Publish(line, errors.Add);
                     Decisions.FlushPending();

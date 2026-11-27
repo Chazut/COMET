@@ -619,11 +619,13 @@ public sealed partial class Plugin
 
     private void RecordDoorFake(BotState s, bool force = false)
     {
-        if (!Comet.Core.ReplayCapture.Detailed)
-            return;
         var r = s.Fake;
         var t = r.Policy.Trace;
         if (t == null)
+            return;
+        if (RecordingGestures && s.Gestures.Observe(t))
+            PublishGesture(s, t.Medical == null ? "D05" : "D06", t.Medical == null ? "FakeGrenade" : "FakeHeal");
+        if (!Comet.Core.ReplayCapture.Detailed)
             return;
         string key =
             t.State

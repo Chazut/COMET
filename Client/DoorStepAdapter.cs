@@ -395,11 +395,13 @@ public sealed partial class Plugin
 
     private void RecordDoorStep(BotState s, bool force = false)
     {
-        if (!Comet.Core.ReplayCapture.Detailed)
-            return;
         var r = s.StepPeek;
         var t = r.Policy.Trace;
         if (t == null)
+            return;
+        if (RecordingGestures && s.Gestures.Observe(t))
+            PublishGesture(s, "D04", "DoorwayPeek");
+        if (!Comet.Core.ReplayCapture.Detailed)
             return;
         string key = t.State + ":" + t.Reason + ":" + t.Peek;
         if (!force && key == r.LogKey && Time.time - r.LogAt < .5f)

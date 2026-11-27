@@ -72,6 +72,7 @@ public sealed class CornerPeekFrame
 
 public sealed class CornerPeekTrace
 {
+    internal int LastOpenPeek;
     public string State = "planning",
         Reason = "corner-selected",
         Target = "",
@@ -381,7 +382,11 @@ public sealed class CornerPeek
                 if (Trace.State == "peek")
                 {
                     Trace.Peeks++;
-                    Trace.OpenObserved |= f.Open;
+                    if (f.Open)
+                    {
+                        Trace.OpenObserved = true;
+                        Trace.LastOpenPeek = Trace.Peeks;
+                    }
                     Trace.State = "exposed";
                     Trace.Reason = f.AtGoal ? "corner-exposure-arrived" : "corner-exposure-timer";
                     phaseEnd = now + exposedDuration;
@@ -402,7 +407,11 @@ public sealed class CornerPeek
         }
         else if (Trace.State == "exposed")
         {
-            Trace.OpenObserved |= f.Open;
+            if (f.Open)
+            {
+                Trace.OpenObserved = true;
+                Trace.LastOpenPeek = Trace.Peeks;
+            }
             if (now >= phaseEnd)
             {
                 Trace.State = Trace.Style == "run-by" ? "crossing-pending" : "retreat-pending";

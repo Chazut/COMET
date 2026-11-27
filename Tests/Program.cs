@@ -56,6 +56,7 @@ checks += DiagnosticWarmupTests.Run();
 checks += DiagnosticEventReaderTests.Run();
 checks += DeferredDiagnosticTests.Run();
 checks += EssentialReplayTests.Run();
+checks += ReplayGestureTests.Run();
 checks += PlanContinuityTests.Run();
 checks += await PerformanceTests.Run();
 checks += await DiagnosticConfigurationTests.Run();

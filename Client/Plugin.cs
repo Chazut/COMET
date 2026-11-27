@@ -1965,6 +1965,7 @@ public sealed partial class Plugin : BaseUnityPlugin
 
 internal sealed class BotState
 {
+    internal ReplayGestures Gestures;
     internal SquadGrenadePlan? SquadGrenade;
     internal SiegeSquad? Siege;
     internal SiegeExit? SiegeExit;

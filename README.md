@@ -155,7 +155,7 @@ In SAIN's F6 menu, I recommend turning all three AI vs AI limits **OFF** (Global
 
 **Which diagnostics should I enable?**
 
-**Essential replay data** is on by default. Raid Review receives the action timeline, squad tactics and magazine pickups. Satellite receives the squad and magazine events its replay uses. Enable **Extended replay data** for decision scores, alternatives and the four end-of-raid reports used for debugging. Either mode requires a replay plugin on the AI host. **Quiet logging** controls local files and **Performance capture** controls profiling independently. Changes apply next raid.
+**Essential replay data** is on by default. Raid Review receives the action timeline, squad tactics and magazine pickups. Satellite receives squad tactics, magazine events and confirmed gestures such as jumps, peeks and fake reloads. Replay viewers can show these gestures with Essential alone. Enable **Extended replay data** for decision scores, alternatives and the four end-of-raid reports used for debugging. Either mode requires a replay plugin on the AI host. **Quiet logging** controls local files and **Performance capture** controls profiling independently. Changes apply next raid.
 
 When upgrading from 1.0.0, COMET uses your previous diagnostic settings to select a replay mode. You can change it in the web editor.
 
