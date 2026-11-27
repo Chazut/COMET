@@ -6,6 +6,78 @@ namespace Comet.Core;
 // Only a transition with execution evidence produces an event; sampling unchanged state allocates nothing.
 internal struct ReplayGestures
 {
+    internal string? Treatment, Flash, Gas;
+    private int pistolEpisode, primaryEpisode, relocationEpisode;
+    private RestLightsTrace? rest;
+    private int restRequest;
+    private SurgeryInterruptionTrace? operation;
+    private MedicalTrace? result;
+    private DoorRunTrace? run;
+    private DoorClearTrace? roomGrenade;
+
+    internal string? Observe(PistolSwapTrace t) =>
+        t.InHands && t.Ready && First(t.Episode, ref pistolEpisode)
+            ? (t.MainLoaded == 0 ? "DrewPistolEmpty" : "DrewPistol") : null;
+
+    internal string? Observe(WeaponReturnTrace t)
+    {
+        if (!t.InHands || !t.Ready || t.From == t.To || t.ToSlot == "Holster" || !First(t.Episode, ref primaryEpisode)) return null;
+        if (t.Origin == "W05") return "SwitchedForRange";
+        return t.FromSlot == "Holster" ? "BackToPrimary" : "SwitchedPrimary";
+    }
+
+    internal string? Observe(SurgeryInterruptionTrace t)
+    {
+        if (!t.HadHands) return null;
+        if (t.Completed && !t.Requested && First(t, ref operation)) return "RepairedLimb";
+        if (!t.Requested || t.Completed || !t.HandsReleased || !t.WeaponReady || !First(t, ref operation)) return null;
+        return t.SourceRefusal switch {
+            "enemy-visible" or "enemy-too-close" => "InterruptedSurgeryThreat",
+            "recent-hit" => "InterruptedSurgeryHit",
+            _ => "InterruptedSurgery"
+        };
+    }
+
+    internal static string? TreatmentInProgress(MedicalTrace t)
+    {
+        if (!t.Started || t.State != "started") return null;
+        return t.Choice switch {
+            "Surgery" => "PerformingSurgery",
+            "Stims" => "UsingStim",
+            "FirstAid" => t.Need switch {
+                "fracture" => "TreatingFracture", "heavy-bleed" => "TreatingHeavyBleed",
+                "light-bleed" => "TreatingLightBleed", _ => "UsingFirstAid" },
+            _ => null
+        };
+    }
+
+    internal string? Observe(MedicalTrace t)
+    {
+        if (!t.Started || t.State != "ended" || t.Reason != "medical-use-ended" || !First(t, ref result)) return null;
+        if (t.Need == "fracture" && t.Outcome == "fracture-cleared") return "TreatedFracture";
+        if (t.TargetBleedCleared == true && t.Need == "heavy-bleed") return "StoppedHeavyBleed";
+        if (t.TargetBleedCleared == true && t.Need == "light-bleed") return "StoppedLightBleed";
+        return null;
+    }
+
+    internal bool Observe(DoorRunTrace t) => t.SprintObserved && t.FarArrived && First(t, ref run);
+    internal bool ThrewIntoRoom(DoorClearTrace t) => t.ProjectileObserved && t.Projectile.HasValue && First(t, ref roomGrenade);
+    internal bool Observe(RelocationTrace t) => t.MovementObserved && t.Arrived && First(t.Episode, ref relocationEpisode);
+    internal bool Observe(RestLightsTrace t)
+    {
+        if (!t.Requested || !t.Accepted || !t.ObservedOff || t.State != "dark") return false;
+        if (ReferenceEquals(rest, t) && restRequest == t.SwitchRequest) return false;
+        rest = t;
+        restRequest = t.SwitchRequest;
+        return true;
+    }
+
+    internal static bool MovedAlongRoute(float distanceSquared, float forwardProgress) =>
+        distanceSquared >= 1f && forwardProgress > 0f;
+
+    internal static bool EscapesDiverge(float separationBefore, float separationNow, float headingDot, float goalDistanceSquared) =>
+        goalDistanceSquared >= 4f && separationNow > separationBefore + 1f && headingDot < .95f;
+
     private int cornerEpisode, cornerPeek, prefireEpisode, jumpAttempt, magazineEpisode, feintEpisode;
     private string? weaveContext;
     private double weaveAt;

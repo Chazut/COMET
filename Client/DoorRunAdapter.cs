@@ -753,11 +753,13 @@ public sealed partial class Plugin
 
     private void RecordDoorRun(BotState s, bool force = false)
     {
-        if (!Comet.Core.ReplayCapture.Detailed)
-            return;
         var r = s.RunBy;
         var t = r.Policy.Trace;
         if (t == null)
+            return;
+        if (RecordingGestures && s.Gestures.Observe(t))
+            PublishGesture(s, "D03", "SprintedPastDoor");
+        if (!Comet.Core.ReplayCapture.Detailed)
             return;
         string key = t.State + ":" + t.Reason;
         if (!force && key == r.LogKey && Time.time - r.LogAt < .5)

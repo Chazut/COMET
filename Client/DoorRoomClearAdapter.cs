@@ -855,6 +855,8 @@ public sealed partial class Plugin
         var t = r.Policy.Trace;
         if (t == null)
             return;
+        if (RecordingGestures && s.Gestures.ThrewIntoRoom(t))
+            PublishGesture(s, t.Mode == "search" ? "D08" : "D07", "ThrewIntoRoom");
         if (RecordingGestures && s.Gestures.Observe(t))
             PublishGesture(s, t.Mode == "search" ? "D08" : "D07", "EnteredRoom");
         if (!Comet.Core.ReplayCapture.Detailed)

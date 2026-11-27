@@ -106,6 +106,7 @@ public sealed class RestLightAccessory
 
 public sealed class RestLightsTrace
 {
+    internal int SwitchRequest { get; set; }
     public string State = "waiting",
         Reason = "rest-stabilizing",
         Owner = "",

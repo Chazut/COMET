@@ -1027,6 +1027,8 @@ public sealed partial class Plugin
         var t = r.Policy.Trace;
         if (t == null)
             return;
+        if (RecordingGestures && s.Gestures.Observe(t))
+            PublishGesture(s, "M13", "ReachedNewCover");
         var key = (t.Episode, t.State, t.Reason, t.Accepted, t.GrenadeOutcome,
             t.MovementObserved, r.NativeMoveStarted);
         if (!force && key == r.LogKey)

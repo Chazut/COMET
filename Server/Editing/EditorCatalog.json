@@ -9174,7 +9174,7 @@
     },
     "EssentialReplayData": {
       "Label": "Essential replay data",
-      "Help": "Record bot actions, confirmed gestures, squad roles and magazine recovery for Raid Review and Satellite. On by default.",
+      "Help": "Record bot actions, weapon changes, medical treatment, grenade reactions, squad roles and magazine recovery for Raid Review and Satellite. On by default.",
       "Section": "RaidReview",
       "Simple": true
     },

@@ -187,11 +187,13 @@ public sealed partial class Plugin
 
     private void RecordPistolSwap(BotComponent? b, BotState s, bool force = false)
     {
-        if (!Comet.Core.ReplayCapture.Detailed)
-            return;
         var r = s.PistolSwap;
         var t = r.Policy.Trace;
         if (t == null)
+            return;
+        if (RecordingGestures && s.Gestures.Observe(t) is string gesture)
+            PublishGesture(s, "W02", gesture);
+        if (!Comet.Core.ReplayCapture.Detailed)
             return;
         var key = (t.State, t.Choice, t.Reason, t.MainLoaded, t.PistolLoaded, t.InHands, t.Ready);
         if (!force && key == r.LogKey && Time.time - r.LogAt < .25f)

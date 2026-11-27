@@ -990,6 +990,11 @@ public sealed partial class Plugin
         var t = r.Policy.Trace;
         if (t == null)
             return;
+        if (RecordingGestures)
+        {
+            ReplayActivity(s, "H01", ref s.Gestures.Treatment, ReplayGestures.TreatmentInProgress(t));
+            if (s.Gestures.Observe(t) is string result) PublishGesture(s, "H01", result);
+        }
         string key = t.State + ":" + t.Choice + ":" + t.Reason + ":" + t.Item + ":" + t.MistakeState;
         if (!force && key == r.Key && Time.time < r.LogAt)
             return;

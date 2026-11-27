@@ -337,6 +337,8 @@ public sealed partial class Plugin
     private void RecordFlash(BotComponent? b, BotState s, string state, string reason, bool force)
     {
         var r = s.Flash;
+        if (RecordingGestures && (state == "ended" || s.Gestures.Flash == null && r.Native?.IsFlashed == true))
+            ReplayActivity(s, "G09", ref s.Gestures.Flash, state == "ended" ? null : "FlashAffected");
         if (!force && Time.time < r.NextLog)
             return;
         r.NextLog = Time.time + .5f;

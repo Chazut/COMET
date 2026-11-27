@@ -16,12 +16,19 @@ internal static class EssentialReplay
     };
 
     internal static string Gesture(string session, long sequence, string feature, string decision, float realtime, string profileId, string name, string botInstance) =>
-        Diagnostics.Serialize(new { schema = 1, session, sequence, feature, stage = "performed", decision, realtime, profileId, name, botInstance });
+        ActionEvent(session, sequence, feature, "performed", decision, realtime, profileId, name, botInstance);
+
+    internal static string ActionEvent(string session, long sequence, string feature, string stage, string decision, float realtime, string profileId, string name, string botInstance) =>
+        Diagnostics.Serialize(new { schema = 1, session, sequence, feature, stage, decision, realtime, profileId, name, botInstance });
 
     // Only COMET's own schema-1 producers feed this stream. Their feature and stage
     // precede nested evidence, even when a detailed config snapshot follows.
     internal static bool Keep(string feature, string stage, string decision, bool raidReview)
     {
+        if (stage is "activity-start" or "activity-end")
+            return feature is "H01" or "G08" or "G09";
+        if (stage == "performed" && feature is ("C07" or "D03" or "G05" or "H01" or "H02" or "L03" or "M13" or "W02" or "W03"))
+            return true;
         if (stage == "performed")
             return feature is "M03" or "M06" or "M11" or "M12" or "M14" or "D02" or "D04" or "D05" or "D06" or "D07" or "D08";
         if (feature is "S10" or "S11")

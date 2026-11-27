@@ -251,6 +251,7 @@ public sealed partial class Plugin
         r.RequestedAt = Time.time;
         if (t.Requested)
         {
+            t.SwitchRequest++;
             // L02's previous confirmed ON is now intentionally obsolete, rather than an external change.
             PauseTacticalDevices(s, "devices-rest-handoff");
             try
@@ -395,11 +396,13 @@ public sealed partial class Plugin
 
     private void RecordRestLights(BotState s)
     {
-        if (!Comet.Core.ReplayCapture.Detailed)
-            return;
         var r = s.RestLights;
         var t = r.Trace;
         if (t == null)
+            return;
+        if (RecordingGestures && s.Gestures.Observe(t))
+            PublishGesture(s, "L03", "SwitchedDevicesOff");
+        if (!Comet.Core.ReplayCapture.Detailed)
             return;
         string key =
             t.State

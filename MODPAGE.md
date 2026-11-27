@@ -159,7 +159,7 @@ And if you're here looking for SLOP... well, I did leave some in there for you t
 
 ### Support
 
-**Which replay setting do I need?** Leave **Essential replay data** on for Raid Review or Satellite. It includes squad tactics, magazine pickups and confirmed actions such as jumps, peeks and fake reloads when supported by your viewer. Turn on **Extended replay data** for decision scores and diagnostic reports. Both settings apply next raid and require a replay plugin on the AI host.
+**Which replay setting do I need?** Leave **Essential replay data** on for Raid Review or Satellite. It includes squad tactics, magazine pickups and confirmed actions such as emergency weapon swaps, leaving exposed cover, grenade escapes and confirmed medical outcomes when supported by your viewer. Turn on **Extended replay data** for decision scores and diagnostic reports. Both settings apply next raid and require a replay plugin on the AI host.
 
 **Found a bug?** Open a report in the **Issues** tab on Forge. For detailed logs, turn off **Diagnostics > Quiet logging** before the raid and attach the files from `BepInEx/COMET/diagnostics`. With Fika, use the AI host's logs.
 

@@ -103,6 +103,8 @@ public sealed partial class Plugin
         var t = r.Interruption.Trace;
         if (t == null)
             return;
+        if (RecordingGestures && s.Gestures.Observe(t) is string gesture)
+            PublishGesture(s, "H02", gesture);
         string key = t.State + ":" + t.Reason + ":" + t.Completed + ":" + t.NativeCancelled;
         if (!force && key == r.InterruptionKey && Time.time < r.InterruptionLogAt)
             return;

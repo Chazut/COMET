@@ -87,7 +87,16 @@ public sealed partial class Plugin
         // Its thresholds and two-second expiry remain the sole authority.
         bool exposed = point.Spotted;
         if (exposed)
+        {
             SourceCoverAccess.Forget(__instance, point);
+            if (RecordingGestures && __0.DamageType == EDamageType.Bullet && __0.DidBodyDamage > 0f
+                && !__0.DelayedDamage && Instance!.states.TryGetValue(b, out var s))
+            {
+                s.ReplayHitOrigin = b.Position;
+                s.ReplayHitCover = point.Position;
+                s.ReplayHitCoverUntil = Time.time + 6f;
+            }
+        }
         RecordCoverExposure(
             b,
             point,
@@ -106,6 +115,16 @@ public sealed partial class Plugin
         var held = __instance.CoverInUse;
         var moving = __instance.CoverPoint_MovingTo;
         var escape = Instance!.CurrentEscape(b);
+        if (RecordingGestures && Instance.states.TryGetValue(b, out var s) && s.ReplayHitCoverUntil > Time.time
+            && b.Mover.ActivePath is { Moving: true } path
+            && ((escape?.Running == true && (path.Destination - escape.Destination).sqrMagnitude < 1f)
+                || (moving != null && (moving.Position - s.ReplayHitCover).sqrMagnitude > 1f && (path.Destination - moving.Position).sqrMagnitude < 1f))
+            && Comet.Core.ReplayGestures.MovedAlongRoute((b.Position - s.ReplayHitOrigin).sqrMagnitude,
+                Vector3.Dot(b.Position - s.ReplayHitOrigin, path.Destination - s.ReplayHitOrigin)))
+        {
+            s.ReplayHitCoverUntil = 0f;
+            Instance.PublishGesture(s, "C07", "LeftExposedCover");
+        }
         if (held != null && (held.Spotted || escape?.Rejects(held) == true))
         {
             SourceCoverAccess.Forget(__instance, held);

@@ -61,6 +61,7 @@ public sealed class SurgeryInterruptionTrace
     public string Item { get; set; } = "";
     public string Part { get; set; } = "";
     public bool Requested { get; set; }
+    internal bool HadHands;
     public bool NativeCancelled { get; set; }
     public bool HandsReleased { get; set; }
     public bool WeaponReady { get; set; }
@@ -93,6 +94,7 @@ public sealed class SurgeryInterruption
         if (!Active)
             return false;
         var t = Trace!;
+        t.HadHands |= f.Hands;
         t.Completed |= f.Completed;
         t.NativeCancelled |= f.NativeCancelled;
         t.RetryRemaining = Math.Max(0, RetryAt - f.Now);

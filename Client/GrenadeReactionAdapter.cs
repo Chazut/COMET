@@ -18,12 +18,20 @@ using UnityEngine.AI;
 
 namespace Comet.Client;
 
+internal sealed class GrenadeReplayMovement
+{
+    internal Vector3 Origin, Destination;
+    internal bool RouteStarted, Moved, Split, Prone, DownAtStart;
+}
+
 internal sealed class GrenadeEscapeRuntime
 {
     internal readonly List<OwnGrenadeEvidence> Dangers = new();
     internal readonly HashSet<string> Escaping = new(StringComparer.Ordinal);
     internal readonly HashSet<string> Live = new(StringComparer.Ordinal);
     internal readonly OwnGrenadeSafetyConfig Safety = new();
+    internal System.Runtime.CompilerServices.ConditionalWeakTable<GrenadeTrackerClass, GrenadeReplayMovement>? ReplayMoves;
+    internal int? ReplayPathProjectile, ReplayProneProjectile;
     internal GrenadeTrackerClass? ReportedDanger;
     internal EGrenadeReaction ReportedReaction;
     internal bool NativeReported;
@@ -325,6 +333,7 @@ public sealed partial class Plugin
         var c = config!.GrenadeReaction;
         if (r.Hazard == null || r.Selected?.Grenade == null)
             return;
+        if (RecordingGestures) ObserveGrenadeMovement(b, s, r);
         var danger = VP(r.Hazard.Position);
         if (
             r.Path != null
@@ -381,6 +390,7 @@ public sealed partial class Plugin
         {
             b.Mover.Prone.SetProne(true);
             r.Prone = true;
+            r.ReplayProneProjectile = r.Hazard.Projectile;
             r.Path = null;
             RecordGrenadeEscape(b, s, "prone", "grenade-source-blast-imminent");
             return;
@@ -390,7 +400,15 @@ public sealed partial class Plugin
         {
             if (!move)
                 return false;
+            if (RecordingGestures && r.ReplayMoves?.TryGetValue(r.Selected!, out var sample) == true && !sample.Moved
+                && (!sample.RouteStarted || (sample.Destination - goal).sqrMagnitude >= 1f))
+            {
+                sample.RouteStarted = true;
+                sample.Origin = b.Position;
+                sample.Destination = goal;
+            }
             r.Goal = goal;
+            r.ReplayPathProjectile = r.Hazard!.Projectile;
             r.Path = b.Mover.ActivePath;
             r.Mesh = r.Path?.NavMeshPath;
             r.Prone = false;
@@ -432,6 +450,51 @@ public sealed partial class Plugin
             }
         r.Path = null;
         RecordGrenadeEscape(b, s, "planning", "grenade-native-movement-refused");
+    }
+
+    private void ObserveGrenadeMovement(BotComponent b, BotState s, GrenadeEscapeRuntime r)
+    {
+        var seen = r.ReplayMoves ??= new();
+        if (!seen.TryGetValue(r.Selected!, out var sample))
+        {
+            sample = new GrenadeReplayMovement { Origin = b.Position, DownAtStart = b.Player.IsInPronePose };
+            seen.Add(r.Selected!, sample);
+        }
+        if (!sample.Prone && !sample.DownAtStart && r.Prone && r.ReplayProneProjectile == r.Hazard!.Projectile && b.Player.IsInPronePose)
+        {
+            sample.Prone = true;
+            PublishGesture(s, "G05", "DroppedProneGrenade");
+        }
+        if (sample.Moved || !sample.RouteStarted || r.ReplayPathProjectile != r.Hazard!.Projectile || r.Path == null || !r.Path.Moving || !ReferenceEquals(r.Path, b.Mover.ActivePath)
+            || !ReferenceEquals(r.Mesh, r.Path.NavMeshPath)
+            || !ReplayGestures.MovedAlongRoute((b.Position - sample.Origin).sqrMagnitude,
+                Vector3.Dot(b.Position - sample.Origin, r.Goal - sample.Origin))) return;
+        sample.Moved = true;
+        bool split = false;
+        if (b.Squad.BotInGroup && config!.GrenadeDispersion.Enabled)
+            foreach (var peer in b.Squad.Members.Values)
+            {
+                if (peer == null || ReferenceEquals(b, peer) || !states.TryGetValue(peer, out var member)) continue;
+                var other = member.GrenadeEscape;
+                if (other.Selected?.Grenade != r.Selected!.Grenade || other.Path == null || !other.Path.Moving
+                    || other.ReplayPathProjectile != r.Hazard.Projectile || !ReferenceEquals(other.Path, peer.Mover.ActivePath)
+                    || !ReferenceEquals(other.Mesh, other.Path.NavMeshPath)) continue;
+                if (other.ReplayMoves?.TryGetValue(other.Selected, out var otherMove) == true && otherMove.Moved
+                    && ReplayGestures.EscapesDiverge((otherMove.Origin - sample.Origin).sqrMagnitude,
+                        (peer.Position - b.Position).sqrMagnitude,
+                        Vector3.Dot((b.Position - sample.Origin).normalized, (peer.Position - otherMove.Origin).normalized),
+                        (other.Goal - r.Goal).sqrMagnitude))
+                {
+                    split = sample.Split = true;
+                    if (!otherMove.Split)
+                    {
+                        otherMove.Split = true;
+                        PublishGesture(member, "G05", "ScatteredFromGrenade");
+                    }
+                    break;
+                }
+            }
+        PublishGesture(s, "G05", split ? "ScatteredFromGrenade" : "FledGrenade");
     }
 
     private static void EscapeActionStopped(BotAction __instance)

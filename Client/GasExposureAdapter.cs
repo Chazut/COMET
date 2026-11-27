@@ -220,6 +220,8 @@ public sealed partial class Plugin
         // no gas at this bot, including when the optional provider is installed.
         r.Protection = inside || r.Intensity > 0 ? gasBridge.Protection(b.Player) : "None";
         r.Inside = inside;
+        if (RecordingGestures)
+            ReplayActivity(s, "G08", ref s.Gestures.Gas, inside ? "InsideGas" : null);
         r.Center = center;
         r.Intensity = GasExposureRules.Exposure(
             r.Intensity,
@@ -323,6 +325,7 @@ public sealed partial class Plugin
             ClearGasModifier(b, r);
         r.Intensity = 0;
         r.Inside = r.Owned = false;
+        if (RecordingGestures) ReplayActivity(s, "G08", ref s.Gestures.Gas, null);
         r.AttemptUntil = r.RetryAt = r.NextFlash = 0;
         if (resetSampling)
             r.Next = r.Last = 0;
