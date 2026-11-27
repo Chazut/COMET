@@ -53,6 +53,8 @@ public sealed partial class Plugin
     {
         public long Id;
         public SoundEvent Sound;
+        public string? Gait;
+        public float PlaybackVolume;
         public int Cursor = -1;
     }
 
@@ -274,6 +276,15 @@ public sealed partial class Plugin
             SAINSoundType.Jump => settings.BaseSoundRange_Jump,
             _ => settings.MaxSoundRange_FallLanding,
         };
+        float playbackVolume = volume;
+        string? gait = null;
+        if (config.MovementHearing.GaitBasedRange && type is SAINSoundType.FootStep or SAINSoundType.Sprint)
+        {
+            var motion = player.MovementContext;
+            gait = FootstepAudibility.Apply(config.MovementHearing, type == SAINSoundType.Sprint,
+                movement == EAudioMovementState.Duck, motion.CovertEfficiency > .9f,
+                motion.ClampedSpeed, motion.MaxSpeed, settings.BaseSoundRange_Footstep, ref range, ref volume);
+        }
         // Same emitter modifiers as PlayerComponent.AddCachedAISoundEvent. Do not use PlayAISound's
         // global cache or BotHearingClass, which would distribute this added signal to non-PMCs too.
         volume *= settings.FootstepAudioMultiplier;
@@ -294,6 +305,8 @@ public sealed partial class Plugin
             new MovementSignal
             {
                 Id = ++movementSequence,
+                Gait = gait,
+                PlaybackVolume = playbackVolume,
                 Sound = new SoundEvent(type, source.Position, source, range, volume, 343),
             }
         );
@@ -680,6 +693,8 @@ public sealed partial class Plugin
             signal = d.Signal.Id,
             source = sound.ProfileId,
             kind = sound.SoundType.ToString(),
+            gait = d.Signal.Gait,
+            playbackVolume = d.Signal.PlaybackVolume,
             outcome,
             emittedAt = sound.TimeCreated,
             age = Time.time - sound.TimeCreated,

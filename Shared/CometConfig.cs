@@ -17,6 +17,10 @@ public sealed class MovementHearingConfig
 {
     public bool Enabled { get; set; } = true;
     public bool Footsteps { get; set; } = true;
+    public bool GaitBasedRange { get; set; } = true;
+    public double WalkRangeMultiplier { get; set; } = 1.8;
+    public double QuietFractionOfWalk { get; set; } = .35;
+    public double SprintRelativeToWalk { get; set; } = 1.6;
     public bool JumpsAndLandings { get; set; } = true;
     public double RangeMultiplier { get; set; } = 1;
     public double MinimumInterval { get; set; } = .2;
@@ -24,6 +28,9 @@ public sealed class MovementHearingConfig
     public void Validate()
     {
         CometConfig.Range(RangeMultiplier, .25, 2, nameof(RangeMultiplier));
+        CometConfig.Range(WalkRangeMultiplier, .25, 3, nameof(WalkRangeMultiplier));
+        CometConfig.Range(QuietFractionOfWalk, .05, .95, nameof(QuietFractionOfWalk));
+        CometConfig.Range(SprintRelativeToWalk, 1.05, 3, nameof(SprintRelativeToWalk));
         CometConfig.Range(MinimumInterval, .05, 1, nameof(MinimumInterval));
     }
 }

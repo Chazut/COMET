@@ -87,7 +87,7 @@ These tactics apply to **PMCs and AI player scavs**, including fights between bo
 ## Sight, sound & cover
 
 - **Light.** Shadows can buy you or another bot time on first contact. Ambushing PMCs can switch off their lights and lasers.
-- **Sound.** PMCs can follow footsteps, hear less between floors, and crouch for the last few metres of a search.
+- **Sound.** PMCs and AI player scavs can hear an AI scav sprinting farther away than one walking or sneaking. Tune each gait under **Awareness & search > Hear nearby bots**. Headsets, floors and SAIN's hearing checks still matter. A PMC following a sound can crouch for the last few metres.
 - **Cover.** Bare bushes lose their value in autumn and winter. Solid trunks still work, and taking hits can make a PMC change cover.
 
 ## Gear & survival

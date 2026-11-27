@@ -14,6 +14,16 @@ The host remains official SAIN 4.5.1; the fork DLL is not distributed or install
 
 ## Behavioral changes
 
+### AI footstep range by gait
+
+On Factory, the same PMC with a headset received a sprint with volume 0.475 and
+a footstep with volume 0.85, both emitted at a base range of 70 m. With equal
+listener modifiers the sprint carried 5.85 m and the louder footstep 10.47 m.
+Both official SAIN and the pinned fork multiply emission range by volume before
+the final distance check. P01 now calibrates only its added AI footfalls before
+that check. The original playback mix is available by switching gait scaling off.
+SAIN still rolls each listener's hearing and owns the reaction.
+
 ### Magazine exchanges without an ammo gain
 
 In the November 24 raid, Nezys dropped a magazine with 22 rounds for one with 10.

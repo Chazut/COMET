@@ -494,7 +494,7 @@
     },
     "MovementHearing": {
       "Title": "Hear nearby bots - P01",
-      "Description": "PMCs can notice nearby bots before seeing them. SAIN still decides what they hear based on distance, equipment and surroundings. Ghosts stay silent and do not listen. Other bots and human movement sounds keep their normal behavior. The event stream for Raid Review and Satellite distinguishes signals queued for SAIN from sounds a PMC actually heard.",
+      "Description": "PMCs and AI player scavs can hear other bots on the move. Tune an ordinary walking step first, then set how much farther a sprint carries and how quiet a creeping bot is. SAIN decides what each listener hears based on equipment, distance and surroundings.",
       "Category": "Perception",
       "Summary": "PMCs can notice nearby bots before seeing them."
     },
@@ -4642,6 +4642,42 @@
       "Scale": 1,
       "Section": "MovementHearing",
       "Simple": false
+    },
+    "MovementHearing.GaitBasedRange": {
+      "Label": "Footstep range by gait",
+      "Help": "Give sprinting, walking and quiet AI footsteps distinct hearing ranges. Switch off to use the original game audio volume for these sounds.",
+      "Section": "MovementHearing",
+      "Simple": true
+    },
+    "MovementHearing.WalkRangeMultiplier": {
+      "Label": "Walking range",
+      "Help": "Scale the SAIN preset's footstep range for an ordinary walking bot. This also sets the reference for quiet steps and sprinting. Equipment and obstacles still affect the listener.",
+      "Min": 0.25,
+      "Max": 3.0,
+      "Scale": 1,
+      "Section": "MovementHearing",
+      "Simple": false,
+      "Unit": "x"
+    },
+    "MovementHearing.QuietFractionOfWalk": {
+      "Label": "Quiet steps compared to walking",
+      "Help": "Set how far a crouched step or a very slow upright step carries as a fraction of normal walking range.",
+      "Min": 0.05,
+      "Max": 0.95,
+      "Scale": 1,
+      "Section": "MovementHearing",
+      "Simple": false,
+      "Unit": "x"
+    },
+    "MovementHearing.SprintRelativeToWalk": {
+      "Label": "Sprinting compared to walking",
+      "Help": "Set how much farther a sprint carries than walking. A longer sprint range in your SAIN preset still applies.",
+      "Min": 1.05,
+      "Max": 3.0,
+      "Scale": 1,
+      "Section": "MovementHearing",
+      "Simple": false,
+      "Unit": "x"
     },
     "MovementHearing.JumpsAndLandings": {
       "Label": "Jumps and landings",

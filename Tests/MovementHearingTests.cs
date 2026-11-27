@@ -30,12 +30,52 @@ static class MovementHearingTests
             cfg.MovementHearing.RangeMultiplier == 1 && cfg.MovementHearing.MinimumInterval == .2,
             "approved defaults"
         );
+        var hearing = cfg.MovementHearing;
+        (string? Gait, float Range, float Volume) Step(float playback, bool sprint = false,
+            bool duck = false, bool covert = false, float speed = 1, float nativeRange = 70)
+        {
+            float range = nativeRange, volume = playback;
+            string? gait = FootstepAudibility.Apply(hearing, sprint, duck, covert, speed, 1, 70, ref range, ref volume);
+            return (gait, range, volume);
+        }
+        var walk = Step(.85f);
+        var sprint = Step(.475f, sprint: true);
+        var quiet = Step(.85f, duck: true);
+        Check(walk.Gait == "walk" && quiet.Gait == "quiet" && sprint.Gait == "sprint", "distinct real gaits");
+        Check(Step(.85f, speed: .25f) == quiet && Step(.85f, covert: true) == quiet
+            && Step(.85f, speed: .26f) == walk && Step(.85f, speed: 0) == walk,
+            "quiet standing steps and an unset speed on a normal step");
+        Check(Step(.475f, sprint: true, duck: true, covert: true) == sprint, "sprint playback owns the transition");
+        Check(Step(.475f, sprint: true, nativeRange: 40) == sprint
+            && Step(.475f, sprint: true, nativeRange: 100).Range > sprint.Range,
+            "ordered for a short preset sprint range, preserves a longer one");
+        // Factory: same listener with headset, sprint range 4.68 at 0.8 occlusion,
+        // 5.85 in the clear. Keep the listener coefficient and change only the emitted signal.
+        float listenerFactor = 4.68f / (70 * .475f);
+        float Audible((string? Gait, float Range, float Volume) step) => step.Range * step.Volume * listenerFactor;
+        Check(Math.Abs(Audible(sprint) - 28.38f) < .05f && Math.Abs(Audible(walk) - 17.73f) < .05f
+            && Math.Abs(Audible(quiet) - 6.21f) < .05f, "Factory sprint, normal walk and stealth at equal attenuation");
+        Check(Audible(sprint) > 16.45f && Audible(quiet) < 10.65f,
+            "scav could be heard earlier on a sprint without giving its quiet steps the same reach");
+        foreach (float invalid in new[] { 0f, -1f, float.NaN, float.PositiveInfinity })
+        {
+            var result = Step(invalid);
+            Check(result.Gait == null && result.Volume.Equals(invalid), "silent or invalid playback never gains a signal");
+        }
+        Check(Step(.475f, sprint: true, nativeRange: 0).Range == 0, "a disabled SAIN source stays silent");
+        hearing.QuietFractionOfWalk = .95;
+        hearing.SprintRelativeToWalk = 1.05;
+        Check(Step(.95f, duck: true).Range < Step(.5f).Range && Step(.5f).Range < Step(.01f, sprint: true).Range,
+            "even the closest configurable gaits are ordered");
+        hearing.GaitBasedRange = false;
+        Check(Step(.475f, sprint: true, nativeRange: 50) == (null, 50f, .475f), "switch off restores legacy inputs");
         var old = JsonSerializer.Deserialize<CometConfig>(
             "{\"Schema\":1,\"Revision\":7,\"Enabled\":false}"
         )!;
         old.Validate();
         Check(
-            !old.Enabled && old.Revision == 7 && old.MovementHearing.Enabled,
+            !old.Enabled && old.Revision == 7 && old.MovementHearing.Enabled
+                && old.MovementHearing.GaitBasedRange && old.MovementHearing.WalkRangeMultiplier == 1.8,
             "old config migrates without globally enabling COMET"
         );
         foreach (double bad in new[] { double.NaN, double.PositiveInfinity, -1, 0, .01, 3 })
@@ -80,12 +120,18 @@ static class MovementHearingTests
         var current = store.Read();
         current.MovementHearing.Footsteps = false;
         current.MovementHearing.MinimumInterval = .4;
+        current.MovementHearing.GaitBasedRange = false;
+        current.MovementHearing.WalkRangeMultiplier = 2;
+        current.MovementHearing.QuietFractionOfWalk = .2;
+        current.MovementHearing.SprintRelativeToWalk = 2.1;
         store.Save(current, current.Revision);
         var saved = store.Read();
         Check(
             !saved.MovementHearing.Footsteps
                 && saved.MovementHearing.JumpsAndLandings
-                && saved.MovementHearing.MinimumInterval == .4,
+                && saved.MovementHearing.MinimumInterval == .4
+                && !saved.MovementHearing.GaitBasedRange && saved.MovementHearing.WalkRangeMultiplier == 2
+                && saved.MovementHearing.QuietFractionOfWalk == .2 && saved.MovementHearing.SprintRelativeToWalk == 2.1,
             "server save/reload"
         );
         var gate = new MovementHearingGate();
@@ -204,9 +250,9 @@ static class MovementHearingTests
             .Single(h => md.GetString(md.GetMethodDefinition(h).Name) == "Sprint");
         var constructor = (MethodDefinitionHandle)
             MetadataTokens.EntityHandle(Calls(pe, md.GetMethodDefinition(factory), true).Single());
-        var sprint = md.GetTypeDefinition(md.GetMethodDefinition(constructor).GetDeclaringType());
+        var sprintIterator = md.GetTypeDefinition(md.GetMethodDefinition(constructor).GetDeclaringType());
         paths.Add(
-            sprint
+            sprintIterator
                 .GetMethods()
                 .Single(h => md.GetString(md.GetMethodDefinition(h).Name) == "MoveNext")
         );
@@ -217,7 +263,7 @@ static class MovementHearingTests
                 "unique audio call: " + md.GetString(md.GetMethodDefinition(handle).Name)
             );
         Check(
-            sprint.GetFields().Select(md.GetFieldDefinition).Count(f => IsPlayer(md, f)) == 1,
+            sprintIterator.GetFields().Select(md.GetFieldDefinition).Count(f => IsPlayer(md, f)) == 1,
             "sprint player owner"
         );
         var landing = player

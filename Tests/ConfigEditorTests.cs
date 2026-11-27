@@ -54,9 +54,13 @@ internal static class ConfigEditorTests
         );
         Check(
             editor.Visible(false, "", false).Count(f => f.Path is not
-                ("EnablePmcs" or "EnableAiPlayerScavs" or "LightBasedDetection" or "EssentialReplayData" or "ExtendedReplayData")) <= 19,
+                ("EnablePmcs" or "EnableAiPlayerScavs" or "LightBasedDetection" or "EssentialReplayData"
+                    or "ExtendedReplayData" or "MovementHearing.GaitBasedRange")) <= 19,
             "simple mode is deliberately short, including Quiet logging"
         );
+        Check(Field("MovementHearing.GaitBasedRange").Simple && !Field("MovementHearing.WalkRangeMultiplier").Simple
+            && !Field("MovementHearing.SprintRelativeToWalk").Simple && !Field("MovementHearing.QuietFractionOfWalk").Simple,
+            "the gait switch is immediately visible and the three ranges are available in the detailed controls");
         Check(
             editor.Visible(true, "", false).Count() == editor.Catalog.Fields.Count,
             "advanced mode has every control"
