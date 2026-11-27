@@ -18,9 +18,9 @@ public sealed class MovementHearingConfig
     public bool Enabled { get; set; } = true;
     public bool Footsteps { get; set; } = true;
     public bool GaitBasedRange { get; set; } = true;
-    public double QuietRangeMeters { get; set; } = 6.2;
-    public double WalkRangeMeters { get; set; } = 17.7;
-    public double SprintRangeMeters { get; set; } = 28.4;
+    public double QuietRangeMeters { get; set; } = 5;
+    public double WalkRangeMeters { get; set; } = 20;
+    public double SprintRangeMeters { get; set; } = 30;
     public bool JumpsAndLandings { get; set; } = true;
     public double RangeMultiplier { get; set; } = 1;
     public double MinimumInterval { get; set; } = .2;

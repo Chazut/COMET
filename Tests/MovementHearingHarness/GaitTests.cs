@@ -58,9 +58,9 @@ partial class Plugin
         {
             native.BaseSoundRange_Footstep = native.BaseSoundRange_Sprint = native.FootstepAudioMultiplier = presetValue;
             foreach (var (type, state, meters) in new[] {
-                (SAINSoundType.FootStep, EAudioMovementState.Duck, 6.2f),
-                (SAINSoundType.FootStep, EAudioMovementState.Run, 17.7f),
-                (SAINSoundType.Sprint, EAudioMovementState.Run, 28.4f) })
+                (SAINSoundType.FootStep, EAudioMovementState.Duck, 5f),
+                (SAINSoundType.FootStep, EAudioMovementState.Run, 20f),
+                (SAINSoundType.Sprint, EAudioMovementState.Run, 30f) })
             {
                 var level = MovementLevels(settings, player, source, type, state, .475f);
                 Verify(level.Range == meters && level.Volume == 1f, "native gain or range leaked into override");

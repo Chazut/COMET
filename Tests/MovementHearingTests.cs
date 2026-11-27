@@ -33,8 +33,8 @@ static class MovementHearingTests
         var hearing = cfg.MovementHearing;
         (string Gait, float Range) Step(bool sprint = false, bool duck = false, bool covert = false, float speed = 1) =>
             FootstepAudibility.GetRange(hearing, sprint, duck, covert, speed, 1);
-        Check(hearing.GaitBasedRange && Step() == ("walk", 17.7f) && Step(sprint: true) == ("sprint", 28.4f)
-            && Step(duck: true) == ("quiet", 6.2f), "absolute defaults in metres");
+        Check(hearing.GaitBasedRange && Step() == ("walk", 20f) && Step(sprint: true) == ("sprint", 30f)
+            && Step(duck: true) == ("quiet", 5f), "absolute defaults in metres");
         Check(Step(speed: .25f) == Step(duck: true) && Step(covert: true) == Step(duck: true)
             && Step(speed: .26f) == Step() && Step(speed: 0) == Step(), "stand, creep and transitional zero");
         Check(Step(sprint: true, duck: true) == Step(sprint: true), "sprint playback owns the transition");
@@ -47,7 +47,7 @@ static class MovementHearingTests
         Check(FootstepAudibility.HearingChance(1, Step().Range, true) == 1
             && FootstepAudibility.HearingChance(16.45f, Step(sprint: true).Range, true) is > 0 and < 1
             && FootstepAudibility.HearingChance(16.45f, Step(duck: true).Range, true) == 0
-            && FootstepAudibility.HearingChance(28.41f, 28.4f, true) == 0, "Factory encounter and exact range cutoff");
+            && FootstepAudibility.HearingChance(30.01f, 30f, true) == 0, "Factory encounter and exact range cutoff");
         hearing.QuietRangeMeters = hearing.WalkRangeMeters;
         try { hearing.Validate(); throw new Exception("equal gaits accepted"); }
         catch (ArgumentException) { n++; }
@@ -57,7 +57,7 @@ static class MovementHearingTests
         old.Validate();
         Check(
             !old.Enabled && old.Revision == 7 && old.MovementHearing.Enabled
-                && old.MovementHearing.GaitBasedRange && old.MovementHearing.WalkRangeMeters == 17.7,
+                && old.MovementHearing.GaitBasedRange && old.MovementHearing.WalkRangeMeters == 20,
             "old config migrates without globally enabling COMET"
         );
         foreach (double bad in new[] { double.NaN, double.PositiveInfinity, -1, 0, .01, 3 })
@@ -103,7 +103,7 @@ static class MovementHearingTests
         current.MovementHearing.Footsteps = false;
         current.MovementHearing.MinimumInterval = .4;
         current.MovementHearing.GaitBasedRange = false;
-        current.MovementHearing.WalkRangeMeters = 20;
+        current.MovementHearing.WalkRangeMeters = 21;
         current.MovementHearing.QuietRangeMeters = 4;
         current.MovementHearing.SprintRangeMeters = 34;
         store.Save(current, current.Revision);
@@ -112,7 +112,7 @@ static class MovementHearingTests
             !saved.MovementHearing.Footsteps
                 && saved.MovementHearing.JumpsAndLandings
                 && saved.MovementHearing.MinimumInterval == .4
-                && !saved.MovementHearing.GaitBasedRange && saved.MovementHearing.WalkRangeMeters == 20
+                && !saved.MovementHearing.GaitBasedRange && saved.MovementHearing.WalkRangeMeters == 21
                 && saved.MovementHearing.QuietRangeMeters == 4 && saved.MovementHearing.SprintRangeMeters == 34,
             "server save/reload"
         );
@@ -125,17 +125,17 @@ static class MovementHearingTests
              "QuietFractionOfWalk":0.175,"SprintRelativeToWalk":1.6}}}
             """)!.AsObject();
         var imported = PresetLibrary.PreviewImport(export.ToJsonString()).Config.MovementHearing;
-        Check(!imported.GaitBasedRange && imported.WalkRangeMeters == 17.7 && imported.QuietRangeMeters == 3.1
-            && imported.SprintRangeMeters == 28.4, "import old COMET adjustments and toggle");
+        Check(!imported.GaitBasedRange && imported.WalkRangeMeters == 20 && imported.QuietRangeMeters == 2.5
+            && imported.SprintRangeMeters == 30, "import old COMET adjustments and toggle");
         string activePath = Path.Combine(root, "legacy-gait.json");
         File.WriteAllText(activePath, export["Settings"]!.ToJsonString());
         var legacyStore = new ConfigStore(activePath);
         var upgraded = legacyStore.Read();
-        Check(upgraded.MovementHearing.QuietRangeMeters == 3.1 && !upgraded.MovementHearing.GaitBasedRange,
+        Check(upgraded.MovementHearing.QuietRangeMeters == 2.5 && !upgraded.MovementHearing.GaitBasedRange,
             "active legacy config keeps custom settings");
-        upgraded.MovementHearing.WalkRangeMeters = 20;
+        upgraded.MovementHearing.WalkRangeMeters = 21;
         legacyStore.Save(upgraded, upgraded.Revision);
-        Check(legacyStore.Read().MovementHearing.WalkRangeMeters == 20 && !File.ReadAllText(activePath).Contains("WalkRangeMultiplier"),
+        Check(legacyStore.Read().MovementHearing.WalkRangeMeters == 21 && !File.ReadAllText(activePath).Contains("WalkRangeMultiplier"),
             "restart does not reset or rescale metres");
         bool Add(string key, double now, double emitted, bool added = true)
         {

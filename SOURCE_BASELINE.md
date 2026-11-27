@@ -23,8 +23,8 @@ Both official SAIN and the pinned fork multiply emission range by volume before
 the final distance check. For its own AI footsteps, P01 now owns both emission
 range and the listener's hearing check. This avoids an early rejection by the
 SAIN preset's cap or a second distance multiplier from the listener's difficulty.
-The default clear ranges with a headset are 6.2 m for quiet steps, 17.7 m for
-walking and 28.4 m for sprinting. Equipment, weather, occlusion and floors can
+The default clear ranges with a headset are 5 m for quiet steps, 20 m for
+walking and 30 m for sprinting. Equipment, weather, occlusion and floors can
 shorten them. SAIN still handles hostility, deafening, delay, dispersion and the
 reaction. Disabling the override restores the original emission and hearing path.
 
