@@ -632,8 +632,19 @@ namespace Comet.Client
         public BotComponent Bot => b;
     }
 
+    // This harness runs without a replay subscriber. ReplayGestureTests exercise recorded outcomes.
+    internal sealed class ReplayGestures
+    {
+        public string? Treatment;
+        public static string? TreatmentInProgress(MedicalTrace trace) => throw Unexpected();
+        public string? Observe(MedicalTrace trace) => throw Unexpected();
+        public string? Observe(SurgeryInterruptionTrace trace) => throw Unexpected();
+        internal static Exception Unexpected() => new InvalidOperationException("Replay work without a subscriber");
+    }
+
     internal class BotState
     {
+        public readonly ReplayGestures Gestures = new();
         public MedicalRuntime Medical = new();
         public string ProfileId = "pmc",
             Name = "Medic",
@@ -728,6 +739,10 @@ namespace Comet.Client
         internal Budget doorBudget = new();
         internal System.Diagnostics.Stopwatch doorClock = new();
         internal Diagnostic? diagnostics = new();
+
+        private static bool RecordingGestures => false;
+        private void PublishGesture(BotState bot, string feature, string decision) => throw ReplayGestures.Unexpected();
+        private void ReplayActivity(BotState bot, string feature, ref string? active, string? next) => throw ReplayGestures.Unexpected();
 
         private static bool WeaponHandsReady(BotComponent b, Player.FirearmController? firearm) =>
             firearm?.Ready == true;

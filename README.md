@@ -15,7 +15,7 @@ A PMC's kit, personality and what they've actually seen or heard shape their nex
 
 These tactics apply to **PMCs and AI player scavs**, including fights between bots. Ordinary scavs and bosses keep their usual behavior. Bring your favorite SAIN preset.
 
-**COMET 1.1.0 requires SPT 4.1.6 and official SAIN 4.5.1.**
+**COMET 1.2.0 requires SPT 4.1.6 and official SAIN 4.5.1.**
 
 ## Features
 
