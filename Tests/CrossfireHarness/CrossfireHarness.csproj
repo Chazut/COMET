@@ -26,6 +26,7 @@
     <Compile Include="../../Shared/SiegeCoverage.cs" />
     <Compile Include="../../Client/SquadSiege.cs" />
     <Compile Include="../../Client/SiegeBuilding.cs" />
+    <Compile Include="../../Client/LocalDoorLookup.cs" />
     <Compile Include="../../Client/SiegeRoomCatalog.cs" />
     <Compile Include="../../Shared/Crossfire.cs" Link="Crossfire.cs" />
     <Compile Include="../../Client/CrossfireAdapter.cs" Link="CrossfireAdapter.cs" />

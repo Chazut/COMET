@@ -48,6 +48,7 @@ namespace EFT.Interactive
 {
     public class Door
     {
+        public string Id = "";
         public Vector3 Center;
         public bool Throws;
     }
@@ -144,6 +145,7 @@ namespace Comet.Client
             UpdateLocalDoors();
         }
 
+        public EFT.Interactive.Door? FindExit(string id) => LocalDoorsComplete ? localDoorIds.Find(id) : null;
         public void ResetIndex() => ClearLocalDoors();
 
         public NavMeshDoorLink[] Doors(BotComponent bot) => NearbyDoors(bot).ToArray();

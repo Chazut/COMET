@@ -109,7 +109,7 @@ wait.Defer(1, double.NaN);
 wait.Defer(1, -1);
 Check(wait.Seconds == 0, "invalid wait cannot extend a plan");
 var doors = new EFT.BotDoorsController();
-var near = new EFT.NavMeshDoorLink { Door = new() { Center = new(2, 0, 0) } };
+var near = new EFT.NavMeshDoorLink { Door = new() { Id = "Reserve-front", Center = new(2, 0, 0) } };
 doors._navMeshDoorLinks.Add(near);
 for (int i = 0; i < 79; i++)
     doors._navMeshDoorLinks.Add(new() { Door = new() { Center = new(300 + i * 20, 0, 0) } });
@@ -121,6 +121,7 @@ p = new();
 p.Index(false);
 Check(p.Indexed == 0 && UnityEngine.Object.Finds == 0, "remote client never builds index");
 p.Index();
+Check(p.FindExit("Reserve-front") == null, "partial ID index never authorizes a siege");
 Check(p.Indexed > 0 && p.Indexed <= 24, "scene indexing bounded to at most 24 links per slice");
 for (int i = 0; i < 100 && p.Indexed < 80; i++)
 {
@@ -164,7 +165,7 @@ Check(p.Summary().Contains("doorIndexComplete\":true"), "index and query counter
 p.ResetIndex();
 Check(p.NoDoorReferences && p.Indexed == 0, "raid cleanup releases all scene references");
 doors = new();
-doors._navMeshDoorLinks.Add(new() { Door = new() { Throws = true } });
+doors._navMeshDoorLinks.Add(new() { Door = new() { Id = "bad-tactical-geometry", Throws = true } });
 doors._navMeshDoorLinks.Add(near);
 UnityEngine.Object.Found = doors;
 p = new();
@@ -183,7 +184,28 @@ Check(
     p.Indexed == 2 && p.Doors(new BotComponent()).Contains(near),
     "later good doors remain discoverable after a failed link"
 );
+Check(p.FindExit("bad-tactical-geometry") == doors._navMeshDoorLinks[0].Door,
+    "a door ID remains usable when tactical geometry is unavailable");
+Check(p.FindExit("Reserve-front") == near.Door && p.FindExit("reserve-front") == null,
+    "only exact local IDs identify an exit");
+void Reindex()
+{
+    Time.time++;
+    Time.frameCount++;
+    p.Index();
+}
+doors._navMeshDoorLinks.Add(near);
+Reindex();
+Check(p.FindExit("Reserve-front") == near.Door, "duplicate links to one door preserve its identity");
+doors._navMeshDoorLinks.Add(new() { Door = new() { Id = "Reserve-front" } });
+Reindex();
+Check(p.FindExit("Reserve-front") == null, "two different doors sharing an ID are ambiguous");
+doors._navMeshDoorLinks = [near];
+Reindex();
+Check(p.FindExit("Reserve-front") == near.Door && p.FindExit("bad-tactical-geometry") == null,
+    "replacing the streamed door list drops abandoned IDs and cached ambiguity");
 p.ResetIndex();
+Check(p.FindExit("Reserve-front") == null, "raid cleanup releases the lookup");
 UnityEngine.Object.Found = null;
 Time.time = 20;
 Time.frameCount++;

@@ -92,10 +92,18 @@ internal static class SiegeHarness
                 "late-registry",
                 "replaced-building",
                 "static-exit",
+                "reserve-four-exits",
+                "reserve-mixed",
+                "reserve-missing-watcher",
+                "reserve-blocked-passage",
+                "reserve-late-door",
+                "reserve-lost-door",
+                "doorless-building",
             }
         )
         {
-            Time.time = 100;
+            bool reserve = mode.StartsWith("reserve-", StringComparison.Ordinal);
+            Time.time = reserve ? 271.3f : 100;
             var p = new Plugin();
             var inside = new SpatialAudioRoom
             {
@@ -130,10 +138,10 @@ internal static class SiegeHarness
                 group.AudioRooms.Add(inner);
                 storage._validSpatialAudioRooms.Add(inner);
             }
-            Connect(inside, outside, "front", -3);
+            var first = Connect(inside, outside, "front", -3);
             var second = Connect(inner, outside, mode == "duplicate-door" ? "front" : "back", 3);
-            p.world!.Doors["front"] = new Door { Id = "front" };
-            p.world.Doors["back"] = new Door { Id = "back" };
+            p.localDoorIds.Add(new Door { Id = "front" });
+            p.localDoorIds.Add(new Door { Id = "back" });
             if (mode == "missing-link")
                 second.BackRoom = null!;
             if (mode == "one-way-link")
@@ -149,13 +157,43 @@ internal static class SiegeHarness
                 outside.Colliders[0].size = new(100, 15, 10);
                 outside.Colliders[0].transform.position.z = 9;
             }
+            if (reserve || mode == "doorless-building")
+            {
+                outside.Colliders[0].size = new(100, 15, 10);
+                outside.Colliders[0].transform.position.z = 9;
+                if (mode == "doorless-building")
+                {
+                    first.DoorID = second.DoorID = "";
+                    first.ID = 1;
+                    second.ID = 2;
+                    first.portalCollider.transform.position.z = second.portalCollider.transform.position.z = 4;
+                    p.LocalDoorsComplete = false;
+                }
+                else
+                {
+                    // Representative geometry: the Reserve recording contains no exit inventory.
+                    var passage = Connect(inside, outside, "", 1.5f);
+                    passage.ID = 77;
+                    passage.portalCollider.transform.position.z = mode == "reserve-blocked-passage" ? 15 : 4;
+                }
+                if (mode == "reserve-four-exits")
+                {
+                    Connect(inside, outside, "service", -1.5f);
+                    p.localDoorIds.Add(new Door { Id = "service" });
+                }
+            }
             var a = new BotComponent();
             var b = new BotComponent();
             var c = new BotComponent();
             var bots =
                 mode == "solo" ? new[] { a }
-                : mode is "third-free" or "split-targets" ? new[] { a, b, c }
+                : reserve || mode is "third-free" or "split-targets" ? new[] { a, b, c }
                 : new[] { a, b };
+            if (reserve)
+            {
+                a.ProfileId = a.Player.ProfileId = a.BotOwner.ProfileId = "6b0a98f7bd99ac3e54d3583b";
+                b.ProfileId = b.Player.ProfileId = b.BotOwner.ProfileId = "6b0a98f7bd99ac3e54d35a35";
+            }
             var members = bots.ToDictionary(bot => bot.ProfileId);
             for (int i = 0; i < bots.Length; i++)
             {
@@ -166,6 +204,8 @@ internal static class SiegeHarness
                 bot.Position = new(i == 0 ? -3 : 3, 0, 8);
                 bot.Transform.EyePosition = bot.Position + Vector3.up;
                 var enemy = bot.GoalEnemy!;
+                if (reserve)
+                    enemy.EnemyProfileId = "6b0a98f7bd99ac3e54d35473"; // DY-77-- on Reserve
                 enemy.EnemyPlayer.IsAI = mode != "remote";
                 enemy.KnownPlaces.LastKnownPosition = new(0, 0, 0);
                 enemy.EnemyPosition = new(80, 0, 30); // Hidden true position must have no effect.
@@ -176,12 +216,14 @@ internal static class SiegeHarness
             if (mode == "shared")
                 a.GoalEnemy!.KnownPlaces.LastSquadSeenPlace = new(new(), 99);
             else if (mode != "heard-only")
-                a.GoalEnemy!.KnownPlaces.LastSeenPlace = new(new(), 99);
+                a.GoalEnemy!.KnownPlaces.LastSeenPlace = new(new(), Time.time - 1);
             if (mode == "newer-outside")
                 b.GoalEnemy!.KnownPlaces.LastSeenPlace = new(new(30, 0, 0), 100);
             p.config!.SecondaryEntrance.Siege = mode != "disabled";
             if (mode == "indoor")
                 b.Player.Environment = EFT.EnvironmentType.Indoor;
+            if (mode == "reserve-missing-watcher")
+                c.Player.Environment = EFT.EnvironmentType.Indoor;
             if (mode == "ghost")
                 p.Ghosts.Add(b.ProfileId);
             if (mode == "replica")
@@ -213,6 +255,25 @@ internal static class SiegeHarness
                 group.AudioRooms = [.. group.AudioRooms];
                 Time.time += (float)p.config!.Crossfire.Interval + .01f;
             }
+            if (mode == "reserve-late-door")
+            {
+                // Use the three observed probe times. Each new sighting permits another evaluation.
+                second.DoorID = "unmapped-fixture";
+                p.LocalDoorsComplete = false;
+                Check(!p.TestSiege(a) && p.states[a].Crossfire.GateKey == "siege-door-index-pending",
+                    "04:31.3 / 91-XM_: pending local index leaves everyone free");
+                Time.time = 280.3f;
+                a.GoalEnemy!.KnownPlaces.LastSeenPlace = new(new(), Time.time);
+                p.LocalDoorsComplete = true;
+                Check(!p.TestSiege(b) && p.states[b].Crossfire.GateKey == "siege-unresolved-exit-door",
+                    "04:40.3 / China-LEIBABA: missing named exit prevents partial siege");
+                Check(p.diagnostics!.Lines.Any(line => line.Contains("unmapped-fixture")
+                    && line.Contains(a.GoalEnemy.EnemyProfileId)), "refusal identifies target and unknown door");
+                Time.time = 286.6f;
+                a.GoalEnemy.KnownPlaces.LastSeenPlace = new(new(), Time.time);
+                p.localDoorIds.Add(new Door { Id = second.DoorID });
+                Check(p.TestSiege(b), "04:46.6: resolved index invalidates the cached refusal");
+            }
             bool expected =
                 mode
                 is not (
@@ -228,17 +289,36 @@ internal static class SiegeHarness
                     or "ghost"
                     or "replica"
                     or "newer-outside"
+                    or "reserve-missing-watcher"
+                    or "reserve-four-exits"
+                    or "reserve-blocked-passage"
                 );
             Check(p.TestSiege(a) == expected, mode + " selection");
             if (!expected)
             {
-                Check(p.states[a].Siege == null, mode + " no partial plan");
+                Check(p.states.Values.All(state => state.Siege == null), mode + " no partial plan");
+                if (reserve)
+                {
+                    string reason = mode switch
+                    {
+                        "reserve-four-exits" => "siege-too-few-members",
+                        "reserve-blocked-passage" => "siege-unverified-exterior-portal",
+                        _ => "siege-too-few-available-watchers",
+                    };
+                    Check(p.states[a].Crossfire.GateKey == reason, mode + " refusal reason");
+                }
                 continue;
             }
             Check(
                 p.TestSiege(b) && p.states[a].SiegeExit!.Id != p.states[b].SiegeExit!.Id,
                 mode + " distinct assignments"
             );
+            if (reserve)
+            {
+                Check(p.TestSiege(c) && p.states.Values.Count(s => s.SiegeExit?.Id == "portal-77") == 1
+                    && p.states.Values.Select(s => s.SiegeExit?.Id).Distinct().Count() == 3,
+                    "two doors and an open passage each require their own watcher");
+            }
             if (mode == "full")
             {
                 a.Decision.CurrentCombatDecision = ECombatDecision.Freeze;
@@ -273,6 +353,9 @@ internal static class SiegeHarness
             Time.time++;
             switch (mode)
             {
+                case "reserve-lost-door":
+                    p.localDoorIds.Add(new Door { Id = "front" });
+                    break;
                 case "moved":
                     b.Position.x += 2;
                     break;
@@ -307,7 +390,7 @@ internal static class SiegeHarness
                     continue;
             }
             p.TickSiege(a);
-            Check(p.states[a].Siege == null && p.states[b].Siege == null, mode + " releases both");
+            Check(p.states.Values.All(state => state.Siege == null), mode + " releases every watcher");
             if (mode == "expired")
             {
                 Time.time++;

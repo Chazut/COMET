@@ -571,9 +571,13 @@ confirm movement. The mover and arrival have separate diagnostic evidence.
 
 S11 adds a collective watch to COMET. S02 still follows its original secondary
 access decision. S11 uses the squad's latest SAIN visual contact inside an EFT
-room and the map's connected indoor rooms. Exterior door IDs refer to physical
-doors. Open passages require a direct NavMesh crossing between the two room
-volumes. An unresolved exterior portal makes the building ineligible.
+room and the map's connected indoor rooms. Named exterior doors resolve by exact
+ID in COMET's local navigation-link index. A missing or ambiguous ID prevents a
+siege and a refreshed index allows a retry. An exterior passage without a door
+counts as an exit when the NavMesh crosses directly between the two room volumes.
+Every mapped exit requires its own watcher. Detailed diagnostics record the
+contact and the reason when the squad cannot cover the building. The room graph
+does not describe openings the map author omitted.
 
 At least two different exits must be visible from different available members'
 current outdoor positions. Only assigned members request native Freeze and look

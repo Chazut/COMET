@@ -525,7 +525,13 @@ static class Audit
             if (!Calls(target).Any(m => m.DeclaringType?.Name == "PerformanceCapture" && m.Name == "Enter"))
                 throw new Exception("Missing siege performance scope for " + target);
         }
-        Console.WriteLine("S11 real-DLL audit passed for the EFT room registry and all three performance scopes.");
+        var reader = client.GetType("Comet.Client.SiegeBuilding", true)!.GetMethod("Read", fields | BindingFlags.Static)!;
+        var exitChecks = Calls(reader).ToArray();
+        if (exitChecks.Any(m => m.Name == "FindDoor" && m.DeclaringType == typeof(EFT.GameWorld))
+            || !exitChecks.Any(m => m.Name == "Find" && m.DeclaringType?.Name == "LocalDoorLookup")
+            || !exitChecks.Any(m => m.Name == "WalkableOpening"))
+            throw new Exception("S11 must resolve named doors locally and validate doorless exterior passages.");
+        Console.WriteLine("S11 real-DLL audit passed for local doors, doorless passages, the EFT registry and performance scopes.");
     }
 
     // Read the shipped IL directly. Harmony's copier tries to prepare Unity methods

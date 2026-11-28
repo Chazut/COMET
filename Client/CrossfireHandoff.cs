@@ -208,20 +208,8 @@ public sealed partial class Plugin
         string feature = "S03"
     )
     {
-        if (!Comet.Core.ReplayCapture.Detailed)
+        if (!ShouldLogCrossfireGate(s, feature, reason, force, out var skipped))
             return;
-        var r = s.Crossfire;
-        if (!force && r.EligibilityLogAt.TryGetValue(feature, out var next) && Time.time < next)
-        {
-            r.EligibilitySkipped.TryGetValue(feature, out int count);
-            r.EligibilitySkipped[feature] = count + 1;
-            return;
-        }
-        r.EligibilitySkipped.TryGetValue(feature, out int skipped);
-        r.EligibilitySkipped[feature] = 0;
-        r.EligibilityLogAt[feature] = Time.time + 5;
-        r.GateKey = reason;
-        r.GateLogAt = Time.time + 5;
         // Eligibility is diagnostic evidence, not a claimed action on the RR map.
         diagnostics?.Write(
             Diagnostics.Serialize(
@@ -241,6 +229,26 @@ public sealed partial class Plugin
                 }
             )
         );
+    }
+
+    private bool ShouldLogCrossfireGate(BotState s, string feature, string reason, bool force, out int skipped)
+    {
+        skipped = 0;
+        if (!Comet.Core.ReplayCapture.Detailed)
+            return false;
+        var r = s.Crossfire;
+        if (!force && r.EligibilityLogAt.TryGetValue(feature, out var next) && Time.time < next)
+        {
+            r.EligibilitySkipped.TryGetValue(feature, out int count);
+            r.EligibilitySkipped[feature] = count + 1;
+            return false;
+        }
+        r.EligibilitySkipped.TryGetValue(feature, out skipped);
+        r.EligibilitySkipped[feature] = 0;
+        r.EligibilityLogAt[feature] = Time.time + 5;
+        r.GateKey = reason;
+        r.GateLogAt = Time.time + 5;
+        return true;
     }
 
     private bool DeclineSquad(BotState s, string feature, string reason)

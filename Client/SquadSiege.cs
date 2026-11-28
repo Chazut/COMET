@@ -46,7 +46,9 @@ public sealed partial class Plugin
 {
     private ConditionalWeakTable<object, SiegeSquad> siegeSquads = new();
     private readonly SiegeRoomCatalog siegeRooms = new();
-    private readonly Dictionary<SpatialAudioRoom, SiegeBuilding?> siegeBuildings = new();
+    private readonly Dictionary<SpatialAudioRoom, (SiegeBuilding? Building, string Reason, string? DoorId)> siegeBuildings = new();
+    private int siegeDoorRevision;
+    private bool siegeDoorsComplete;
 
     partial void ClearSieges()
     {
@@ -64,19 +66,35 @@ public sealed partial class Plugin
             siegeBuildings.Clear();
     }
 
-    private SiegeBuilding? SiegeMap(SpatialAudioRoom room, out string reason)
+    private SiegeBuilding? SiegeMap(SpatialAudioRoom room, out string reason, out string? doorId)
     {
+        bool complete = LocalDoorsComplete;
+        if (siegeDoorsComplete != complete || (complete && siegeDoorRevision != localDoorIds.Revision))
+        {
+            siegeBuildings.Clear();
+            siegeDoorRevision = localDoorIds.Revision;
+            siegeDoorsComplete = complete;
+        }
         if (siegeBuildings.TryGetValue(room, out var cached))
         {
-            reason = cached == null ? "unverified-exits" : "mapped";
-            return cached;
+            reason = cached.Reason;
+            doorId = cached.DoorId;
+            if (cached.Building != null)
+                foreach (var exit in cached.Building.Exits)
+                    if (!exit.IsResolved(localDoorIds, complete))
+                    {
+                        reason = "unresolved-exit-door";
+                        doorId = exit.Id;
+                        return null;
+                    }
+            return cached.Building;
         }
-        var building = SiegeBuilding.Read(room, world!, out reason);
+        var building = SiegeBuilding.Read(room, localDoorIds, complete, out reason, out doorId);
         if (building != null)
             foreach (var part in building.Rooms)
-                siegeBuildings[part] = building;
+                siegeBuildings[part] = (building, reason, null);
         else if (reason != "incomplete-room-graph")
-            siegeBuildings[room] = null;
+            siegeBuildings[room] = (null, reason, doorId);
         return building;
     }
 
@@ -213,14 +231,11 @@ public sealed partial class Plugin
             var room = observation.Room;
             if (room == null)
                 return false;
-            var building = SiegeMap(room, out string reason);
+            var building = SiegeMap(room, out string reason, out var doorId);
             if (building == null || building.Exits.Count > members.Count)
             {
-                RecordCrossfireGate(
-                    state,
-                    building == null ? "siege-" + reason : "siege-too-few-members",
-                    feature: "S11"
-                );
+                RecordSiegeGate(state, building == null ? "siege-" + reason : "siege-too-few-members",
+                    target.EnemyProfileId, building?.Exits.Count, members.Count, doorId: doorId);
                 return false;
             }
             var candidates = new List<BotState>();
@@ -243,7 +258,11 @@ public sealed partial class Plugin
                 candidates.Add(actor);
             }
             if (candidates.Count < building.Exits.Count)
+            {
+                RecordSiegeGate(state, "siege-too-few-available-watchers", target.EnemyProfileId,
+                    building.Exits.Count, members.Count, candidates.Count);
                 return false;
+            }
             var coverage = new bool[building.Exits.Count, candidates.Count];
             for (int e = 0; e < building.Exits.Count; e++)
             for (int m = 0; m < candidates.Count; m++)
@@ -253,7 +272,8 @@ public sealed partial class Plugin
             var watchers = SiegeCoverage.Assign(coverage);
             if (watchers == null)
             {
-                RecordCrossfireGate(state, "siege-incomplete-coverage", feature: "S11");
+                RecordSiegeGate(state, "siege-incomplete-coverage", target.EnemyProfileId,
+                    building.Exits.Count, members.Count, candidates.Count);
                 return false;
             }
             var leader = bot.Squad!.LeaderComponent;
@@ -306,6 +326,20 @@ public sealed partial class Plugin
         return true;
     }
 
+    private void RecordSiegeGate(BotState state, string reason, string target, int? exits, int members,
+        int? available = null, string? doorId = null)
+    {
+        if (!ShouldLogCrossfireGate(state, "S11", reason, false, out var skipped))
+            return;
+        diagnostics?.Write(Diagnostics.Serialize(new
+        {
+            schema = 1, session, sequence = ++sequence, feature = "S11", stage = "eligibility",
+            reason, skipped, realtime = Time.realtimeSinceStartup, profileId = state.ProfileId,
+            name = state.Name, botInstance = state.Id,
+            siegeAttempt = new { target, doorId, exits, members, available },
+        }));
+    }
+
     private bool ValidateSiege(SiegeSquad group, Dictionary<string, BotComponent> members)
     {
         if (Time.time >= group.Until)
@@ -329,6 +363,11 @@ public sealed partial class Plugin
         foreach (var watch in group.Watches)
         {
             var s = watch.State;
+            if (!watch.Exit.IsResolved(localDoorIds, LocalDoorsComplete))
+            {
+                EndSiege(group, "siege-exit-door-lost");
+                return false;
+            }
             if (
                 !members.TryGetValue(s.ProfileId, out var b)
                 || b == null

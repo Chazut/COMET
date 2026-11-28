@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Audio.SpatialSystem;
-using EFT;
 using EFT.Interactive;
 using UnityEngine;
 using UnityEngine.AI;
@@ -20,6 +19,9 @@ internal sealed class SiegeExit
         Center = center;
         Door = door;
     }
+
+    internal bool IsResolved(LocalDoorLookup lookup, bool complete) =>
+        Door is null || (complete && Door != null && lookup.Find(Id) == Door);
 
     internal bool VisibleFrom(Vector3 eye, double range)
     {
@@ -76,9 +78,11 @@ internal sealed class SiegeBuilding
         return false;
     }
 
-    internal static SiegeBuilding? Read(SpatialAudioRoom start, GameWorld world, out string reason)
+    internal static SiegeBuilding? Read(SpatialAudioRoom start, LocalDoorLookup lookup,
+        bool indexComplete, out string reason, out string? unresolvedDoorId)
     {
         reason = "incomplete-room-graph";
+        unresolvedDoorId = null;
         var building = new SiegeBuilding();
         var pending = new Queue<SpatialAudioRoom>();
         var portals = new HashSet<BaseSpatialAudioPortal>();
@@ -126,9 +130,13 @@ internal sealed class SiegeBuilding
                         && !string.IsNullOrEmpty(native.DoorID)
                     )
                     {
-                        door = world.FindDoor(native.DoorID) as Door;
+                        door = indexComplete ? lookup.Find(native.DoorID) : null;
                         if (door == null)
+                        {
+                            reason = indexComplete ? "unresolved-exit-door" : "door-index-pending";
+                            unresolvedDoorId = native.DoorID;
                             return null;
+                        }
                         if (!doors.Add(door))
                             continue;
                     }

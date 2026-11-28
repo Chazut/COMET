@@ -13,6 +13,11 @@ namespace Comet.Client;
 public sealed partial class Plugin
 {
     private readonly Dictionary<(int, int), List<NavMeshDoorLink>> localDoors = new();
+    private readonly LocalDoorLookup localDoorIds = new();
+    private List<NavMeshDoorLink>? indexedDoorLinks;
+    private bool LocalDoorsComplete => localDoorSource != null && indexedDoorLinks != null
+        && ReferenceEquals(indexedDoorLinks, localDoorSource._navMeshDoorLinks)
+        && localDoorCursor == indexedDoorLinks.Count;
     private BotDoorsController? localDoorSource;
     private int localDoorCursor;
     private float nextDoorDiscovery,
@@ -62,6 +67,13 @@ public sealed partial class Plugin
                 return;
         }
         var links = localDoorSource._navMeshDoorLinks;
+        if (!ReferenceEquals(links, indexedDoorLinks) || localDoorCursor > (links?.Count ?? 0))
+        {
+            localDoors.Clear();
+            localDoorIds.Clear();
+            localDoorCursor = 0;
+            indexedDoorLinks = links;
+        }
         if (
             links == null
             || localDoorCursor >= links.Count
@@ -76,6 +88,7 @@ public sealed partial class Plugin
                 var link = links[localDoorCursor++];
                 if (link == null || link.Door == null)
                     continue;
+                localDoorIds.Add(link.Door);
                 if (!TryDoorGeometry(new DoorDataStruct(link), out var geometry))
                     continue;
                 var cell = DoorCell(VP(geometry.Center));
@@ -165,8 +178,7 @@ public sealed partial class Plugin
                     localDoorRequests,
                     localDoorCandidates,
                     indexedDoorLinks = localDoorCursor,
-                    doorIndexComplete = localDoorSource != null
-                        && localDoorCursor >= (localDoorSource._navMeshDoorLinks?.Count ?? 0),
+                    doorIndexComplete = LocalDoorsComplete,
                 }
             )
         );
@@ -175,6 +187,8 @@ public sealed partial class Plugin
     private void ClearLocalDoors()
     {
         localDoors.Clear();
+        localDoorIds.Clear();
+        indexedDoorLinks = null;
         localDoorSource = null;
         localDoorCursor = 0;
         nextDoorDiscovery = nextProbeSummary = doorIndexRetryAt = 0;

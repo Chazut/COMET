@@ -142,9 +142,8 @@ namespace EFT
 {
     public class GameWorld
     {
-        public Dictionary<string, EFT.Interactive.Door> Doors = new();
-
-        public object? FindDoor(string id) => Doors.GetValueOrDefault(id);
+        // The Reserve raid had no native door registry on this GameWorld.
+        public object? FindDoor(string id) => throw new NullReferenceException("EFT.World missing");
     }
 }
 
@@ -230,6 +229,8 @@ namespace Comet.Client
 
     public sealed partial class Plugin
     {
+        internal readonly LocalDoorLookup localDoorIds = new();
+        internal bool LocalDoorsComplete = true;
         partial void ClearSieges();
 
         internal bool TestSiege(BotComponent b)

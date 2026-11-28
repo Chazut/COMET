@@ -10,5 +10,6 @@
     <Compile Include="../../Client/TacticalClearance.cs" Link="TacticalClearance.cs" />
     <Compile Include="../../Client/TacticalContact.cs" Link="TacticalContact.cs" />
     <Compile Include="../../Client/LocalDoorIndex.cs" Link="LocalDoorIndex.cs" />
+    <Compile Include="../../Client/LocalDoorLookup.cs" />
   </ItemGroup>
 </Project>
