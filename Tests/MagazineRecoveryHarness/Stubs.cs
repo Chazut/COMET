@@ -289,7 +289,21 @@ namespace SAIN.SAINComponent.Classes.Mover
         public bool Accept = true;
         public int Moves;
 
-        public bool WalkToPoint(Vector3 goal)
+        public class TestPath(Vector3[] points)
+        {
+            public Vector3[] corners = points;
+        }
+
+        public Vector3[]? Route;
+        public int Searches;
+        public bool CanGoToPoint(Vector3 goal, out TestPath path, bool complete)
+        {
+            Searches++;
+            path = new TestPath(Route ?? [new Vector3(0, 0, 0), goal]);
+            return Accept;
+        }
+
+        public bool WalkToPointByWay(TestPath path, bool complete)
         {
             Moves++;
             if (Accept)
@@ -376,6 +390,7 @@ namespace Comet.Client
     {
         public bool Enabled = true,
             RecoverDroppedMagazine = true;
+        public double MaxRecoveryDistance = 15;
     }
 
     public class Log
@@ -434,6 +449,9 @@ namespace Comet.Client
         private Writer? diagnostics = new();
         private bool subscriberWarned;
         private Log Logger = new();
+        private static double Length(Vector3[] corners) =>
+            corners.Zip(corners.Skip(1), Vector3.Distance).Sum();
+
         private static MethodInfo combatStopPath = typeof(BotPathDataManual).GetMethod("Stop")!;
 
         private bool Ghost(string id) => Sleeping;

@@ -166,31 +166,59 @@ static class SourceWeaponBaselineTests
         {
             var p = new QuickReloadPolicy();
             var c = new QuickReloadConfig();
+            // Reserve: measured load (including chamber), distance and pressure at the reload request.
+            // Use the recorded spare count as an upper bound on reachable, loaded spares.
+            foreach (var (bot, loaded, cap, distance, age, incoming, spares, quick) in new[]
+            {
+                ("91-XM_", 2, 16, 81.6, .04, false, 2, false),
+                ("DOUBLE2HEAD", 6, 21, 36.4, .28, false, 4, false),
+                ("DOUBLE2HEAD", 0, 21, 14.2, .03, false, 5, true),
+                ("DOUBLE2HEAD", 11, 21, 28.9, 1.51, false, 4, false),
+                ("Olsenchiks", 5, 21, 36.6, .13, false, 2, false),
+                ("Olsenchiks", 11, 21, 5.7, 3.99, true, 2, false),
+                ("o-Oyue", 2, 11, 23.3, .19, false, 3, true),
+            })
+                Check(p.Evaluate(new QuickReloadFrame { InFight = true, OldMagazine = "inserted",
+                    Loaded = loaded, Capacity = cap, Distance = distance, ContactAge = age,
+                    Incoming = incoming, SpareMagazines = spares }, c) == quick,
+                    "Reserve recorded drop: " + bot + " at " + distance + "m");
             var f = new QuickReloadFrame
             {
-                Now = 1,
-                InFight = true,
-                Urgent = true,
-                Capacity = 30,
-                Loaded = 29,
-                SpareMagazines = 2,
-                Protected = true,
+                Now = 1, InFight = true, Visible = true, OldMagazine = "inserted",
+                Distance = 28.9, Capacity = 21, Loaded = 11, SpareMagazines = 2,
             };
-            Check(p.Evaluate(f, c), "source urgent reload may drop nearly full magazine in cover");
+            Check(!p.Evaluate(f, c), "DOUBLE2HEAD keeps the half-full magazine");
+            f.Incoming = true;
+            Check(!p.Evaluate(f, c), "Olsenchiks keeps a half-full magazine even under fire");
+            f.Incoming = false;
+            f.Distance = 81.6;
+            f.Loaded = 2;
+            Check(!p.Evaluate(f, c), "91-XM_ uses a normal reload at distant visual contact");
+            f.Distance = 14.2;
+            f.Loaded = 0;
+            Check(p.Evaluate(f, c), "DOUBLE2HEAD can still drop an empty magazine in close contact");
+            f.Visible = false;
+            f.ContactAge = c.ContactMemory;
+            Check(!p.Evaluate(f, c), "stale contact keeps the magazine");
+            f.ContactAge = c.ContactMemory - .01;
+            Check(p.Evaluate(f, c), "recent close contact still qualifies");
+            f.Distance = c.ThreatDistance;
+            Check(!p.Evaluate(f, c), "recent sighting at the range limit is not immediate pressure");
+            f.Incoming = true;
+            f.Capacity = 30;
+            f.Loaded = 9;
+            Check(p.Evaluate(f, c), "incoming fire qualifies at the configured ammo limit");
+            f.Loaded++;
+            Check(!p.Evaluate(f, c), "above the ammo limit always keeps the magazine");
+            f.Loaded = 0;
             f.SpareMagazines = 1;
             Check(!p.Evaluate(f, c), "keep last spare");
             f.SpareMagazines = 2;
-            f.Urgent = false;
-            f.Loaded = 9;
-            Check(!p.Evaluate(f, c), "nonurgent thirty percent keeps magazine");
-            f.Loaded = 8;
-            Check(p.Evaluate(f, c), "nonurgent low magazine still quick reloads in fight");
             f.InFight = false;
             Check(!p.Evaluate(f, c), "outside fight normal reload");
             f.InFight = true;
-            f.Loaded = 30;
-            f.UtilityReload = false;
-            Check(p.Evaluate(f, c), "disabled utility skips urgency conservation rule");
+            f.OldMagazine = "";
+            Check(!p.Evaluate(f, c), "inserting a magazine into a bare weapon never requests a drop");
         }
         if (area == "W05")
         {

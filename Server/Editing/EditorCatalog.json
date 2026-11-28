@@ -254,7 +254,7 @@
     },
     "QuickReload": {
       "Title": "Emergency fast reload - W04",
-      "Description": "Under immediate pressure, PMCs with low ammo can drop their magazine for a native fast reload. The dropped magazine and its remaining rounds stay in the world. Only accessible, compatible, loaded spares count. The replacement counts towards the minimum, so a minimum of two leaves at least one spare. It must contain more rounds than the current magazine. Protective cover favors a normal reload unless the PMC is taking fire. W01 chooses when to reload and W02 can choose the pistol first. Native animation speed is unchanged. The event stream for Raid Review and Satellite distinguishes the request, animation, actual magazine drop and completion.",
+      "Description": "Under immediate pressure, PMCs with low ammo can drop their magazine for a native fast reload. The dropped magazine and its remaining rounds stay in the world. Only accessible, compatible, loaded spares count. The replacement counts towards the minimum, so a minimum of two leaves at least one spare. It must contain more rounds than the current magazine. A quick reload needs incoming fire or a nearby visible or recently seen threat, even when W01 is off. W01 chooses when to reload and W02 can choose the pistol first. Native animation speed is unchanged. The event stream for Raid Review and Satellite distinguishes the request, animation, actual magazine drop and completion.",
       "Category": "Weapons & lights",
       "Summary": "Under immediate pressure, PMCs with low ammo can drop their magazine for a native fast reload."
     },
@@ -3662,6 +3662,16 @@
       "Scale": 1,
       "Section": "QuickReload",
       "Simple": false
+    },
+    "QuickReload.MaxRecoveryDistance": {
+      "Label": "Maximum magazine recovery distance",
+      "Help": "After combat, leave the magazine behind if it is farther away or the walk around obstacles exceeds this distance.",
+      "Min": 1.5,
+      "Max": 60.0,
+      "Scale": 1,
+      "Section": "QuickReload",
+      "Simple": false,
+      "Unit": "m"
     },
     "QuickReload.MaxAmmoPercent": {
       "Label": "Ammo remaining at most",

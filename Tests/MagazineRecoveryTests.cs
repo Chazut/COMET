@@ -71,6 +71,9 @@ static class MagazineRecoveryTests
                 .RecoverDroppedMagazine,
             "older saved settings enable recovery without a migration"
         );
+        Check(System.Text.Json.JsonSerializer.Deserialize<QuickReloadConfig>("{}")!.MaxRecoveryDistance == 15
+            && Comet.Server.Editing.EditorCatalog.Read().Fields.ContainsKey("QuickReload.MaxRecoveryDistance"),
+            "existing presets get a 15 m recovery limit editable in the web config");
         Console.WriteLine($"Magazine recovery policy: {checks} checks passed.");
         return checks;
     }

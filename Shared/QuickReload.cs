@@ -6,6 +6,7 @@ public sealed class QuickReloadConfig
 {
     public bool Enabled { get; set; } = true;
     public bool RecoverDroppedMagazine { get; set; } = true;
+    public double MaxRecoveryDistance { get; set; } = 15;
     public double MaxAmmoPercent { get; set; } = 30;
     public double ThreatDistance { get; set; } = 35;
     public double ContactMemory { get; set; } = 3;
@@ -15,6 +16,7 @@ public sealed class QuickReloadConfig
 
     public void Validate()
     {
+        CometConfig.Range(MaxRecoveryDistance, 1.5, 60, nameof(MaxRecoveryDistance));
         CometConfig.Range(MaxAmmoPercent, 0, 50, nameof(MaxAmmoPercent));
         CometConfig.Range(ThreatDistance, 5, 60, nameof(ThreatDistance));
         CometConfig.Range(ContactMemory, .5, 5, nameof(ContactMemory));
@@ -44,8 +46,7 @@ public sealed class QuickReloadFrame
         Incoming,
         Protected,
         InFight,
-        Urgent,
-        UtilityReload = true;
+        Visible;
 }
 
 public sealed class QuickReloadTrace
@@ -122,10 +123,10 @@ public sealed class QuickReloadPolicy
         string reason =
             !c.Enabled ? "quick-disabled"
             : !f.InFight ? "quick-not-in-fight"
-            : !f.Urgent
-            && f.UtilityReload
-            && f.Capacity > 0
-            && f.Loaded * 100.0 / f.Capacity >= c.MaxAmmoPercent
+            : f.OldMagazine.Length == 0 ? "quick-no-magazine-to-drop"
+            : !f.Incoming && !(f.Distance >= 0 && f.Distance < c.ThreatDistance
+                && (f.Visible || f.ContactAge < c.ContactMemory)) ? "quick-no-close-pressure"
+            : f.Capacity <= 0 || f.Loaded * 100.0 > c.MaxAmmoPercent * f.Capacity
                 ? "quick-preserve-loaded-magazine"
             : f.SpareMagazines < c.MinimumSpareMagazines ? "quick-preserve-spare-magazines"
             : "quick-urgent-low-ammo";

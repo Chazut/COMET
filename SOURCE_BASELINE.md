@@ -28,6 +28,17 @@ walking and 30 m for sprinting. Equipment, weather, occlusion and floors can
 shorten them. SAIN still handles hostility, deafening, delay, dispersion and the
 reaction. Disabling the override restores the original emission and hearing path.
 
+### Emergency reloads and local magazine recovery
+
+On Reserve, seven magazines were dropped. DOUBLE2HEAD and Olsenchiks each
+discarded a magazine with 10 of its 20 rounds, and 91-XM_ discarded a magazine
+at 81.6 m without incoming fire. The fork accepts any visible enemy as urgent
+and only checks remaining ammo for nonurgent reloads with reload utility enabled.
+W04 now requires both low ammo and immediate pressure. Only loaded, reachable
+spares that fit and feed the weapon count. Other reloads follow the native path.
+Recovery uses a 15 m default limit for both direct distance and walking distance.
+A longer detour or a drop left behind after combat releases that queue entry.
+
 ### Magazine exchanges without an ammo gain
 
 In the November 24 raid, Nezys dropped a magazine with 22 rounds for one with 10.

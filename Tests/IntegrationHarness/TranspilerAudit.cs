@@ -26,8 +26,9 @@ static class TranspilerAudit
         {
             var frame = typeof(Comet.Client.Plugin).GetMethod("QuickReloadFrameFor", BindingFlags.Instance | BindingFlags.NonPublic)!;
             var calls = Read(frame).Select(i => i.operand).OfType<MethodBase>().ToArray();
-            if (!calls.Any(m => m.Name == "CanAccept") || calls.Any(m => m.Name == "IsAmmoCompatible"))
-                throw new Exception("Quick reload spares must count mountable magazines irrespective of their cartridges.");
+            if (!calls.Any(m => m.Name == "ReadMagazines") || !calls.Any(m => m.Name == "CanAccept")
+                || !calls.Any(m => m.Name == "IsAmmoCompatible") || calls.Any(m => m.Name == "GetAllItems"))
+                throw new Exception("Quick reload spares must be reachable, feed the weapon and fit the magazine slot.");
         }
     }
 

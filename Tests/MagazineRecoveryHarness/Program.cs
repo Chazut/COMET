@@ -44,6 +44,32 @@ namespace Comet.Client
                 RunMagazineRecovery(b.BotOwner, true);
             }
             var (p, b, s, loot) = Setup();
+            loot.transform.position = new(15.1f, 0, 0);
+            var nearby = new LootItem("nearby");
+            p.RememberDroppedMagazine(s, nearby);
+            Check(!MagazineRecoveryActive(b.BotOwner) && s.MagazineRecovery.Pending.Id == "nearby"
+                && b.Mover.Searches == 0, "discard only the distant entry without a path search");
+            Check(MagazineRecoveryActive(b.BotOwner), "next nearby entry is still eligible");
+            (p, b, s, loot) = Setup();
+            loot.transform.position = new(15, 0, 0);
+            RunMagazineRecovery(b.BotOwner, true);
+            Check(b.Mover.Moves == 1, "the configured limit includes its exact boundary");
+            Time.time = 1;
+            RunMagazineRecovery(b.BotOwner, true);
+            Check(b.Mover.Searches == 1, "reuse the accepted path on the next movement tick");
+            loot.transform.position = new(16, 0, 0);
+            var abandoned = (BotPathDataManual)b.Mover.ActivePath!;
+            Check(!MagazineRecoveryActive(b.BotOwner) && abandoned.Stops == 1
+                && s.MagazineRecovery.Pending.Count == 0, "out-of-range active route is released");
+            (p, b, s, loot) = Setup();
+            loot.transform.position = new(3, 0, 0);
+            b.Mover.Route = [new(0, 0, 0), new(0, 0, 10), new(3, 0, 0)];
+            RunMagazineRecovery(b.BotOwner, true);
+            Check(b.Mover.Moves == 0 && s.MagazineRecovery.Pending.Count == 0
+                && !Api.Decisions.Events.Any(e => e.Contains("\"stage\":\"started\""))
+                && Api.Decisions.Events.Any(e => e.Contains("route exceeds")),
+                "reject a long detour to a nearby magazine before movement");
+            (p, b, s, loot) = Setup();
             b.Danger = true;
             Check(!MagazineRecoveryActive(b.BotOwner), "no recovery under fire");
             b.Danger = false;

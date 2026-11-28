@@ -248,29 +248,18 @@ public sealed partial class Plugin
             ReplacementRounds = replacement.Count,
             Target = e?.EnemyProfileId ?? "",
             Distance = e?.RealDistance ?? 0,
-            ContactAge = e?.TimeSinceSeen ?? 999,
+            ContactAge = e?.Seen == true ? e.TimeSinceSeen : 999,
             InFight = underFire || e != null && e.Seen && e.TimeSinceSeen < 10,
-            Urgent =
-                underFire
-                || e != null
-                    && (
-                        e.IsVisible
-                        || e.Seen
-                            && e.TimeSinceSeen < config!.QuickReload.ContactMemory
-                            && e.RealDistance < config.QuickReload.ThreatDistance
-                    ),
+            Visible = e?.IsVisible == true,
             Incoming = underFire,
-            UtilityReload = config!.ReloadTiming.Enabled,
         };
         var slot = w.GetMagazineSlot();
-        var equipment = b.Player.Inventory?.Equipment;
-        if (slot != null && equipment != null)
-            foreach (var item in equipment.GetAllItems())
-                if (
-                    item is Magazine m
-                    && !ReferenceEquals(m, old)
-                    && slot.CanAccept(m)
-                )
+        var spares = s.QuickReload.Magazines;
+        var inventory = b.Player.InventoryController;
+        if (slot != null && ReloadInventory.ReadMagazines(inventory, spares))
+            foreach (var m in spares)
+                if (!ReferenceEquals(m, old) && m.Count > 0 && m.IsAmmoCompatible(w.Chambers)
+                    && slot.CanAccept(m))
                     f.SpareMagazines++;
         return f;
     }

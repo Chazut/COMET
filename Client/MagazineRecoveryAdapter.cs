@@ -18,6 +18,7 @@ internal sealed class MagazineRecoveryRuntime
 {
     internal readonly MagazineRecovery<LootItem> Pending = new();
     internal IBotPathData? Path;
+    internal Vector3 RouteGoal;
     internal Task<IResult>? Transaction;
     internal bool Active,
         Arrived,
@@ -126,6 +127,11 @@ public sealed partial class Plugin
             FinishMagazineRecovery(s, "unavailable", "discarded magazine no longer in world");
             return false;
         }
+        if (Vector3.Distance(b.Position, item.transform.position) > config!.QuickReload.MaxRecoveryDistance)
+        {
+            FinishMagazineRecovery(s, "failed", "magazine beyond recovery distance");
+            return false;
+        }
         return true;
     }
 
@@ -202,40 +208,62 @@ public sealed partial class Plugin
         var loot = r.Pending.Item!;
         var goal = loot.transform.position;
         float distance = Vector3.Distance(b.Position, goal);
-        if (!r.Active)
-        {
-            r.Active = true;
-            r.ProgressAt = Time.time;
-            r.BestDistance = distance;
-            r.NextMove = 0;
-            b.BotOwner.PatrollingData.Pause();
-            RecordMagazineRecovery(s, "started", "returning for discarded magazine");
-        }
-        if (distance < r.BestDistance - .2f)
+        if (r.Active && distance < r.BestDistance - .2f)
         {
             r.BestDistance = distance;
             r.ProgressAt = Time.time;
         }
-        if (Time.time - r.ProgressAt > 20 && !r.Picking)
+        if (r.Active && Time.time - r.ProgressAt > 20 && !r.Picking)
         {
             FinishMagazineRecovery(s, "failed", "no movement progress toward magazine");
             return;
         }
         if (distance > 1.5f)
         {
-            if (Time.time < r.NextMove)
+            if (r.Active && Time.time < r.NextMove)
                 return;
             r.NextMove = Time.time + 1;
-            if (!b.Mover.WalkToPoint(goal))
+            if (r.Path != null && ReferenceEquals(b.Mover.ActivePath, r.Path)
+                && Vector3.Distance(goal, r.RouteGoal) < .2f && Time.time - r.ProgressAt < 2)
+                return;
+            if (!b.Mover.CanGoToPoint(goal, out var route, true))
+            {
+                FinishMagazineRecovery(s, "failed", "no complete route to magazine");
+                return;
+            }
+            var corners = route.corners;
+            if (corners.Length < 2)
+            {
+                FinishMagazineRecovery(s, "failed", "no route to magazine");
+                return;
+            }
+            double distanceToWalk = Vector3.Distance(b.Position, corners[0]) + Length(corners)
+                + Vector3.Distance(corners[corners.Length - 1], goal);
+            if (distanceToWalk > config!.QuickReload.MaxRecoveryDistance)
+            {
+                FinishMagazineRecovery(s, "failed", "route exceeds magazine recovery distance");
+                return;
+            }
+            if (!b.Mover.WalkToPointByWay(route, true))
             {
                 FinishMagazineRecovery(s, "failed", "native movement declined");
                 return;
             }
             r.Path = b.Mover.ActivePath;
+            r.RouteGoal = goal;
             b.Mover.SetTargetMoveSpeed(.8f);
             b.Mover.SetTargetPose(1f);
-            return;
         }
+        if (!r.Active)
+        {
+            r.Active = true;
+            r.ProgressAt = Time.time;
+            r.BestDistance = distance;
+            b.BotOwner.PatrollingData.Pause();
+            RecordMagazineRecovery(s, "started", "returning for discarded magazine");
+        }
+        if (distance > 1.5f)
+            return;
         StopMagazineRoute(b, r);
         if (b.Mover.ActivePath == null)
             b.Player.Move(Vector2.zero);
